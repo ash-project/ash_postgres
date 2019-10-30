@@ -4,6 +4,8 @@ defmodule AshEcto.DataLayer do
       @behaviour Ash.DataLayer
       # TODOs: It might be weird that they have to provide their own repo?
 
+      require AshEcto.Schema
+
       unless opts[:repo] do
         raise "You must configure your own repo"
       end
