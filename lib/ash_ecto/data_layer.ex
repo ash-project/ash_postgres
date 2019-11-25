@@ -20,26 +20,6 @@ defmodule AshEcto.DataLayer do
 
       import Ecto.Query, only: [from: 2]
 
-      #####
-
-      @impl true
-      def list(resource, list_request) do
-        # TODO: finish me
-        nil
-      end
-
-      @impl true
-      def get(resource, %{id: id}) do
-        query =
-          from(row in resource,
-            where: row.id == ^id
-          )
-
-        {:ok, @repo.one(query)}
-      end
-
-      #####
-
       @impl true
       def relationship_query(record, %{name: name}) do
         {:ok, Ecto.assoc(record, name)}
@@ -83,6 +63,7 @@ defmodule AshEcto.DataLayer do
       end
 
       @impl true
+      # TODO This is a really dumb implementation of this.
       def filter(query, key, value, _central_resource) do
         query =
           from(row in query,
