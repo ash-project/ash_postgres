@@ -48,8 +48,32 @@ defmodule AshEcto do
   def resource_to_query(resource), do: Ecto.Queryable.to_query(resource)
 
   @impl true
-  def filter(_query, :from_related, {_records, %{cardinality: :many_to_many}}, _resource) do
-    raise "Not implemented yet!"
+  def filter(query, :from_related, {records, relationship_name}, resource)
+      when is_atom(relationship_name) do
+    filter(
+      query,
+      :from_related,
+      {records, Ash.relationship(resource, relationship_name)},
+      resource
+    )
+  end
+
+  def filter(
+        query,
+        :from_related,
+        {records, %{cardinality: :many_to_many} = relationship},
+        _resource
+      ) do
+    ids = Enum.map(records, &Map.get(&1, relationship.source_field))
+
+    from(row in query,
+      join: join_row in ^relationship.through,
+      on:
+        field(join_row, ^relationship.destination_field_on_join_table) ==
+          field(row, ^relationship.destination_field),
+      where: field(join_row, ^relationship.source_field_on_join_table) in ^ids,
+      select_merge: %{__related_id__: field(join_row, ^relationship.source_field_on_join_table)}
+    )
   end
 
   def filter(query, :from_related, {records, relationship}, _resource) do
@@ -62,10 +86,34 @@ defmodule AshEcto do
   end
 
   # TODO This is a really dumb implementation of this.
-  def filter(query, key, value, _central_resource) do
+  def filter(query, key, value, resource) do
+    cond do
+      attr = Ash.attribute(resource, key) ->
+        filter_attribute(query, attr, value, resource)
+
+      rel = Ash.relationship(resource, key) ->
+        filter_relationship(query, rel, value, resource)
+
+      true ->
+        {:error, "No such filter"}
+    end
+  end
+
+  defp filter_attribute(query, attribute, value, _resource) do
     query =
       from(row in query,
-        where: field(row, ^key) == ^value
+        where: field(row, ^attribute.name) == ^value
+      )
+
+    {:ok, query}
+  end
+
+  # Only supports a single id for now
+  defp filter_relationship(query, %{name: name}, id, _resource) do
+    query =
+      from(row in query,
+        join: related in assoc(row, ^name),
+        where: related.id == ^id
       )
 
     {:ok, query}

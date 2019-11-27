@@ -488,7 +488,6 @@ defmodule AshEcto.DataLayer do
   #       where: field(join_row, ^destination_field_on_join_table) not in ^ids,
   #       where: field(join_row, ^source_field_on_join_table) == ^source_id
   #     )
-  #     |> IO.inspect()
 
   #   repo.delete_all(query)
   # end
