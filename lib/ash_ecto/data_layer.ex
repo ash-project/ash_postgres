@@ -17,38 +17,6 @@ defmodule AshEcto.DataLayer do
       end
 
       @repo opts[:repo]
-      # @impl true
-      # def create(resource, _action, attributes, relationships, _params) do
-      #   @repo.transaction(fn ->
-      #     changeset =
-      #       resource
-      #       |> struct()
-      #       |> Ecto.Changeset.cast(attributes, Map.keys(attributes))
-      #       |> AshEcto.DataLayer.cast_assocs(@repo, resource, relationships)
-
-      #     result =
-      #       case @repo.insert(changeset) do
-      #         {:ok, result} -> result
-      #         {:error, changeset} -> @repo.rollback(changeset)
-      #       end
-
-      #     case changeset do
-      #       %{__after_action__: [_ | _] = after_action_hooks} ->
-      #         Enum.each(after_action_hooks, fn hook ->
-      #           case hook.(changeset, result, @repo) do
-      #             :ok -> :ok
-      #             {:error, error} -> @repo.rollback(error)
-      #             :error -> @repo.rollback(:error)
-      #           end
-      #         end)
-
-      #         result
-
-      #       _ ->
-      #         result
-      #     end
-      #   end)
-      # end
 
       # @impl true
       # def update(%resource{} = record, _action, attributes, relationships, _params) do

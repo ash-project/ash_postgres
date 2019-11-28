@@ -48,6 +48,47 @@ defmodule AshEcto do
   def resource_to_query(resource), do: Ecto.Queryable.to_query(resource)
 
   @impl true
+  def create(_resource, _attributes, relationships) when relationships != %{} do
+    {:error, "Ash ecto does not currently support creating with relationships"}
+  end
+
+  def create(resource, attributes, _relationships) do
+    # TODO: validation should happen before this step
+    repo = repo(resource)
+
+    repo.transaction(fn ->
+      changeset =
+        resource
+        |> struct()
+        |> Ecto.Changeset.cast(attributes, Map.keys(attributes))
+
+      # |> AshEcto.DataLayer.cast_assocs(repo, resource, relationships)
+
+      # result =
+      case repo.insert(changeset) do
+        {:ok, result} -> result
+        {:error, changeset} -> repo.rollback(changeset)
+      end
+
+      # case changeset do
+      #   %{__after_action__: [_ | _] = after_action_hooks} ->
+      #     Enum.each(after_action_hooks, fn hook ->
+      #       case hook.(changeset, result, @repo) do
+      #         :ok -> :ok
+      #         {:error, error} -> @repo.rollback(error)
+      #         :error -> @repo.rollback(:error)
+      #       end
+      #     end)
+
+      #     result
+
+      #   _ ->
+      #     result
+      # end
+    end)
+  end
+
+  @impl true
   def filter(query, :from_related, {records, relationship_name}, resource)
       when is_atom(relationship_name) do
     filter(
