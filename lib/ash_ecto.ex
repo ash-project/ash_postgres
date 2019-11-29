@@ -89,35 +89,36 @@ defmodule AshEcto do
   end
 
   @impl true
-  def filter(query, :from_related, {records, relationship_name}, resource)
-      when is_atom(relationship_name) do
-    filter(
-      query,
-      :from_related,
-      {records, Ash.relationship(resource, relationship_name)},
-      resource
-    )
+  def filter(query, filter, resource) do
+    Enum.reduce(filter, {:ok, query}, fn
+      _, {:error, error} ->
+        {:error, error}
+
+      {key, value}, {:ok, query} ->
+        do_filter(query, key, value, resource)
+    end)
   end
 
-  def filter(
-        query,
-        :from_related,
-        {records, %{cardinality: :many_to_many} = relationship},
-        _resource
-      ) do
+  defp do_filter(
+         query,
+         :from_related,
+         {records, %{cardinality: :many_to_many} = relationship},
+         _resource
+       ) do
     ids = Enum.map(records, &Map.get(&1, relationship.source_field))
 
-    from(row in query,
-      join: join_row in ^relationship.through,
-      on:
-        field(join_row, ^relationship.destination_field_on_join_table) ==
-          field(row, ^relationship.destination_field),
-      where: field(join_row, ^relationship.source_field_on_join_table) in ^ids,
-      select_merge: %{__related_id__: field(join_row, ^relationship.source_field_on_join_table)}
-    )
+    {:ok,
+     from(row in query,
+       join: join_row in ^relationship.through,
+       on:
+         field(join_row, ^relationship.destination_field_on_join_table) ==
+           field(row, ^relationship.destination_field),
+       where: field(join_row, ^relationship.source_field_on_join_table) in ^ids,
+       select_merge: %{__related_id__: field(join_row, ^relationship.source_field_on_join_table)}
+     )}
   end
 
-  def filter(query, :from_related, {records, relationship}, _resource) do
+  defp do_filter(query, :from_related, {records, relationship}, _resource) do
     ids = Enum.map(records, &Map.get(&1, relationship.source_field))
 
     {:ok,
@@ -127,7 +128,7 @@ defmodule AshEcto do
   end
 
   # TODO This is a really dumb implementation of this.
-  def filter(query, key, value, resource) do
+  defp do_filter(query, key, value, resource) do
     cond do
       attr = Ash.attribute(resource, key) ->
         filter_attribute(query, attr, value, resource)
