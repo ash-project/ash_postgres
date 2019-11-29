@@ -89,6 +89,14 @@ defmodule AshEcto do
   end
 
   @impl true
+  def sort(query, sort, _resource) do
+    {:ok,
+     from(row in query,
+       order_by: ^sort
+     )}
+  end
+
+  @impl true
   def filter(query, filter, resource) do
     Enum.reduce(filter, {:ok, query}, fn
       _, {:error, error} ->
