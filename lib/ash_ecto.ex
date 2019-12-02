@@ -4,10 +4,7 @@ defmodule AshEcto do
   defmacro __using__(opts) do
     quote bind_quoted: [repo: opts[:repo]] do
       @data_layer AshEcto
-      @mix_ins AshEcto
       @repo repo
-
-      require AshEcto.Schema
 
       unless repo do
         raise "You must pass the `repo` option to `use AshEcto` for #{__MODULE__}"
@@ -172,13 +169,5 @@ defmodule AshEcto do
   @impl true
   def can_query_async?(resource) do
     repo(resource).in_transaction?()
-  end
-
-  def before_compile_hook(_env) do
-    quote do
-      require AshEcto.Schema
-
-      AshEcto.Schema.define_schema(@name)
-    end
   end
 end
