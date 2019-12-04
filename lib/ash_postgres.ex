@@ -362,65 +362,63 @@ defmodule AshPostgres do
 
   # Copied from an older file, to be added as more functionality is added back in
 
-      # @impl true
-      # def update(%resource{} = record, _action, attributes, relationships, _params) do
-      #   @repo.transaction(fn ->
-      #     changeset =
-      #       record
-      #       |> Ecto.Changeset.cast(attributes, Map.keys(attributes))
-      #       |> AshPostgres.DataLayer.cast_assocs(@repo, resource, relationships)
+  # @impl true
+  # def update(%resource{} = record, _action, attributes, relationships, _params) do
+  #   @repo.transaction(fn ->
+  #     changeset =
+  #       record
+  #       |> Ecto.Changeset.cast(attributes, Map.keys(attributes))
+  #       |> AshPostgres.DataLayer.cast_assocs(@repo, resource, relationships)
 
-      #     result =
-      #       case @repo.update(changeset) do
-      #         {:ok, result} -> result
-      #         {:error, changeset} -> @repo.rollback(changeset)
-      #       end
+  #     result =
+  #       case @repo.update(changeset) do
+  #         {:ok, result} -> result
+  #         {:error, changeset} -> @repo.rollback(changeset)
+  #       end
 
-      #     case changeset do
-      #       %{__after_action__: [_ | _] = after_action_hooks} ->
-      #         Enum.each(after_action_hooks, fn hook ->
-      #           case hook.(changeset, result, @repo) do
-      #             :ok -> :ok
-      #             {:error, error} -> @repo.rollback(error)
-      #             :error -> @repo.rollback(:error)
-      #           end
-      #         end)
+  #     case changeset do
+  #       %{__after_action__: [_ | _] = after_action_hooks} ->
+  #         Enum.each(after_action_hooks, fn hook ->
+  #           case hook.(changeset, result, @repo) do
+  #             :ok -> :ok
+  #             {:error, error} -> @repo.rollback(error)
+  #             :error -> @repo.rollback(:error)
+  #           end
+  #         end)
 
-      #         result
+  #         result
 
-      #       _other ->
-      #         result
-      #     end
-      #   end)
-      # end
+  #       _other ->
+  #         result
+  #     end
+  #   end)
+  # end
 
-      # @impl true
-      # def append_related(record, relationship, resource_identifiers) do
-      #   @repo.transaction(fn ->
-      #     AshPostgres.DataLayer.append_related(@repo, record, relationship, resource_identifiers)
-      #   end)
-      # end
+  # @impl true
+  # def append_related(record, relationship, resource_identifiers) do
+  #   @repo.transaction(fn ->
+  #     AshPostgres.DataLayer.append_related(@repo, record, relationship, resource_identifiers)
+  #   end)
+  # end
 
-      # @impl true
-      # def delete_related(record, relationship, resource_identifiers) do
-      #   @repo.transaction(fn ->
-      #     AshPostgres.DataLayer.delete_related(@repo, record, relationship, resource_identifiers)
-      #   end)
-      # end
+  # @impl true
+  # def delete_related(record, relationship, resource_identifiers) do
+  #   @repo.transaction(fn ->
+  #     AshPostgres.DataLayer.delete_related(@repo, record, relationship, resource_identifiers)
+  #   end)
+  # end
 
-      # @impl true
-      # def replace_related(record, relationship, resource_identifiers) do
-      #   @repo.transaction(fn ->
-      #     AshPostgres.DataLayer.replace_related(@repo, record, relationship, resource_identifiers)
-      #   end)
-      # end
+  # @impl true
+  # def replace_related(record, relationship, resource_identifiers) do
+  #   @repo.transaction(fn ->
+  #     AshPostgres.DataLayer.replace_related(@repo, record, relationship, resource_identifiers)
+  #   end)
+  # end
 
-      # @impl true
-      # def delete(record, _action, _params) do
-      #   @repo.delete(record)
-      # end
-    end
-  end
+  # @impl true
+  # def delete(record, _action, _params) do
+  #   @repo.delete(record)
+  # end
 
   # @doc false
   # def replace_related(
