@@ -1,4 +1,4 @@
-# AshEcto
+# AshPostgres
 
 **TODO: Add description**
 

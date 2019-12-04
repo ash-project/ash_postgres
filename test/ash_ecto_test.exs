@@ -1,8 +1,8 @@
-defmodule AshEctoTest do
+defmodule AshPostgresTest do
   use ExUnit.Case
-  doctest AshEcto
+  doctest AshPostgres
 
   test "greets the world" do
-    assert AshEcto.hello() == :world
+    assert AshPostgres.hello() == :world
   end
 end
