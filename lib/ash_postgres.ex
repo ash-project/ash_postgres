@@ -129,7 +129,6 @@ defmodule AshPostgres do
      )}
   end
 
-  # TODO This is a really dumb implementation of this.
   defp do_filter(query, key, value, resource) do
     cond do
       attr = Ash.attribute(resource, key) ->
@@ -258,7 +257,8 @@ defmodule AshPostgres do
            through: through,
            source_field: source_field,
            source_field_on_join_table: source_field_on_join_table,
-           destination_field_on_join_table: destination_field_on_join_table
+           destination_field_on_join_table: destination_field_on_join_table,
+           join_table_fields: join_table_fields
          },
          values,
          repo
@@ -285,14 +285,18 @@ defmodule AshPostgres do
       changeset
     end)
     |> add_after_action_hook(fn _changeset, _result, repo ->
-      upsert_join_table_rows(
-        repo,
-        source_id,
-        through,
-        values,
-        source_field_on_join_table,
-        destination_field_on_join_table
-      )
+      case upsert_join_table_rows(
+             repo,
+             source_id,
+             through,
+             values,
+             source_field_on_join_table,
+             destination_field_on_join_table,
+             join_table_fields
+           ) do
+        :ok ->
+          :ok
+      end
     end)
   end
 
@@ -319,21 +323,24 @@ defmodule AshPostgres do
          through,
          values,
          source_field_on_join_table,
-         destination_field_on_join_table
+         destination_field_on_join_table,
+         join_table_fields
        ) do
-    Enum.each(values, fn fields ->
+    values
+    |> Enum.map(fn fields ->
       update_fields = Map.delete(fields, :id)
 
       cond do
-        update_fields == %{} && is_nil(Map.get(fields, :id)) ->
-          :ok
+        is_nil(Map.get(fields, :id)) ->
+          {:error, "No destination id specified"}
 
         is_bitstring(through) ->
-          :ok
+          {:error, "Cannot update the fields of a join table only specified as a table name"}
+
+        Map.keys(update_fields) -- join_table_fields != [] ->
+          {:error, "no such fields to update"}
 
         true ->
-          # TODO: This needs to be wired up properly
-          # (fields/changes need to come from resource/relationship config)
           attributes =
             update_fields
             |> Map.put(source_field_on_join_table, source_id)
@@ -342,16 +349,22 @@ defmodule AshPostgres do
           changeset =
             through
             |> struct()
-            |> Ecto.Changeset.cast(attributes, Map.keys(attributes))
+            |> Ecto.Changeset.cast(
+              attributes,
+              join_table_fields ++ [source_field_on_join_table, destination_field_on_join_table]
+            )
 
           repo.insert(changeset,
             on_conflict: :replace_all_except_primary_key,
             conflict_target: [source_field_on_join_table, destination_field_on_join_table]
           )
-
-          :ok
       end
     end)
+    |> Enum.filter(fn result -> match?({:error, _}, result) end)
+    |> case do
+      [] -> :ok
+      errors -> {:error, errors}
+    end
   end
 
   defp add_after_action_hook(changeset, hook) do
