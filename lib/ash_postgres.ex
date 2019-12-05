@@ -1,23 +1,57 @@
 defmodule AshPostgres do
+  @using_opts_schema Ashton.schema(
+                       opts: [
+                         repo: :atom
+                       ],
+                       required: [:repo],
+                       describe: [
+                         repo:
+                           "The repo that will be used to fetch your data. See the `Ecto.Repo` documentation for more"
+                       ],
+                       constraints: [
+                         repo:
+                           {&AshPostgres.postgres_repo?/1, "must be using the postgres adapter"}
+                       ]
+                     )
+
+  @moduledoc """
+  A postgres data layer that levereges Ecto's postgres tools.
+
+  To use it, add `use AshPostgres, repo: MyRepo` to your resource, after `use Ash.Resource`
+
+  #{Ashton.document(@using_opts_schema)}
+  """
   @behaviour Ash.DataLayer
 
   defmacro __using__(opts) do
-    quote bind_quoted: [repo: opts[:repo]] do
+    quote bind_quoted: [opts: opts] do
+      opts = AshPostgres.validate_using_opts(__MODULE__, opts)
+
       @data_layer AshPostgres
-      @repo repo
-
-      unless repo do
-        raise "You must pass the `repo` option to `use AshPostgres` for #{__MODULE__}"
-      end
-
-      unless repo.__adapter__() == Ecto.Adapters.Postgres do
-        raise "Only Ecto.Adapters.Postgres is supported with AshPostgres for now"
-      end
+      @repo opts[:repo]
 
       def repo() do
         @repo
       end
     end
+  end
+
+  def validate_using_opts(mod, opts) do
+    case Ashton.validate(opts, @using_opts_schema) do
+      {:ok, opts} ->
+        opts
+
+      {:error, [{key, message} | _]} ->
+        raise Ash.Error.ResourceDslError,
+          resource: mod,
+          using: __MODULE__,
+          option: key,
+          message: message
+    end
+  end
+
+  def postgres_repo?(repo) do
+    repo.__adapter__() == Ecto.Adapters.Postgres
   end
 
   def repo(resource) do
