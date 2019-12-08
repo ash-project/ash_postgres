@@ -61,6 +61,10 @@ defmodule AshPostgres do
   import Ecto.Query, only: [from: 2]
 
   @impl true
+  def can?(:query_async), do: false
+  def can?(:transact), do: false
+
+  @impl true
   def limit(query, limit, _resource) do
     {:ok, from(row in query, limit: ^limit)}
   end
@@ -79,11 +83,11 @@ defmodule AshPostgres do
   def resource_to_query(resource), do: Ecto.Queryable.to_query(resource)
 
   @impl true
-  def create(resource, changeset, relationships) do
+  def create(resource, changeset) do
     repo = repo(resource)
 
     repo.transaction(fn ->
-      changeset = cast_assocs(changeset, repo, resource, relationships)
+      # changeset = cast_assocs(changeset, repo, resource, )
 
       result =
         try do
@@ -201,211 +205,211 @@ defmodule AshPostgres do
     repo(resource).in_transaction?()
   end
 
-  def cast_assocs(changeset, repo, resource, relationships) do
-    Enum.reduce(relationships, changeset, fn {relationship, value}, changeset ->
-      case Ash.relationship(resource, relationship) do
-        %{type: :belongs_to, source_field: source_field} ->
-          belongs_to_assoc_update(changeset, source_field, value)
+  # def cast_assocs(changeset, repo, resource, relationships) do
+  #   Enum.reduce(relationships, changeset, fn {relationship, value}, changeset ->
+  #     case Ash.relationship(resource, relationship) do
+  #       %{type: :belongs_to, source_field: source_field} ->
+  #         belongs_to_assoc_update(changeset, source_field, value)
 
-        %{type: :has_one} = rel ->
-          has_one_assoc_update(changeset, repo, rel, value)
+  #       %{type: :has_one} = rel ->
+  #         has_one_assoc_update(changeset, repo, rel, value)
 
-        %{type: :has_many} = rel ->
-          has_many_assoc_update(changeset, rel, value)
+  #       %{type: :has_many} = rel ->
+  #         has_many_assoc_update(changeset, rel, value)
 
-        %{type: :many_to_many} = rel ->
-          many_to_many_assoc_update(changeset, rel, value, repo)
+  #       %{type: :many_to_many} = rel ->
+  #         many_to_many_assoc_update(changeset, rel, value, repo)
 
-        _ ->
-          changeset
-      end
-    end)
-  end
+  #       _ ->
+  #         changeset
+  #     end
+  #   end)
+  # end
 
-  defp has_one_assoc_update(
-         changeset,
-         repo,
-         %{
-           destination: destination,
-           destination_field: destination_field,
-           source_field: source_field
-         },
-         identifier
-       ) do
-    Ecto.Changeset.prepare_changes(changeset, fn changeset ->
-      value =
-        case identifier do
-          %{id: id} -> id
-          nil -> nil
-          _ -> raise "what"
-        end
+  # defp has_one_assoc_update(
+  #        changeset,
+  #        repo,
+  #        %{
+  #          destination: destination,
+  #          destination_field: destination_field,
+  #          source_field: source_field
+  #        },
+  #        identifier
+  #      ) do
+  #   Ecto.Changeset.prepare_changes(changeset, fn changeset ->
+  #     value =
+  #       case identifier do
+  #         %{id: id} -> id
+  #         nil -> nil
+  #         _ -> raise "what"
+  #       end
 
-      query =
-        from(row in destination,
-          where:
-            field(row, ^destination_field) == ^Ecto.Changeset.get_field(changeset, source_field)
-        )
+  #     query =
+  #       from(row in destination,
+  #         where:
+  #           field(row, ^destination_field) == ^Ecto.Changeset.get_field(changeset, source_field)
+  #       )
 
-      repo.update_all(query, set: [{destination_field, value}])
+  #     repo.update_all(query, set: [{destination_field, value}])
 
-      changeset
-    end)
-  end
+  #     changeset
+  #   end)
+  # end
 
-  defp belongs_to_assoc_update(changeset, source_field, %{id: id}) do
-    Ecto.Changeset.cast(changeset, %{source_field => id}, [source_field])
-  end
+  # defp belongs_to_assoc_update(changeset, source_field, %{id: id}) do
+  #   Ecto.Changeset.cast(changeset, %{source_field => id}, [source_field])
+  # end
 
-  defp belongs_to_assoc_update(changeset, source_field, nil) do
-    Ecto.Changeset.cast(changeset, %{source_field => nil}, [source_field])
-  end
+  # defp belongs_to_assoc_update(changeset, source_field, nil) do
+  #   Ecto.Changeset.cast(changeset, %{source_field => nil}, [source_field])
+  # end
 
-  defp has_many_assoc_update(
-         changeset,
-         %{
-           destination: destination,
-           destination_field: destination_field,
-           source_field: source_field
-         },
-         values
-       ) do
-    ids = values |> Enum.map(&Map.get(&1, :id)) |> Enum.reject(&is_nil/1)
+  # defp has_many_assoc_update(
+  #        changeset,
+  #        %{
+  #          destination: destination,
+  #          destination_field: destination_field,
+  #          source_field: source_field
+  #        },
+  #        values
+  #      ) do
+  #   ids = values |> Enum.map(&Map.get(&1, :id)) |> Enum.reject(&is_nil/1)
 
-    add_after_action_hook(changeset, fn _changeset, result, repo ->
-      field_value = Map.get(result, source_field)
+  #   add_after_action_hook(changeset, fn _changeset, result, repo ->
+  #     field_value = Map.get(result, source_field)
 
-      query =
-        from(row in destination,
-          where: row.id in ^ids
-        )
+  #     query =
+  #       from(row in destination,
+  #         where: row.id in ^ids
+  #       )
 
-      repo.update_all(query, set: [{destination_field, field_value}])
+  #     repo.update_all(query, set: [{destination_field, field_value}])
 
-      :ok
-    end)
-  end
+  #     :ok
+  #   end)
+  # end
 
-  defp many_to_many_assoc_update(
-         changeset,
-         %{
-           through: through,
-           source_field: source_field,
-           source_field_on_join_table: source_field_on_join_table,
-           destination_field_on_join_table: destination_field_on_join_table,
-           join_table_fields: join_table_fields
-         },
-         values,
-         repo
-       ) do
-    ids = values |> Enum.map(&Map.get(&1, :id)) |> Enum.reject(&is_nil/1)
+  # defp many_to_many_assoc_update(
+  #        changeset,
+  #        %{
+  #          through: through,
+  #          source_field: source_field,
+  #          source_field_on_join_table: source_field_on_join_table,
+  #          destination_field_on_join_table: destination_field_on_join_table,
+  #          join_table_fields: join_table_fields
+  #        },
+  #        values,
+  #        repo
+  #      ) do
+  #   ids = values |> Enum.map(&Map.get(&1, :id)) |> Enum.reject(&is_nil/1)
 
-    source_id =
-      Ecto.Changeset.get_field(
-        changeset,
-        source_field
-      )
+  #   source_id =
+  #     Ecto.Changeset.get_field(
+  #       changeset,
+  #       source_field
+  #     )
 
-    changeset
-    |> Ecto.Changeset.prepare_changes(fn changeset ->
-      delete_now_unrelated_ids(
-        repo,
-        source_id,
-        through,
-        source_field_on_join_table,
-        destination_field_on_join_table,
-        ids
-      )
+  #   changeset
+  #   |> Ecto.Changeset.prepare_changes(fn changeset ->
+  #     delete_now_unrelated_ids(
+  #       repo,
+  #       source_id,
+  #       through,
+  #       source_field_on_join_table,
+  #       destination_field_on_join_table,
+  #       ids
+  #     )
 
-      changeset
-    end)
-    |> add_after_action_hook(fn _changeset, _result, repo ->
-      case upsert_join_table_rows(
-             repo,
-             source_id,
-             through,
-             values,
-             source_field_on_join_table,
-             destination_field_on_join_table,
-             join_table_fields
-           ) do
-        :ok ->
-          :ok
-      end
-    end)
-  end
+  #     changeset
+  #   end)
+  #   |> add_after_action_hook(fn _changeset, _result, repo ->
+  #     case upsert_join_table_rows(
+  #            repo,
+  #            source_id,
+  #            through,
+  #            values,
+  #            source_field_on_join_table,
+  #            destination_field_on_join_table,
+  #            join_table_fields
+  #          ) do
+  #       :ok ->
+  #         :ok
+  #     end
+  #   end)
+  # end
 
-  defp delete_now_unrelated_ids(
-         repo,
-         source_id,
-         through,
-         source_field_on_join_table,
-         destination_field_on_join_table,
-         ids
-       ) do
-    query =
-      from(join_row in through,
-        where: field(join_row, ^destination_field_on_join_table) not in ^ids,
-        where: field(join_row, ^source_field_on_join_table) == ^source_id
-      )
+  # defp delete_now_unrelated_ids(
+  #        repo,
+  #        source_id,
+  #        through,
+  #        source_field_on_join_table,
+  #        destination_field_on_join_table,
+  #        ids
+  #      ) do
+  #   query =
+  #     from(join_row in through,
+  #       where: field(join_row, ^destination_field_on_join_table) not in ^ids,
+  #       where: field(join_row, ^source_field_on_join_table) == ^source_id
+  #     )
 
-    repo.delete_all(query)
-  end
+  #   repo.delete_all(query)
+  # end
 
-  defp upsert_join_table_rows(
-         repo,
-         source_id,
-         through,
-         values,
-         source_field_on_join_table,
-         destination_field_on_join_table,
-         join_table_fields
-       ) do
-    values
-    |> Enum.map(fn fields ->
-      update_fields = Map.delete(fields, :id)
+  # defp upsert_join_table_rows(
+  #        repo,
+  #        source_id,
+  #        through,
+  #        values,
+  #        source_field_on_join_table,
+  #        destination_field_on_join_table,
+  #        join_table_fields
+  #      ) do
+  #   values
+  #   |> Enum.map(fn fields ->
+  #     update_fields = Map.delete(fields, :id)
 
-      cond do
-        is_nil(Map.get(fields, :id)) ->
-          {:error, "No destination id specified"}
+  #     cond do
+  #       is_nil(Map.get(fields, :id)) ->
+  #         {:error, "No destination id specified"}
 
-        is_bitstring(through) ->
-          {:error, "Cannot update the fields of a join table only specified as a table name"}
+  #       is_bitstring(through) ->
+  #         {:error, "Cannot update the fields of a join table only specified as a table name"}
 
-        Map.keys(update_fields) -- join_table_fields != [] ->
-          {:error, "no such fields to update"}
+  #       Map.keys(update_fields) -- join_table_fields != [] ->
+  #         {:error, "no such fields to update"}
 
-        true ->
-          attributes =
-            update_fields
-            |> Map.put(source_field_on_join_table, source_id)
-            |> Map.put(destination_field_on_join_table, Map.get(fields, :id))
+  #       true ->
+  #         attributes =
+  #           update_fields
+  #           |> Map.put(source_field_on_join_table, source_id)
+  #           |> Map.put(destination_field_on_join_table, Map.get(fields, :id))
 
-          changeset =
-            through
-            |> struct()
-            |> Ecto.Changeset.cast(
-              attributes,
-              join_table_fields ++ [source_field_on_join_table, destination_field_on_join_table]
-            )
+  #         changeset =
+  #           through
+  #           |> struct()
+  #           |> Ecto.Changeset.cast(
+  #             attributes,
+  #             join_table_fields ++ [source_field_on_join_table, destination_field_on_join_table]
+  #           )
 
-          repo.insert(changeset,
-            on_conflict: :replace_all_except_primary_key,
-            conflict_target: [source_field_on_join_table, destination_field_on_join_table]
-          )
-      end
-    end)
-    |> Enum.filter(fn result -> match?({:error, _}, result) end)
-    |> case do
-      [] -> :ok
-      errors -> {:error, errors}
-    end
-  end
+  #         repo.insert(changeset,
+  #           on_conflict: :replace_all_except_primary_key,
+  #           conflict_target: [source_field_on_join_table, destination_field_on_join_table]
+  #         )
+  #     end
+  #   end)
+  #   |> Enum.filter(fn result -> match?({:error, _}, result) end)
+  #   |> case do
+  #     [] -> :ok
+  #     errors -> {:error, errors}
+  #   end
+  # end
 
-  defp add_after_action_hook(changeset, hook) do
-    changeset
-    |> Map.put_new(:__after_action__, [])
-    |> Map.update!(:__after_action__, fn list -> [hook | list] end)
-  end
+  # defp add_after_action_hook(changeset, hook) do
+  #   changeset
+  #   |> Map.put_new(:__after_action__, [])
+  #   |> Map.update!(:__after_action__, fn list -> [hook | list] end)
+  # end
 
   # Copied from an older file, to be added as more functionality is added back in
 
