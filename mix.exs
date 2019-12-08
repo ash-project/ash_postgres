@@ -9,7 +9,7 @@ defmodule AshPostgres.MixProject do
   def project do
     [
       app: :ash_postgres,
-      version: "0.1.0",
+      version: "0.1.1",
       elixir: "~> 1.9",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -35,8 +35,7 @@ defmodule AshPostgres.MixProject do
     [
       {:ecto_sql, "~> 3.0"},
       {:postgrex, ">= 0.0.0"},
-      # {:ash, "~> 0.1.0"},
-      {:ash, path: "../ash"},
+      {:ash, "~> 0.1.0"},
       {:ex_doc, "~> 0.21", only: :dev, runtime: false}
     ]
   end
