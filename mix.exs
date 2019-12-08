@@ -35,7 +35,8 @@ defmodule AshPostgres.MixProject do
     [
       {:ecto_sql, "~> 3.0"},
       {:postgrex, ">= 0.0.0"},
-      {:ash, "~> 0.1.0"},
+      {:ash, "~> 0.1.1"},
+      {:ashton, "~> 0.4.0"},
       {:ex_doc, "~> 0.21", only: :dev, runtime: false}
     ]
   end
