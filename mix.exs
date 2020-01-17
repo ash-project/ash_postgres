@@ -7,6 +7,7 @@ defmodule AshPostgres.MixProject do
   """
 
   def project do
+    IO.inspect(File.cwd())
     [
       app: :ash_postgres,
       version: "0.1.1",
@@ -35,8 +36,8 @@ defmodule AshPostgres.MixProject do
     [
       {:ecto_sql, "~> 3.0"},
       {:postgrex, ">= 0.0.0"},
-      {:ash, "~> 0.1.1"},
-      {:ashton, "~> 0.4.0"},
+      # {:ash, "~> 0.1.1"},
+      {:ash, path: "../ash"},
       {:ex_doc, "~> 0.21", only: :dev, runtime: false}
     ]
   end
