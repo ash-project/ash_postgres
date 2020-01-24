@@ -7,7 +7,6 @@ defmodule AshPostgres.MixProject do
   """
 
   def project do
-    IO.inspect(File.cwd())
     [
       app: :ash_postgres,
       version: "0.1.1",
