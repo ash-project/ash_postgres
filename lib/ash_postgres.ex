@@ -91,6 +91,11 @@ defmodule AshPostgres do
   end
 
   @impl true
+  def run_query(%{__impossible__: true}, _) do
+    {:ok, []}
+  end
+
+  @impl true
   def run_query(query, resource) do
     {:ok, repo(resource).all(query)}
   end
@@ -134,7 +139,9 @@ defmodule AshPostgres do
   # hints from the interface, or some other heuristic to do our best to
   # make queries perform well. For now, I'm just choosing the most naive approach
   # possible: left join to relationships that appear in `or` conditions, inner
-  # join to conditions in the mainline query.
+  # join to conditions that are constant the query (inner join not functional yet.)
+  # Realistically, in my experience, joins don't actually scale very well, especially
+  # when calculated attributes are added.
 
   def filter(query, filter, _resource) do
     new_query =
@@ -143,7 +150,14 @@ defmodule AshPostgres do
       |> join_all_relationships(filter)
       |> add_filter_expression(filter)
 
-    {:ok, new_query}
+    impossible_query =
+      if filter.impossible? do
+        Map.put(new_query, :__impossible__, true)
+      else
+        new_query
+      end
+
+    {:ok, impossible_query}
   end
 
   defp join_all_relationships(query, filter, path \\ []) do
@@ -305,7 +319,7 @@ defmodule AshPostgres do
       end)
 
     Enum.reduce(filter.ors, {params, expr}, fn or_filter, {params, existing_expr} ->
-      {params, expr} = filter_to_expr(or_filter, bindings, params)
+      {params, expr} = filter_to_expr(or_filter, bindings, params, current_binding, path)
 
       {params, join_exprs(existing_expr, expr, :or)}
     end)
