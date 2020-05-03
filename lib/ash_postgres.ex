@@ -14,7 +14,7 @@ defmodule AshPostgres do
                        ]
                      )
 
-  alias Ash.Filter.{And, Eq, Filter, In, NotEq, NotIn, Or}
+  alias Ash.Filter.{And, Eq, In, NotEq, NotIn, Or}
 
   @moduledoc """
   A postgres data layer that levereges Ecto's postgres tools.
@@ -101,7 +101,8 @@ defmodule AshPostgres do
   end
 
   @impl true
-  def resource_to_query(resource), do: Ecto.Queryable.to_query(resource)
+  def resource_to_query(resource),
+    do: Ecto.Queryable.to_query({resource.postgres_table(), resource})
 
   @impl true
   def create(resource, changeset) do
@@ -110,6 +111,9 @@ defmodule AshPostgres do
         :create -> :insert
         action -> action
       end)
+
+    changeset =
+      Map.update!(changeset, :__meta__, &Map.put(&1, :source, resource.postgres_table()))
 
     repo(resource).insert(changeset)
   rescue
@@ -126,6 +130,14 @@ defmodule AshPostgres do
   end
 
   @impl true
+  def destroy(%resource{} = record) do
+    repo(resource).delete(record)
+  rescue
+    e ->
+      {:error, e}
+  end
+
+  @impl true
   def sort(query, sort, _resource) do
     {:ok,
      from(row in query,
@@ -134,6 +146,7 @@ defmodule AshPostgres do
   end
 
   @impl true
+
   # TODO: I have learned from experience that no single approach here
   # will be a one-size-fits-all. We need to either use complexity metrics,
   # hints from the interface, or some other heuristic to do our best to
