@@ -1,12 +1,14 @@
 defmodule AshPostgres do
   @using_opts_schema Ashton.schema(
                        opts: [
-                         repo: :atom
+                         repo: :atom,
+                         table: :string
                        ],
                        required: [:repo],
                        describe: [
                          repo:
-                           "The repo that will be used to fetch your data. See the `Ecto.Repo` documentation for more"
+                           "The repo that will be used to fetch your data. See the `Ecto.Repo` documentation for more",
+                         table: "The name of the database table backing the resource"
                        ],
                        constraints: [
                          repo:
@@ -31,9 +33,14 @@ defmodule AshPostgres do
 
       @data_layer AshPostgres
       @repo opts[:repo]
+      @table opts[:table]
 
       def repo() do
         @repo
+      end
+
+      def postgres_table() do
+        @table || @name
       end
     end
   end
@@ -217,13 +224,16 @@ defmodule AshPostgres do
   end
 
   defp do_join_relationship(query, [%{type: :many_to_many} = relationship], :inner) do
+    relationship_through = maybe_get_resource_query(relationship.through)
+    relationship_destination = maybe_get_resource_query(relationship.destination)
+
     new_query =
       from(row in query,
-        join: through in ^relationship.through,
+        join: through in ^relationship_through,
         on:
           field(row, ^relationship.source_field) ==
             field(through, ^relationship.source_field_on_join_table),
-        join: destination in ^relationship.destination,
+        join: destination in ^relationship_destination,
         on:
           field(destination, ^relationship.destination_field) ==
             field(through, ^relationship.destination_field_on_join_table)
@@ -238,9 +248,11 @@ defmodule AshPostgres do
   end
 
   defp do_join_relationship(query, [relationship], :inner) do
+    relationship_destination = maybe_get_resource_query(relationship.destination)
+
     new_query =
       from(row in query,
-        join: destination in ^relationship.destination,
+        join: destination in ^relationship_destination,
         on: field(row, ^relationship.source_field) == field(row, ^relationship.destination_field)
       )
 
@@ -248,13 +260,16 @@ defmodule AshPostgres do
   end
 
   defp do_join_relationship(query, [%{type: :many_to_many} = relationship], :left) do
+    relationship_through = maybe_get_resource_query(relationship.through)
+    relationship_destination = maybe_get_resource_query(relationship.destination)
+
     new_query =
       from(row in query,
-        left_join: through in ^relationship.through,
+        left_join: through in ^relationship_through,
         on:
           field(row, ^relationship.source_field) ==
             field(through, ^relationship.source_field_on_join_table),
-        left_join: destination in ^relationship.destination,
+        left_join: destination in ^relationship_destination,
         on:
           field(destination, ^relationship.destination_field) ==
             field(through, ^relationship.destination_field_on_join_table)
@@ -269,9 +284,11 @@ defmodule AshPostgres do
   end
 
   defp do_join_relationship(query, [relationship], :left) do
+    relationship_destination = maybe_get_resource_query(relationship.destination)
+
     new_query =
       from(row in query,
-        left_join: destination in ^relationship.destination,
+        left_join: destination in ^relationship_destination,
         on: field(row, ^relationship.source_field) == field(row, ^relationship.destination_field)
       )
 
@@ -432,5 +449,13 @@ defmodule AshPostgres do
   @impl true
   def transaction(resource, func) do
     repo(resource).transaction(func)
+  end
+
+  defp maybe_get_resource_query(resource) do
+    if Ash.resource_module?(resource) do
+      {resource.postgres_table(), resource}
+    else
+      resource
+    end
   end
 end
