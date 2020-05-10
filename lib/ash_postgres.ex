@@ -120,7 +120,9 @@ defmodule AshPostgres do
       end)
 
     changeset =
-      Map.update!(changeset, :__meta__, &Map.put(&1, :source, resource.postgres_table()))
+      Map.update!(changeset, :data, fn data ->
+        Map.update!(data, :__meta__, &Map.put(&1, :source, resource.postgres_table()))
+      end)
 
     repo(resource).insert(changeset)
   rescue
@@ -148,21 +150,29 @@ defmodule AshPostgres do
   def sort(query, sort, _resource) do
     {:ok,
      from(row in query,
-       order_by: ^sort
+       order_by: ^sanitize_sort(sort)
      )}
   end
 
-  @impl true
+  defp sanitize_sort(sort) do
+    sort
+    |> List.wrap()
+    |> Enum.map(fn
+      {sort, order} -> {order, sort}
+      sort -> sort
+    end)
+  end
 
   # TODO: I have learned from experience that no single approach here
   # will be a one-size-fits-all. We need to either use complexity metrics,
   # hints from the interface, or some other heuristic to do our best to
   # make queries perform well. For now, I'm just choosing the most naive approach
   # possible: left join to relationships that appear in `or` conditions, inner
-  # join to conditions that are constant the query (inner join not functional yet.)
+  # join to conditions that are constant the query (dont do this yet, but it will be a good optimization)
   # Realistically, in my experience, joins don't actually scale very well, especially
   # when calculated attributes are added.
 
+  @impl true
   def filter(query, filter, _resource) do
     new_query =
       query
