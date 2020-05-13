@@ -327,41 +327,49 @@ defmodule AshPostgres do
   defp join_exprs(left_expr, right_expr, op), do: {op, [], [left_expr, right_expr]}
 
   defp filter_to_expr(filter, bindings, params, current_binding \\ 0, path \\ []) do
-    {params, not_expr} =
-      case filter.not do
-        nil ->
-          {params, nil}
+    {params, expr} =
+      Enum.reduce(filter.attributes, {params, nil}, fn {attribute, filter},
+                                                       {params, existing_expr} ->
+        {params, new_expr} = filter_value_to_expr(attribute, filter, current_binding, params)
 
-        not_filter ->
-          filter_to_expr(not_filter, bindings, params)
-      end
-
-    {params, existing_expr} =
-      Enum.reduce(filter.attributes, {params, not_expr}, fn {attribute, filter},
-                                                            {params, existing_expr} ->
-        {params, expr} = filter_value_to_expr(attribute, filter, current_binding, params)
-
-        {params, join_exprs(existing_expr, expr, :and)}
+        {params, join_exprs(existing_expr, new_expr, :and)}
       end)
 
     {params, expr} =
-      Enum.reduce(filter.relationships, {params, existing_expr}, fn {relationship,
-                                                                     relationship_filter},
-                                                                    {params, existing_expr} ->
+      Enum.reduce(filter.relationships, {params, expr}, fn {relationship, relationship_filter},
+                                                           {params, existing_expr} ->
         full_path = path ++ [relationship]
 
         binding = Map.get(bindings, full_path) || raise "unbound relationship referenced!"
 
-        {params, expr} =
+        {params, new_expr} =
           filter_to_expr(relationship_filter, bindings, params, binding.binding, full_path)
 
-        {params, join_exprs(expr, existing_expr, :and)}
+        {params, join_exprs(new_expr, existing_expr, :and)}
       end)
 
-    Enum.reduce(filter.ors, {params, expr}, fn or_filter, {params, existing_expr} ->
-      {params, expr} = filter_to_expr(or_filter, bindings, params, current_binding, path)
+    {params, expr} =
+      Enum.reduce(filter.ors, {params, expr}, fn or_filter, {params, existing_expr} ->
+        {params, new_expr} = filter_to_expr(or_filter, bindings, params, current_binding, path)
 
-      {params, join_exprs(existing_expr, expr, :or)}
+        {params, join_exprs(existing_expr, new_expr, :or)}
+      end)
+
+    {params, expr} =
+      case filter.not do
+        nil ->
+          {params, expr}
+
+        not_filter ->
+          {params, new_expr} = filter_to_expr(not_filter, bindings, params, current_binding, path)
+
+          {params, join_exprs(expr, {:not, new_expr}, :and)}
+      end
+
+    Enum.reduce(filter.ands, {params, expr}, fn and_filter, {params, existing_expr} ->
+      {params, new_expr} = filter_to_expr(and_filter, bindings, params, current_binding, path)
+
+      {params, join_exprs(existing_expr, new_expr, :and)}
     end)
   end
 
