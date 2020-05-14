@@ -73,6 +73,7 @@ defmodule AshPostgres do
   def can?(:query_async), do: true
   def can?(:transact), do: true
   def can?(:composite_primary_key), do: true
+  def can?(:upsert), do: true
   def can?({:filter, :in}), do: true
   def can?({:filter, :not_in}), do: true
   def can?({:filter, :not_eq}), do: true
@@ -131,6 +132,28 @@ defmodule AshPostgres do
   end
 
   @impl true
+  def upsert(resource, changeset) do
+    changeset =
+      Map.update!(changeset, :action, fn
+        :create -> :insert
+        action -> action
+      end)
+
+    changeset =
+      Map.update!(changeset, :data, fn data ->
+        Map.update!(data, :__meta__, &Map.put(&1, :source, resource.postgres_table()))
+      end)
+
+    repo(resource).insert(changeset,
+      on_conflict: :replace_all,
+      conflict_target: Ash.primary_key(resource)
+    )
+  rescue
+    e ->
+      {:error, e}
+  end
+
+  @impl true
   def update(resource, changeset) do
     repo(resource).update(changeset)
   rescue
@@ -140,7 +163,10 @@ defmodule AshPostgres do
 
   @impl true
   def destroy(%resource{} = record) do
-    repo(resource).delete(record)
+    case repo(resource).delete(record) do
+      {:ok, _record} -> :ok
+      {:error, error} -> {:error, error}
+    end
   rescue
     e ->
       {:error, e}
@@ -199,22 +225,30 @@ defmodule AshPostgres do
       # we can inner join it, (unless the filter is only for fields being null)
       join_type = :left
 
-      relationship = Ash.relationship(filter.resource, name)
+      case {join_type, relationship_filter} do
+        {:left, %{impossible?: true}} ->
+          query
 
-      current_path = [relationship | path]
+        # {:inner, %{impossible?: true}} ->
+        #   from(row in query, where: false)
+        {join_type, relationship_filter} ->
+          relationship = Ash.relationship(filter.resource, name)
 
-      joined_query = join_relationship(query, current_path, join_type)
+          current_path = [relationship | path]
 
-      joined_query_with_distinct =
-        if relationship.cardinality == :many and join_type == :left && !joined_query.distinct do
-          from(row in joined_query,
-            distinct: ^Ash.primary_key(filter.resource)
-          )
-        else
-          joined_query
-        end
+          joined_query = join_relationship(query, current_path, join_type)
 
-      join_all_relationships(joined_query_with_distinct, relationship_filter, current_path)
+          joined_query_with_distinct =
+            if relationship.cardinality == :many and join_type == :left && !joined_query.distinct do
+              from(row in joined_query,
+                distinct: ^Ash.primary_key(filter.resource)
+              )
+            else
+              joined_query
+            end
+
+          join_all_relationships(joined_query_with_distinct, relationship_filter, current_path)
+      end
     end)
   end
 
@@ -326,7 +360,23 @@ defmodule AshPostgres do
   defp join_exprs(nil, expr, _op), do: expr
   defp join_exprs(left_expr, right_expr, op), do: {op, [], [left_expr, right_expr]}
 
-  defp filter_to_expr(filter, bindings, params, current_binding \\ 0, path \\ []) do
+  defp filter_to_expr(filter, bindings, params, current_binding \\ 0, path \\ [])
+
+  # A completely empty filter means "everything"
+  defp filter_to_expr(%{impossible?: true}, _, _, _, _), do: {[], false}
+
+  defp filter_to_expr(
+         %{ands: [], ors: [], not: nil, attributes: attrs, relationships: rels},
+         _,
+         _,
+         _,
+         _
+       )
+       when attrs == %{} and rels == %{} do
+    {[], true}
+  end
+
+  defp filter_to_expr(filter, bindings, params, current_binding, path) do
     {params, expr} =
       Enum.reduce(filter.attributes, {params, nil}, fn {attribute, filter},
                                                        {params, existing_expr} ->
@@ -366,11 +416,20 @@ defmodule AshPostgres do
           {params, join_exprs(expr, {:not, new_expr}, :and)}
       end
 
-    Enum.reduce(filter.ands, {params, expr}, fn and_filter, {params, existing_expr} ->
-      {params, new_expr} = filter_to_expr(and_filter, bindings, params, current_binding, path)
+    {params, expr} =
+      Enum.reduce(filter.ands, {params, expr}, fn and_filter, {params, existing_expr} ->
+        {params, new_expr} = filter_to_expr(and_filter, bindings, params, current_binding, path)
 
-      {params, join_exprs(existing_expr, new_expr, :and)}
-    end)
+        {params, join_exprs(existing_expr, new_expr, :and)}
+      end)
+
+    if expr do
+      {params, expr}
+    else
+      # A filter that was not empty, but didn't generate an expr for some reason, should default to `false`
+      # AFAIK this shouldn't actually be possible
+      {params, false}
+    end
   end
 
   # THe fact that we keep counting params here is very silly.
