@@ -70,6 +70,7 @@ defmodule AshPostgres do
   import Ecto.Query, only: [from: 2]
 
   @impl true
+  def can?(_, capability), do: can?(capability)
   def can?(:query_async), do: true
   def can?(:transact), do: true
   def can?(:composite_primary_key), do: true
@@ -267,9 +268,15 @@ defmodule AshPostgres do
     end
   end
 
-  defp do_join_relationship(query, [%{type: :many_to_many} = relationship], :inner) do
+  defp do_join_relationship(query, relationships, kind, path \\ [])
+  defp do_join_relationship(_, [], _, _), do: nil
+
+  defp do_join_relationship(query, [%{type: :many_to_many} = relationship | rest], :inner, path) do
     relationship_through = maybe_get_resource_query(relationship.through)
-    relationship_destination = maybe_get_resource_query(relationship.destination)
+
+    relationship_destination =
+      do_join_relationship(query, rest, :inner, [relationship.name | path]) ||
+        Ecto.Queryable.to_query(maybe_get_resource_query(relationship.destination))
 
     new_query =
       from(row in query,
@@ -283,16 +290,21 @@ defmodule AshPostgres do
             field(through, ^relationship.destination_field_on_join_table)
       )
 
-    join_path = [String.to_existing_atom(to_string(relationship.name) <> "_join_assoc")]
-    full_path = [relationship.name]
+    join_path =
+      Enum.reverse([String.to_existing_atom(to_string(relationship.name) <> "_join_assoc") | path])
+
+    full_path = Enum.reverse([relationship.name | path])
 
     new_query
     |> add_binding(join_path, :inner)
     |> add_binding(full_path, :inner)
+    |> merge_bindings(relationship_destination)
   end
 
-  defp do_join_relationship(query, [relationship], :inner) do
-    relationship_destination = maybe_get_resource_query(relationship.destination)
+  defp do_join_relationship(query, [relationship | rest], :inner, path) do
+    relationship_destination =
+      do_join_relationship(query, rest, :inner, [relationship.name | path]) ||
+        Ecto.Queryable.to_query(maybe_get_resource_query(relationship.destination))
 
     new_query =
       from(row in query,
@@ -300,12 +312,17 @@ defmodule AshPostgres do
         on: field(row, ^relationship.source_field) == field(row, ^relationship.destination_field)
       )
 
-    add_binding(new_query, [relationship.name], :inner)
+    new_query
+    |> add_binding(Enum.reverse([relationship.name | path]), :inner)
+    |> merge_bindings(relationship_destination)
   end
 
-  defp do_join_relationship(query, [%{type: :many_to_many} = relationship], :left) do
+  defp do_join_relationship(query, [%{type: :many_to_many} = relationship | rest], :left, path) do
     relationship_through = maybe_get_resource_query(relationship.through)
-    relationship_destination = maybe_get_resource_query(relationship.destination)
+
+    relationship_destination =
+      do_join_relationship(query, rest, :inner, [relationship.name | path]) ||
+        Ecto.Queryable.to_query(maybe_get_resource_query(relationship.destination))
 
     new_query =
       from(row in query,
@@ -319,16 +336,21 @@ defmodule AshPostgres do
             field(through, ^relationship.destination_field_on_join_table)
       )
 
-    join_path = [String.to_existing_atom(to_string(relationship.name) <> "_join_assoc")]
-    full_path = [relationship.name]
+    join_path =
+      Enum.reverse([String.to_existing_atom(to_string(relationship.name) <> "_join_assoc") | path])
+
+    full_path = Enum.reverse([relationship.name | path])
 
     new_query
     |> add_binding(join_path, :left)
     |> add_binding(full_path, :left)
+    |> merge_bindings(relationship_destination)
   end
 
-  defp do_join_relationship(query, [relationship], :left) do
-    relationship_destination = maybe_get_resource_query(relationship.destination)
+  defp do_join_relationship(query, [relationship | rest], :left, path) do
+    relationship_destination =
+      do_join_relationship(query, rest, :inner, [relationship.name | path]) ||
+        Ecto.Queryable.to_query(maybe_get_resource_query(relationship.destination))
 
     new_query =
       from(row in query,
@@ -336,7 +358,9 @@ defmodule AshPostgres do
         on: field(row, ^relationship.source_field) == field(row, ^relationship.destination_field)
       )
 
-    add_binding(new_query, [relationship.name], :left)
+    new_query
+    |> add_binding(Enum.reverse([relationship.name | path]), :left)
+    |> merge_bindings(relationship_destination)
   end
 
   defp add_filter_expression(query, filter) do
@@ -390,7 +414,9 @@ defmodule AshPostgres do
                                                            {params, existing_expr} ->
         full_path = path ++ [relationship]
 
-        binding = Map.get(bindings, full_path) || raise "unbound relationship referenced!"
+        binding =
+          Map.get(bindings, full_path) ||
+            raise "unbound relationship #{inspect(full_path)} referenced! #{inspect(bindings)}"
 
         {params, new_expr} =
           filter_to_expr(relationship_filter, bindings, params, binding.binding, full_path)
@@ -499,6 +525,18 @@ defmodule AshPostgres do
     {params, right_expr} = filter_value_to_expr(attribute, right, current_binding, params)
 
     {params, join_exprs(left_expr, right_expr, :or)}
+  end
+
+  defp merge_bindings(query, %{__ash_bindings__: ash_bindings}) do
+    ash_bindings
+    |> Map.get(:bindings)
+    |> Enum.reduce(query, fn {path, data}, query ->
+      add_binding(query, path, data)
+    end)
+  end
+
+  defp merge_bindings(query, _) do
+    query
   end
 
   defp add_binding(query, path, type) do
