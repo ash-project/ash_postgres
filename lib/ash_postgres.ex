@@ -309,7 +309,9 @@ defmodule AshPostgres do
     new_query =
       from(row in query,
         join: destination in ^relationship_destination,
-        on: field(row, ^relationship.source_field) == field(row, ^relationship.destination_field)
+        on:
+          field(row, ^relationship.source_field) ==
+            field(destination, ^relationship.destination_field)
       )
 
     new_query
@@ -355,7 +357,9 @@ defmodule AshPostgres do
     new_query =
       from(row in query,
         left_join: destination in ^relationship_destination,
-        on: field(row, ^relationship.source_field) == field(row, ^relationship.destination_field)
+        on:
+          field(row, ^relationship.source_field) ==
+            field(destination, ^relationship.destination_field)
       )
 
     new_query
