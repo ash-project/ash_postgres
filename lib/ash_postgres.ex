@@ -17,6 +17,7 @@ defmodule AshPostgres do
                      )
 
   alias Ash.Filter.{And, Eq, In, NotEq, NotIn, Or}
+  alias AshPostgres.Predicates.Trigram
 
   @moduledoc """
   A postgres data layer that levereges Ecto's postgres tools.
@@ -67,6 +68,21 @@ defmodule AshPostgres do
     resource.repo()
   end
 
+  @impl true
+  def custom_filters(resource) do
+    config = repo(resource).config()
+
+    add_pg_trgm_search(%{}, config)
+  end
+
+  defp add_pg_trgm_search(filters, config) do
+    if "pg_trgm" in config[:installed_extensions] do
+      Map.update(filters, :string, [{:trigram, AshPostgres.Predicates.Trigram}], fn filters ->
+        [{:trigram, AshPostgres.Predicates.Trigram} | filters]
+      end)
+    end
+  end
+
   import Ecto.Query, only: [from: 2]
 
   @impl true
@@ -82,6 +98,7 @@ defmodule AshPostgres do
   def can?({:filter, :and}), do: true
   def can?({:filter, :or}), do: true
   def can?({:filter, :not}), do: true
+  def can?({:filter, :trigram}), do: true
   def can?({:filter_related, _}), do: true
   def can?(_), do: false
 
@@ -443,7 +460,7 @@ defmodule AshPostgres do
         not_filter ->
           {params, new_expr} = filter_to_expr(not_filter, bindings, params, current_binding, path)
 
-          {params, join_exprs(expr, {:not, new_expr}, :and)}
+          {params, join_exprs(expr, {:not, [], [new_expr]}, :and)}
       end
 
     {params, expr} =
@@ -503,6 +520,72 @@ defmodule AshPostgres do
          {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
          {:^, [], [Enum.count(params)]}
        ]}}}
+  end
+
+  defp filter_value_to_expr(
+         attribute,
+         %Trigram{} = trigram,
+         current_binding,
+         params
+       ) do
+    param_count = Enum.count(params)
+
+    case trigram do
+      %{equals: equals, greater_than: nil, less_than: nil, text: text} ->
+        {params ++ [{text, {current_binding, attribute}}, {equals, :float}],
+         {:fragment, [],
+          [
+            raw: "similarity(",
+            expr: {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
+            raw: ", ",
+            expr: {:^, [], [param_count]},
+            raw: ") = ",
+            expr: {:^, [], [param_count + 1]},
+            raw: ""
+          ]}}
+
+      %{equals: nil, greater_than: greater_than, less_than: nil, text: text} ->
+        {params ++ [{text, {current_binding, attribute}}, {greater_than, :float}],
+         {:fragment, [],
+          [
+            raw: "similarity(",
+            expr: {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
+            raw: ", ",
+            expr: {:^, [], [param_count]},
+            raw: ") > ",
+            expr: {:^, [], [param_count + 1]},
+            raw: ""
+          ]}}
+
+      %{equals: nil, greater_than: nil, less_than: less_than, text: text} ->
+        {params ++ [{text, {current_binding, attribute}}, {less_than, :float}],
+         {:fragment, [],
+          [
+            raw: "similarity(",
+            expr: {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
+            raw: ", ",
+            expr: {:^, [], [param_count]},
+            raw: ") < ",
+            expr: {:^, [], [param_count + 1]},
+            raw: ""
+          ]}}
+
+      %{equals: nil, greater_than: greater_than, less_than: less_than, text: text} ->
+        {params ++
+           [{text, {current_binding, attribute}}, {less_than, :float}, {greater_than, :float}],
+         {:fragment, [],
+          [
+            raw: "similarity(",
+            expr: {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
+            raw: ", ",
+            expr: {:^, [], [param_count]},
+            raw: ") BETWEEN ",
+            expr: {:^, [], [param_count + 1]},
+            raw: " AND ",
+            expr: {:^, [], [param_count + 2]},
+            raw: ""
+          ]}}
+    end
   end
 
   defp filter_value_to_expr(
