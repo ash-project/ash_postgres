@@ -80,6 +80,8 @@ defmodule AshPostgres do
       Map.update(filters, :string, [{:trigram, AshPostgres.Predicates.Trigram}], fn filters ->
         [{:trigram, AshPostgres.Predicates.Trigram} | filters]
       end)
+    else
+      filters
     end
   end
 
