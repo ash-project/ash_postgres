@@ -6,10 +6,12 @@ defmodule AshPostgres.MixProject do
   support, and delegates to a configured repo.
   """
 
+  @version "0.1.2"
+
   def project do
     [
       app: :ash_postgres,
-      version: "0.1.1",
+      version: @version,
       elixir: "~> 1.9",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -35,8 +37,8 @@ defmodule AshPostgres.MixProject do
     [
       {:ecto_sql, "~> 3.0"},
       {:postgrex, ">= 0.0.0"},
-      # {:ash, "~> 0.1.1"},
-      {:ash, path: "../ash"},
+      {:ash, "~> 0.1.2"},
+      {:git_ops, "~> 2.0.0", only: :dev},
       {:ex_doc, "~> 0.21", only: :dev, runtime: false}
     ]
   end
