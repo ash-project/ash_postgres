@@ -1,20 +1,16 @@
 defmodule AshPostgres do
-  @using_opts_schema Ashton.schema(
-                       opts: [
-                         repo: :atom,
-                         table: :string
-                       ],
-                       required: [:repo],
-                       describe: [
-                         repo:
-                           "The repo that will be used to fetch your data. See the `Ecto.Repo` documentation for more",
-                         table: "The name of the database table backing the resource"
-                       ],
-                       constraints: [
-                         repo:
-                           {&AshPostgres.postgres_repo?/1, "must be using the postgres adapter"}
-                       ]
-                     )
+  @using_opts_schema [
+    repo: [
+      type: :atom,
+      required: true,
+      doc:
+        "The repo that will be used to fetch your data. See the `Ecto.Repo` documentation for more"
+    ],
+    table: [
+      type: :string,
+      doc: "The name of the database table backing the resource"
+    ]
+  ]
 
   alias Ash.Filter.{And, Eq, In, NotEq, NotIn, Or}
   alias AshPostgres.Predicates.Trigram
@@ -24,7 +20,7 @@ defmodule AshPostgres do
 
   To use it, add `use AshPostgres, repo: MyRepo` to your resource, after `use Ash.Resource`
 
-  #{Ashton.document(@using_opts_schema)}
+  #{NimbleOptions.docs(@using_opts_schema)}
   """
   @behaviour Ash.DataLayer
 
@@ -47,7 +43,7 @@ defmodule AshPostgres do
   end
 
   def validate_using_opts(mod, opts) do
-    case Ashton.validate(opts, @using_opts_schema) do
+    case NimbleOptions.validate(opts, @using_opts_schema) do
       {:ok, opts} ->
         opts
 
