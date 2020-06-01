@@ -1,5 +1,5 @@
 ---
-name: Feature request
+name: Proposal
 about: Suggest an idea for this project
 title: ''
 labels: enhancement, needs review
