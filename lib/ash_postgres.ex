@@ -242,8 +242,9 @@ defmodule AshPostgres do
       join_type = :left
 
       case {join_type, relationship_filter} do
-        {:left, %{impossible?: true}} ->
-          query
+        # TODO: We can't actually do this
+        # {:left, %{impossible?: true}} ->
+        #   query
 
         # {:inner, %{impossible?: true}} ->
         #   from(row in query, where: false)
