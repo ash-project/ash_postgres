@@ -21,6 +21,9 @@ defmodule AshPostgres.MixProject do
         coveralls: :test,
         "coveralls.github": :test
       ],
+      dialyzer: [
+        plt_add_apps: [:ecto]
+      ],
       aliases: aliases(),
       package: package(),
       source_url: "https://github.com/ash-project/ash_postgres",
@@ -43,7 +46,7 @@ defmodule AshPostgres.MixProject do
     [
       {:ecto_sql, "~> 3.0"},
       {:postgrex, ">= 0.0.0"},
-      {:ash, "~> 0.1.2"},
+      {:ash, "~> 0.1.8"},
       {:git_ops, "~> 2.0.0", only: :dev},
       {:ex_doc, "~> 0.21", only: :dev, runtime: false},
       {:ex_check, "~> 0.11.0", only: :dev},

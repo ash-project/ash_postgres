@@ -47,11 +47,10 @@ defmodule AshPostgres do
       {:ok, opts} ->
         opts
 
-      {:error, [{key, message} | _]} ->
+      {:error, message} ->
         raise Ash.Error.ResourceDslError,
           resource: mod,
           using: __MODULE__,
-          option: key,
           message: message
     end
   end
