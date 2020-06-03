@@ -1,0 +1,46 @@
+name: Elixir CI
+
+on:
+  push:
+    branches: [master]
+    tags-ignore: ["v*"]
+  pull_request:
+    branches: [master]
+  create:
+    tags: ["v*"]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
+    strategy:
+      matrix:
+        otp: ["23"]
+        elixir: ["1.10.0"]
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      ASH_CI: true
+    steps:
+      - run: sudo apt-get install --yes erlang-dev
+      - uses: actions/checkout@v2
+      - uses: actions/setup-elixir@v1
+        with:
+          otp-version: ${{matrix.otp}}
+          elixir-version: ${{matrix.elixir}}
+      - uses: actions/cache@v1
+        id: cache-deps
+        with:
+          path: deps
+          key: otp-${{matrix.otp}}-elixir-${{matrix.elixir}}-deps-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
+          restore-keys: otp-${{matrix.otp}}-elixir-${{matrix.elixir}}-deps-
+      - uses: actions/cache@v1
+        id: cache-build
+        with:
+          path: _build
+          key: otp-${{matrix.otp}}-elixir-${{matrix.elixir}}-build-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
+          restore-keys: otp-${{matrix.otp}}-elixir-${{matrix.elixir}}-build-
+      - run: mix deps.get
+      - run: mix check
+      - run: mix hex.publish --yes
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}

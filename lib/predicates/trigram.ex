@@ -1,4 +1,17 @@
 defmodule AshPostgres.Predicates.Trigram do
+  @moduledoc """
+  A filter predicate that filters based on trigram similarity.
+
+  See the postgres docs on [https://www.postgresql.org/docs/9.6/pgtrgm.html](trigram) for more information.
+
+  Requires the pg_trgm extension. Configure which extensions you have installed in your `AshPostgres.Repo`
+
+      # Example
+
+      filter(query, name: [trigram: [text: "geoff", greater_than: 0.4]])
+  """
+
+  alias Ash.Error.Filter.InvalidFilterValue
   defstruct [:text, :greater_than, :less_than, :equals]
 
   def new(_resource, attr_name, attr_type, opts) do
@@ -12,7 +25,7 @@ defmodule AshPostgres.Predicates.Trigram do
     else
       _ ->
         {:error,
-         Ash.Error.Filter.InvalidFilterValue.exception(
+         InvalidFilterValue.exception(
            filter: %__MODULE__{
              text: opts[:text],
              less_than: opts[:less_than],

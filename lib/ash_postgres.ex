@@ -32,11 +32,11 @@ defmodule AshPostgres do
       @repo opts[:repo]
       @table opts[:table]
 
-      def repo() do
+      def repo do
         @repo
       end
 
-      def postgres_table() do
+      def postgres_table do
         @table || @name
       end
     end
@@ -205,15 +205,6 @@ defmodule AshPostgres do
     end)
   end
 
-  # TODO: I have learned from experience that no single approach here
-  # will be a one-size-fits-all. We need to either use complexity metrics,
-  # hints from the interface, or some other heuristic to do our best to
-  # make queries perform well. For now, I'm just choosing the most naive approach
-  # possible: left join to relationships that appear in `or` conditions, inner
-  # join to conditions that are constant the query (dont do this yet, but it will be a good optimization)
-  # Realistically, in my experience, joins don't actually scale very well, especially
-  # when calculated attributes are added.
-
   @impl true
   def filter(query, filter, _resource) do
     new_query =
@@ -237,17 +228,9 @@ defmodule AshPostgres do
       Map.put_new(query, :__ash_bindings__, %{current: Enum.count(query.joins) + 1, bindings: %{}})
 
     Enum.reduce(filter.relationships, query, fn {name, relationship_filter}, query ->
-      # TODO: This can be smarter. If the same relationship exists in all `ors`,
-      # we can inner join it, (unless the filter is only for fields being null)
       join_type = :left
 
       case {join_type, relationship_filter} do
-        # TODO: We can't actually do this
-        # {:left, %{impossible?: true}} ->
-        #   query
-
-        # {:inner, %{impossible?: true}} ->
-        #   from(row in query, where: false)
         {join_type, relationship_filter} ->
           relationship = Ash.relationship(filter.resource, name)
 
@@ -256,17 +239,21 @@ defmodule AshPostgres do
           joined_query = join_relationship(query, current_path, join_type)
 
           joined_query_with_distinct =
-            if relationship.cardinality == :many and join_type == :left && !joined_query.distinct do
-              from(row in joined_query,
-                distinct: ^Ash.primary_key(filter.resource)
-              )
-            else
-              joined_query
-            end
+            join_and_add_distinct(relationship, join_type, joined_query, filter)
 
           join_all_relationships(joined_query_with_distinct, relationship_filter, current_path)
       end
     end)
+  end
+
+  defp join_and_add_distinct(relationship, join_type, joined_query, filter) do
+    if relationship.cardinality == :many and join_type == :left && !joined_query.distinct do
+      from(row in joined_query,
+        distinct: ^Ash.primary_key(filter.resource)
+      )
+    else
+      joined_query
+    end
   end
 
   defp join_relationship(query, path, join_type) do

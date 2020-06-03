@@ -9,7 +9,7 @@ defmodule AshPostgres.Repo do
         adapter: Ecto.Adapters.Postgres,
         otp_app: otp_app
 
-      def installed_extensions() do
+      def installed_extensions do
         []
       end
 
