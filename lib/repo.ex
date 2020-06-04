@@ -1,4 +1,9 @@
 defmodule AshPostgres.Repo do
+  @moduledoc """
+  Resources that use the `AshPostgres` data layer use a `Repo` to access the database.
+
+  This module is where database connection and configuration options go.
+  """
   @callback installed_extensions() :: [String.t()]
 
   defmacro __using__(opts) do
