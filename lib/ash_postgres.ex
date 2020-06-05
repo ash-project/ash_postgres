@@ -8,7 +8,8 @@ defmodule AshPostgres do
     ],
     table: [
       type: :string,
-      doc: "The name of the database table backing the resource"
+      doc: "The name of the database table backing the resource",
+      required: true
     ]
   ]
 
@@ -37,7 +38,7 @@ defmodule AshPostgres do
       end
 
       def postgres_table do
-        @table || @name
+        @table
       end
     end
   end
