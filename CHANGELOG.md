@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.2.0](https://github.com/ash-project/ash_postgres/compare/0.1.4...v0.2.0) (2020-06-14)
+
+
+
+
+### Features:
+
+* use the new DSL builder for config (#7)
+
 ## [v0.1.4](https://github.com/ash-project/ash_postgres/compare/0.1.3...v0.1.4) (2020-06-05)
 
 
