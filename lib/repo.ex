@@ -2,7 +2,7 @@ defmodule AshPostgres.Repo do
   @moduledoc """
   Resources that use the `AshPostgres` data layer use a `Repo` to access the database.
 
-  This module is where database connection and configuration options go.
+  This repo is a slightly modified version of an ecto repo.
   """
   @callback installed_extensions() :: [String.t()]
 
