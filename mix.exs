@@ -61,7 +61,7 @@ defmodule AshPostgres.MixProject do
     [
       {:ecto_sql, "~> 3.4"},
       {:postgrex, ">= 0.0.0"},
-      {:ash, "~> 0.4.0"},
+      {:ash, "~> 0.5.1"},
       {:git_ops, "~> 2.0.0", only: :dev},
       {:ex_doc, "~> 0.22", only: :dev, runtime: false},
       {:ex_check, "~> 0.11.0", only: :dev},
@@ -75,7 +75,8 @@ defmodule AshPostgres.MixProject do
   defp aliases do
     [
       sobelow: "sobelow --skip",
-      credo: "credo --strict"
+      credo: "credo --strict",
+      "ash.formatter": "ash.formatter --extensions AshPostgres.DataLayer"
     ]
   end
 end
