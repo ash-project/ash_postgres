@@ -11,30 +11,28 @@ defmodule AshPostgres.Predicates.Trigram do
       filter(query, name: [trigram: [text: "geoff", greater_than: 0.4]])
   """
 
-  alias Ash.Error.Filter.InvalidFilterValue
-  defstruct [:text, :greater_than, :less_than, :equals]
+  # alias Ash.Error.Filter.InvalidFilterValue
+  defstruct [:field, :text, :greater_than, :less_than, :equals]
 
-  def new(_resource, attr_name, attr_type, opts) do
+  use Ash.Filter.Predicate
+
+  def new(_resource, attribute, opts) do
     with :ok <- required_options_provided(opts),
-         {:ok, value} <- Ash.Type.cast_input(attr_type, opts[:text]),
+         {:ok, value} <- Ash.Type.cast_input(attribute.type, opts[:text]),
          {:ok, less_than} <- validate_similarity(opts[:less_than]),
          {:ok, greater_than} <- validate_similarity(opts[:greater_than]),
          {:ok, equals} <- validate_similarity(opts[:equals]) do
       {:ok,
-       %__MODULE__{text: value, greater_than: greater_than, less_than: less_than, equals: equals}}
+       %__MODULE__{
+         field: attribute.name,
+         text: value,
+         greater_than: greater_than,
+         less_than: less_than,
+         equals: equals
+       }}
     else
       _ ->
-        {:error,
-         InvalidFilterValue.exception(
-           filter: %__MODULE__{
-             text: opts[:text],
-             less_than: opts[:less_than],
-             greater_than: opts[:greater_than],
-             equals: opts[:equals]
-           },
-           value: opts,
-           field: attr_name
-         )}
+        {:error, "Invalid filter value"}
     end
   end
 
@@ -73,51 +71,73 @@ defmodule AshPostgres.Predicates.Trigram do
       :error
     end
   end
-end
 
-defimpl Inspect, for: AshPostgres.Predicates.Trigram do
-  import Inspect.Algebra
-  import Ash.Filter.InspectHelpers
+  defimpl Inspect do
+    import Inspect.Algebra
 
-  def inspect(%{text: text, equals: nil, less_than: nil, greater_than: greater_than}, opts) do
-    concat([
-      attr(opts),
-      " trigram similarity to ",
-      to_doc(text, opts),
-      " is greater than ",
-      to_doc(greater_than, opts)
-    ])
-  end
+    def inspect(
+          %{field: field, text: text, equals: nil, less_than: nil, greater_than: greater_than},
+          opts
+        ) do
+      concat([
+        "similarity(",
+        Ash.Filter.Predicate.add_inspect_path(opts, field),
+        ", ",
+        to_doc(text, opts),
+        ")",
+        " > ",
+        to_doc(greater_than, opts)
+      ])
+    end
 
-  def inspect(%{text: text, equals: nil, less_than: less_than, greater_than: nil}, opts) do
-    concat([
-      attr(opts),
-      " trigram similarity to ",
-      to_doc(text, opts),
-      " is less than ",
-      to_doc(less_than, opts)
-    ])
-  end
+    def inspect(
+          %{field: field, text: text, equals: nil, less_than: less_than, greater_than: nil},
+          opts
+        ) do
+      concat([
+        "similarity(",
+        Ash.Filter.Predicate.add_inspect_path(opts, field),
+        ", ",
+        to_doc(text, opts),
+        ")",
+        " < ",
+        to_doc(less_than, opts)
+      ])
+    end
 
-  def inspect(%{text: text, equals: nil, less_than: less_than, greater_than: greater_than}, opts) do
-    concat([
-      attr(opts),
-      " trigram similarity to ",
-      to_doc(text, opts),
-      " is between ",
-      to_doc(less_than, opts),
-      " and ",
-      to_doc(greater_than, opts)
-    ])
-  end
+    def inspect(
+          %{
+            field: field,
+            text: text,
+            equals: nil,
+            less_than: less_than,
+            greater_than: greater_than
+          },
+          opts
+        ) do
+      concat([
+        "similarity(",
+        Ash.Filter.Predicate.add_inspect_path(opts, field),
+        ", ",
+        to_doc(text, opts),
+        ") between ",
+        to_doc(less_than, opts),
+        " and ",
+        to_doc(greater_than, opts)
+      ])
+    end
 
-  def inspect(%{text: text, equals: equals, less_than: nil, greater_than: nil}, opts) do
-    concat([
-      attr(opts),
-      " trigram similarity to ",
-      to_doc(text, opts),
-      " == ",
-      to_doc(equals, opts)
-    ])
+    def inspect(
+          %{field: field, text: text, equals: equals, less_than: nil, greater_than: nil},
+          opts
+        ) do
+      concat([
+        Ash.Filter.Predicate.add_inspect_path(opts, field),
+        " trigram similarity to ",
+        to_doc(text, opts),
+        " == ",
+        to_doc(equals, opts)
+      ])
+    end
   end
 end
