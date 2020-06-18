@@ -16,6 +16,8 @@ defmodule AshPostgres.Predicates.Trigram do
 
   use Ash.Filter.Predicate
 
+  alias Ash.Filter.Predicate
+
   def new(_resource, attribute, opts) do
     with :ok <- required_options_provided(opts),
          {:ok, value} <- Ash.Type.cast_input(attribute.type, opts[:text]),
@@ -81,7 +83,7 @@ defmodule AshPostgres.Predicates.Trigram do
         ) do
       concat([
         "similarity(",
-        Ash.Filter.Predicate.add_inspect_path(opts, field),
+        Predicate.add_inspect_path(opts, field),
         ", ",
         to_doc(text, opts),
         ")",
@@ -96,7 +98,7 @@ defmodule AshPostgres.Predicates.Trigram do
         ) do
       concat([
         "similarity(",
-        Ash.Filter.Predicate.add_inspect_path(opts, field),
+        Predicate.add_inspect_path(opts, field),
         ", ",
         to_doc(text, opts),
         ")",
@@ -117,7 +119,7 @@ defmodule AshPostgres.Predicates.Trigram do
         ) do
       concat([
         "similarity(",
-        Ash.Filter.Predicate.add_inspect_path(opts, field),
+        Predicate.add_inspect_path(opts, field),
         ", ",
         to_doc(text, opts),
         ") between ",
@@ -132,7 +134,7 @@ defmodule AshPostgres.Predicates.Trigram do
           opts
         ) do
       concat([
-        Ash.Filter.Predicate.add_inspect_path(opts, field),
+        Predicate.add_inspect_path(opts, field),
         " trigram similarity to ",
         to_doc(text, opts),
         " == ",

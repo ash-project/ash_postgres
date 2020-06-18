@@ -22,7 +22,7 @@ defmodule AshPostgres.MixProject do
         "coveralls.github": :test
       ],
       dialyzer: [
-        plt_add_apps: [:ecto]
+        plt_add_apps: [:ecto, :ash]
       ],
       docs: docs(),
       aliases: aliases(),

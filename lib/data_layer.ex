@@ -44,7 +44,6 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def custom_filters(resource) do
-    # TODO: this runtime configuration is not working correctly
     config = repo(resource).config()
 
     add_pg_trgm_search(%{}, config)
@@ -191,7 +190,12 @@ defmodule AshPostgres.DataLayer do
   end
 
   def filter(query, filter, resource) do
-    relationship_paths = Filter.relationship_paths(filter)
+    relationship_paths =
+      filter
+      |> Filter.relationship_paths()
+      |> Enum.map(fn path ->
+        relationship_path_to_relationships(resource, path)
+      end)
 
     new_query =
       query
@@ -202,19 +206,27 @@ defmodule AshPostgres.DataLayer do
     {:ok, new_query}
   end
 
-  defp join_all_relationships(query, resource, relationship_paths, path \\ []) do
+  defp relationship_path_to_relationships(resource, path, acc \\ [])
+  defp relationship_path_to_relationships(_resource, [], acc), do: Enum.reverse(acc)
+
+  defp relationship_path_to_relationships(resource, [relationship | rest], acc) do
+    relationship = Ash.relationship(resource, relationship)
+
+    relationship_path_to_relationships(relationship.destination, rest, [relationship | acc])
+  end
+
+  defp join_all_relationships(query, _resource, relationship_paths, path \\ []) do
     query =
       Map.put_new(query, :__ash_bindings__, %{
         current: Enum.count(query.joins) + 1,
         bindings: %{[] => 0}
       })
 
-    Enum.reduce(relationship_paths, query, fn [first_rel | rest_rels], query ->
+    Enum.reduce(relationship_paths, query, fn [relationship | rest_rels], query ->
       # Eventually this will not be a constant
       join_type = :left
-      relationship = Ash.relationship(resource, first_rel)
 
-      current_path = [first_rel | path]
+      current_path = [relationship | path]
 
       joined_query = join_relationship(query, current_path, join_type)
 
@@ -399,7 +411,6 @@ defmodule AshPostgres.DataLayer do
     filter_value_to_expr(attribute.name, predicate, current_binding, params)
   end
 
-  # TODO: keep track of the count of params for bindings
   defp filter_value_to_expr(attribute, %Eq{value: value}, current_binding, params) do
     {params ++ [{value, {current_binding, attribute}}],
      {:==, [],
