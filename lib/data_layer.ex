@@ -62,21 +62,14 @@ defmodule AshPostgres.DataLayer do
   import Ecto.Query, only: [from: 2]
 
   @impl true
-  def can?(_, capability), do: can?(capability)
-  defp can?(:query_async), do: true
-  defp can?(:transact), do: true
-  defp can?(:composite_primary_key), do: true
-  defp can?(:upsert), do: true
-  defp can?({:filter, :in}), do: true
-  defp can?({:filter, :not_in}), do: true
-  defp can?({:filter, :not_eq}), do: true
-  defp can?({:filter, :eq}), do: true
-  defp can?({:filter, :and}), do: true
-  defp can?({:filter, :or}), do: true
-  defp can?({:filter, :not}), do: true
-  defp can?({:filter, :trigram}), do: true
-  defp can?({:filter_related, _}), do: true
-  defp can?(_), do: false
+  def can?(_, :async_engine), do: true
+  def can?(_, :transact), do: true
+  def can?(_, :composite_primary_key), do: true
+  def can?(_, :upsert), do: true
+  def can?(_, {:filter_predicate, %In{}}), do: true
+  def can?(_, {:filter_predicate, %Eq{}}), do: true
+  def can?(_, {:filter_predicate, %Trigram{}}), do: true
+  def can?(_, _), do: false
 
   @impl true
   def limit(query, nil, _), do: {:ok, query}
