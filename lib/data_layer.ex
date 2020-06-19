@@ -22,7 +22,9 @@ defmodule AshPostgres.DataLayer do
     ]
   }
 
-  alias Ash.Filter.{And, Eq, In, NotEq, NotIn, Or}
+  alias Ash.Filter
+  alias Ash.Filter.{Expression, Not, Predicate}
+  alias Ash.Filter.Predicate.{Eq, In}
   alias AshPostgres.Predicates.Trigram
 
   import AshPostgres, only: [table: 1, repo: 1]
@@ -60,21 +62,14 @@ defmodule AshPostgres.DataLayer do
   import Ecto.Query, only: [from: 2]
 
   @impl true
-  def can?(_, capability), do: can?(capability)
-  defp can?(:query_async), do: true
-  defp can?(:transact), do: true
-  defp can?(:composite_primary_key), do: true
-  defp can?(:upsert), do: true
-  defp can?({:filter, :in}), do: true
-  defp can?({:filter, :not_in}), do: true
-  defp can?({:filter, :not_eq}), do: true
-  defp can?({:filter, :eq}), do: true
-  defp can?({:filter, :and}), do: true
-  defp can?({:filter, :or}), do: true
-  defp can?({:filter, :not}), do: true
-  defp can?({:filter, :trigram}), do: true
-  defp can?({:filter_related, _}), do: true
-  defp can?(_), do: false
+  def can?(_, :async_engine), do: true
+  def can?(_, :transact), do: true
+  def can?(_, :composite_primary_key), do: true
+  def can?(_, :upsert), do: true
+  def can?(_, {:filter_predicate, %In{}}), do: true
+  def can?(_, {:filter_predicate, %Eq{}}), do: true
+  def can?(_, {:filter_predicate, %Trigram{}}), do: true
+  def can?(_, _), do: false
 
   @impl true
   def limit(query, nil, _), do: {:ok, query}
@@ -182,50 +177,67 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def filter(query, filter, _resource) do
+  def filter(query, %{expression: false}, _resource) do
+    impossible_query = from(row in query, where: false)
+    {:ok, Map.put(impossible_query, :__impossible__, true)}
+  end
+
+  def filter(query, filter, resource) do
+    relationship_paths =
+      filter
+      |> Filter.relationship_paths()
+      |> Enum.map(fn path ->
+        relationship_path_to_relationships(resource, path)
+      end)
+
     new_query =
       query
       |> Map.put(:bindings, %{})
-      |> join_all_relationships(filter)
+      |> join_all_relationships(resource, relationship_paths)
       |> add_filter_expression(filter)
 
-    impossible_query =
-      if filter.impossible? do
-        Map.put(new_query, :__impossible__, true)
-      else
-        new_query
-      end
-
-    {:ok, impossible_query}
+    {:ok, new_query}
   end
 
-  defp join_all_relationships(query, filter, path \\ []) do
-    query =
-      Map.put_new(query, :__ash_bindings__, %{current: Enum.count(query.joins) + 1, bindings: %{}})
+  defp relationship_path_to_relationships(resource, path, acc \\ [])
+  defp relationship_path_to_relationships(_resource, [], acc), do: Enum.reverse(acc)
 
-    Enum.reduce(filter.relationships, query, fn {name, relationship_filter}, query ->
+  defp relationship_path_to_relationships(resource, [relationship | rest], acc) do
+    relationship = Ash.relationship(resource, relationship)
+
+    relationship_path_to_relationships(relationship.destination, rest, [relationship | acc])
+  end
+
+  defp join_all_relationships(query, _resource, relationship_paths, path \\ []) do
+    query =
+      Map.put_new(query, :__ash_bindings__, %{
+        current: Enum.count(query.joins) + 1,
+        bindings: %{[] => 0}
+      })
+
+    Enum.reduce(relationship_paths, query, fn [relationship | rest_rels], query ->
+      # Eventually this will not be a constant
       join_type = :left
 
-      case {join_type, relationship_filter} do
-        {join_type, relationship_filter} ->
-          relationship = Ash.relationship(filter.resource, name)
+      current_path = [relationship | path]
 
-          current_path = [relationship | path]
+      joined_query = join_relationship(query, current_path, join_type)
 
-          joined_query = join_relationship(query, current_path, join_type)
+      joined_query_with_distinct = join_and_add_distinct(relationship, join_type, joined_query)
 
-          joined_query_with_distinct =
-            join_and_add_distinct(relationship, join_type, joined_query, filter)
-
-          join_all_relationships(joined_query_with_distinct, relationship_filter, current_path)
-      end
+      join_all_relationships(
+        joined_query_with_distinct,
+        relationship.destination,
+        rest_rels,
+        current_path
+      )
     end)
   end
 
-  defp join_and_add_distinct(relationship, join_type, joined_query, filter) do
+  defp join_and_add_distinct(relationship, join_type, joined_query) do
     if relationship.cardinality == :many and join_type == :left && !joined_query.distinct do
       from(row in joined_query,
-        distinct: ^Ash.primary_key(filter.resource)
+        distinct: ^Ash.primary_key(relationship.destination)
       )
     else
       joined_query
@@ -362,96 +374,37 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp join_exprs(nil, nil, _op), do: nil
-  defp join_exprs(expr, nil, _op), do: expr
-  defp join_exprs(nil, expr, _op), do: expr
-  defp join_exprs(left_expr, right_expr, op), do: {op, [], [left_expr, right_expr]}
-
-  defp filter_to_expr(filter, bindings, params, current_binding \\ 0, path \\ [])
-
-  # A completely empty filter means "everything"
-  defp filter_to_expr(%{impossible?: true}, _, _, _, _), do: {[], false}
-
-  defp filter_to_expr(
-         %{ands: [], ors: [], not: nil, attributes: attrs, relationships: rels},
-         _,
-         _,
-         _,
-         _
-       )
-       when attrs == %{} and rels == %{} do
-    {[], true}
+  defp filter_to_expr(%Filter{expression: expression}, bindings, params) do
+    filter_to_expr(expression, bindings, params)
   end
 
-  defp filter_to_expr(filter, bindings, params, current_binding, path) do
-    {params, expr} =
-      Enum.reduce(filter.attributes, {params, nil}, fn {attribute, filter},
-                                                       {params, existing_expr} ->
-        {params, new_expr} = filter_value_to_expr(attribute, filter, current_binding, params)
+  # A nil filter means "everything"
+  defp filter_to_expr(nil, _, _), do: {[], true}
+  # A true filter means "everything"
+  defp filter_to_expr(true, _, _), do: true
+  # A false filter means "nothing"
+  defp filter_to_expr(false, _, _), do: {[], false}
 
-        {params, join_exprs(existing_expr, new_expr, :and)}
-      end)
-
-    {params, expr} =
-      Enum.reduce(filter.relationships, {params, expr}, fn {relationship, relationship_filter},
-                                                           {params, existing_expr} ->
-        full_path = path ++ [relationship]
-
-        binding =
-          Map.get(bindings, full_path) ||
-            raise "unbound relationship #{inspect(full_path)} referenced! #{inspect(bindings)}"
-
-        {params, new_expr} =
-          filter_to_expr(relationship_filter, bindings, params, binding.binding, full_path)
-
-        {params, join_exprs(new_expr, existing_expr, :and)}
-      end)
-
-    {params, expr} =
-      Enum.reduce(filter.ors, {params, expr}, fn or_filter, {params, existing_expr} ->
-        {params, new_expr} = filter_to_expr(or_filter, bindings, params, current_binding, path)
-
-        {params, join_exprs(existing_expr, new_expr, :or)}
-      end)
-
-    {params, expr} =
-      case filter.not do
-        nil ->
-          {params, expr}
-
-        not_filter ->
-          {params, new_expr} = filter_to_expr(not_filter, bindings, params, current_binding, path)
-
-          {params, join_exprs(expr, {:not, [], [new_expr]}, :and)}
-      end
-
-    {params, expr} =
-      Enum.reduce(filter.ands, {params, expr}, fn and_filter, {params, existing_expr} ->
-        {params, new_expr} = filter_to_expr(and_filter, bindings, params, current_binding, path)
-
-        {params, join_exprs(existing_expr, new_expr, :and)}
-      end)
-
-    if expr do
-      {params, expr}
-    else
-      # A filter that was not empty, but didn't generate an expr for some reason, should default to `false`
-      # AFAIK this shouldn't actually be possible
-      {params, false}
-    end
+  defp filter_to_expr(%Expression{op: op, left: left, right: right}, bindings, params) do
+    {params, left_expr} = filter_to_expr(left, bindings, params)
+    {params, right_expr} = filter_to_expr(right, bindings, params)
+    {params, {op, [], [left_expr, right_expr]}}
   end
 
-  # THe fact that we keep counting params here is very silly.
+  defp filter_to_expr(%Not{expression: expression}, bindings, params) do
+    {params, new_expression} = filter_to_expr(expression, bindings, params)
+    {params, {:not, [], [new_expression]}}
+  end
+
+  defp filter_to_expr(%Predicate{} = pred, bindings, params) do
+    %{predicate: predicate, relationship_path: relationship_path, attribute: attribute} = pred
+
+    current_binding = Map.get(bindings, relationship_path)
+
+    filter_value_to_expr(attribute.name, predicate, current_binding, params)
+  end
+
   defp filter_value_to_expr(attribute, %Eq{value: value}, current_binding, params) do
-    {params ++ [{value, {current_binding, attribute}}],
-     {:==, [],
-      [
-        {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
-        {:^, [], [Enum.count(params)]}
-      ]}}
-  end
-
-  defp filter_value_to_expr(attribute, %NotEq{value: value}, current_binding, params) do
     {params ++ [{value, {current_binding, attribute}}],
      {:==, [],
       [
@@ -467,21 +420,6 @@ defmodule AshPostgres.DataLayer do
         {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
         {:^, [], [Enum.count(params)]}
       ]}}
-  end
-
-  defp filter_value_to_expr(
-         attribute,
-         %NotIn{values: values},
-         current_binding,
-         params
-       ) do
-    {params ++ [{values, {:in, {current_binding, attribute}}}],
-     {:not,
-      {:in, [],
-       [
-         {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
-         {:^, [], [Enum.count(params)]}
-       ]}}}
   end
 
   defp filter_value_to_expr(
@@ -548,32 +486,6 @@ defmodule AshPostgres.DataLayer do
             raw: ""
           ]}}
     end
-  end
-
-  defp filter_value_to_expr(
-         attribute,
-         %And{left: left, right: right},
-         current_binding,
-         params
-       ) do
-    {params, left_expr} = filter_value_to_expr(attribute, left, current_binding, params)
-
-    {params, right_expr} = filter_value_to_expr(attribute, right, current_binding, params)
-
-    {params, join_exprs(left_expr, right_expr, :and)}
-  end
-
-  defp filter_value_to_expr(
-         attribute,
-         %Or{left: left, right: right},
-         current_binding,
-         params
-       ) do
-    {params, left_expr} = filter_value_to_expr(attribute, left, current_binding, params)
-
-    {params, right_expr} = filter_value_to_expr(attribute, right, current_binding, params)
-
-    {params, join_exprs(left_expr, right_expr, :or)}
   end
 
   defp merge_bindings(query, %{__ash_bindings__: ash_bindings}) do
