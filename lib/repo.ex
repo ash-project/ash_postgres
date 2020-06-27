@@ -18,14 +18,10 @@ defmodule AshPostgres.Repo do
         []
       end
 
-      def init(:supervisor, config) do
+      def init(_, config) do
         new_config = Keyword.put(config, :installed_extensions, installed_extensions())
 
         {:ok, new_config}
-      end
-
-      def init(:runtime, config) do
-        init(:supervisor, config)
       end
 
       defoverridable installed_extensions: 0

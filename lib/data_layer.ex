@@ -86,11 +86,6 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def run_query(%{__impossible__: true}, _) do
-    {:ok, []}
-  end
-
-  @impl true
   def run_query(query, resource) do
     {:ok, repo(resource).all(query)}
   end
@@ -528,10 +523,6 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp maybe_get_resource_query(resource) do
-    if Ash.resource_module?(resource) do
-      {table(resource), resource}
-    else
-      resource
-    end
+    {table(resource), resource}
   end
 end

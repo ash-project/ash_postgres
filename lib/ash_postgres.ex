@@ -11,11 +11,11 @@ defmodule AshPostgres do
 
   @doc "Fetch the configured repo for a resource"
   def repo(resource) do
-    Extension.get_opt(resource, [:postgres], :repo)
+    Extension.get_opt(resource, [:postgres], :repo, nil, true)
   end
 
   @doc "Fetch the configured table for a resource"
   def table(resource) do
-    Extension.get_opt(resource, [:postgres], :table)
+    Extension.get_opt(resource, [:postgres], :table, nil, true)
   end
 end
