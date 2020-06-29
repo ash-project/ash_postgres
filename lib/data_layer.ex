@@ -24,7 +24,7 @@ defmodule AshPostgres.DataLayer do
 
   alias Ash.Filter
   alias Ash.Filter.{Expression, Not, Predicate}
-  alias Ash.Filter.Predicate.{Eq, In}
+  alias Ash.Filter.Predicate.{Eq, GreaterThan, In, LessThan}
   alias AshPostgres.Predicates.Trigram
 
   import AshPostgres, only: [table: 1, repo: 1]
@@ -68,9 +68,11 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :upsert), do: true
   def can?(_, :join), do: true
   def can?(_, :boolean_filter), do: true
-  def can?(_, {:filter_predicate, %In{}}), do: true
-  def can?(_, {:filter_predicate, %Eq{}}), do: true
-  def can?(_, {:filter_predicate, %Trigram{}}), do: true
+  def can?(_, {:filter_predicate, _, %In{}}), do: true
+  def can?(_, {:filter_predicate, _, %Eq{}}), do: true
+  def can?(_, {:filter_predicate, _, %LessThan{}}), do: true
+  def can?(_, {:filter_predicate, _, %GreaterThan{}}), do: true
+  def can?(_, {:filter_predicate, :string, %Trigram{}}), do: true
   def can?(_, {:filter_predicate, _}), do: false
 
   @impl true
@@ -402,21 +404,47 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp filter_value_to_expr(attribute, %Eq{value: value}, current_binding, params) do
-    {params ++ [{value, {current_binding, attribute}}],
-     {:==, [],
-      [
-        {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
-        {:^, [], [Enum.count(params)]}
-      ]}}
+    simple_operator_expr(
+      :==,
+      params,
+      value,
+      {current_binding, attribute},
+      current_binding,
+      attribute
+    )
+  end
+
+  defp filter_value_to_expr(attribute, %LessThan{value: value}, current_binding, params) do
+    simple_operator_expr(
+      :<,
+      params,
+      value,
+      {current_binding, attribute},
+      current_binding,
+      attribute
+    )
+  end
+
+  defp filter_value_to_expr(attribute, %GreaterThan{value: value}, current_binding, params) do
+    simple_operator_expr(
+      :>,
+      params,
+      value,
+      {current_binding, attribute},
+      current_binding,
+      attribute
+    )
   end
 
   defp filter_value_to_expr(attribute, %In{values: values}, current_binding, params) do
-    {params ++ [{values, {:in, {current_binding, attribute}}}],
-     {:in, [],
-      [
-        {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
-        {:^, [], [Enum.count(params)]}
-      ]}}
+    simple_operator_expr(
+      :in,
+      params,
+      values,
+      {:in, {current_binding, attribute}},
+      current_binding,
+      attribute
+    )
   end
 
   defp filter_value_to_expr(
@@ -483,6 +511,15 @@ defmodule AshPostgres.DataLayer do
             raw: ""
           ]}}
     end
+  end
+
+  defp simple_operator_expr(op, params, value, type, current_binding, attribute) do
+    {params ++ [{value, type}],
+     {op, [],
+      [
+        {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
+        {:^, [], [Enum.count(params)]}
+      ]}}
   end
 
   defp merge_bindings(query, %{__ash_bindings__: ash_bindings}) do
