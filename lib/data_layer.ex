@@ -76,6 +76,11 @@ defmodule AshPostgres.DataLayer do
   def can?(_, {:filter_predicate, _}), do: false
 
   @impl true
+  def in_transaction?(resource) do
+    repo(resource).in_transaction?()
+  end
+
+  @impl true
   def limit(query, nil, _), do: {:ok, query}
 
   def limit(query, limit, _resource) do
