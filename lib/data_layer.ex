@@ -1,6 +1,18 @@
 defmodule AshPostgres.DataLayer do
   @moduledoc """
   A postgres data layer that levereges Ecto's postgres capabilities.
+
+  To use this data layer, you need to define an `Ecto.Repo`. Ash adds some
+  functionality on top of ecto repos, so you'll want to use `AshPostgres.Repo`
+
+  Then, configure your resource like so:
+
+  ```
+  postgres do
+    repo MyApp.Repo
+    table "table_name"
+  end
+  ```
   """
   @postgres %Ash.Dsl.Section{
     name: :postgres,
@@ -85,6 +97,11 @@ defmodule AshPostgres.DataLayer do
 
   def limit(query, limit, _resource) do
     {:ok, from(row in query, limit: ^limit)}
+  end
+
+  @impl true
+  def source(resource) do
+    table(resource)
   end
 
   @impl true
@@ -196,7 +213,6 @@ defmodule AshPostgres.DataLayer do
 
     new_query =
       query
-      |> Map.put(:bindings, %{})
       |> join_all_relationships(resource, relationship_paths)
       |> add_filter_expression(filter)
 
@@ -216,7 +232,7 @@ defmodule AshPostgres.DataLayer do
     query =
       Map.put_new(query, :__ash_bindings__, %{
         current: Enum.count(query.joins) + 1,
-        bindings: %{[] => 0}
+        bindings: %{[] => %{binding: 0, type: :root}}
       })
 
     Enum.reduce(relationship_paths, query, fn [relationship | rest_rels], query ->
@@ -403,7 +419,7 @@ defmodule AshPostgres.DataLayer do
   defp filter_to_expr(%Predicate{} = pred, bindings, params) do
     %{predicate: predicate, relationship_path: relationship_path, attribute: attribute} = pred
 
-    current_binding = Map.get(bindings, relationship_path)
+    current_binding = Map.get(bindings, relationship_path).binding
 
     filter_value_to_expr(attribute.name, predicate, current_binding, params)
   end
@@ -557,13 +573,13 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def can_query_async?(resource) do
-    repo(resource).in_transaction?()
+  def transaction(resource, func) do
+    repo(resource).transaction(func)
   end
 
   @impl true
-  def transaction(resource, func) do
-    repo(resource).transaction(func)
+  def rollback(resource, term) do
+    repo(resource).rollback(term)
   end
 
   defp maybe_get_resource_query(resource) do
