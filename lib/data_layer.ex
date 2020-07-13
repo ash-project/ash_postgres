@@ -122,37 +122,25 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def create(resource, changeset) do
-    changeset =
-      Map.update!(changeset, :action, fn
-        :create -> :insert
-        action -> action
-      end)
-
-    changeset =
-      Map.update!(changeset, :data, fn data ->
-        Map.update!(data, :__meta__, &Map.put(&1, :source, table(resource)))
-      end)
-
-    repo(resource).insert(changeset)
+    changeset.data
+    |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource)))
+    |> ecto_changeset(changeset)
+    |> repo(resource).insert()
   rescue
     e ->
       {:error, e}
   end
 
+  defp ecto_changeset(record, changeset) do
+    Ecto.Changeset.change(record, changeset.attributes)
+  end
+
   @impl true
   def upsert(resource, changeset) do
-    changeset =
-      Map.update!(changeset, :action, fn
-        :create -> :insert
-        action -> action
-      end)
-
-    changeset =
-      Map.update!(changeset, :data, fn data ->
-        Map.update!(data, :__meta__, &Map.put(&1, :source, table(resource)))
-      end)
-
-    repo(resource).insert(changeset,
+    changeset.data
+    |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource)))
+    |> ecto_changeset(changeset)
+    |> repo(resource).insert(
       on_conflict: :replace_all,
       conflict_target: Ash.primary_key(resource)
     )
@@ -163,7 +151,10 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def update(resource, changeset) do
-    repo(resource).update(changeset)
+    changeset.data
+    |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource)))
+    |> ecto_changeset(changeset)
+    |> repo(resource).update()
   rescue
     e ->
       {:error, e}
