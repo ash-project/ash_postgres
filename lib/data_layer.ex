@@ -142,7 +142,7 @@ defmodule AshPostgres.DataLayer do
     |> ecto_changeset(changeset)
     |> repo(resource).insert(
       on_conflict: :replace_all,
-      conflict_target: Ash.primary_key(resource)
+      conflict_target: Ash.Resource.primary_key(resource)
     )
   rescue
     e ->
@@ -214,7 +214,7 @@ defmodule AshPostgres.DataLayer do
   defp relationship_path_to_relationships(_resource, [], acc), do: Enum.reverse(acc)
 
   defp relationship_path_to_relationships(resource, [relationship | rest], acc) do
-    relationship = Ash.relationship(resource, relationship)
+    relationship = Ash.Resource.relationship(resource, relationship)
 
     relationship_path_to_relationships(relationship.destination, rest, [relationship | acc])
   end
@@ -248,7 +248,7 @@ defmodule AshPostgres.DataLayer do
   defp join_and_add_distinct(relationship, join_type, joined_query) do
     if relationship.cardinality == :many and join_type == :left && !joined_query.distinct do
       from(row in joined_query,
-        distinct: ^Ash.primary_key(relationship.destination)
+        distinct: ^Ash.Resource.primary_key(relationship.destination)
       )
     else
       joined_query
