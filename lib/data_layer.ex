@@ -323,9 +323,6 @@ defmodule AshPostgres.DataLayer do
       List.update_at(query.joins, binding - 1, fn join ->
         aggregate_query =
           if aggregate.authorization_filter do
-            # TODO: I bailed on this, need to thread this failure state through
-            IO.inspect(aggregate.authorization_filter)
-
             {:ok, filter} =
               filter(
                 join.source.from.source.query,
@@ -402,7 +399,7 @@ defmodule AshPostgres.DataLayer do
 
       current_path = [relationship | path]
 
-      if has_binding?(resource, query, Enum.reverse(current_path), :aggregate) do
+      if has_binding?(resource, Enum.reverse(current_path), query, :aggregate) do
         query
       else
         joined_query = join_relationship(query, current_path, join_type)
