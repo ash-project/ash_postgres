@@ -80,7 +80,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :upsert), do: true
   def can?(_, :join), do: true
   def can?(_, :boolean_filter), do: true
-  def can?(_, :aggregate), do: true
+  def can?(_, {:aggregate, :count}), do: true
   def can?(_, :aggregate_filter), do: true
   def can?(_, :aggregate_sort), do: true
   def can?(_, {:filter_predicate, _, %In{}}), do: true
