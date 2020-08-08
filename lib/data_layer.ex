@@ -293,7 +293,7 @@ defmodule AshPostgres.DataLayer do
   defp add_to_select(
          %{expr: {:merge, _, [first, {:%{}, _, [{:aggregates, {:%{}, [], fields}}]}]}} = select,
          binding,
-         aggregate
+         %{load: nil} = aggregate
        ) do
     field =
       {:type, [],
@@ -317,6 +317,30 @@ defmodule AshPostgres.DataLayer do
     ]
 
     %{select | expr: {:merge, [], [first, {:%{}, [], [{:aggregates, {:%{}, [], new_fields}}]}]}}
+  end
+
+  defp add_to_select(
+         %{expr: expr} = select,
+         binding,
+         %{load: load_as} = aggregate
+       ) do
+    field =
+      {:type, [],
+       [
+         {{:., [], [{:&, [], [binding]}, aggregate.name]}, [], []},
+         Ash.Type.ecto_type(aggregate.type)
+       ]}
+
+    field_with_default =
+      if aggregate.default_value do
+        {:coalesce, [],
+         [
+           field,
+           aggregate.default_value
+         ]}
+      end
+
+    %{select | expr: {:merge, [], [expr, {:%{}, [], [{load_as, field_with_default}]}]}}
   end
 
   defp add_aggregate_to_subquery(query, resource, aggregate, binding) do
