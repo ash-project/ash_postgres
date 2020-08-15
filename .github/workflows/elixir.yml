@@ -44,3 +44,19 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+      - uses: olegtarasov/get-tag@v2
+        id: tagName
+      - uses: ethomson/send-tweet-action@v1
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          status: |
+            Alpha version "${{ steps.tagName.outputs.tag }}" of AshPostgres released!
+
+            See the changelog for more info:
+            https://github.com/ash-project/ash_postgres/blob/master/CHANGELOG.md
+          consumer-key: ${{ secrets.TWITTER_CONSUMER_API_KEY }}
+          consumer-secret: ${{ secrets.TWITTER_CONSUMER_API_SECRET }}
+          access-token: ${{ secrets.TWITTER_ACCESS_TOKEN }}
+          access-token-secret: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
+
+
