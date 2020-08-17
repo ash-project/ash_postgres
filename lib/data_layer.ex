@@ -36,7 +36,7 @@ defmodule AshPostgres.DataLayer do
 
   alias Ash.Filter
   alias Ash.Filter.{Expression, Not, Predicate}
-  alias Ash.Filter.Predicate.{Eq, GreaterThan, In, LessThan}
+  alias Ash.Filter.Predicate.{Eq, GreaterThan, In, IsNil, LessThan}
   alias AshPostgres.Predicates.Trigram
 
   import AshPostgres, only: [table: 1, repo: 1]
@@ -87,9 +87,11 @@ defmodule AshPostgres.DataLayer do
   def can?(_, {:filter_predicate, _, %Eq{}}), do: true
   def can?(_, {:filter_predicate, _, %LessThan{}}), do: true
   def can?(_, {:filter_predicate, _, %GreaterThan{}}), do: true
+  def can?(_, {:filter_predicate, _, %IsNil{}}), do: true
   def can?(_, {:filter_predicate, :string, %Trigram{}}), do: true
   def can?(_, {:filter_predicate, _}), do: false
   def can?(_, {:sort, _}), do: true
+  def can?(_, _), do: false
 
   @impl true
   def in_transaction?(resource) do
@@ -721,6 +723,15 @@ defmodule AshPostgres.DataLayer do
       current_binding,
       attribute
     )
+  end
+
+  defp filter_value_to_expr(attribute, %IsNil{nil?: true}, _type, current_binding, params) do
+    {params, {:is_nil, [], [{{:., [], [{:&, [], [current_binding]}, attribute]}, [], []}]}}
+  end
+
+  defp filter_value_to_expr(attribute, %IsNil{nil?: false}, _type, current_binding, params) do
+    {params,
+     {:not, [], [{:is_nil, [], [{{:., [], [{:&, [], [current_binding]}, attribute]}, [], []}]}]}}
   end
 
   defp filter_value_to_expr(
