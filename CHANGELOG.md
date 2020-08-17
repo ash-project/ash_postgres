@@ -14,8 +14,6 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 * support ash 1.7
 
-* update to latest ash
-
 * support named aggregates
 
 ## [v0.13.0](https://github.com/ash-project/ash_postgres/compare/v0.12.1...v0.13.0) (2020-07-25)
