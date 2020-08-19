@@ -83,6 +83,13 @@ defmodule AshPostgres.DataLayer do
   def can?(_, {:aggregate, :count}), do: true
   def can?(_, :aggregate_filter), do: true
   def can?(_, :aggregate_sort), do: true
+  def can?(_, :create), do: true
+  def can?(_, :read), do: true
+  def can?(_, :update), do: true
+  def can?(_, :destroy), do: true
+  def can?(_, :filter), do: true
+  def can?(_, :limit), do: true
+  def can?(_, :offset), do: true
   def can?(_, {:filter_predicate, _, %In{}}), do: true
   def can?(_, {:filter_predicate, _, %Eq{}}), do: true
   def can?(_, {:filter_predicate, _, %LessThan{}}), do: true
@@ -90,6 +97,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, {:filter_predicate, _, %IsNil{}}), do: true
   def can?(_, {:filter_predicate, :string, %Trigram{}}), do: true
   def can?(_, {:filter_predicate, _}), do: false
+  def can?(_, :sort)
   def can?(_, {:sort, _}), do: true
   def can?(_, _), do: false
 
