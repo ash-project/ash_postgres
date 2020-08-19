@@ -97,7 +97,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, {:filter_predicate, _, %IsNil{}}), do: true
   def can?(_, {:filter_predicate, :string, %Trigram{}}), do: true
   def can?(_, {:filter_predicate, _}), do: false
-  def can?(_, :sort)
+  def can?(_, :sort), do: true
   def can?(_, {:sort, _}), do: true
   def can?(_, _), do: false
 
