@@ -61,7 +61,7 @@ defmodule AshPostgres.MixProject do
     [
       {:ecto_sql, "~> 3.4"},
       {:postgrex, ">= 0.0.0"},
-      {:ash, "~> 1.9"},
+      {:ash, ash_version("~> 1.9")},
       {:git_ops, "~> 2.0.1", only: :dev},
       {:ex_doc, "~> 0.22", only: :dev, runtime: false},
       {:ex_check, "~> 0.11.0", only: :dev},
@@ -70,6 +70,15 @@ defmodule AshPostgres.MixProject do
       {:sobelow, ">= 0.0.0", only: :dev, runtime: false},
       {:excoveralls, "~> 0.13.0", only: [:dev, :test]}
     ]
+  end
+
+  defp ash_version(default_version) do
+    case System.get_env("ASH_VERSION") do
+      nil -> default_version
+      "local" -> [path: "../ash"]
+      "master" -> [git: "https://github.com/ash-project/ash.git"]
+      version -> "~> #{version}"
+    end
   end
 
   defp aliases do

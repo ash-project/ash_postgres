@@ -11,14 +11,17 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}}
+    name: OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}} / Ash ${{matrix.ash}}
     strategy:
+      fail-fast: false
       matrix:
-        otp: ["23"]
+        otp: ["23", "22"]
         elixir: ["1.10.0"]
+        ash: ["master", "1.9", "1.8"]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       ASH_CI: true
+      ASH_VERSION: ${{matrix.ash}}
     steps:
       - run: sudo apt-get install --yes erlang-dev
       - uses: actions/checkout@v2
@@ -63,5 +66,3 @@ jobs:
           consumer-secret: ${{ secrets.TWITTER_CONSUMER_API_SECRET }}
           access-token: ${{ secrets.TWITTER_ACCESS_TOKEN }}
           access-token-secret: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
-
-
