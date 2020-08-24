@@ -175,7 +175,7 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def destroy(%resource{} = record) do
+  def destroy(resource, %{data: record}) do
     case repo(resource).delete(record) do
       {:ok, _record} -> :ok
       {:error, error} -> {:error, error}
