@@ -34,6 +34,7 @@ defmodule AshPostgres.DataLayer do
     ]
   }
 
+  alias Ash.DataLayer.Delegate
   alias Ash.Filter
   alias Ash.Filter.{Expression, Not, Predicate}
   alias Ash.Filter.Predicate.{Eq, GreaterThan, In, IsNil, LessThan}
@@ -78,7 +79,21 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :transact), do: true
   def can?(_, :composite_primary_key), do: true
   def can?(_, :upsert), do: true
-  def can?(_, :join), do: true
+
+  def can?(resource, {:join, other_resource}) do
+    other_resource = Delegate.get_delegated(other_resource)
+    data_layer = Ash.Resource.data_layer(resource)
+    other_data_layer = Ash.Resource.data_layer(other_resource)
+    data_layer == other_data_layer and repo(data_layer) == repo(other_data_layer)
+  end
+
+  def can?(resource, {:lateral_join, other_resource}) do
+    other_resource = Delegate.get_delegated(other_resource)
+    data_layer = Ash.Resource.data_layer(resource)
+    other_data_layer = Ash.Resource.data_layer(other_resource)
+    data_layer == other_data_layer and repo(data_layer) == repo(other_data_layer)
+  end
+
   def can?(_, :boolean_filter), do: true
   def can?(_, {:aggregate, :count}), do: true
   def can?(_, :aggregate_filter), do: true
@@ -128,6 +143,38 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def run_query(query, resource) do
     {:ok, repo(resource).all(query)}
+  end
+
+  @impl true
+  def run_query_with_lateral_join(
+        query,
+        root_data,
+        source_resource,
+        _destination_resource,
+        source_field,
+        destination_field
+      ) do
+    source_values = Enum.map(root_data, &Map.get(&1, source_field))
+
+    subquery =
+      subquery(
+        from(destination in query,
+          where:
+            field(destination, ^destination_field) ==
+              field(parent_as(:source_record), ^source_field)
+        )
+      )
+
+    query =
+      from(source in resource_to_query(source_resource),
+        as: :source_record,
+        where: field(source, ^source_field) in ^source_values,
+        inner_lateral_join: destination in ^subquery,
+        on: field(source, ^source_field) == field(destination, ^destination_field),
+        select: destination
+      )
+
+    {:ok, repo(source_resource).all(query)}
   end
 
   @impl true
@@ -189,23 +236,23 @@ defmodule AshPostgres.DataLayer do
   def sort(query, sort, _resource) do
     query = default_bindings(query)
 
-    sort_expr =
-      sort
-      |> sanitize_sort()
-      |> Enum.map(fn {order, sort} ->
-        binding =
-          case Map.fetch(query.__ash_bindings__.aggregates, sort) do
-            {:ok, binding} ->
-              binding
+    sort
+    |> sanitize_sort()
+    |> Enum.reduce({:ok, query}, fn {order, sort}, query ->
+      binding =
+        case Map.fetch(query.__ash_bindings__.aggregates, sort) do
+          {:ok, binding} ->
+            binding
 
-            :error ->
-              0
-          end
+          :error ->
+            0
+        end
 
-        {order, {{:., [], [{:&, [], [binding]}, sort]}, [], []}}
-      end)
-
-    {:ok, %{query | order_bys: [%Ecto.Query.QueryExpr{expr: sort_expr, params: []}]}}
+      {:ok,
+       from([{^binding, row}] in query,
+         order_by: [{^order, field(row, ^sort)}]
+       )}
+    end)
   end
 
   defp sanitize_sort(sort) do
@@ -855,6 +902,6 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp maybe_get_resource_query(resource) do
-    {table(resource), resource}
+    {table(Delegate.get_delegated(resource)), resource}
   end
 end
