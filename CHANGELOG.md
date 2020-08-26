@@ -5,6 +5,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.17.0](https://github.com/ash-project/ash_postgres/compare/v0.16.1...v0.17.0) (2020-08-26)
+
+
+
+
+### Features:
+
+* update to ash 1.11 (#13)
+
+* support Ash v1.10 (#12)
+
+* support latest ash
+
+* update to latest ash
+
 ## [v0.16.1](https://github.com/ash-project/ash_postgres/compare/v0.16.0...v0.16.1) (2020-08-19)
 
 
