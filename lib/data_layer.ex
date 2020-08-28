@@ -63,7 +63,7 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp add_pg_trgm_search(filters, config) do
-    if "pg_trgm" in config[:installed_extensions] do
+    if "pg_trgm" in (config[:installed_extensions] || []) do
       Map.update(filters, :string, [{:trigram, AshPostgres.Predicates.Trigram}], fn filters ->
         [{:trigram, AshPostgres.Predicates.Trigram} | filters]
       end)
