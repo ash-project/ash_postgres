@@ -5,6 +5,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.19.0](https://github.com/ash-project/ash_postgres/compare/v0.18.0...v0.19.0) (2020-09-02)
+
+
+
+
+### Features:
+
+* support inner joins when possible (#15)
+
+### Bug Fixes:
+
+* better support for aggregates/calculations when delegating
+
+* don't fail w/ no extensions configured
+
 ## [v0.18.0](https://github.com/ash-project/ash_postgres/compare/v0.17.0...v0.18.0) (2020-08-26)
 
 
