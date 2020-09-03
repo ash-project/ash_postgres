@@ -7,6 +7,18 @@ defmodule AshPostgres.Repo do
   You can use `Ecto.Repo`'s `init/2` to configure your repo like normal, but
   instead of returning `{:ok, config}`, use `super(config)` to pass the
   configuration to the `AshPostgres.Repo` implementation.
+
+  Currently the only additional configuration supported is `installed_extensions`,
+  and the only extension that ash_postgres reacts to is `"pg_trgm"`. If this extension
+  is installed, then the `AshPostgres.Predicates.Trigram` custom predicate will be
+  available.
+
+
+  ```
+  def installed_extensions() do
+    ["pg_trgm"]
+  end
+  ```
   """
 
   @doc "Use this to inform the data layer about what extensions are installed"

@@ -2,7 +2,17 @@ defmodule AshPostgres.DataLayer do
   @moduledoc """
   A postgres data layer that levereges Ecto's postgres capabilities.
 
-  To use this data layer, you need to define an `Ecto.Repo`. Ash adds some
+  AshPostgres supports all capabilities of an Ash data layer, and it will
+  most likely stay that way, as postgres is the primary target/most maintained
+  data layer.
+
+  Custom Predicates:
+
+  * AshPostgres.Predicates.Trigram
+
+  ### Usage
+
+  To use this data layer, you need to define an `AshPostgres.Repo`. Ash adds some
   functionality on top of ecto repos, so you'll want to use `AshPostgres.Repo`
 
   Then, configure your resource like so:
@@ -24,7 +34,7 @@ defmodule AshPostgres.DataLayer do
         type: {:custom, AshPostgres.DataLayer, :validate_repo, []},
         required: true,
         doc:
-          "The repo that will be used to fetch your data. See the `Ecto.Repo` documentation for more"
+          "The repo that will be used to fetch your data. See the `AshPostgres.Repo` documentation for more"
       ],
       table: [
         type: :string,
