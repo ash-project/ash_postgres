@@ -17,15 +17,15 @@ end
 if Mix.env() == :test do
   # Configure your database
   #
-  # The MIX_TEST_PARTITION environment variable can be used
-  # to provide built-in test partitioning in CI environment.
-  # Run `mix help test` for more information.
+
   config :ash_postgres, AshPostgres.TestRepo,
     username: "postgres",
-    password: "postgres",
-    database: "postgres"
+    database: "postgres",
     hostname: "localhost",
     pool: Ecto.Adapters.SQL.Sandbox
+
+  # sobelow_skip ["Config.Secrets"]
+  config :ash_postgre, AshPostgres.TestRepo, password: "postgres"
 
   config :ash_postgres, ecto_repos: [AshPostgres.TestRepo]
 

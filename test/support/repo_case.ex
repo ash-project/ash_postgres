@@ -1,5 +1,8 @@
 defmodule AshPostgres.RepoCase do
+  @moduledoc false
   use ExUnit.CaseTemplate
+
+  alias Ecto.Adapters.SQL.Sandbox
 
   using do
     quote do
@@ -14,10 +17,10 @@ defmodule AshPostgres.RepoCase do
   end
 
   setup tags do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(AshPostgres.TestRepo)
+    :ok = Sandbox.checkout(AshPostgres.TestRepo)
 
     unless tags[:async] do
-      Ecto.Adapters.SQL.Sandbox.mode(AshPostgres.TestRepo, {:shared, self()})
+      Sandbox.mode(AshPostgres.TestRepo, {:shared, self()})
     end
 
     :ok

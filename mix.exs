@@ -87,7 +87,7 @@ defmodule AshPostgres.MixProject do
 
   defp aliases do
     [
-      sobelow: "sobelow --skip",
+      sobelow: "sobelow --skip -i Config.Secrets",
       credo: "credo --strict",
       "ash.formatter": "ash.formatter --extensions AshPostgres.DataLayer"
     ]
