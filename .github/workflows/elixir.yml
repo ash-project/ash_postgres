@@ -18,10 +18,18 @@ jobs:
         otp: ["23", "22"]
         elixir: ["1.10.0"]
         ash: ["master", "1.12", "1.13"]
+        pg_version: ["9.5", "9.6", "11"]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       ASH_VERSION: ${{matrix.ash}}
-      MIX_TEST_PARTITION: ${{matrix.otp}}-${{matrix.elixir}}-${{matrix.ash}}
+    services:
+      pg:
+        image: postgres:${{ matrix.pg_version }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - run: sudo apt-get install --yes erlang-dev
       - uses: actions/checkout@v2
@@ -56,9 +64,17 @@ jobs:
       matrix:
         otp: ["23"]
         elixir: ["1.10.0"]
+        pg_version: ["11"]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      MIX_TEST_PARTITION: ${{matrix.otp}}-${{matrix.elixir}}-${{matrix.ash}}
+    services:
+      pg:
+        image: postgres:${{ matrix.pg_version }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - run: sudo apt-get install --yes erlang-dev
       - uses: actions/checkout@v2

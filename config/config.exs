@@ -23,7 +23,7 @@ if Mix.env() == :test do
   config :ash_postgres, AshPostgres.TestRepo,
     username: "postgres",
     password: "postgres",
-    database: "ash_postgres_test#{System.get_env("MIX_TEST_PARTITION")}",
+    database: "postgres"
     hostname: "localhost",
     pool: Ecto.Adapters.SQL.Sandbox
 
