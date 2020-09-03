@@ -22,7 +22,6 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       ASH_VERSION: ${{matrix.ash}}
-      ASH_CI: "true"
     services:
       pg:
         image: postgres:${{ matrix.pg_version }}
@@ -31,6 +30,7 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: postgres
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+        ports: ["5432:5432"]
     steps:
       - run: sudo apt-get install --yes erlang-dev
       - uses: actions/checkout@v2
@@ -68,7 +68,6 @@ jobs:
         pg_version: ["11"]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      ASH_CI: "true"
     services:
       pg:
         image: postgres:${{ matrix.pg_version }}
@@ -77,6 +76,7 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: postgres
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+        ports: ["5432:5432"]
     steps:
       - run: sudo apt-get install --yes erlang-dev
       - uses: actions/checkout@v2
