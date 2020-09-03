@@ -13,3 +13,23 @@ if Mix.env() == :dev do
     manage_readme_version: "README.md",
     version_tag_prefix: "v"
 end
+
+if Mix.env() == :test do
+  # Configure your database
+  #
+
+  config :ash_postgres, AshPostgres.TestRepo,
+    username: "postgres",
+    database: "postgres",
+    hostname: "localhost",
+    pool: Ecto.Adapters.SQL.Sandbox
+
+  # sobelow_skip ["Config.Secrets"]
+  config :ash_postgres, AshPostgres.TestRepo, password: "postgres"
+
+  config :ash_postgres, ecto_repos: [AshPostgres.TestRepo]
+
+  config :ash_postgres, AshPostgres.TestRepo, migration_primary_key: [name: :id, type: :binary_id]
+
+  config :logger, level: :warn
+end

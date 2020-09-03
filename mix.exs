@@ -17,6 +17,7 @@ defmodule AshPostgres.MixProject do
       deps: deps(),
       description: @description,
       test_coverage: [tool: ExCoveralls],
+      elixirc_paths: elixirc_paths(Mix.env()),
       preferred_cli_env: [
         coveralls: :test,
         "coveralls.github": :test
@@ -31,6 +32,9 @@ defmodule AshPostgres.MixProject do
       homepage_url: "https://github.com/ash-project/ash_postgres"
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
 
   defp package do
     [
@@ -83,7 +87,7 @@ defmodule AshPostgres.MixProject do
 
   defp aliases do
     [
-      sobelow: "sobelow --skip",
+      sobelow: "sobelow --skip -i Config.Secrets",
       credo: "credo --strict",
       "ash.formatter": "ash.formatter --extensions AshPostgres.DataLayer"
     ]
