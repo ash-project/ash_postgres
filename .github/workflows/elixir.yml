@@ -22,6 +22,7 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       ASH_VERSION: ${{matrix.ash}}
+      ASH_CI: "true"
     services:
       pg:
         image: postgres:${{ matrix.pg_version }}
@@ -67,6 +68,7 @@ jobs:
         pg_version: ["11"]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      ASH_CI: "true"
     services:
       pg:
         image: postgres:${{ matrix.pg_version }}

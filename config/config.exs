@@ -24,8 +24,12 @@ if Mix.env() == :test do
     hostname: "localhost",
     pool: Ecto.Adapters.SQL.Sandbox
 
+  if System.get_env("ASH_CI") == "true" do
+    config :ash_postgres, AshPostgres.TestRepo, hostname: "pg"
+  end
+
   # sobelow_skip ["Config.Secrets"]
-  config :ash_postgre, AshPostgres.TestRepo, password: "postgres"
+  config :ash_postgres, AshPostgres.TestRepo, password: "postgres"
 
   config :ash_postgres, ecto_repos: [AshPostgres.TestRepo]
 
