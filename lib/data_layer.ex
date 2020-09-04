@@ -36,6 +36,12 @@ defmodule AshPostgres.DataLayer do
         doc:
           "The repo that will be used to fetch your data. See the `AshPostgres.Repo` documentation for more"
       ],
+      migrate?: [
+        type: :boolean,
+        required: false,
+        doc:
+          "Whether or not to include this resource in the generated migrations with `mix ash.generate_migrations`"
+      ],
       table: [
         type: :string,
         required: true,

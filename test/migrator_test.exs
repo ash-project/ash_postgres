@@ -74,11 +74,29 @@ defmodule AshPostgres.MigratorTest do
 
   test "if the `init` flag is set, the path is created" do
     on_exit(fn ->
-      File.rm("test_snapshots_path")
+      "test_snapshots_path/*"
+      |> Path.wildcard()
+      |> File.rm!()
+
+      "test_migration_path/**/*"
+      |> Path.wildcard()
+      |> File.rm!()
+
+      "test_migration_path/*"
+      |> Path.wildcard()
+      |> File.rmdir!()
+
+      File.rmdir!("test_snapshots_path") |> IO.inspect()
+      File.rmdir!("test_migration_path") |> IO.inspect()
     end)
 
-    AshPostgres.Migrator.take_snapshots(Api, snapshot_path: "test_snapshots_path", init: true)
+    AshPostgres.Migrator.take_snapshots(Api,
+      snapshot_path: "test_snapshots_path",
+      migration_path: "test_migration_path",
+      init: true
+    )
 
     assert File.exists?("test_snapshots_path")
+    # assert File.exists?("test_migration_path")
   end
 end
