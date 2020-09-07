@@ -17,6 +17,7 @@ defmodule AshPostgres.MigrationGenerator do
       apis
       |> Enum.flat_map(&Ash.Api.resources/1)
       |> Enum.filter(&(Ash.Resource.data_layer(&1) == AshPostgres.DataLayer))
+      |> Enum.filter(&AshPostgres.migrate?/1)
       |> Enum.map(&get_snapshot/1)
 
     snapshots
