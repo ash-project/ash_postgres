@@ -23,7 +23,7 @@ defmodule AshPostgres.MixProject do
         "coveralls.github": :test
       ],
       dialyzer: [
-        plt_add_apps: [:ecto, :ash]
+        plt_add_apps: [:ecto, :ash, :mix]
       ],
       docs: docs(),
       aliases: aliases(),
@@ -65,7 +65,7 @@ defmodule AshPostgres.MixProject do
     [
       {:ecto_sql, "~> 3.4"},
       {:postgrex, ">= 0.0.0"},
-      {:ash, path: "../ash"},
+      {:ash, ash_version("~> 1.13.2")},
       {:git_ops, "~> 2.0.1", only: :dev},
       {:ex_doc, "~> 0.22", only: :dev, runtime: false},
       {:ex_check, "~> 0.11.0", only: :dev},
@@ -87,7 +87,8 @@ defmodule AshPostgres.MixProject do
 
   defp aliases do
     [
-      sobelow: "sobelow --skip -i Config.Secrets",
+      sobelow:
+        "sobelow --skip -i Config.Secrets --ignore-files lib/migration_generator/migration_generator.ex",
       credo: "credo --strict",
       "ash.formatter": "ash.formatter --extensions AshPostgres.DataLayer"
     ]

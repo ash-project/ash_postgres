@@ -1,17 +1,16 @@
 defmodule AshPostgres.MigrationGenerator do
+  @moduledoc "Generates migrations based on resource snapshots"
   @default_snapshot_path "priv/ash/resource_snapshots"
 
   import Mix.Generator
 
   alias AshPostgres.MigrationGenerator.{Operation, Phase}
 
-  defstruct snapshot_path: @default_snapshot_path, init: false, migration_path: nil, quiet: false
+  defstruct snapshot_path: @default_snapshot_path, migration_path: nil, quiet: false, format: true
 
   def generate(apis, opts \\ []) do
     apis = List.wrap(apis)
     opts = struct(__MODULE__, opts)
-
-    create_snapshot_path(opts)
 
     snapshots =
       apis
@@ -30,10 +29,17 @@ defmodule AshPostgres.MigrationGenerator do
       deduped
       |> fetch_operations()
       |> Enum.uniq()
-      |> sort_operations()
-      |> group_into_phases()
-      |> build_up_and_down()
-      |> write_migration(snapshots, repo, opts)
+      |> case do
+        [] ->
+          :ok
+
+        operations ->
+          operations
+          |> sort_operations()
+          |> group_into_phases()
+          |> build_up_and_down()
+          |> write_migration(snapshots, repo, opts)
+      end
     end)
   end
 
@@ -46,10 +52,7 @@ defmodule AshPostgres.MigrationGenerator do
       existing_snapshot = get_existing_snapshot(snapshot, opts)
       {primary_key, identities} = merge_primary_keys(existing_snapshot, snapshots)
 
-      attributes =
-        snapshots
-        |> Enum.map(& &1.attributes)
-        |> Enum.concat()
+      attributes = Enum.flat_map(snapshots, & &1.attributes)
 
       snapshot_identities =
         snapshots
@@ -195,7 +198,7 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp merge_primary_keys(existing_snapshot, snapshots) do
-    pkey_names = pkey_names(existing_snapshot)
+    pkey_names = pkey_names(existing_snapshot.attributes)
 
     one_pkey_exists? =
       Enum.any?(snapshots, fn snapshot ->
@@ -207,10 +210,9 @@ defmodule AshPostgres.MigrationGenerator do
         snapshots
         |> Enum.map(&pkey_names(&1.attributes))
         |> Enum.uniq()
-        |> Enum.map(fn snapshot ->
-          pkey_names = pkey_names(snapshot.attributes)
+        |> Enum.map(fn pkey_names ->
           pkey_name_string = Enum.join(pkey_names, "_")
-          name = snapshot.table <> "_" <> pkey_name_string
+          name = existing_snapshot.table <> "_" <> pkey_name_string
 
           %{
             keys: pkey_names,
@@ -242,10 +244,11 @@ defmodule AshPostgres.MigrationGenerator do
         |> Path.join(repo_name)
         |> Path.join(snapshot.table <> ".json")
 
-      create_file(snapshot_file, snapshot_binary)
+      File.mkdir_p(Path.dirname(snapshot_file))
+      File.write!(snapshot_file, snapshot_binary, [])
     end)
 
-    migration_name = "#{timestamp()}_update_resources"
+    migration_name = "#{timestamp()}_migrate_resources"
 
     migration_file =
       if opts.migration_path do
@@ -257,7 +260,7 @@ defmodule AshPostgres.MigrationGenerator do
       end
       |> Path.join(migration_name <> ".exs")
 
-    module_name = Module.concat([repo, Migrations, Macro.camelize("update_resources")])
+    module_name = Module.concat([repo, Migrations, Macro.camelize("migrate_resources")])
 
     contents = """
     defmodule #{inspect(module_name)} do
@@ -273,16 +276,14 @@ defmodule AshPostgres.MigrationGenerator do
     end
     """
 
-    create_file(migration_file, Code.format_string!(contents))
+    create_file(migration_file, format(contents, opts))
   end
 
   defp build_up_and_down(phases) do
     up =
-      phases
-      |> Enum.map_join("\n", fn phase ->
+      Enum.map_join(phases, "\n", fn phase ->
         phase.__struct__.up(phase) <> "\n"
       end)
-      |> Code.format_string!()
 
     down =
       phases
@@ -290,15 +291,26 @@ defmodule AshPostgres.MigrationGenerator do
       |> Enum.map_join("\n", fn phase ->
         phase.__struct__.down(phase) <> "\n"
       end)
-      |> Code.format_string!()
 
     {up, down}
+  end
+
+  defp format(string, opts) do
+    if opts.format do
+      Code.format_string!(string)
+    else
+      string
+    end
   end
 
   defp group_into_phases(ops, current \\ nil, acc \\ [])
 
   defp group_into_phases([], nil, acc), do: Enum.reverse(acc)
-  defp group_into_phases([], phase, acc), do: Enum.reverse([phase | acc])
+
+  defp group_into_phases([], phase, acc) do
+    phase = %{phase | operations: Enum.reverse(phase.operations)}
+    Enum.reverse([phase | acc])
+  end
 
   defp group_into_phases([%Operation.CreateTable{table: table} | rest], nil, acc) do
     group_into_phases(rest, %Phase.Create{table: table}, acc)
@@ -322,6 +334,7 @@ defmodule AshPostgres.MigrationGenerator do
        )
        when not is_nil(reference) do
     op_phase = %Phase.Alter{table: op.table, operations: [op]}
+    phase = %{phase | operations: Enum.reverse(phase.operations)}
     group_into_phases(rest, nil, [op_phase | [phase | acc]])
   end
 
@@ -330,7 +343,8 @@ defmodule AshPostgres.MigrationGenerator do
          %{table: table} = phase,
          acc
        ) do
-    group_into_phases(rest, %{phase | operations: [op | phase.operations]}, acc)
+    op_phase = %Phase.Alter{table: op.table, operations: [op]}
+    group_into_phases(rest, %{phase | operations: [op_phase | phase.operations]}, acc)
   end
 
   defp group_into_phases(
@@ -356,6 +370,7 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp group_into_phases(operations, phase, acc) do
+    phase = %{phase | operations: Enum.reverse(phase.operations)}
     group_into_phases(operations, nil, [phase | acc])
   end
 
@@ -381,6 +396,41 @@ defmodule AshPostgres.MigrationGenerator do
     sort_operations(rest, new_acc)
   end
 
+  defp after?(
+         %Operation.AddUniqueIndex{identity: %{keys: keys}, table: table},
+         %Operation.AddAttribute{table: table, attribute: %{name: name}}
+       ) do
+    name in keys
+  end
+
+  defp after?(
+         %Operation.AddUniqueIndex{identity: %{keys: keys}, table: table},
+         %Operation.AlterAttribute{table: table, new_attribute: %{name: name}}
+       ) do
+    name in keys
+  end
+
+  defp after?(
+         %Operation.AddUniqueIndex{identity: %{keys: keys}, table: table},
+         %Operation.RenameAttribute{table: table, new_attribute: %{name: name}}
+       ) do
+    name in keys
+  end
+
+  defp after?(
+         %Operation.RemoveUniqueIndex{identity: %{keys: keys}, table: table},
+         %Operation.RemoveAttribute{table: table, attribute: %{name: name}}
+       ) do
+    name in keys
+  end
+
+  defp after?(
+         %Operation.RemoveUniqueIndex{identity: %{keys: keys}, table: table},
+         %Operation.RenameAttribute{table: table, old_attribute: %{name: name}}
+       ) do
+    name in keys
+  end
+
   defp after?(%Operation.AddAttribute{table: table}, %Operation.CreateTable{table: table}) do
     true
   end
@@ -392,6 +442,43 @@ defmodule AshPostgres.MigrationGenerator do
            }
          },
          %Operation.AddAttribute{table: table, attribute: %{name: name}}
+       ),
+       do: true
+
+  defp after?(
+         %Operation.AddAttribute{
+           table: table,
+           attribute: %{
+             primary_key?: false
+           }
+         },
+         %Operation.AddAttribute{table: table, attribute: %{primary_key?: true}}
+       ),
+       do: true
+
+  defp after?(
+         %Operation.AddAttribute{
+           table: table,
+           attribute: %{
+             primary_key?: true
+           }
+         },
+         %Operation.RemoveAttribute{table: table, attribute: %{primary_key?: true}}
+       ),
+       do: true
+
+  defp after?(
+         %Operation.AlterAttribute{
+           table: table,
+           new_attribute: %{primary_key?: false},
+           old_attribute: %{primary_key?: true}
+         },
+         %Operation.AddAttribute{
+           table: table,
+           attribute: %{
+             primary_key?: true
+           }
+         }
        ),
        do: true
 
@@ -466,7 +553,7 @@ defmodule AshPostgres.MigrationGenerator do
         end)
       end)
       |> Enum.map(fn identity ->
-        %Operation.RemoveUniqueIndex{identity: identity, table: snapshot.table}
+        %Operation.AddUniqueIndex{identity: identity, table: snapshot.table}
       end)
 
     attribute_operations ++ unique_indexes_to_add ++ unique_indexes_to_remove ++ acc
@@ -524,7 +611,7 @@ defmodule AshPostgres.MigrationGenerator do
       end)
 
     alter_attribute_events =
-      Enum.map(attributes_to_alter, fn {new_attribute, old_attribute} ->
+      Enum.flat_map(attributes_to_alter, fn {new_attribute, old_attribute} ->
         if new_attribute.references do
           [
             %Operation.AlterAttribute{
@@ -558,24 +645,6 @@ defmodule AshPostgres.MigrationGenerator do
       alter_attribute_events ++ remove_attribute_events ++ rename_attribute_events
   end
 
-  defp create_snapshot_path(opts) do
-    cond do
-      !File.exists?(opts.snapshot_path) and !opts.init ->
-        Mix.raise("""
-        Could not find snapshots directory.
-
-        If this is your first time running the migrator
-        add the `--init` flag to create it.
-        """)
-
-      opts.init ->
-        File.mkdir_p!(opts.snapshot_path)
-
-      true ->
-        :ok
-    end
-  end
-
   def get_existing_snapshot(snapshot, opts) do
     repo_name = snapshot.repo |> Module.split() |> List.last() |> Macro.underscore()
     folder = Path.join(opts.snapshot_path, repo_name)
@@ -594,7 +663,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp resolve_renames(adding, []), do: {adding, [], []}
 
   defp resolve_renames([adding], [removing]) do
-    if Mix.shell().yes?("Are you renaming :#{removing.name} to :#{adding.name}") do
+    if Mix.shell().yes?("Are you renaming :#{removing.name} to :#{adding.name}?") do
       {[], [], [{adding, removing}]}
     else
       {[adding], [removing], []}
@@ -670,23 +739,36 @@ defmodule AshPostgres.MigrationGenerator do
 
       attribute
       |> Map.put(:default, default)
-      |> Map.update!(:type, &Ash.Type.storage_type/1)
+      |> Map.update!(:type, fn type ->
+        type
+        |> Ash.Type.storage_type()
+        |> migration_type()
+      end)
     end)
     |> Enum.map(fn attribute ->
-      references =
-        Enum.find_value(Ash.Resource.relationships(resource), fn relationship ->
-          if attribute.name == relationship.source_field && relationship.type == :belongs_to &&
-               foreign_key?(relationship) do
-            %{
-              destination_field: relationship.destination_field,
-              table: AshPostgres.table(relationship.destination)
-            }
-          end
-        end)
+      references = find_reference(resource, attribute)
 
       Map.put(attribute, :references, references)
     end)
   end
+
+  defp find_reference(resource, attribute) do
+    Enum.find_value(Ash.Resource.relationships(resource), fn relationship ->
+      if attribute.name == relationship.source_field && relationship.type == :belongs_to &&
+           foreign_key?(relationship) do
+        %{
+          destination_field: relationship.destination_field,
+          table: AshPostgres.table(relationship.destination)
+        }
+      end
+    end)
+  end
+
+  defp migration_type(:string), do: :text
+  defp migration_type(:integer), do: :integer
+  defp migration_type(:boolean), do: :boolean
+  defp migration_type(:binary_id), do: :binary_id
+  defp migration_type(other), do: raise("No migration_type set up for #{other}")
 
   defp foreign_key?(relationship) do
     Ash.Resource.data_layer(relationship.source) == AshPostgres.DataLayer &&
@@ -741,28 +823,32 @@ defmodule AshPostgres.MigrationGenerator do
     json
     |> Jason.decode!(keys: :atoms!)
     |> Map.update!(:identities, fn identities ->
-      Enum.map(identities, fn identity ->
-        identity
-        |> Map.update!(:name, &String.to_atom/1)
-        |> Map.update!(:keys, fn keys ->
-          Enum.map(keys, &String.to_atom/1)
-        end)
-      end)
+      Enum.map(identities, &load_identity/1)
     end)
     |> Map.update!(:attributes, fn attributes ->
-      Enum.map(attributes, fn attribute ->
-        attribute
-        |> Map.update!(:type, &String.to_atom/1)
-        |> Map.update!(:name, &String.to_atom/1)
-        |> Map.update!(:references, fn
-          nil ->
-            nil
-
-          references ->
-            Map.update!(references, :destination_field, &String.to_atom/1)
-        end)
-      end)
+      Enum.map(attributes, &load_attribute/1)
     end)
     |> Map.update!(:repo, &String.to_atom/1)
+  end
+
+  defp load_attribute(attribute) do
+    attribute
+    |> Map.update!(:type, &String.to_atom/1)
+    |> Map.update!(:name, &String.to_atom/1)
+    |> Map.update!(:references, fn
+      nil ->
+        nil
+
+      references ->
+        Map.update!(references, :destination_field, &String.to_atom/1)
+    end)
+  end
+
+  defp load_identity(identity) do
+    identity
+    |> Map.update!(:name, &String.to_atom/1)
+    |> Map.update!(:keys, fn keys ->
+      Enum.map(keys, &String.to_atom/1)
+    end)
   end
 end

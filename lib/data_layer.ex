@@ -38,7 +38,7 @@ defmodule AshPostgres.DataLayer do
       ],
       migrate?: [
         type: :boolean,
-        required: false,
+        default: true,
         doc:
           "Whether or not to include this resource in the generated migrations with `mix ash.generate_migrations`"
       ],
@@ -50,7 +50,6 @@ defmodule AshPostgres.DataLayer do
     ]
   }
 
-  alias Ash.DataLayer.Delegate
   alias Ash.Filter
   alias Ash.Filter.{Expression, Not, Predicate}
   alias Ash.Filter.Predicate.{Eq, GreaterThan, In, IsNil, LessThan}

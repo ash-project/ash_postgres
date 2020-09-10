@@ -3,7 +3,7 @@ defmodule AshPostgres.TestRepo do
   use AshPostgres.Repo,
     otp_app: :ash_postgres
 
-  def installed_extensions() do
+  def installed_extensions do
     ["uuid-ossp"]
   end
 end

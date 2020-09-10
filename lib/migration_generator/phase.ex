@@ -1,9 +1,12 @@
 defmodule AshPostgres.MigrationGenerator.Phase do
+  @moduledoc false
+
   defmodule Create do
+    @moduledoc false
     defstruct [:table, operations: []]
 
     def up(%{table: table, operations: operations}) do
-      "create table(#{inspect(table)}, primary_key: false) do\n" <>
+      "create table(:#{table}, primary_key: false) do\n" <>
         Enum.map_join(operations, "\n", fn operation -> operation.__struct__.up(operation) end) <>
         "\nend"
     end
@@ -14,6 +17,7 @@ defmodule AshPostgres.MigrationGenerator.Phase do
   end
 
   defmodule Alter do
+    @moduledoc false
     defstruct [:table, operations: []]
 
     def up(%{table: table, operations: operations}) do
@@ -31,7 +35,7 @@ defmodule AshPostgres.MigrationGenerator.Phase do
         |> Enum.reverse()
         |> Enum.map_join("\n", fn operation -> operation.__struct__.down(operation) end)
 
-      "alter table(#{inspect(table)}) do\n" <>
+      "alter table(:#{table}) do\n" <>
         body <>
         "\nend"
     end

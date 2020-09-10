@@ -1,7 +1,9 @@
 defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
+  @description "Generates migrations, and stores a snapshot of your resources"
+  @moduledoc @description
   use Mix.Task
 
-  @shortdoc "Generates migrations, and stores a snapshot of your resources"
+  @shortdoc @description
   def run(args) do
     {opts, _} =
       OptionParser.parse!(args,
@@ -9,15 +11,13 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
           apis: :string,
           snapshot_path: :string,
           migration_path: :string,
-          init: :boolean,
-          quiet: :boolean
+          quiet: :boolean,
+          format: :boolean
         ]
       )
 
     apps =
       if apps_paths = Mix.Project.apps_paths() do
-        # TODO: Use the proper ordering from Mix.Project.deps_apps
-        # when we depend on Elixir v1.11+.
         apps_paths |> Map.keys() |> Enum.sort()
       else
         [Mix.Project.config()[:app]]
@@ -47,8 +47,6 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
   end
 
   defp ensure_compiled(api, args) do
-    # Copied from ecto's `ensure_repo`
-    # TODO: Use only app.config when we depend on Elixir v1.11+.
     if Code.ensure_loaded?(Mix.Tasks.App.Config) do
       Mix.Task.run("app.config", args)
     else
