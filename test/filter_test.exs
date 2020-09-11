@@ -1,64 +1,6 @@
 defmodule AshPostgres.FilterTest do
-  use AshPostgres.RepoCase
-
-  defmodule Post do
-    use Ash.Resource,
-      data_layer: AshPostgres.DataLayer
-
-    postgres do
-      table "posts"
-      repo AshPostgres.TestRepo
-    end
-
-    actions do
-      read(:read)
-      create(:create)
-    end
-
-    attributes do
-      attribute(:id, :uuid, primary_key?: true, default: &Ecto.UUID.generate/0)
-      attribute(:title, :string)
-      attribute(:score, :integer)
-      attribute(:public, :boolean)
-    end
-
-    relationships do
-      has_many(:comments, AshPostgres.FilterTest.Comment, destination_field: :post_id)
-    end
-  end
-
-  defmodule Comment do
-    use Ash.Resource,
-      data_layer: AshPostgres.DataLayer
-
-    postgres do
-      table "comments"
-      repo AshPostgres.TestRepo
-    end
-
-    actions do
-      read(:read)
-      create(:create)
-    end
-
-    attributes do
-      attribute(:id, :uuid, primary_key?: true, default: &Ecto.UUID.generate/0)
-      attribute(:title, :string)
-    end
-
-    relationships do
-      belongs_to(:post, Post)
-    end
-  end
-
-  defmodule Api do
-    use Ash.Api
-
-    resources do
-      resource(Post)
-      resource(Comment)
-    end
-  end
+  use AshPostgres.RepoCase, async: false
+  alias AshPostgres.Test.{Api, Comment, Post}
 
   describe "with no filter applied" do
     test "with no data" do

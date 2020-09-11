@@ -57,6 +57,12 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
     case Code.ensure_compiled(api) do
       {:module, _} ->
         api
+        |> Ash.Api.resources()
+        |> Enum.each(&Code.ensure_compiled/1)
+
+        # TODO: We shouldn't need to make sure that the resources are compiled
+
+        api
 
       {:error, error} ->
         Mix.raise("Could not load #{inspect(api)}, error: #{inspect(error)}. ")

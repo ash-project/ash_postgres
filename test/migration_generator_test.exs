@@ -113,27 +113,27 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
 
     test "the migration creates the table" do
-      assert [file] = Path.wildcard("test_migration_path/*_migrate_resources.exs")
+      assert [file] = Path.wildcard("test_migration_path/*_migrate_resources*.exs")
 
       assert File.read!(file) =~ "create table(:posts, primary_key: false) do"
     end
 
     test "the migration adds the id, with its default" do
-      assert [file] = Path.wildcard("test_migration_path/*_migrate_resources.exs")
+      assert [file] = Path.wildcard("test_migration_path/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
                ~S[add :id, :binary_id, null: true, default: fragment("uuid_generate_v4()"), primary_key: true]
     end
 
     test "the migration adds other attributes" do
-      assert [file] = Path.wildcard("test_migration_path/*_migrate_resources.exs")
+      assert [file] = Path.wildcard("test_migration_path/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
                ~S[add :title, :text, null: true, default: nil, primary_key: false]
     end
 
     test "the migration creates unique_indexes based on the identities of the resource" do
-      assert [file] = Path.wildcard("test_migration_path/*_migrate_resources.exs")
+      assert [file] = Path.wildcard("test_migration_path/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
                ~S{create unique_index(:posts, [:title], name: "posts_title_unique_index")}
@@ -192,9 +192,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
         format: false
       )
 
-      # We need to make sure that follow up migrations have a different name, so we sleep for 1 second
-      :timer.sleep(1000)
-
       :ok
     end
 
@@ -223,7 +220,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
 
       assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources.exs"))
+               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~
                ~S[add :name, :text, null: false, default: nil, primary_key: false]
@@ -249,7 +246,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
 
       assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources.exs"))
+               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~ ~S[rename table(:posts), :title, to: :name]
     end
@@ -274,7 +271,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
 
       assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources.exs"))
+               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~
                ~S[add :name, :text, null: false, default: nil, primary_key: false]
@@ -302,7 +299,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
 
       assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources.exs"))
+               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~ ~S[rename table(:posts), :title, to: :subject]
     end
@@ -328,7 +325,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
 
       assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources.exs"))
+               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~
                ~S[add :subject, :text, null: false, default: nil, primary_key: false]
@@ -353,7 +350,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
 
       assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources.exs"))
+               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~
                ~S[add :guid, :binary_id, null: true, default: fragment("uuid_generate_v4()"), primary_key: true]
@@ -385,7 +382,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
 
       assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources.exs"))
+               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~
                ~S[add :foobar, :text, null: true, default: nil, primary_key: false]
