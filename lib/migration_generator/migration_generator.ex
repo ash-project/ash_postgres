@@ -1,5 +1,9 @@
 defmodule AshPostgres.MigrationGenerator do
-  @moduledoc "Generates migrations based on resource snapshots"
+  @moduledoc """
+  Generates migrations based on resource snapshots
+
+  See `Mix.Tasks.AshPostgres.GenerateMigrations` for more information.
+  """
   @default_snapshot_path "priv/resource_snapshots"
 
   import Mix.Generator
