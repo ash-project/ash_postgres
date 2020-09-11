@@ -55,6 +55,7 @@ defmodule AshPostgres.MixProject do
         "entry point": [AshPostgres],
         "data layer": [AshPostgres.DataLayer],
         repo: [AshPostgres.Repo],
+        migrations: [AshPostgres.MigrationGenerator],
         "filter predicates": ~r/AshPostgres.Predicates/
       ]
     ]
