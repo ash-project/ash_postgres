@@ -47,29 +47,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
   describe "creating initial snapshots" do
     setup do
       on_exit(fn ->
-        "test_snapshots_path/**/*.json"
-        |> Path.wildcard()
-        |> Enum.each(&File.rm!/1)
-
-        "test_snapshots_path/*"
-        |> Path.wildcard()
-        |> Enum.each(&File.rmdir!/1)
-
-        "test_migration_path/**/*.exs"
-        |> Path.wildcard()
-        |> Enum.each(&File.rm!/1)
-
-        "test_migration_path/*"
-        |> Path.wildcard()
-        |> Enum.each(&File.rmdir!/1)
-
-        if File.exists?("test_snapshots_path") do
-          File.rmdir("test_snapshots_path")
-        end
-
-        if File.exists?("test_migration_path") do
-          File.rmdir("test_migration_path")
-        end
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
       end)
 
       defposts do
@@ -113,27 +92,27 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
 
     test "the migration creates the table" do
-      assert [file] = Path.wildcard("test_migration_path/*_migrate_resources*.exs")
+      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
       assert File.read!(file) =~ "create table(:posts, primary_key: false) do"
     end
 
     test "the migration adds the id, with its default" do
-      assert [file] = Path.wildcard("test_migration_path/*_migrate_resources*.exs")
+      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
                ~S[add :id, :binary_id, null: true, default: fragment("uuid_generate_v4()"), primary_key: true]
     end
 
     test "the migration adds other attributes" do
-      assert [file] = Path.wildcard("test_migration_path/*_migrate_resources*.exs")
+      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
                ~S[add :title, :text, null: true, default: nil, primary_key: false]
     end
 
     test "the migration creates unique_indexes based on the identities of the resource" do
-      assert [file] = Path.wildcard("test_migration_path/*_migrate_resources*.exs")
+      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
                ~S{create unique_index(:posts, [:title], name: "posts_title_unique_index")}
@@ -143,29 +122,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
   describe "creating follow up migrations" do
     setup do
       on_exit(fn ->
-        "test_snapshots_path/**/*.json"
-        |> Path.wildcard()
-        |> Enum.each(&File.rm!/1)
-
-        "test_snapshots_path/*"
-        |> Path.wildcard()
-        |> Enum.each(&File.rmdir!/1)
-
-        "test_migration_path/**/*.exs"
-        |> Path.wildcard()
-        |> Enum.each(&File.rm!/1)
-
-        "test_migration_path/*"
-        |> Path.wildcard()
-        |> Enum.each(&File.rmdir!/1)
-
-        if File.exists?("test_snapshots_path") do
-          File.rmdir("test_snapshots_path")
-        end
-
-        if File.exists?("test_migration_path") do
-          File.rmdir("test_migration_path")
-        end
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
       end)
 
       defposts do
@@ -220,7 +178,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
 
       assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources*.exs"))
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~
                ~S[add :name, :text, null: false, default: nil, primary_key: false]
@@ -246,7 +204,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
 
       assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources*.exs"))
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~ ~S[rename table(:posts), :title, to: :name]
     end
@@ -271,7 +229,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
 
       assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources*.exs"))
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~
                ~S[add :name, :text, null: false, default: nil, primary_key: false]
@@ -299,7 +257,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
 
       assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources*.exs"))
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~ ~S[rename table(:posts), :title, to: :subject]
     end
@@ -325,7 +283,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
 
       assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources*.exs"))
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~
                ~S[add :subject, :text, null: false, default: nil, primary_key: false]
@@ -350,7 +308,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
 
       assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources*.exs"))
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~
                ~S[add :guid, :binary_id, null: true, default: fragment("uuid_generate_v4()"), primary_key: true]
@@ -382,7 +340,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
 
       assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/*_migrate_resources*.exs"))
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~
                ~S[add :foobar, :text, null: true, default: nil, primary_key: false]

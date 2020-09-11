@@ -23,6 +23,11 @@ defmodule AshPostgres.DataLayer do
     table "table_name"
   end
   ```
+
+  ### Generating Migrations
+
+  See the documentation for `Mix.Tasks.AshPostgres.GenerateMigrations` for how to generate
+  migrations from your resources
   """
   @postgres %Ash.Dsl.Section{
     name: :postgres,

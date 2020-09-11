@@ -266,9 +266,9 @@ defmodule AshPostgres.MigrationGenerator do
         opts.migration_path
       else
         "priv/"
-        |> Path.join(repo_name)
-        |> Path.join("migrations")
       end
+      |> Path.join(repo_name)
+      |> Path.join("migrations")
 
     count =
       migration_path
