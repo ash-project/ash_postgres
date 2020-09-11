@@ -18,4 +18,9 @@ defmodule AshPostgres do
   def table(resource) do
     Extension.get_opt(resource, [:postgres], :table, nil, true)
   end
+
+  @doc "Whether or not the resource should be included when generating migrations"
+  def migrate?(resource) do
+    Extension.get_opt(resource, [:postgres], :migrate?, nil, true)
+  end
 end

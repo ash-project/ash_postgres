@@ -1,0 +1,35 @@
+{
+  "attributes": [
+    {
+      "allow_nil?": true,
+      "default": "fragment(\"uuid_generate_v4()\")",
+      "name": "id",
+      "primary_key?": true,
+      "references": null,
+      "type": "binary_id"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "name": "post_id",
+      "primary_key?": false,
+      "references": {
+        "destination_field": "id",
+        "table": "posts"
+      },
+      "type": "binary_id"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "name": "title",
+      "primary_key?": false,
+      "references": null,
+      "type": "text"
+    }
+  ],
+  "hash": "308BC45BF8556BAD592F7C197D6EACD0A44835BD4108AD0987A4B1B2FC1D2608",
+  "identities": [],
+  "repo": "Elixir.AshPostgres.TestRepo",
+  "table": "comments"
+}

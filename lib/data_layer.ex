@@ -36,6 +36,12 @@ defmodule AshPostgres.DataLayer do
         doc:
           "The repo that will be used to fetch your data. See the `AshPostgres.Repo` documentation for more"
       ],
+      migrate?: [
+        type: :boolean,
+        default: true,
+        doc:
+          "Whether or not to include this resource in the generated migrations with `mix ash.generate_migrations`"
+      ],
       table: [
         type: :string,
         required: true,
@@ -44,7 +50,6 @@ defmodule AshPostgres.DataLayer do
     ]
   }
 
-  alias Ash.DataLayer.Delegate
   alias Ash.Filter
   alias Ash.Filter.{Expression, Not, Predicate}
   alias Ash.Filter.Predicate.{Eq, GreaterThan, In, IsNil, LessThan}
@@ -91,14 +96,12 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :upsert), do: true
 
   def can?(resource, {:join, other_resource}) do
-    other_resource = Delegate.get_delegated(other_resource)
     data_layer = Ash.Resource.data_layer(resource)
     other_data_layer = Ash.Resource.data_layer(other_resource)
     data_layer == other_data_layer and repo(data_layer) == repo(other_data_layer)
   end
 
   def can?(resource, {:lateral_join, other_resource}) do
-    other_resource = Delegate.get_delegated(other_resource)
     data_layer = Ash.Resource.data_layer(resource)
     other_data_layer = Ash.Resource.data_layer(other_resource)
     data_layer == other_data_layer and repo(data_layer) == repo(other_data_layer)
@@ -1121,6 +1124,6 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp maybe_get_resource_query(resource) do
-    {table(Delegate.get_delegated(resource)), resource}
+    {table(resource), resource}
   end
 end
