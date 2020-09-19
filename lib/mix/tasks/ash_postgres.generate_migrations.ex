@@ -12,8 +12,8 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
   Flags:
 
   * `quiet` - messages for file creations will not be printed
-  * `format` - files that are created will be formatted with the code formatter, defaults to true
-
+  * `no_format` - files that are created will not be formatted with the code formatter
+  * `dry_run` - no files are created, instead the new migration is printed
 
   #### Conflicts/Multiple Resources
 
@@ -52,7 +52,8 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
           snapshot_path: :string,
           migration_path: :string,
           quiet: :boolean,
-          format: :boolean
+          no_format: :boolean,
+          dry_run: :boolean
         ]
       )
 
@@ -82,6 +83,11 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
     if apis == [] do
       raise "must supply the --apis argument, or set `config :my_app, apis: [...]` in config"
     end
+
+    opts =
+      opts
+      |> Keyword.put(:format, !opts[:no_format])
+      |> Keyword.delete(:no_format)
 
     AshPostgres.MigrationGenerator.generate(apis, opts)
   end
