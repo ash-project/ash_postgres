@@ -47,6 +47,16 @@ defmodule AshPostgres.DataLayer do
         doc:
           "Whether or not to include this resource in the generated migrations with `mix ash.generate_migrations`"
       ],
+      base_filter_sql: [
+        type: :string,
+        doc:
+          "A raw sql version of the base_filter, e.g `representative = true`. Required if trying to create a unique constraint on a resource with a base_filter"
+      ],
+      skip_unique_indexes: [
+        type: {:custom, __MODULE__, :validate_skip_unique_indexes, []},
+        default: false,
+        doc: "Skip generating unique indexes when generating migrations"
+      ],
       table: [
         type: :string,
         required: true,
@@ -72,6 +82,17 @@ defmodule AshPostgres.DataLayer do
       {:ok, repo}
     else
       {:error, "Expected a repo using the postgres adapter `Ecto.Adapters.Postgres`"}
+    end
+  end
+
+  @doc false
+  def validate_skip_unique_indexes(indexes) do
+    indexes = List.wrap(indexes)
+
+    if Enum.all?(indexes, &is_atom/1) do
+      {:ok, indexes}
+    else
+      {:error, "All indexes to skip must be atoms"}
     end
   end
 
@@ -154,6 +175,10 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def offset(query, nil, _), do: query
 
+  def offset(%{offset: old_offset} = query, 0, _resource) when old_offset in [0, nil] do
+    {:ok, query}
+  end
+
   def offset(query, offset, _resource) do
     {:ok, from(row in query, offset: ^offset)}
   end
@@ -183,8 +208,10 @@ defmodule AshPostgres.DataLayer do
         )
       )
 
+    data_layer_query = Ash.Query.new(source_resource).data_layer_query
+
     query =
-      from(source in resource_to_query(source_resource),
+      from(source in data_layer_query,
         as: :source_record,
         where: field(source, ^source_field) in ^source_values,
         inner_lateral_join: destination in ^subquery,
@@ -793,15 +820,20 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp add_filter_expression(query, filter) do
-    filter
-    |> split_and_statements()
-    |> Enum.reduce(query, fn filter, query ->
-      clause = filter_to_dynamic_expr(filter, query.__ash_bindings__.bindings)
+    wheres =
+      filter
+      |> split_and_statements()
+      |> Enum.map(fn filter ->
+        {params, expr} = filter_to_expr(filter, query.__ash_bindings__.bindings, [])
 
-      from(row in query,
-        where: ^clause
-      )
-    end)
+        %Ecto.Query.BooleanExpr{
+          expr: expr,
+          op: :and,
+          params: params
+        }
+      end)
+
+    %{query | wheres: query.wheres ++ wheres}
   end
 
   defp split_and_statements(%Filter{expression: expression}) do
@@ -826,113 +858,6 @@ defmodule AshPostgres.DataLayer do
 
   defp split_and_statements(other), do: [other]
 
-  defp filter_to_dynamic_expr(%Filter{expression: expression}, bindings) do
-    filter_to_dynamic_expr(expression, bindings)
-  end
-
-  defp filter_to_dynamic_expr(nil, _), do: true
-  defp filter_to_dynamic_expr(true, _), do: true
-  defp filter_to_dynamic_expr(false, _), do: false
-
-  defp filter_to_dynamic_expr(%Expression{op: :and, left: left, right: right}, bindings) do
-    left = filter_to_dynamic_expr(left, bindings)
-    right = filter_to_dynamic_expr(right, bindings)
-    Ecto.Query.dynamic([row], ^left and ^right)
-  end
-
-  defp filter_to_dynamic_expr(%Expression{op: :or, left: left, right: right}, bindings) do
-    left = filter_to_dynamic_expr(left, bindings)
-    right = filter_to_dynamic_expr(right, bindings)
-    Ecto.Query.dynamic([row], ^left or ^right)
-  end
-
-  defp filter_to_dynamic_expr(%Not{expression: expression}, bindings) do
-    expression = filter_to_dynamic_expr(expression, bindings)
-
-    Ecto.Query.dynamic([row], not (^expression))
-  end
-
-  defp filter_to_dynamic_expr(%Predicate{} = pred, bindings) do
-    %{predicate: predicate, relationship_path: relationship_path, attribute: attribute} = pred
-
-    current_binding =
-      case attribute do
-        %Ash.Resource.Attribute{} ->
-          Enum.find_value(bindings, fn {binding, data} ->
-            data.path == relationship_path && data.type in [:left, :inner, :root] && binding
-          end)
-
-        %Ash.Query.Aggregate{} = aggregate ->
-          Enum.find_value(bindings, fn {binding, data} ->
-            data.path == aggregate.relationship_path && data.type == :aggregate && binding
-          end)
-      end
-
-    type = Ash.Type.ecto_type(attribute.type)
-
-    filter_value_to_dynamic_expr(attribute, predicate, type, current_binding)
-  end
-
-  defp filter_value_to_dynamic_expr(attribute, %Eq{value: value}, _type, current_binding) do
-    Ecto.Query.dynamic([{row, current_binding}], field(row, ^attribute.name) == ^value)
-  end
-
-  defp filter_value_to_dynamic_expr(attribute, %LessThan{value: value}, _type, current_binding) do
-    Ecto.Query.dynamic([{row, current_binding}], field(row, ^attribute.name) < ^value)
-  end
-
-  defp filter_value_to_dynamic_expr(attribute, %GreaterThan{value: value}, _type, current_binding) do
-    Ecto.Query.dynamic([{row, current_binding}], field(row, ^attribute.name) > ^value)
-  end
-
-  defp filter_value_to_dynamic_expr(attribute, %In{values: values}, _type, current_binding) do
-    Ecto.Query.dynamic([{row, current_binding}], field(row, ^attribute.name) in ^values)
-  end
-
-  defp filter_value_to_dynamic_expr(attribute, %IsNil{nil?: true}, _type, current_binding) do
-    Ecto.Query.dynamic([{row, current_binding}], is_nil(field(row, ^attribute.name)))
-  end
-
-  defp filter_value_to_dynamic_expr(attribute, %IsNil{nil?: false}, _type, current_binding) do
-    Ecto.Query.dynamic([{row, current_binding}], not is_nil(field(row, ^attribute.name)))
-  end
-
-  defp filter_value_to_dynamic_expr(attribute, %Trigram{} = trigram, _type, current_binding) do
-    case trigram do
-      %{equals: nil, greater_than: greater_than, less_than: nil, text: text} ->
-        Ecto.Query.dynamic(
-          [{row, current_binding}],
-          fragment("similarity(?, ?) > ?", field(row, ^attribute.name), ^text, ^greater_than)
-        )
-
-      %{equals: nil, greater_than: nil, less_than: less_than, text: text} ->
-        Ecto.Query.dynamic(
-          [{row, current_binding}],
-          fragment("similarity(?, ?) < ?", field(row, ^attribute.name), ^text, ^less_than)
-        )
-
-      %{equals: nil, greater_than: greater_than, less_than: less_than, text: text} ->
-        Ecto.Query.dynamic(
-          [{row, current_binding}],
-          fragment(
-            "similarity(?, ?) BETWEEN ? AND ?",
-            field(row, ^attribute.name),
-            ^text,
-            ^less_than,
-            ^greater_than
-          )
-        )
-
-      %{equals: equals, text: text} ->
-        Ecto.Query.dynamic(
-          [{row, current_binding}],
-          fragment("similarity(?, ?) = ?", field(row, ^attribute.name), ^text, ^equals)
-        )
-    end
-  end
-
-  # IMPORTANT: We need to rework this so we don't need this hacky logic.
-  # Specifically, we can't use dynamic expers in selects, so we need this for aggregates :(
   defp filter_to_expr(%Filter{expression: expression}, bindings, params) do
     filter_to_expr(expression, bindings, params)
   end
@@ -962,7 +887,7 @@ defmodule AshPostgres.DataLayer do
       case attribute do
         %Ash.Resource.Attribute{} ->
           Enum.find_value(bindings, fn {binding, data} ->
-            data.path == relationship_path && data.type in [:left, :root] && binding
+            data.path == relationship_path && data.type in [:inner, :left, :root] && binding
           end)
 
         %Ash.Query.Aggregate{} = aggregate ->
@@ -971,60 +896,111 @@ defmodule AshPostgres.DataLayer do
           end)
       end
 
-    type = Ash.Type.ecto_type(attribute.type)
-
-    filter_value_to_expr(attribute.name, predicate, type, current_binding, params)
+    filter_value_to_expr(
+      attribute.name,
+      predicate,
+      attribute.type,
+      current_binding,
+      params,
+      pred.embedded
+    )
   end
 
-  defp filter_value_to_expr(attribute, %Eq{value: value}, type, current_binding, params) do
+  defp filter_value_to_expr(
+         attribute,
+         %Eq{value: value},
+         type,
+         current_binding,
+         params,
+         embedded?
+       ) do
     simple_operator_expr(
       :==,
       params,
       value,
       type,
       current_binding,
-      attribute
+      attribute,
+      embedded?
     )
   end
 
-  defp filter_value_to_expr(attribute, %LessThan{value: value}, type, current_binding, params) do
+  defp filter_value_to_expr(
+         attribute,
+         %LessThan{value: value},
+         type,
+         current_binding,
+         params,
+         embedded?
+       ) do
     simple_operator_expr(
       :<,
       params,
       value,
       type,
       current_binding,
-      attribute
+      attribute,
+      embedded?
     )
   end
 
-  defp filter_value_to_expr(attribute, %GreaterThan{value: value}, type, current_binding, params) do
+  defp filter_value_to_expr(
+         attribute,
+         %GreaterThan{value: value},
+         type,
+         current_binding,
+         params,
+         embedded?
+       ) do
     simple_operator_expr(
       :>,
       params,
       value,
       type,
       current_binding,
-      attribute
+      attribute,
+      embedded?
     )
   end
 
-  defp filter_value_to_expr(attribute, %In{values: values}, type, current_binding, params) do
+  defp filter_value_to_expr(
+         attribute,
+         %In{values: values},
+         type,
+         current_binding,
+         params,
+         embedded?
+       ) do
     simple_operator_expr(
       :in,
       params,
       values,
       {:in, type},
       current_binding,
-      attribute
+      attribute,
+      embedded?
     )
   end
 
-  defp filter_value_to_expr(attribute, %IsNil{nil?: true}, _type, current_binding, params) do
+  defp filter_value_to_expr(
+         attribute,
+         %IsNil{nil?: true},
+         _type,
+         current_binding,
+         params,
+         _embedded?
+       ) do
     {params, {:is_nil, [], [{{:., [], [{:&, [], [current_binding]}, attribute]}, [], []}]}}
   end
 
-  defp filter_value_to_expr(attribute, %IsNil{nil?: false}, _type, current_binding, params) do
+  defp filter_value_to_expr(
+         attribute,
+         %IsNil{nil?: false},
+         _type,
+         current_binding,
+         params,
+         _embedded?
+       ) do
     {params,
      {:not, [], [{:is_nil, [], [{{:., [], [{:&, [], [current_binding]}, attribute]}, [], []}]}]}}
   end
@@ -1034,13 +1010,14 @@ defmodule AshPostgres.DataLayer do
          %Trigram{} = trigram,
          _type,
          current_binding,
-         params
+         params,
+         false
        ) do
     param_count = Enum.count(params)
 
     case trigram do
       %{equals: equals, greater_than: nil, less_than: nil, text: text} ->
-        {params ++ [{text, {current_binding, attribute}}, {equals, :float}],
+        {params ++ [{text, :string}, {equals, :float}],
          {:fragment, [],
           [
             raw: "similarity(",
@@ -1053,7 +1030,7 @@ defmodule AshPostgres.DataLayer do
           ]}}
 
       %{equals: nil, greater_than: greater_than, less_than: nil, text: text} ->
-        {params ++ [{text, {current_binding, attribute}}, {greater_than, :float}],
+        {params ++ [{text, :string}, {greater_than, :float}],
          {:fragment, [],
           [
             raw: "similarity(",
@@ -1066,7 +1043,7 @@ defmodule AshPostgres.DataLayer do
           ]}}
 
       %{equals: nil, greater_than: nil, less_than: less_than, text: text} ->
-        {params ++ [{text, {current_binding, attribute}}, {less_than, :float}],
+        {params ++ [{text, :string}, {less_than, :float}],
          {:fragment, [],
           [
             raw: "similarity(",
@@ -1080,7 +1057,7 @@ defmodule AshPostgres.DataLayer do
 
       %{equals: nil, greater_than: greater_than, less_than: less_than, text: text} ->
         {params ++
-           [{text, {current_binding, attribute}}, {less_than, :float}, {greater_than, :float}],
+           [{text, :string}, {less_than, :float}, {greater_than, :float}],
          {:fragment, [],
           [
             raw: "similarity(",
@@ -1096,13 +1073,103 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp simple_operator_expr(op, params, value, type, current_binding, attribute) do
-    {params ++ [{value, type}],
+  defp filter_value_to_expr(
+         attribute,
+         %Trigram{} = trigram,
+         _type,
+         current_binding,
+         params,
+         true
+       ) do
+    case trigram do
+      %{equals: equals, greater_than: nil, less_than: nil, text: text} ->
+        {params,
+         {:fragment, [],
+          [
+            raw: "similarity(",
+            expr: {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
+            raw: ", ",
+            expr: tagged(text, :string),
+            raw: ") = ",
+            expr: tagged(equals, :float),
+            raw: ""
+          ]}}
+
+      %{equals: nil, greater_than: greater_than, less_than: nil, text: text} ->
+        {params,
+         {:fragment, [],
+          [
+            raw: "similarity(",
+            expr: {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
+            raw: ", ",
+            expr: tagged(text, :string),
+            raw: ") > ",
+            expr: tagged(greater_than, :float),
+            raw: ""
+          ]}}
+
+      %{equals: nil, greater_than: nil, less_than: less_than, text: text} ->
+        {params,
+         {:fragment, [],
+          [
+            raw: "similarity(",
+            expr: {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
+            raw: ", ",
+            expr: tagged(text, :string),
+            raw: ") < ",
+            expr: tagged(less_than, :float),
+            raw: ""
+          ]}}
+
+      %{equals: nil, greater_than: greater_than, less_than: less_than, text: text} ->
+        {params,
+         {:fragment, [],
+          [
+            raw: "similarity(",
+            expr: {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
+            raw: ", ",
+            expr: tagged(text, :string),
+            raw: ") BETWEEN ",
+            expr: tagged(less_than, :float),
+            raw: " AND ",
+            expr: tagged(greater_than, :float),
+            raw: ""
+          ]}}
+    end
+  end
+
+  defp simple_operator_expr(op, params, value, type, current_binding, attribute, false) do
+    {params ++ [{value, Ash.Type.ecto_type(type)}],
      {op, [],
       [
         {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
         {:^, [], [Enum.count(params)]}
       ]}}
+  end
+
+  defp simple_operator_expr(op, params, value, type, current_binding, attribute, true) do
+    {params,
+     {op, [],
+      [
+        {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
+        tagged(value, type)
+      ]}}
+  end
+
+  defp tagged(value, type) do
+    %Ecto.Query.Tagged{value: value, type: get_type(type)}
+  end
+
+  defp get_type({:array, type}) do
+    {:array, get_type(type)}
+  end
+
+  defp get_type(type) do
+    if Ash.Type.ash_type?(type) do
+      Ash.Type.storage_type(type)
+    else
+      type
+    end
   end
 
   defp add_binding(query, data) do
@@ -1129,6 +1196,9 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp maybe_get_resource_query(resource) do
-    {table(resource), resource}
+    case Ash.Query.data_layer_query(Ash.Query.new(resource), only_validate_filter?: false) do
+      {:ok, query} -> query
+      {:error, error} -> {:error, error}
+    end
   end
 end

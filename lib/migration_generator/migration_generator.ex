@@ -10,7 +10,11 @@ defmodule AshPostgres.MigrationGenerator do
 
   alias AshPostgres.MigrationGenerator.{Operation, Phase}
 
-  defstruct snapshot_path: @default_snapshot_path, migration_path: nil, quiet: false, format: true
+  defstruct snapshot_path: @default_snapshot_path,
+            migration_path: nil,
+            quiet: false,
+            format: true,
+            dry_run: false
 
   def generate(apis, opts \\ []) do
     apis = List.wrap(apis)
@@ -78,8 +82,19 @@ defmodule AshPostgres.MigrationGenerator do
         new_snapshot.identities
         |> Kernel.++(identities)
         |> Enum.sort_by(& &1.name)
+        # We sort the identities by there being an identity with a matching name in the existing snapshot
+        # so that we prefer identities that currently exist over new ones
+        |> Enum.sort_by(fn identity ->
+          existing_snapshot
+          |> Kernel.||(%{})
+          |> Map.get(:identities, [])
+          |> Enum.any?(fn existing_identity ->
+            existing_identity.name == identity.name
+          end)
+          |> Kernel.!()
+        end)
         |> Enum.uniq_by(fn identity ->
-          Enum.sort(identity.keys)
+          {Enum.sort(identity.keys), identity.base_filter}
         end)
 
       new_snapshot = %{new_snapshot | identities: all_identities}
@@ -253,17 +268,19 @@ defmodule AshPostgres.MigrationGenerator do
   defp write_migration({up, down}, snapshots, repo, opts) do
     repo_name = repo |> Module.split() |> List.last() |> Macro.underscore()
 
-    Enum.each(snapshots, fn snapshot ->
-      snapshot_binary = snapshot_to_binary(snapshot)
+    unless opts.dry_run do
+      Enum.each(snapshots, fn snapshot ->
+        snapshot_binary = snapshot_to_binary(snapshot)
 
-      snapshot_file =
-        opts.snapshot_path
-        |> Path.join(repo_name)
-        |> Path.join(snapshot.table <> ".json")
+        snapshot_file =
+          opts.snapshot_path
+          |> Path.join(repo_name)
+          |> Path.join(snapshot.table <> ".json")
 
-      File.mkdir_p(Path.dirname(snapshot_file))
-      File.write!(snapshot_file, snapshot_binary, [])
-    end)
+        File.mkdir_p(Path.dirname(snapshot_file))
+        File.write!(snapshot_file, snapshot_binary, [])
+      end)
+    end
 
     migration_path =
       if opts.migration_path do
@@ -309,7 +326,11 @@ defmodule AshPostgres.MigrationGenerator do
     end
     """
 
-    create_file(migration_file, format(contents, opts))
+    if opts.dry_run do
+      Mix.shell().info(format(contents, opts))
+    else
+      create_file(migration_file, format(contents, opts))
+    end
   end
 
   defp build_up_and_down(phases) do
@@ -417,6 +438,10 @@ defmodule AshPostgres.MigrationGenerator do
          acc
        ) do
     group_into_phases(rest, %{phase | operations: [op | phase.operations]}, acc)
+  end
+
+  defp group_into_phases([%{no_phase: true} = op | rest], nil, acc) do
+    group_into_phases(rest, nil, [op | acc])
   end
 
   defp group_into_phases([operation | rest], nil, acc) do
@@ -594,7 +619,8 @@ defmodule AshPostgres.MigrationGenerator do
       old_snapshot.identities
       |> Enum.reject(fn old_identity ->
         Enum.find(snapshot.identities, fn identity ->
-          Enum.sort(old_identity.keys) == Enum.sort(identity.keys)
+          Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
+            old_identity.base_filter == identity.base_filter
         end)
       end)
       |> Enum.map(fn identity ->
@@ -605,11 +631,15 @@ defmodule AshPostgres.MigrationGenerator do
       snapshot.identities
       |> Enum.reject(fn identity ->
         Enum.find(old_snapshot.identities, fn old_identity ->
-          Enum.sort(old_identity.keys) == Enum.sort(identity.keys)
+          Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
+            old_identity.base_filter == identity.base_filter
         end)
       end)
       |> Enum.map(fn identity ->
-        %Operation.AddUniqueIndex{identity: identity, table: snapshot.table}
+        %Operation.AddUniqueIndex{
+          identity: identity,
+          table: snapshot.table
+        }
       end)
 
     attribute_operations ++ unique_indexes_to_add ++ unique_indexes_to_remove ++ acc
@@ -772,7 +802,8 @@ defmodule AshPostgres.MigrationGenerator do
       attributes: attributes(resource),
       identities: identities(resource),
       table: AshPostgres.table(resource),
-      repo: AshPostgres.repo(resource)
+      repo: AshPostgres.repo(resource),
+      base_filter: AshPostgres.base_filter_sql(resource)
     }
 
     hash =
@@ -834,13 +865,35 @@ defmodule AshPostgres.MigrationGenerator do
   defp identities(resource) do
     resource
     |> Ash.Resource.identities()
+    |> case do
+      [] ->
+        []
+
+      identities ->
+        base_filter = Ash.Resource.base_filter(resource)
+
+        if base_filter && !AshPostgres.base_filter_sql(resource) do
+          raise """
+          Currently, ash_postgres cannot translate your base_filter #{inspect(base_filter)} into sql. You must provide the `base_filter_sql` option, or skip unique indexes with `skip_unique_indexes`"
+          """
+        end
+
+        identities
+    end
+    |> Enum.reject(fn identity ->
+      identity.name in AshPostgres.skip_unique_indexes?(resource)
+    end)
     |> Enum.filter(fn identity ->
       Enum.all?(identity.keys, fn key ->
         Ash.Resource.attribute(resource, key)
       end)
     end)
+    |> Enum.map(fn identity ->
+      %{identity | keys: Enum.sort(identity.keys)}
+    end)
     |> Enum.sort_by(& &1.name)
     |> Enum.map(&Map.take(&1, [:name, :keys]))
+    |> Enum.map(&Map.put(&1, :base_filter, AshPostgres.base_filter_sql(resource)))
   end
 
   if :erlang.function_exported(Ash, :uuid, 0) do
@@ -904,7 +957,10 @@ defmodule AshPostgres.MigrationGenerator do
     identity
     |> Map.update!(:name, &String.to_atom/1)
     |> Map.update!(:keys, fn keys ->
-      Enum.map(keys, &String.to_atom/1)
+      keys
+      |> Enum.map(&String.to_atom/1)
+      |> Enum.sort()
     end)
+    |> Map.put_new(:base_filter, nil)
   end
 end

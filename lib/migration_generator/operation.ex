@@ -111,30 +111,35 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule AddUniqueIndex do
     @moduledoc false
-    defstruct [:identity, :table]
+    defstruct [:identity, :table, no_phase: true]
 
-    def up(%{identity: %{name: name, keys: keys}, table: table}) do
-      "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{table}_#{
-        name
-      }_unique_index\")"
+    def up(%{identity: %{name: name, keys: keys, base_filter: base_filter}, table: table}) do
+      if base_filter do
+        "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
+          table
+        }_#{name}_unique_index\", where: \"#{base_filter}\")"
+      else
+        "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
+          table
+        }_#{name}_unique_index\")"
+      end
     end
 
     def down(%{identity: %{name: name, keys: keys}, table: table}) do
-      # {
-      "drop unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{table}_#{
-        name
-      }_unique_index\")"
+      "drop_if_exists unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
+        table
+      }_#{name}_unique_index\")"
     end
   end
 
   defmodule RemoveUniqueIndex do
     @moduledoc false
-    defstruct [:identity, :table]
+    defstruct [:identity, :table, no_phase: true]
 
     def up(%{identity: %{name: name, keys: keys}, table: table}) do
-      "drop unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{table}_#{
-        name
-      }_unique_index\")"
+      "drop_if_exists unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
+        table
+      }_#{name}_unique_index\")"
     end
 
     def down(%{identity: %{name: name, keys: keys}, table: table}) do
