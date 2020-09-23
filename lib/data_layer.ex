@@ -1139,7 +1139,7 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp simple_operator_expr(op, params, value, type, current_binding, attribute, false) do
-    {params ++ [{value, Ash.Type.ecto_type(type)}],
+    {params ++ [{value, op_type(type)}],
      {op, [],
       [
         {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
@@ -1154,6 +1154,14 @@ defmodule AshPostgres.DataLayer do
         {{:., [], [{:&, [], [current_binding]}, attribute]}, [], []},
         tagged(value, type)
       ]}}
+  end
+
+  defp op_type({:in, type}) do
+    {:in, op_type(type)}
+  end
+
+  defp op_type(type) do
+    Ash.Type.ecto_type(type)
   end
 
   defp tagged(value, type) do
