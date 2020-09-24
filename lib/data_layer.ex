@@ -865,7 +865,7 @@ defmodule AshPostgres.DataLayer do
   # A nil filter means "everything"
   defp filter_to_expr(nil, _, _), do: {[], true}
   # A true filter means "everything"
-  defp filter_to_expr(true, _, _), do: true
+  defp filter_to_expr(true, _, _), do: {[], true}
   # A false filter means "nothing"
   defp filter_to_expr(false, _, _), do: {[], false}
 
