@@ -151,8 +151,9 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :filter), do: true
   def can?(_, :limit), do: true
   def can?(_, :offset), do: true
-  def can?(_, {:filter_operator, %Eq{right: %Ref{}}}), do: false
+  def can?(_, {:filter_operator, %{right: %Ref{}}}), do: false
   def can?(_, {:filter_operator, %Eq{left: %Ref{}}}), do: true
+  def can?(_, {:filter_operator, %In{left: %Ref{}}}), do: true
   def can?(_, {:filter_predicate, _, %In{}}), do: true
   def can?(_, {:filter_predicate, _, %LessThan{}}), do: true
   def can?(_, {:filter_predicate, _, %GreaterThan{}}), do: true
@@ -889,36 +890,36 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp filter_to_expr(
-         %Eq{left: %Ref{} = left, right: %Ref{} = right, operator: :==},
+         %Eq{left: %Ref{} = left, right: right, embedded?: embedded?},
          bindings,
-         params
+         params,
+         embedded?
        ) do
-    left = ref_to_field(left, bindings)
-    right = ref_to_field(right, bindings)
-
-    {params, {:==, [], [left, right]}}
+    simple_operator_expr(
+      :==,
+      params,
+      right,
+      left.attribute.type,
+      ref_binding(left, bindings),
+      left.attribute,
+      embedded?
+    )
   end
 
   defp filter_to_expr(
-         %Eq{left: %Ref{} = left, right: right},
+         %In{left: %Ref{} = left, right: map_set, embedded?: embedded?},
          bindings,
          params
        ) do
-    left_ref = ref_to_field(left, bindings)
-
-    {params ++ [{right, op_type(left.attribute.type)}],
-     {:==, [], [left_ref, param_binding(Enum.count(params))]}}
-  end
-
-  defp filter_to_expr(
-         %Eq{left: %Ref{} = left, right: right},
-         bindings,
-         params
-       ) do
-    left_ref = ref_to_field(left, bindings)
-
-    {params ++ [{right, op_type(left.attribute.type)}],
-     {:==, [], [left_ref, param_binding(Enum.count(params))]}}
+    simple_operator_expr(
+      :in,
+      params,
+      MapSet.to_list(map_set),
+      {:in, left.attribute.type},
+      ref_binding(left, bindings),
+      left.attribute,
+      embedded?
+    )
   end
 
   defp filter_to_expr(%Predicate{} = pred, bindings, params) do
@@ -947,21 +948,18 @@ defmodule AshPostgres.DataLayer do
     )
   end
 
-  defp ref_to_field(ref, bindings) do
-    binding =
-      case ref.attribute do
-        %Ash.Resource.Attribute{} ->
-          Enum.find_value(bindings, fn {binding, data} ->
-            data.path == ref.relationship_path && data.type in [:inner, :left, :root] && binding
-          end)
+  defp ref_binding(ref, bindings) do
+    case ref.attribute do
+      %Ash.Resource.Attribute{} ->
+        Enum.find_value(bindings, fn {binding, data} ->
+          data.path == ref.relationship_path && data.type in [:inner, :left, :root] && binding
+        end)
 
-        %Ash.Query.Aggregate{} = aggregate ->
-          Enum.find_value(bindings, fn {binding, data} ->
-            data.path == aggregate.relationship_path && data.type == :aggregate && binding
-          end)
-      end
-
-    {{:., [], [{:&, [], [binding]}, ref.attribute.name]}, [], []}
+      %Ash.Query.Aggregate{} = aggregate ->
+        Enum.find_value(bindings, fn {binding, data} ->
+          data.path == aggregate.relationship_path && data.type == :aggregate && binding
+        end)
+    end
   end
 
   def param_binding(ix) do
@@ -1000,25 +998,6 @@ defmodule AshPostgres.DataLayer do
       params,
       value,
       type,
-      current_binding,
-      attribute,
-      embedded?
-    )
-  end
-
-  defp filter_value_to_expr(
-         attribute,
-         %In{values: values},
-         type,
-         current_binding,
-         params,
-         embedded?
-       ) do
-    simple_operator_expr(
-      :in,
-      params,
-      values,
-      {:in, type},
       current_binding,
       attribute,
       embedded?
