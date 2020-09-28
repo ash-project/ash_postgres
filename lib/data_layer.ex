@@ -72,8 +72,9 @@ defmodule AshPostgres.DataLayer do
   }
 
   alias Ash.Filter
-  alias Ash.Filter.{Expression, Not, Predicate}
-  alias Ash.Filter.Predicate.{Eq, GreaterThan, In, IsNil, LessThan}
+  alias Ash.Filter.{Expression, Not, Predicate, Ref}
+  alias Ash.Filter.Predicate.{GreaterThan, IsNil, LessThan}
+  alias Ash.Filter.Operator.{Eq, In}
   alias AshPostgres.Predicates.Trigram
 
   import AshPostgres, only: [table: 1, repo: 1]
@@ -150,8 +151,9 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :filter), do: true
   def can?(_, :limit), do: true
   def can?(_, :offset), do: true
+  def can?(_, {:filter_operator, %Eq{right: %Ref{}}}), do: false
+  def can?(_, {:filter_operator, %Eq{left: %Ref{}}}), do: true
   def can?(_, {:filter_predicate, _, %In{}}), do: true
-  def can?(_, {:filter_predicate, _, %Eq{}}), do: true
   def can?(_, {:filter_predicate, _, %LessThan{}}), do: true
   def can?(_, {:filter_predicate, _, %GreaterThan{}}), do: true
   def can?(_, {:filter_predicate, _, %IsNil{}}), do: true
@@ -886,6 +888,39 @@ defmodule AshPostgres.DataLayer do
     {params, {:not, [], [new_expression]}}
   end
 
+  defp filter_to_expr(
+         %Eq{left: %Ref{} = left, right: %Ref{} = right, operator: :==},
+         bindings,
+         params
+       ) do
+    left = ref_to_field(left, bindings)
+    right = ref_to_field(right, bindings)
+
+    {params, {:==, [], [left, right]}}
+  end
+
+  defp filter_to_expr(
+         %Eq{left: %Ref{} = left, right: right},
+         bindings,
+         params
+       ) do
+    left_ref = ref_to_field(left, bindings)
+
+    {params ++ [{right, op_type(left.attribute.type)}],
+     {:==, [], [left_ref, param_binding(Enum.count(params))]}}
+  end
+
+  defp filter_to_expr(
+         %Eq{left: %Ref{} = left, right: right},
+         bindings,
+         params
+       ) do
+    left_ref = ref_to_field(left, bindings)
+
+    {params ++ [{right, op_type(left.attribute.type)}],
+     {:==, [], [left_ref, param_binding(Enum.count(params))]}}
+  end
+
   defp filter_to_expr(%Predicate{} = pred, bindings, params) do
     %{predicate: predicate, relationship_path: relationship_path, attribute: attribute} = pred
 
@@ -912,23 +947,25 @@ defmodule AshPostgres.DataLayer do
     )
   end
 
-  defp filter_value_to_expr(
-         attribute,
-         %Eq{value: value},
-         type,
-         current_binding,
-         params,
-         embedded?
-       ) do
-    simple_operator_expr(
-      :==,
-      params,
-      value,
-      type,
-      current_binding,
-      attribute,
-      embedded?
-    )
+  defp ref_to_field(ref, bindings) do
+    binding =
+      case ref.attribute do
+        %Ash.Resource.Attribute{} ->
+          Enum.find_value(bindings, fn {binding, data} ->
+            data.path == ref.relationship_path && data.type in [:inner, :left, :root] && binding
+          end)
+
+        %Ash.Query.Aggregate{} = aggregate ->
+          Enum.find_value(bindings, fn {binding, data} ->
+            data.path == aggregate.relationship_path && data.type == :aggregate && binding
+          end)
+      end
+
+    {{:., [], [{:&, [], [binding]}, ref.attribute.name]}, [], []}
+  end
+
+  def param_binding(ix) do
+    {:^, [], [ix]}
   end
 
   defp filter_value_to_expr(
