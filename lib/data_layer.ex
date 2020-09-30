@@ -12,7 +12,13 @@ defmodule AshPostgres.DataLayer do
 
   ### Usage
 
-  To use this data layer, you need to define an `AshPostgres.Repo`. Ash adds some
+    First, ensure you've added ash_postgres to your `mix.exs` file.
+
+  ```elixir
+  {:ash_postgres, "~> x.y.z"}
+  ```
+
+  To use this data layer, you need to define an `Ecto.Repo`. AshPostgres adds some
   functionality on top of ecto repos, so you'll want to use `AshPostgres.Repo`
 
   Then, configure your resource like so:
