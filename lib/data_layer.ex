@@ -12,7 +12,7 @@ defmodule AshPostgres.DataLayer do
 
   ### Usage
 
-    First, ensure you've added ash_postgres to your `mix.exs` file.
+  First, ensure you've added ash_postgres to your `mix.exs` file.
 
   ```elixir
   {:ash_postgres, "~> x.y.z"}
@@ -23,7 +23,7 @@ defmodule AshPostgres.DataLayer do
 
   Then, configure your resource like so:
 
-  ```
+  ```elixir
   postgres do
     repo MyApp.Repo
     table "table_name"
