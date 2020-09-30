@@ -65,6 +65,7 @@ defmodule AshPostgres.MixProject do
   defp deps do
     [
       {:ecto_sql, "~> 3.4"},
+      {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
       {:ash, ash_version("~> 1.13.3")},
       {:git_ops, "~> 2.0.1", only: :dev},
