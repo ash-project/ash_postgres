@@ -452,9 +452,8 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp group_into_phases([operation | rest], nil, acc) do
-    group_into_phases(rest, nil, [
-      %Phase.Alter{operations: [operation], table: operation.table} | acc
-    ])
+    phase = %Phase.Alter{operations: [operation]}
+    group_into_phases(rest, phase, acc)
   end
 
   defp group_into_phases(operations, phase, acc) do
