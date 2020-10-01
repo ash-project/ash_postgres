@@ -367,28 +367,35 @@ defmodule AshPostgres.MigrationGenerator do
                name: name
              },
              table: table
-           } = add,
-           %AshPostgres.MigrationGenerator.Operation.AlterAttribute{
-             new_attribute: %{
-               name: name,
-               references: references
-             },
-             old_attribute: %{
-               name: name
-             },
-             table: table
-           }
+           } = add
            | rest
          ],
          acc
-       )
-       when not is_nil(references) do
-    new_attribute = Map.put(add.attribute, :references, references)
+       ) do
+    rest
+    |> Enum.take_while(fn op ->
+      op.table == table
+    end)
+    |> Enum.with_index()
+    |> Enum.find(fn
+      {%Operation.AlterAttribute{
+         new_attribute: %{name: ^name, references: references},
+         old_attribute: %{name: ^name}
+       }, _}
+      when not is_nil(references) ->
+        true
 
-    streamline(
-      rest,
-      [%{add | attribute: new_attribute} | acc]
-    )
+      _ ->
+        false
+    end)
+    |> case do
+      nil ->
+        streamline(rest, [add | acc])
+
+      {alter, index} ->
+        new_attribute = Map.put(add.attribute, :references, alter.new_attribute.references)
+        streamline(List.delete_at(rest, index), [%{add | attribute: new_attribute} | acc])
+    end
   end
 
   defp streamline([first | rest], acc) do
@@ -418,7 +425,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp group_into_phases(
          [%Operation.AlterAttribute{table: table} = op | rest],
-         %{table: table} = phase,
+         %Phase.Alter{table: table} = phase,
          acc
        ) do
     group_into_phases(rest, %{phase | operations: [op | phase.operations]}, acc)
@@ -426,7 +433,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp group_into_phases(
          [%Operation.RenameAttribute{table: table} = op | rest],
-         %{table: table} = phase,
+         %Phase.Alter{table: table} = phase,
          acc
        ) do
     group_into_phases(rest, %{phase | operations: [op | phase.operations]}, acc)
