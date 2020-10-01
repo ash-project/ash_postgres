@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.22.1](https://github.com/ash-project/ash_postgres/compare/v0.22.0...v0.22.1) (2020-10-01)
+
+
+
+
+### Bug Fixes:
+
+* don't group alters with creates (#22)
+
+* add jason dependency, clean lockfile (#21)
+
 ## [v0.22.0](https://github.com/ash-project/ash_postgres/compare/v0.21.0...v0.22.0) (2020-09-24)
 
 
