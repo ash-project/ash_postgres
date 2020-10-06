@@ -212,4 +212,32 @@ defmodule AshPostgres.FilterTest do
       assert [%Post{title: "match"}] = results
     end
   end
+
+  describe "trigram_similarity" do
+    test "it works on matches" do
+      Post
+      |> Ash.Changeset.new(%{title: "match"})
+      |> Api.create!()
+
+      results =
+        Post
+        |> Ash.Query.filter(trigram_similarity: [:title, "match", [greater_than: 0.9]])
+        |> Api.read!()
+
+      assert [%Post{title: "match"}] = results
+    end
+
+    test "it works on non-matches" do
+      Post
+      |> Ash.Changeset.new(%{title: "match"})
+      |> Api.create!()
+
+      results =
+        Post
+        |> Ash.Query.filter(trigram_similarity: [:title, "match", [less_than: 0.1]])
+        |> Api.read!()
+
+      assert [] = results
+    end
+  end
 end

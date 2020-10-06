@@ -4,6 +4,6 @@ defmodule AshPostgres.TestRepo do
     otp_app: :ash_postgres
 
   def installed_extensions do
-    ["uuid-ossp"]
+    ["uuid-ossp", "pg_trgm"]
   end
 end
