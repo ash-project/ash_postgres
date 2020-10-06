@@ -54,6 +54,7 @@ defmodule AshPostgres.MixProject do
       groups_for_modules: [
         "entry point": [AshPostgres],
         "data layer": [AshPostgres.DataLayer],
+        functions: [AshPostgres.Functions.TrigramSimilarity],
         repo: [AshPostgres.Repo],
         migrations: [AshPostgres.MigrationGenerator],
         "filter predicates": ~r/AshPostgres.Predicates/
