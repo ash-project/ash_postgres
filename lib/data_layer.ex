@@ -72,7 +72,7 @@ defmodule AshPostgres.DataLayer do
   }
 
   alias Ash.Filter
-  alias Ash.Filter.{Expression, Not, Ref}
+  alias Ash.Query.{Expression, Not, Ref}
 
   alias Ash.Query.Operator.{
     Eq,
@@ -884,7 +884,9 @@ defmodule AshPostgres.DataLayer do
     split_and_statements(expression)
   end
 
-  defp split_and_statements(%Not{expression: %Expression{op: :or, left: left, right: right}}) do
+  defp split_and_statements(%Not{
+         expression: %Expression{op: :or, left: left, right: right}
+       }) do
     split_and_statements(%Expression{
       op: :and,
       left: %Not{expression: left},
