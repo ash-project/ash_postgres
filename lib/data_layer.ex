@@ -152,6 +152,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, {:filter_operator, %GreaterThanOrEqual{left: %Ref{}}}), do: true
   def can?(_, {:filter_operator, %IsNil{left: %Ref{}}}), do: true
   def can?(_, {:filter_function, %TrigramSimilarity{}}), do: true
+  def can?(_, {:query_aggregate, :count}), do: true
   def can?(_, :sort), do: true
   def can?(_, {:sort, _}), do: true
   def can?(_, _), do: false
@@ -203,6 +204,51 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
+  def run_aggregate_query(query, aggregates, resource) do
+    subquery = from(row in subquery(query), select: %{})
+
+    query =
+      Enum.reduce(
+        aggregates,
+        subquery,
+        &add_subquery_aggregate_select(&2, &1, resource)
+      )
+
+    {:ok, repo(resource).one(query)}
+  end
+
+  @impl true
+  def run_aggregate_query_with_lateral_join(
+        query,
+        aggregates,
+        root_data,
+        source_resource,
+        destination_resource,
+        source_field,
+        destination_field
+      ) do
+    lateral_join_query =
+      lateral_join_query(
+        query,
+        root_data,
+        source_resource,
+        source_field,
+        destination_field
+      )
+
+    subquery = from(row in subquery(lateral_join_query), select: %{})
+
+    query =
+      Enum.reduce(
+        aggregates,
+        subquery,
+        &add_subquery_aggregate_select(&2, &1, destination_resource)
+      )
+
+    {:ok, repo(source_resource).one(query)}
+  end
+
+  @impl true
   def run_query_with_lateral_join(
         query,
         root_data,
@@ -211,6 +257,25 @@ defmodule AshPostgres.DataLayer do
         source_field,
         destination_field
       ) do
+    query =
+      lateral_join_query(
+        query,
+        root_data,
+        source_resource,
+        source_field,
+        destination_field
+      )
+
+    {:ok, repo(source_resource).all(query)}
+  end
+
+  defp lateral_join_query(
+         query,
+         root_data,
+         source_resource,
+         source_field,
+         destination_field
+       ) do
     source_values = Enum.map(root_data, &Map.get(&1, source_field))
 
     subquery =
@@ -224,16 +289,13 @@ defmodule AshPostgres.DataLayer do
 
     data_layer_query = Ash.Query.new(source_resource).data_layer_query
 
-    query =
-      from(source in data_layer_query,
-        as: :source_record,
-        where: field(source, ^source_field) in ^source_values,
-        inner_lateral_join: destination in ^subquery,
-        on: field(source, ^source_field) == field(destination, ^destination_field),
-        select: destination
-      )
-
-    {:ok, repo(source_resource).all(query)}
+    from(source in data_layer_query,
+      as: :source_record,
+      where: field(source, ^source_field) in ^source_values,
+      inner_lateral_join: destination in ^subquery,
+      on: field(source, ^source_field) == field(destination, ^destination_field),
+      select: destination
+    )
   end
 
   @impl true
@@ -297,7 +359,7 @@ defmodule AshPostgres.DataLayer do
 
     sort
     |> sanitize_sort()
-    |> Enum.reduce({:ok, query}, fn {order, sort}, query ->
+    |> Enum.reduce({:ok, query}, fn {order, sort}, {:ok, query} ->
       binding =
         case Map.fetch(query.__ash_bindings__.aggregates, sort) do
           {:ok, binding} ->
@@ -307,10 +369,20 @@ defmodule AshPostgres.DataLayer do
             0
         end
 
-      {:ok,
-       from([{^binding, row}] in query,
-         order_by: [{^order, field(row, ^sort)}]
-       )}
+      new_query =
+        Map.update!(query, :order_bys, fn order_bys ->
+          order_bys = order_bys || []
+
+          sort_expr = %Ecto.Query.QueryExpr{
+            expr: [
+              {order, {{:., [], [{:&, [], [binding]}, sort]}, [], []}}
+            ]
+          }
+
+          order_bys ++ [sort_expr]
+        end)
+
+      {:ok, new_query}
     end)
   end
 
@@ -390,15 +462,6 @@ defmodule AshPostgres.DataLayer do
 
   defp can_inner_join?(path, %Not{expression: expression}, seen_an_or?) do
     can_inner_join?(path, expression, seen_an_or?)
-  end
-
-  defp can_inner_join?(
-         search_path,
-         %IsNil{left: %Ref{relationship_path: relationship_path}, right: true},
-         seen_an_or?
-       )
-       when relationship_path == search_path do
-    not seen_an_or?
   end
 
   defp can_inner_join?(
