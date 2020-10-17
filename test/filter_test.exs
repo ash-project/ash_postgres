@@ -2,6 +2,8 @@ defmodule AshPostgres.FilterTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.{Api, Comment, Post}
 
+  require Ash.Query
+
   describe "with no filter applied" do
     test "with no data" do
       assert [] = Api.read!(Post)
@@ -20,7 +22,7 @@ defmodule AshPostgres.FilterTest do
     test "with no data" do
       results =
         Post
-        |> Ash.Query.filter(title: "title")
+        |> Ash.Query.filter(title == "title")
         |> Api.read!()
 
       assert [] = results
@@ -33,7 +35,7 @@ defmodule AshPostgres.FilterTest do
 
       results =
         Post
-        |> Ash.Query.filter(title: "title")
+        |> Ash.Query.filter(title == "title")
         |> Api.read!()
 
       assert [%Post{title: "title"}] = results
@@ -46,7 +48,7 @@ defmodule AshPostgres.FilterTest do
 
       results =
         Post
-        |> Ash.Query.filter(title: "no_title")
+        |> Ash.Query.filter(title == "no_title")
         |> Api.read!()
 
       assert [] = results
@@ -65,7 +67,7 @@ defmodule AshPostgres.FilterTest do
 
       results =
         Post
-        |> Ash.Query.filter(comments: [title: "match"])
+        |> Ash.Query.filter(comments.title == "match")
         |> Api.read!()
 
       assert [] = results
@@ -84,7 +86,7 @@ defmodule AshPostgres.FilterTest do
 
       results =
         Post
-        |> Ash.Query.filter(comments: [title: "match"])
+        |> Ash.Query.filter(comments.title == "match")
         |> Api.read!()
 
       assert [%Post{title: "title"}] = results
@@ -108,7 +110,7 @@ defmodule AshPostgres.FilterTest do
 
       results =
         Post
-        |> Ash.Query.filter(comments: [title: "match"])
+        |> Ash.Query.filter(comments.title == "match")
         |> Api.read!()
 
       assert [%Post{title: "title"}] = results
@@ -119,7 +121,7 @@ defmodule AshPostgres.FilterTest do
     test "with no data" do
       results =
         Post
-        |> Ash.Query.filter(or: [[title: "title"], [score: 1]])
+        |> Ash.Query.filter(title == "title" or score == 1)
         |> Api.read!()
 
       assert [] = results
@@ -132,7 +134,7 @@ defmodule AshPostgres.FilterTest do
 
       results =
         Post
-        |> Ash.Query.filter(or: [[title: "title"], [score: 1]])
+        |> Ash.Query.filter(title == "title" or score == 1)
         |> Api.read!()
 
       assert [] = results
@@ -149,7 +151,7 @@ defmodule AshPostgres.FilterTest do
 
       results =
         Post
-        |> Ash.Query.filter(or: [[title: "title"], [score: 1]])
+        |> Ash.Query.filter(title == "title" or score == 1)
         |> Api.read!()
         |> Enum.sort_by(& &1.score)
 
@@ -167,7 +169,7 @@ defmodule AshPostgres.FilterTest do
 
       results =
         Post
-        |> Ash.Query.filter(or: [[title: "title"], [score: 1]])
+        |> Ash.Query.filter(title == "title" or score == 1)
         |> Api.read!()
         |> Enum.sort_by(& &1.score)
 
@@ -187,7 +189,7 @@ defmodule AshPostgres.FilterTest do
 
       results =
         Post
-        |> Ash.Query.filter(or: [[title: "match"], [comments: [title: "match"]]])
+        |> Ash.Query.filter(title == "match" or comments.title == "match")
         |> Api.read!()
 
       assert [%Post{title: "doesn't match"}] = results
@@ -206,7 +208,7 @@ defmodule AshPostgres.FilterTest do
 
       results =
         Post
-        |> Ash.Query.filter(or: [[title: "match"], [comments: [title: "match"]]])
+        |> Ash.Query.filter(title == "match" or comments.title == "match")
         |> Api.read!()
 
       assert [%Post{title: "match"}] = results
@@ -221,7 +223,7 @@ defmodule AshPostgres.FilterTest do
 
       results =
         Post
-        |> Ash.Query.filter(trigram_similarity: [:title, "match", [greater_than: 0.9]])
+        |> Ash.Query.filter(trigram_similarity(title, "match", greater_than: 0.9))
         |> Api.read!()
 
       assert [%Post{title: "match"}] = results
@@ -234,7 +236,7 @@ defmodule AshPostgres.FilterTest do
 
       results =
         Post
-        |> Ash.Query.filter(trigram_similarity: [:title, "match", [less_than: 0.1]])
+        |> Ash.Query.filter(trigram_similarity(title, "match", less_than: 0.1))
         |> Api.read!()
 
       assert [] = results
