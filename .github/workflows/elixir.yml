@@ -54,8 +54,7 @@ jobs:
       - run: mix deps.get
       - run: MIX_ENV=test mix ecto.create
       - run: MIX_ENV=test mix ecto.migrate
-      - run: MIX_ENV=test mix ecto.migrate --migrations_path priv/test_repo/tenant_migrations
-      - run: MIX_ENV=test mix run priv/test_repo/seeds.exs
+      - run: MIX_ENV=test mix ecto.migrate --migrations-path priv/test_repo/tenant_migrations
       - run: mix check --except dialyzer
         if: startsWith(github.ref, 'refs/tags/v')
       - run: mix check
