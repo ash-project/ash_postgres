@@ -35,11 +35,48 @@ defmodule AshPostgres.DataLayer do
   See the documentation for `Mix.Tasks.AshPostgres.GenerateMigrations` for how to generate
   migrations from your resources
   """
+
+  @manage_tenant %Ash.Dsl.Section{
+    name: :manage_tenant,
+    describe: """
+    Configuration for the behavior of a resource that manages a tenant
+    """,
+    schema: [
+      template: [
+        type: {:custom, __MODULE__, :tenant_template, []},
+        required: true,
+        doc: """
+        A template that will cause the resource to create/manage the specified schema.
+
+        Use this if you have a resource that, when created, it should create a new tenant
+        for you. For example, if you have a `customer` resource, and you want to create
+        a schema for each customer based on their id, e.g `customer_10` set this option
+        to `["customer_", :id]`. Then, when this is created, it will create a schema called
+        `["customer_", :id]`, and run your tenant migrations on it. Then, if you were to change
+        that customer's id to `20`, it would rename the schema to `customer_20`. Generally speaking
+        you should avoid changing the tenant id.
+        """
+      ],
+      create?: [
+        type: :boolean,
+        default: true,
+        doc: "Whether or not to automatically create a tenant when a record is created"
+      ],
+      update?: [
+        type: :boolean,
+        default: true,
+        doc: "Whether or not to automatically update the tenant name if the record is udpated"
+      ]
+    ]
+  }
   @postgres %Ash.Dsl.Section{
     name: :postgres,
     describe: """
     Postgres data layer configuration
     """,
+    sections: [
+      @manage_tenant
+    ],
     schema: [
       repo: [
         type: {:custom, AshPostgres.DataLayer, :validate_repo, []},
@@ -102,6 +139,17 @@ defmodule AshPostgres.DataLayer do
   end
 
   @doc false
+  def tenant_template(value) do
+    value = List.wrap(value)
+
+    if Enum.all?(value, &(is_binary(&1) || is_atom(&1))) do
+      {:ok, value}
+    else
+      {:error, "Expected all values for `manages_tenant` to be strings or atoms"}
+    end
+  end
+
+  @doc false
   def validate_skip_unique_indexes(indexes) do
     indexes = List.wrap(indexes)
 
@@ -143,6 +191,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :filter), do: true
   def can?(_, :limit), do: true
   def can?(_, :offset), do: true
+  def can?(_, :multitenancy), do: true
   def can?(_, {:filter_operator, %{right: %Ref{}}}), do: false
   def can?(_, {:filter_operator, %Eq{left: %Ref{}}}), do: true
   def can?(_, {:filter_operator, %In{left: %Ref{}}}), do: true
@@ -187,8 +236,22 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def run_query(query, resource) do
-    {:ok, repo(resource).all(query)}
+    {:ok, repo(resource).all(query, repo_opts(query))}
   end
+
+  defp repo_opts(%Ash.Changeset{tenant: tenant, resource: resource}) do
+    repo_opts(%{tenant: tenant, resource: resource})
+  end
+
+  defp repo_opts(%{tenant: tenant, resource: resource}) when not is_nil(tenant) do
+    if Ash.Resource.multitenancy_strategy(resource) == :context do
+      [prefix: tenant]
+    else
+      []
+    end
+  end
+
+  defp repo_opts(_), do: []
 
   @impl true
   def functions(resource) do
@@ -214,7 +277,12 @@ defmodule AshPostgres.DataLayer do
         &add_subquery_aggregate_select(&2, &1, resource)
       )
 
-    {:ok, repo(resource).one(query)}
+    {:ok, repo(resource).one(query, repo_opts(query))}
+  end
+
+  @impl true
+  def set_tenant(_resource, query, tenant) do
+    {:ok, Ecto.Query.put_query_prefix(query, to_string(tenant))}
   end
 
   @impl true
@@ -245,7 +313,7 @@ defmodule AshPostgres.DataLayer do
         &add_subquery_aggregate_select(&2, &1, destination_resource)
       )
 
-    {:ok, repo(source_resource).one(query)}
+    {:ok, repo(source_resource).one(query, repo_opts(:query))}
   end
 
   @impl true
@@ -266,7 +334,7 @@ defmodule AshPostgres.DataLayer do
         destination_field
       )
 
-    {:ok, repo(source_resource).all(query)}
+    {:ok, repo(source_resource).all(query, repo_opts(query))}
   end
 
   defp lateral_join_query(
@@ -307,10 +375,66 @@ defmodule AshPostgres.DataLayer do
     changeset.data
     |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource)))
     |> ecto_changeset(changeset)
-    |> repo(resource).insert()
+    |> repo(resource).insert(repo_opts(changeset))
+    |> case do
+      {:ok, result} ->
+        case maybe_create_tenant(resource, result) do
+          :ok ->
+            {:ok, result}
+
+          {:error, error} ->
+            {:error, error}
+        end
+
+      {:error, error} ->
+        {:error, error}
+    end
   rescue
     e ->
       {:error, e}
+  end
+
+  defp maybe_create_tenant(resource, result) do
+    if AshPostgres.manage_tenant_create?(resource) do
+      tenant_name = tenant_name(resource, result)
+
+      AshPostgres.MultiTenancy.create_tenant(tenant_name, repo(resource))
+    else
+      :ok
+    end
+  end
+
+  defp maybe_update_tenant(resource, changeset, result) do
+    if AshPostgres.manage_tenant_update?(resource) do
+      changing_tenant_name? =
+        resource
+        |> AshPostgres.manage_tenant_template()
+        |> Enum.filter(&is_atom/1)
+        |> Enum.any?(&Ash.Changeset.changing_attribute?(changeset, &1))
+
+      if changing_tenant_name? do
+        old_tenant_name = tenant_name(resource, changeset.data)
+
+        new_tenant_name = tenant_name(resource, result)
+        AshPostgres.MultiTenancy.rename_tenant(repo(resource), old_tenant_name, new_tenant_name)
+      end
+    end
+
+    :ok
+  end
+
+  defp tenant_name(resource, result) do
+    resource
+    |> AshPostgres.manage_tenant_template()
+    |> Enum.map_join(fn item ->
+      if is_binary(item) do
+        item
+      else
+        result
+        |> Map.get(item)
+        |> to_string()
+      end
+    end)
   end
 
   defp ecto_changeset(record, changeset) do
@@ -319,13 +443,20 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def upsert(resource, changeset) do
-    changeset.data
-    |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource)))
-    |> ecto_changeset(changeset)
-    |> repo(resource).insert(
-      on_conflict: :replace_all,
-      conflict_target: Ash.Resource.primary_key(resource)
-    )
+    repo_opts =
+      changeset
+      |> repo_opts()
+      |> Keyword.put(:on_conflict, {:replace, Map.keys(changeset.attributes)})
+      |> Keyword.put(:conflict_target, Ash.Resource.primary_key(resource))
+
+    if AshPostgres.manage_tenant_update?(resource) do
+      {:error, "Cannot currently upsert a resource that owns a tenant"}
+    else
+      changeset.data
+      |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource)))
+      |> ecto_changeset(changeset)
+      |> repo(resource).insert(repo_opts)
+    end
   rescue
     e ->
       {:error, e}
@@ -336,17 +467,29 @@ defmodule AshPostgres.DataLayer do
     changeset.data
     |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource)))
     |> ecto_changeset(changeset)
-    |> repo(resource).update()
+    |> repo(resource).update(repo_opts(changeset))
+    |> case do
+      {:ok, result} ->
+        maybe_update_tenant(resource, changeset, result)
+
+        {:ok, result}
+
+      {:error, error} ->
+        {:error, error}
+    end
   rescue
     e ->
       {:error, e}
   end
 
   @impl true
-  def destroy(resource, %{data: record}) do
-    case repo(resource).delete(record) do
-      {:ok, _record} -> :ok
-      {:error, error} -> {:error, error}
+  def destroy(resource, %{data: record} = changeset) do
+    case repo(resource).delete(record, repo_opts(changeset)) do
+      {:ok, _record} ->
+        :ok
+
+      {:error, error} ->
+        {:error, error}
     end
   rescue
     e ->
@@ -624,11 +767,18 @@ defmodule AshPostgres.DataLayer do
     }
   end
 
-  defp aggregate_subquery(relationship, _aggregate) do
-    from(row in relationship.destination,
-      group_by: ^relationship.destination_field,
-      select: field(row, ^relationship.destination_field)
-    )
+  defp aggregate_subquery(relationship, aggregate) do
+    query =
+      from(row in relationship.destination,
+        group_by: ^relationship.destination_field,
+        select: field(row, ^relationship.destination_field)
+      )
+
+    if aggregate.query && aggregate.query.tenant do
+      Ecto.Query.put_query_prefix(query, aggregate.query.tenant)
+    else
+      query
+    end
   end
 
   defp add_subquery_aggregate_select(query, %{kind: :count} = aggregate, resource) do
