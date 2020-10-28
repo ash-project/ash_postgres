@@ -39,13 +39,13 @@ jobs:
         with:
           otp-version: ${{matrix.otp}}
           elixir-version: ${{matrix.elixir}}
-      - uses: actions/cache@v1
+      - uses: actions/cache@v2
         id: cache-deps
         with:
           path: deps
           key: otp-${{matrix.otp}}-elixir-${{matrix.elixir}}-deps-2-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
           restore-keys: otp-${{matrix.otp}}-elixir-${{matrix.elixir}}-deps-2
-      - uses: actions/cache@v1
+      - uses: actions/cache@v2
         id: cache-build
         with:
           path: _build
@@ -86,7 +86,7 @@ jobs:
         with:
           otp-version: ${{matrix.otp}}
           elixir-version: ${{matrix.elixir}}
-      - uses: actions/cache@v1
+      - uses: actions/cache@v2
         id: cache-deps
         with:
           path: deps
@@ -114,7 +114,7 @@ jobs:
         with:
           otp-version: ${{matrix.otp}}
           elixir-version: ${{matrix.elixir}}
-      - uses: actions/cache@v1
+      - uses: actions/cache@v2
         id: cache-deps
         with:
           path: deps
