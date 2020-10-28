@@ -1,5 +1,7 @@
 defmodule AshPostgres.MultiTenancy do
-  @moduledoc "Helpers used to manage tenancy"
+  @moduledoc "Helpers used to manage multitenancy"
+
+  @dialyzer {:nowarn_function, load_migration!: 1}
 
   @tenant_name_regex ~r/^[a-zA-Z0-9_-]+$/
   def create_tenant(tenant_name, repo) do
