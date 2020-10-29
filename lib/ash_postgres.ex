@@ -33,4 +33,19 @@ defmodule AshPostgres do
   def skip_unique_indexes?(resource) do
     Extension.get_opt(resource, [:postgres], :skip_unique_indexes?, [])
   end
+
+  @doc "The template for a managed tenant"
+  def manage_tenant_template(resource) do
+    Extension.get_opt(resource, [:postgres, :manage_tenant], :template, nil)
+  end
+
+  @doc "Whether or not to create a tenant for a given resource"
+  def manage_tenant_create?(resource) do
+    Extension.get_opt(resource, [:postgres, :manage_tenant], :create?, false)
+  end
+
+  @doc "Whether or not to update a tenant for a given resource"
+  def manage_tenant_update?(resource) do
+    Extension.get_opt(resource, [:postgres, :manage_tenant], :update?, false)
+  end
 end

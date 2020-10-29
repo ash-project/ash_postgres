@@ -8,6 +8,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
   * `snapshot_path` - a custom path to store the snapshots, defaults to "priv/resource_snapshots"
   * `migration_path` - a custom path to store the migrations, defaults to "priv".
     Migrations are stored in a folder for each repo, so `priv/repo_name/migrations`
+  * `tenant_migration_path` - Same as `migration_path`, except for any tenant specific migrations
 
   Flags:
 

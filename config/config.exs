@@ -15,9 +15,6 @@ if Mix.env() == :dev do
 end
 
 if Mix.env() == :test do
-  # Configure your database
-  #
-
   config :ash_postgres, AshPostgres.TestRepo,
     username: "postgres",
     database: "ash_postgres_test",

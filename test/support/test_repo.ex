@@ -6,4 +6,12 @@ defmodule AshPostgres.TestRepo do
   def installed_extensions do
     ["uuid-ossp", "pg_trgm"]
   end
+
+  def all_tenants do
+    Code.ensure_compiled(AshPostgres.MultitenancyTest.Org)
+
+    AshPostgres.MultitenancyTest.Org
+    |> AshPostgres.MultitenancyTest.Api.read!()
+    |> Enum.map(&"org_#{&1.id}")
+  end
 end

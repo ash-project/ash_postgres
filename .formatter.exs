@@ -2,10 +2,13 @@
 # DONT MODIFY IT BY HAND
 locals_without_parens = [
   base_filter_sql: 1,
+  create?: 1,
   migrate?: 1,
   repo: 1,
   skip_unique_indexes: 1,
-  table: 1
+  table: 1,
+  template: 1,
+  update?: 1
 ]
 
 [

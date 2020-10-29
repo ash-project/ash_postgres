@@ -12,6 +12,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   defstruct snapshot_path: @default_snapshot_path,
             migration_path: nil,
+            tenant_migration_path: nil,
             quiet: false,
             format: true,
             dry_run: false
@@ -20,13 +21,26 @@ defmodule AshPostgres.MigrationGenerator do
     apis = List.wrap(apis)
     opts = struct(__MODULE__, opts)
 
-    snapshots =
+    {tenant_snapshots, snapshots} =
       apis
       |> Enum.flat_map(&Ash.Api.resources/1)
       |> Enum.filter(&(Ash.Resource.data_layer(&1) == AshPostgres.DataLayer))
       |> Enum.filter(&AshPostgres.migrate?/1)
       |> Enum.map(&get_snapshot/1)
+      |> Enum.split_with(&(&1.multitenancy.strategy == :context))
 
+    tenant_snapshots_to_include_in_global =
+      tenant_snapshots
+      |> Enum.filter(& &1.multitenancy.global)
+      |> Enum.map(&Map.put(&1, :multitenancy, %{strategy: nil, attribute: nil, global: false}))
+
+    snapshots = snapshots ++ tenant_snapshots_to_include_in_global
+
+    create_migrations(tenant_snapshots, opts, true)
+    create_migrations(snapshots, opts, false)
+  end
+
+  defp create_migrations(snapshots, opts, tenant?) do
     snapshots
     |> Enum.group_by(& &1.repo)
     |> Enum.each(fn {repo, snapshots} ->
@@ -39,8 +53,15 @@ defmodule AshPostgres.MigrationGenerator do
       |> Enum.uniq()
       |> case do
         [] ->
+          tenant_str =
+            if tenant? do
+              "tenant "
+            else
+              ""
+            end
+
           Mix.shell().info(
-            "No changes detected, so no migrations or snapshots have been created."
+            "No #{tenant_str}changes detected, so no migrations or snapshots have been created."
           )
 
           :ok
@@ -51,7 +72,7 @@ defmodule AshPostgres.MigrationGenerator do
           |> streamline()
           |> group_into_phases()
           |> build_up_and_down()
-          |> write_migration(snapshots, repo, opts)
+          |> write_migration(snapshots, repo, opts, tenant?)
       end
     end)
   end
@@ -173,7 +194,7 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.uniq()
     |> case do
       [default] -> default
-      _ -> nil
+      _ -> "nil"
     end
   end
 
@@ -265,7 +286,7 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.sort()
   end
 
-  defp write_migration({up, down}, snapshots, repo, opts) do
+  defp write_migration({up, down}, snapshots, repo, opts, tenant?) do
     repo_name = repo |> Module.split() |> List.last() |> Macro.underscore()
 
     unless opts.dry_run do
@@ -273,9 +294,16 @@ defmodule AshPostgres.MigrationGenerator do
         snapshot_binary = snapshot_to_binary(snapshot)
 
         snapshot_file =
-          opts.snapshot_path
-          |> Path.join(repo_name)
-          |> Path.join(snapshot.table <> ".json")
+          if tenant? do
+            opts.snapshot_path
+            |> Path.join(repo_name)
+            |> Path.join("tenants")
+            |> Path.join(snapshot.table <> ".json")
+          else
+            opts.snapshot_path
+            |> Path.join(repo_name)
+            |> Path.join(snapshot.table <> ".json")
+          end
 
         File.mkdir_p(Path.dirname(snapshot_file))
         File.write!(snapshot_file, snapshot_binary, [])
@@ -283,13 +311,23 @@ defmodule AshPostgres.MigrationGenerator do
     end
 
     migration_path =
-      if opts.migration_path do
-        opts.migration_path
+      if tenant? do
+        if opts.tenant_migration_path do
+          opts.tenant_migration_path
+        else
+          "priv/"
+        end
+        |> Path.join(repo_name)
+        |> Path.join("tenant_migrations")
       else
-        "priv/"
+        if opts.migration_path do
+          opts.migration_path
+        else
+          "priv/"
+        end
+        |> Path.join(repo_name)
+        |> Path.join("migrations")
       end
-      |> Path.join(repo_name)
-      |> Path.join("migrations")
 
     count =
       migration_path
@@ -304,7 +342,48 @@ defmodule AshPostgres.MigrationGenerator do
       migration_path
       |> Path.join(migration_name <> ".exs")
 
-    module_name = Module.concat([repo, Migrations, Macro.camelize("migrate_resources#{count}")])
+    module_name =
+      if tenant? do
+        Module.concat([repo, TenantMigrations, Macro.camelize("migrate_resources#{count}")])
+      else
+        Module.concat([repo, Migrations, Macro.camelize("migrate_resources#{count}")])
+      end
+
+    up =
+      if tenant? do
+        """
+        tenants =
+          if prefix() do
+            [prefix()]
+          else
+            repo().all_tenants()
+          end
+
+        for prefix <- tenants do
+          #{up}
+        end
+        """
+      else
+        up
+      end
+
+    down =
+      if tenant? do
+        """
+        tenants =
+          if prefix() do
+            [prefix()]
+          else
+            repo().all_tenants()
+          end
+
+        for prefix <- tenants do
+          #{down}
+        end
+        """
+      else
+        down
+      end
 
     contents = """
     defmodule #{inspect(module_name)} do
@@ -411,8 +490,12 @@ defmodule AshPostgres.MigrationGenerator do
     Enum.reverse([phase | acc])
   end
 
-  defp group_into_phases([%Operation.CreateTable{table: table} | rest], nil, acc) do
-    group_into_phases(rest, %Phase.Create{table: table}, acc)
+  defp group_into_phases(
+         [%Operation.CreateTable{table: table, multitenancy: multitenancy} | rest],
+         nil,
+         acc
+       ) do
+    group_into_phases(rest, %Phase.Create{table: table, multitenancy: multitenancy}, acc)
   end
 
   defp group_into_phases(
@@ -452,7 +535,12 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp group_into_phases([operation | rest], nil, acc) do
-    phase = %Phase.Alter{operations: [operation]}
+    phase = %Phase.Alter{
+      operations: [operation],
+      multitenancy: operation.multitenancy,
+      table: operation.table
+    }
+
     group_into_phases(rest, phase, acc)
   end
 
@@ -610,11 +698,21 @@ defmodule AshPostgres.MigrationGenerator do
       attributes: [],
       identities: [],
       table: snapshot.table,
-      repo: snapshot.repo
+      repo: snapshot.repo,
+      multitenancy: %{
+        attribute: nil,
+        strategy: nil,
+        global: false
+      }
     }
 
     do_fetch_operations(snapshot, empty_snapshot, [
-      %Operation.CreateTable{table: snapshot.table} | acc
+      %Operation.CreateTable{
+        table: snapshot.table,
+        multitenancy: snapshot.multitenancy,
+        old_multitenancy: empty_snapshot.multitenancy
+      }
+      | acc
     ])
   end
 
@@ -648,7 +746,10 @@ defmodule AshPostgres.MigrationGenerator do
         }
       end)
 
-    attribute_operations ++ unique_indexes_to_add ++ unique_indexes_to_remove ++ acc
+    [attribute_operations, unique_indexes_to_add, unique_indexes_to_remove, acc]
+    |> Enum.concat()
+    |> Enum.map(&Map.put(&1, :multitenancy, snapshot.multitenancy))
+    |> Enum.map(&Map.put(&1, :old_multitenancy, old_snapshot.multitenancy))
   end
 
   defp attribute_operations(snapshot, old_snapshot) do
@@ -739,16 +840,22 @@ defmodule AshPostgres.MigrationGenerator do
 
   def get_existing_snapshot(snapshot, opts) do
     repo_name = snapshot.repo |> Module.split() |> List.last() |> Macro.underscore()
-    folder = Path.join(opts.snapshot_path, repo_name)
+
+    folder =
+      if snapshot.multitenancy.strategy == :context do
+        opts.snapshot_path
+        |> Path.join(repo_name)
+        |> Path.join("tenants")
+      else
+        Path.join(opts.snapshot_path, repo_name)
+      end
+
     file = Path.join(folder, snapshot.table <> ".json")
 
     if File.exists?(file) do
-      existing_snapshot =
-        file
-        |> File.read!()
-        |> load_snapshot()
-
-      existing_snapshot
+      file
+      |> File.read!()
+      |> load_snapshot()
     end
   end
 
@@ -809,6 +916,7 @@ defmodule AshPostgres.MigrationGenerator do
       identities: identities(resource),
       table: AshPostgres.table(resource),
       repo: AshPostgres.repo(resource),
+      multitenancy: multitenancy(resource),
       base_filter: AshPostgres.base_filter_sql(resource)
     }
 
@@ -820,7 +928,19 @@ defmodule AshPostgres.MigrationGenerator do
     Map.put(snapshot, :hash, hash)
   end
 
-  def attributes(resource) do
+  defp multitenancy(resource) do
+    strategy = Ash.Resource.multitenancy_strategy(resource)
+    attribute = Ash.Resource.multitenancy_attribute(resource)
+    global = Ash.Resource.multitenancy_global?(resource)
+
+    %{
+      strategy: strategy,
+      attribute: attribute,
+      global: global
+    }
+  end
+
+  defp attributes(resource) do
     repo = AshPostgres.repo(resource)
 
     resource
@@ -851,6 +971,7 @@ defmodule AshPostgres.MigrationGenerator do
            foreign_key?(relationship) do
         %{
           destination_field: relationship.destination_field,
+          multitenancy: multitenancy(relationship.destination),
           table: AshPostgres.table(relationship.destination)
         }
       end
@@ -923,6 +1044,8 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp default(%{default: {_, _, _}}, _), do: "nil"
 
+  defp default(%{default: nil}, _), do: "nil"
+
   defp default(%{default: value, type: type}, _) do
     case Ash.Type.dump_to_native(type, value) do
       {:ok, value} -> inspect(value)
@@ -944,6 +1067,18 @@ defmodule AshPostgres.MigrationGenerator do
       Enum.map(attributes, &load_attribute/1)
     end)
     |> Map.update!(:repo, &String.to_atom/1)
+    |> Map.put_new(:multitenancy, %{
+      attribute: nil,
+      strategy: nil,
+      global: false
+    })
+    |> Map.update!(:multitenancy, &load_multitenancy/1)
+  end
+
+  defp load_multitenancy(multitenancy) do
+    multitenancy
+    |> Map.update!(:strategy, fn strategy -> strategy && String.to_atom(strategy) end)
+    |> Map.update!(:attribute, fn attribute -> attribute && String.to_atom(attribute) end)
   end
 
   defp load_attribute(attribute) do
@@ -955,7 +1090,14 @@ defmodule AshPostgres.MigrationGenerator do
         nil
 
       references ->
-        Map.update!(references, :destination_field, &String.to_atom/1)
+        references
+        |> Map.update!(:destination_field, &String.to_atom/1)
+        |> Map.put_new(:multitenancy, %{
+          attribute: nil,
+          strategy: nil,
+          global: false
+        })
+        |> Map.update!(:multitenancy, &load_multitenancy/1)
     end)
   end
 
