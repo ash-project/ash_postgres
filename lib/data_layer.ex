@@ -1,7 +1,6 @@
 defmodule AshPostgres.DataLayer do
   @moduledoc """
   A postgres data layer that levereges Ecto's postgres capabilities.
-
   """
 
   @manage_tenant %Ash.Dsl.Section{
@@ -45,6 +44,9 @@ defmodule AshPostgres.DataLayer do
     """,
     sections: [
       @manage_tenant
+    ],
+    modules: [
+      :repo
     ],
     schema: [
       repo: [
