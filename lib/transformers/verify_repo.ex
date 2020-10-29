@@ -6,7 +6,7 @@ defmodule AshPostgres.Transformers.VerifyRepo do
     repo = AshPostgres.repo(resource)
 
     cond do
-      !Code.ensure_loaded?(repo) ->
+      match?({:error, _}, Code.ensure_compiled(repo)) ->
         {:error, "Could not find repo module #{repo}"}
 
       repo.__adapter__() != Ecto.Adapters.Postgres ->
