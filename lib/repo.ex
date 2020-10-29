@@ -26,7 +26,7 @@ defmodule AshPostgres.Repo do
   @doc "Return a list of all schema names (only relevant for a multitenant implementation)"
   @callback all_tenants() :: [String.t()]
   @doc "The path where your tenant migrations are stored (only relevant for a multitenant implementation)"
-  @callback tenant_migration_path() :: String.t()
+  @callback tenant_migrations_path() :: String.t()
 
   defmacro __using__(opts) do
     quote bind_quoted: [opts: opts] do

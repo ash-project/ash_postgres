@@ -48,9 +48,18 @@ defmodule AshPostgres.MixProject do
 
   defp docs do
     [
-      main: "AshPostgres",
+      main: "readme",
       source_ref: "v#{@version}",
       logo: "logos/small-logo.png",
+      extras: [
+        "README.md",
+        "documentation/multitenancy.md"
+      ],
+      groups_for_extras: [
+        guides: [
+          "documentation/multitenancy.md"
+        ]
+      ],
       groups_for_modules: [
         "entry point": [AshPostgres],
         "data layer and dsl": ~r/AshPostgres.DataLayer/,

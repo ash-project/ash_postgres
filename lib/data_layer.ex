@@ -2,38 +2,6 @@ defmodule AshPostgres.DataLayer do
   @moduledoc """
   A postgres data layer that levereges Ecto's postgres capabilities.
 
-  AshPostgres supports all capabilities of an Ash data layer, and it will
-  most likely stay that way, as postgres is the primary target/most maintained
-  data layer.
-
-  Custom Predicates:
-
-  * AshPostgres.Predicates.Trigram
-
-  ### Usage
-
-  First, ensure you've added ash_postgres to your `mix.exs` file.
-
-  ```elixir
-  {:ash_postgres, "~> x.y.z"}
-  ```
-
-  To use this data layer, you need to define an `Ecto.Repo`. AshPostgres adds some
-  functionality on top of ecto repos, so you'll want to use `AshPostgres.Repo`
-
-  Then, configure your resource like so:
-
-  ```elixir
-  postgres do
-    repo MyApp.Repo
-    table "table_name"
-  end
-  ```
-
-  ### Generating Migrations
-
-  See the documentation for `Mix.Tasks.AshPostgres.GenerateMigrations` for how to generate
-  migrations from your resources
   """
 
   @manage_tenant %Ash.Dsl.Section{
