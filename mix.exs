@@ -53,11 +53,13 @@ defmodule AshPostgres.MixProject do
       logo: "logos/small-logo.png",
       groups_for_modules: [
         "entry point": [AshPostgres],
-        "data layer": [AshPostgres.DataLayer],
+        "data layer and dsl": ~r/AshPostgres.DataLayer/,
         functions: [AshPostgres.Functions.TrigramSimilarity],
         repo: [AshPostgres.Repo],
         migrations: [AshPostgres.MigrationGenerator],
-        "filter predicates": ~r/AshPostgres.Predicates/
+        utilities: [AsPostgres.MultiTenancy],
+        "filter predicates": ~r/AshPostgres.Predicates/,
+        "DSL Transformers": ~r/AshPostgres.Transformers/
       ]
     ]
   end

@@ -23,6 +23,10 @@ defmodule AshPostgres.Repo do
 
   @doc "Use this to inform the data layer about what extensions are installed"
   @callback installed_extensions() :: [String.t()]
+  @doc "Return a list of all schema names (only relevant for a multitenant implementation)"
+  @callback all_tenants() :: [String.t()]
+  @doc "The path where your tenant migrations are stored (only relevant for a multitenant implementation)"
+  @callback tenant_migration_path() :: String.t()
 
   defmacro __using__(opts) do
     quote bind_quoted: [opts: opts] do
@@ -32,17 +36,20 @@ defmodule AshPostgres.Repo do
         adapter: Ecto.Adapters.Postgres,
         otp_app: otp_app
 
-      def installed_extensions do
-        []
-      end
+      def installed_extensions, do: []
+      def tenant_migrations_path, do: nil
+      def all_tenants, do: []
 
       def init(_, config) do
-        new_config = Keyword.put(config, :installed_extensions, installed_extensions())
+        new_config =
+          config
+          |> Keyword.put(:installed_extensions, installed_extensions())
+          |> Keyword.put(:tenant_migrations_path, tenant_migrations_path())
 
         {:ok, new_config}
       end
 
-      defoverridable installed_extensions: 0
+      defoverridable installed_extensions: 0, all_tenants: 0, tenant_migrations_path: 0
     end
   end
 end

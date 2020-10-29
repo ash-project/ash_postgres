@@ -69,6 +69,7 @@ defmodule AshPostgres.DataLayer do
       ]
     ]
   }
+
   @postgres %Ash.Dsl.Section{
     name: :postgres,
     describe: """
@@ -79,7 +80,7 @@ defmodule AshPostgres.DataLayer do
     ],
     schema: [
       repo: [
-        type: {:custom, AshPostgres.DataLayer, :validate_repo, []},
+        type: :atom,
         required: true,
         doc:
           "The repo that will be used to fetch your data. See the `AshPostgres.Repo` documentation for more"
@@ -127,16 +128,9 @@ defmodule AshPostgres.DataLayer do
 
   @behaviour Ash.DataLayer
 
-  use Ash.Dsl.Extension, sections: [@postgres]
-
-  @doc false
-  def validate_repo(repo) do
-    if repo.__adapter__() == Ecto.Adapters.Postgres do
-      {:ok, repo}
-    else
-      {:error, "Expected a repo using the postgres adapter `Ecto.Adapters.Postgres`"}
-    end
-  end
+  use Ash.Dsl.Extension,
+    sections: [@postgres],
+    transformers: [AshPostgres.Transformers.VerifyRepo]
 
   @doc false
   def tenant_template(value) do
