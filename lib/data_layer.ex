@@ -331,7 +331,6 @@ defmodule AshPostgres.DataLayer do
           on: field(source, ^source_field) == field(destination, ^destination_field),
           select: destination
         )
-        |> IO.inspect()
 
       {:error, error} ->
         {:error, error}
