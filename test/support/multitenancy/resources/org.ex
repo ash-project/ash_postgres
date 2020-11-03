@@ -23,10 +23,10 @@ defmodule AshPostgres.MultitenancyTest.Org do
 
   postgres do
     table "multitenant_orgs"
-    repo(AshPostgres.TestRepo)
+    repo AshPostgres.TestRepo
 
     manage_tenant do
-      template(["org_", :id])
+      template ["org_", :id]
     end
   end
 

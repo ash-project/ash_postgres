@@ -21,6 +21,8 @@ defmodule AshPostgres.MultitenancyTest.Post do
   end
 
   multitenancy do
+    # Tells the resource to use the data layer
+    # multitenancy, in this case separate postgres schemas
     strategy(:context)
   end
 

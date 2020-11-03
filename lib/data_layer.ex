@@ -319,15 +319,23 @@ defmodule AshPostgres.DataLayer do
         )
       )
 
-    data_layer_query = Ash.Query.new(source_resource).data_layer_query
+    source_resource
+    |> Ash.Query.new()
+    |> Ash.Query.data_layer_query()
+    |> case do
+      {:ok, data_layer_query} ->
+        from(source in data_layer_query,
+          as: :source_record,
+          where: field(source, ^source_field) in ^source_values,
+          inner_lateral_join: destination in ^subquery,
+          on: field(source, ^source_field) == field(destination, ^destination_field),
+          select: destination
+        )
+        |> IO.inspect()
 
-    from(source in data_layer_query,
-      as: :source_record,
-      where: field(source, ^source_field) in ^source_values,
-      inner_lateral_join: destination in ^subquery,
-      on: field(source, ^source_field) == field(destination, ^destination_field),
-      select: destination
-    )
+      {:error, error} ->
+        {:error, error}
+    end
   end
 
   @impl true
