@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.25.3](https://github.com/ash-project/ash_postgres/compare/v0.25.2...v0.25.3) (2020-11-06)
+
+
+
+
+### Improvements:
+
+* add utc_datetime migration type
+
 ## [v0.25.2](https://github.com/ash-project/ash_postgres/compare/v0.25.1...v0.25.2) (2020-11-03)
 
 
