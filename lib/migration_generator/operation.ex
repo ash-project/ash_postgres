@@ -22,9 +22,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         }) do
       "add #{inspect(attribute.name)}, references(#{inspect(table)}, type: #{
         inspect(attribute.type)
-      }, column: #{inspect(destination_field)}), with: [#{source_attribute}: :#{
+      }, column: #{inspect(destination_field)}, with: [#{source_attribute}: :#{
         destination_attribute
-      }], default: #{attribute.default}, primary_key: #{attribute.primary_key?}"
+      }]), default: #{attribute.default}, primary_key: #{attribute.primary_key?}"
     end
 
     def up(%{
@@ -52,7 +52,6 @@ defmodule AshPostgres.MigrationGenerator.Operation do
             %{
               references: %{
                 table: table,
-                destination_field: destination_field,
                 multitenancy: %{strategy: :context}
               }
             } = attribute
@@ -63,9 +62,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       you should be aware of
       """)
 
-      "add #{inspect(attribute.name)}, references(#{inspect(table)}, type: #{
-        inspect(attribute.type)
-      }, column: #{inspect(destination_field)}), default: #{attribute.default}, primary_key: #{
+      "add #{inspect(attribute.name)}, #{inspect(attribute.type)}, default: #{attribute.default}, primary_key: #{
         attribute.primary_key?
       }"
     end
@@ -99,8 +96,19 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       }, primary_key: #{attribute.primary_key?}"
     end
 
-    def down(%{attribute: attribute}) do
-      "remove #{inspect(attribute.name)}"
+    def down(
+          %{
+            attribute: attribute,
+            table: table,
+            multitenancy: multitenancy
+          } = op
+        ) do
+      AshPostgres.MigrationGenerator.Operation.RemoveAttribute.up(%{
+        op
+        | attribute: attribute,
+          table: table,
+          multitenancy: multitenancy
+      })
     end
   end
 
@@ -108,140 +116,111 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     @moduledoc false
     defstruct [:old_attribute, :new_attribute, :table, :multitenancy, :old_multitenancy]
 
-    def up(%{
-          multitenancy: %{strategy: :attribute},
-          table: current_table,
-          new_attribute: %{table: table} = attribute
-        }) do
-      Mix.shell().info("""
-      table `#{current_table}` with attribute multitenancy refers to table `#{table}` with schema based multitenancy.
-      This means that it is not possible to use a foreign key. This is not necessarily a problem, just something
-      you should be aware of
-      """)
+    defp alter_opts(attribute, old_attribute) do
+      primary_key =
+        if attribute.primary_key? and !old_attribute.primary_key? do
+          ", primary_key: true"
+        end
 
-      "modify #{inspect(attribute.name)}, #{inspect(attribute.type)}, null: #{
-        attribute.allow_nil?
-      }, default: #{attribute.default}, primary_key: #{attribute.primary_key?}"
+      default =
+        if attribute.default != old_attribute.default do
+          ", default: #{attribute.default}"
+        end
+
+      null =
+        if attribute.allow_nil? != old_attribute.allow_nil? do
+          ", null: #{attribute.allow_nil?}"
+        end
+
+      "#{null}#{default}#{primary_key}"
     end
 
     def up(%{
-          multitenancy: %{strategy: :context},
-          new_attribute:
-            %{
-              references: %{
-                table: table,
-                destination_field: destination_field,
-                multitenancy: %{strategy: :attribute}
-              }
-            } = attribute
+          multitenancy: multitenancy,
+          old_multitenancy: old_multitenancy,
+          table: table,
+          old_attribute: old_attribute,
+          new_attribute: attribute
         }) do
-      "modify #{inspect(attribute.name)}, references(#{inspect(table)}, type: #{
-        inspect(attribute.type)
-      }, column: #{inspect(destination_field)}), default: #{attribute.default}, primary_key: #{
-        attribute.primary_key?
-      }"
+      dropped_constraints =
+        if has_reference?(old_multitenancy, old_attribute) and
+             Map.get(old_attribute, :references) != Map.get(attribute, :references) do
+          AshPostgres.MigrationGenerator.Operation.RemoveAttribute.drop_foreign_key_constraint(
+            old_attribute,
+            old_multitenancy,
+            table
+          )
+        else
+          ""
+        end
+
+      type_or_reference =
+        if has_reference?(multitenancy, attribute) and
+             Map.get(old_attribute, :references) != Map.get(attribute, :references) do
+          reference(multitenancy, attribute)
+        else
+          inspect(attribute.type)
+        end
+
+      dropped_constraints <>
+        "\n\n" <>
+        "modify #{inspect(attribute.name)}, #{type_or_reference}#{
+          alter_opts(attribute, old_attribute)
+        }"
     end
 
-    def up(%{
-          multitenancy: %{strategy: :attribute, attribute: source_attribute},
-          new_attribute:
-            %{
-              references: %{
-                table: table,
-                destination_field: destination_field,
-                multitenancy: %{strategy: :attribute, attribute: destination_attribute}
-              }
-            } = attribute
-        }) do
-      "modify #{inspect(attribute.name)}, references(#{inspect(table)}, type: #{
-        inspect(attribute.type)
-      }, column: #{inspect(destination_field)}), with: [#{source_attribute}: :#{
-        destination_attribute
-      }], default: #{attribute.default}, primary_key: #{attribute.primary_key?}"
+    defp reference(%{strategy: :context}, %{
+           type: type,
+           name: name,
+           references: %{
+             multitenancy: %{strategy: :context},
+             table: table,
+             destination_field: destination_field
+           }
+         }) do
+      "references(#{inspect(table)}, type: #{inspect(type)}, column: #{inspect(destination_field)}, name: \"\#\{prefix\}_#{
+        table
+      }_#{name}_fkey\")"
     end
 
-    def up(%{
-          new_attribute:
-            %{
-              references: %{
-                table: table,
-                destination_field: destination_field
-              }
-            } = attribute
-        }) do
-      "modify #{inspect(attribute.name)}, references(#{inspect(table)}, type: #{
-        inspect(attribute.type)
-      }, column: #{inspect(destination_field)}), default: #{attribute.default}, primary_key: #{
-        attribute.primary_key?
-      }"
+    defp reference(%{strategy: :attribute, attribute: source_attribute}, %{
+           type: type,
+           references: %{
+             multitenancy: %{strategy: :attribute, attribute: destination_attribute},
+             table: table,
+             destination_field: destination_field
+           }
+         }) do
+      "references(#{inspect(table)}, type: #{inspect(type)}, column: #{inspect(destination_field)}, with: [#{
+        source_attribute
+      }: :#{destination_attribute}])"
     end
 
-    def up(%{new_attribute: attribute}) do
-      "modify #{inspect(attribute.name)}, #{inspect(attribute.type)}, null: #{
-        attribute.allow_nil?
-      }, default: #{attribute.default}, primary_key: #{attribute.primary_key?}"
+    defp reference(_, %{
+           type: type,
+           references: %{
+             table: table,
+             destination_field: destination_field
+           }
+         }) do
+      "references(#{inspect(table)}, type: #{inspect(type)}, column: #{inspect(destination_field)})"
     end
 
-    def up(%{
-          old_multitenancy: %{strategy: :attribute},
-          old_attribute: %{references: %{multitenancy: %{strategy: :context}}} = attribute
-        }) do
-      "modify #{inspect(attribute.name)}, #{inspect(attribute.type)}, null: #{
-        attribute.allow_nil?
-      }, default: #{attribute.default}, primary_key: #{attribute.primary_key?}"
+    defp has_reference?(multitenancy, attribute) do
+      not is_nil(Map.get(attribute, :references)) and
+        !(attribute.references.multitenancy &&
+            attribute.references.multitenancy.strategy == :context &&
+            (is_nil(multitenancy) || multitenancy.strategy == :attribute))
     end
 
-    def up(%{
-          old_multitenancy: %{strategy: :context},
-          old_attribute:
-            %{
-              references: %{
-                table: table,
-                destination_field: destination_field,
-                multitenancy: %{strategy: :attribute}
-              }
-            } = attribute
-        }) do
-      "modify #{inspect(attribute.name)}, references(#{inspect(table)}, type: #{
-        inspect(attribute.type)
-      }, column: #{inspect(destination_field)}), default: #{attribute.default}, primary_key: #{
-        attribute.primary_key?
-      }"
-    end
-
-    def up(%{
-          old_multitenancy: %{strategy: :attribute, attribute: source_attribute},
-          old_attribute:
-            %{
-              references: %{
-                table: table,
-                destination_field: destination_field,
-                multitenancy: %{strategy: :attribute, attribute: destination_attribute}
-              }
-            } = attribute
-        }) do
-      "modify #{inspect(attribute.name)}, references(#{inspect(table)}, type: #{
-        inspect(attribute.type)
-      }, column: #{inspect(destination_field)}), with: [#{source_attribute}: :#{
-        destination_attribute
-      }], default: #{attribute.default}, primary_key: #{attribute.primary_key?}"
-    end
-
-    def down(%{
-          old_attribute:
-            %{references: %{table: table, destination_field: destination_field}} = attribute
-        }) do
-      "modify #{inspect(attribute.name)}, references(#{inspect(table)}, type: #{
-        inspect(attribute.type)
-      }, column: #{inspect(destination_field)}), default: #{attribute.default}, primary_key: #{
-        attribute.primary_key?
-      }"
-    end
-
-    def down(%{old_attribute: attribute}) do
-      "modify #{inspect(attribute.name)}, #{inspect(attribute.type)}, null: #{
-        attribute.allow_nil?
-      }, default: #{attribute.default}, primary_key: #{attribute.primary_key?}"
+    def down(op) do
+      up(%{
+        op
+        | old_attribute: op.new_attribute,
+          new_attribute: op.old_attribute,
+          old_multitenancy: op.multitenancy,
+          multitenancy: op.old_multitenancy
+      })
     end
   end
 
@@ -262,25 +241,29 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     @moduledoc false
     defstruct [:attribute, :table, :multitenancy, :old_multitenancy]
 
-    def up(%{attribute: attribute}) do
-      "remove #{inspect(attribute.name)}"
+    def up(%{multitenancy: multitenancy, attribute: attribute, table: table}) do
+      drop_foreign_key_constraint(attribute, multitenancy, table) <>
+        "\n\n" <>
+        "remove #{inspect(attribute.name)}"
     end
 
-    def down(%{
-          attribute:
-            %{references: %{table: table, destination_field: destination_field}} = attribute
-        }) do
-      "add #{inspect(attribute.name)}, references(#{inspect(table)}, type: #{
-        inspect(attribute.type)
-      }, column: #{inspect(destination_field)}), default: #{attribute.default}, primary_key: #{
-        attribute.primary_key?
-      }"
+    def drop_foreign_key_constraint(%{references: nil}, _, _table), do: ""
+
+    def drop_foreign_key_constraint(attribute, multitenancy, table) do
+      if multitenancy do
+        "drop constraint(\"\#\{prefix\}_#{table}_#{attribute.name}_fkey\")"
+      else
+        "drop constraint(\"#{table}_#{attribute.name}_fkey\")"
+      end
     end
 
-    def down(%{attribute: attribute}) do
-      "add #{inspect(attribute.name)}, #{inspect(attribute.type)}, null: #{attribute.allow_nil?}, default: #{
-        attribute.default
-      }, primary_key: #{attribute.primary_key?}"
+    def down(%{attribute: attribute, multitenancy: multitenancy}) do
+      AshPostgres.MigrationGenerator.Operation.AddAttribute.up(
+        %AshPostgres.MigrationGenerator.Operation.AddAttribute{
+          attribute: attribute,
+          multitenancy: multitenancy
+        }
+      )
     end
   end
 

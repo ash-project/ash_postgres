@@ -71,6 +71,7 @@ defmodule AshPostgres.MigrationGenerator do
           |> sort_operations()
           |> streamline()
           |> group_into_phases()
+          |> IO.inspect()
           |> build_up_and_down()
           |> write_migration(snapshots, repo, opts, tenant?)
       end
@@ -746,7 +747,7 @@ defmodule AshPostgres.MigrationGenerator do
         }
       end)
 
-    [attribute_operations, unique_indexes_to_add, unique_indexes_to_remove, acc]
+    [unique_indexes_to_remove, attribute_operations, unique_indexes_to_add, acc]
     |> Enum.concat()
     |> Enum.map(&Map.put(&1, :multitenancy, snapshot.multitenancy))
     |> Enum.map(&Map.put(&1, :old_multitenancy, old_snapshot.multitenancy))
@@ -804,29 +805,12 @@ defmodule AshPostgres.MigrationGenerator do
       end)
 
     alter_attribute_events =
-      Enum.flat_map(attributes_to_alter, fn {new_attribute, old_attribute} ->
-        if new_attribute.references do
-          [
-            %Operation.AlterAttribute{
-              new_attribute: Map.delete(new_attribute, :references),
-              old_attribute: old_attribute,
-              table: snapshot.table
-            },
-            %Operation.AlterAttribute{
-              new_attribute: new_attribute,
-              old_attribute: Map.delete(new_attribute, :references),
-              table: snapshot.table
-            }
-          ]
-        else
-          [
-            %Operation.AlterAttribute{
-              new_attribute: new_attribute,
-              old_attribute: old_attribute,
-              table: snapshot.table
-            }
-          ]
-        end
+      Enum.map(attributes_to_alter, fn {new_attribute, old_attribute} ->
+        %Operation.AlterAttribute{
+          new_attribute: new_attribute,
+          old_attribute: old_attribute,
+          table: snapshot.table
+        }
       end)
 
     remove_attribute_events =
