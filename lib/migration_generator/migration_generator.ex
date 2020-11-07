@@ -71,7 +71,6 @@ defmodule AshPostgres.MigrationGenerator do
           |> sort_operations()
           |> streamline()
           |> group_into_phases()
-          |> IO.inspect()
           |> build_up_and_down()
           |> write_migration(snapshots, repo, opts, tenant?)
       end
