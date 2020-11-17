@@ -8,15 +8,18 @@ defmodule AshPostgres.Repo do
   instead of returning `{:ok, config}`, use `super(config)` to pass the
   configuration to the `AshPostgres.Repo` implementation.
 
-  Currently the only additional configuration supported is `installed_extensions`,
-  and the only extension that ash_postgres reacts to is `"pg_trgm"`. If this extension
-  is installed, then the `AshPostgres.Predicates.Trigram` custom predicate will be
-  available.
+  ## Installed Extensions
 
+  To configure your list of installed extensions, define `installed_extensions/0`
+
+  Extensions that are relevant to ash_postgres:
+
+  * `"uuid-ossp"` - Sets UUID primary keys defaults in the migration generator
+  * `"pg_trgm"` - Makes the `AshPostgres.Predicates.Trigram` custom predicate available
 
   ```
   def installed_extensions() do
-    ["pg_trgm"]
+    ["pg_trgm", "uuid-ossp"]
   end
   ```
   """
