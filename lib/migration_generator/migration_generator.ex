@@ -606,6 +606,21 @@ defmodule AshPostgres.MigrationGenerator do
     name in keys
   end
 
+  defp after?(%Operation.AlterAttribute{table: table}, %Operation.DropForeignKey{
+         table: table,
+         direction: :up
+       }),
+       do: true
+
+  defp after?(
+         %Operation.DropForeignKey{
+           table: table,
+           direction: :down
+         },
+         %Operation.AlterAttribute{table: table}
+       ),
+       do: true
+
   defp after?(%Operation.AddAttribute{table: table}, %Operation.CreateTable{table: table}) do
     true
   end
@@ -804,12 +819,37 @@ defmodule AshPostgres.MigrationGenerator do
       end)
 
     alter_attribute_events =
-      Enum.map(attributes_to_alter, fn {new_attribute, old_attribute} ->
-        %Operation.AlterAttribute{
-          new_attribute: new_attribute,
-          old_attribute: old_attribute,
-          table: snapshot.table
-        }
+      Enum.flat_map(attributes_to_alter, fn {new_attribute, old_attribute} ->
+        if has_reference?(old_snapshot.multitenancy, old_attribute) and
+             Map.get(old_attribute, :references) != Map.get(new_attribute, :references) do
+          [
+            %Operation.DropForeignKey{
+              attribute: old_attribute,
+              table: snapshot.table,
+              multitenancy: old_snapshot.multitenancy,
+              direction: :up
+            },
+            %Operation.AlterAttribute{
+              new_attribute: new_attribute,
+              old_attribute: old_attribute,
+              table: snapshot.table
+            },
+            %Operation.DropForeignKey{
+              attribute: new_attribute,
+              table: snapshot.table,
+              multitenancy: snapshot.multitenancy,
+              direction: :down
+            }
+          ]
+        else
+          [
+            %Operation.AlterAttribute{
+              new_attribute: new_attribute,
+              old_attribute: old_attribute,
+              table: snapshot.table
+            }
+          ]
+        end
       end)
 
     remove_attribute_events =
@@ -819,6 +859,13 @@ defmodule AshPostgres.MigrationGenerator do
 
     add_attribute_events ++
       alter_attribute_events ++ remove_attribute_events ++ rename_attribute_events
+  end
+
+  def has_reference?(multitenancy, attribute) do
+    not is_nil(Map.get(attribute, :references)) and
+      !(attribute.references.multitenancy &&
+          attribute.references.multitenancy.strategy == :context &&
+          (is_nil(multitenancy) || multitenancy.strategy == :attribute))
   end
 
   def get_existing_snapshot(snapshot, opts) do

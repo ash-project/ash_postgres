@@ -137,36 +137,20 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def up(%{
           multitenancy: multitenancy,
-          old_multitenancy: old_multitenancy,
-          table: table,
           old_attribute: old_attribute,
           new_attribute: attribute
         }) do
-      dropped_constraints =
-        if has_reference?(old_multitenancy, old_attribute) and
-             Map.get(old_attribute, :references) != Map.get(attribute, :references) do
-          AshPostgres.MigrationGenerator.Operation.RemoveAttribute.drop_foreign_key_constraint(
-            old_attribute,
-            old_multitenancy,
-            table
-          )
-        else
-          ""
-        end
-
       type_or_reference =
-        if has_reference?(multitenancy, attribute) and
+        if AshPostgres.MigrationGenerator.has_reference?(multitenancy, attribute) and
              Map.get(old_attribute, :references) != Map.get(attribute, :references) do
           reference(multitenancy, attribute)
         else
           inspect(attribute.type)
         end
 
-      dropped_constraints <>
-        "\n\n" <>
-        "modify #{inspect(attribute.name)}, #{type_or_reference}#{
-          alter_opts(attribute, old_attribute)
-        }"
+      "modify #{inspect(attribute.name)}, #{type_or_reference}#{
+        alter_opts(attribute, old_attribute)
+      }"
     end
 
     defp reference(%{strategy: :context}, %{
@@ -206,13 +190,6 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       "references(#{inspect(table)}, type: #{inspect(type)}, column: #{inspect(destination_field)})"
     end
 
-    defp has_reference?(multitenancy, attribute) do
-      not is_nil(Map.get(attribute, :references)) and
-        !(attribute.references.multitenancy &&
-            attribute.references.multitenancy.strategy == :context &&
-            (is_nil(multitenancy) || multitenancy.strategy == :attribute))
-    end
-
     def down(op) do
       up(%{
         op
@@ -222,6 +199,34 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           multitenancy: op.old_multitenancy
       })
     end
+  end
+
+  defmodule DropForeignKey do
+    @moduledoc false
+    # We only run this migration in one direction, based on the input
+    # This is because the creation of a foreign key is handled by `references/3`
+    # We only need to drop it before altering an attribute with `references/3`
+    defstruct [:attribute, :table, :multitenancy, :direction, no_phase: true]
+
+    def up(%{attribute: attribute, table: table, multitenancy: multitenancy, direction: :up}) do
+      if multitenancy && multitenancy.strategy == :context do
+        "drop constraint(:#{table}, \"\#\{prefix\}_#{table}_#{attribute.name}_fkey\")"
+      else
+        "drop constraint(:#{table}, \"#{table}_#{attribute.name}_fkey\")"
+      end
+    end
+
+    def up(_), do: ""
+
+    def down(%{attribute: attribute, table: table, multitenancy: multitenancy, direction: :down}) do
+      if multitenancy && multitenancy.strategy == :context do
+        "drop constraint(:#{table}, \"\#\{prefix\}_#{table}_#{attribute.name}_fkey\")"
+      else
+        "drop constraint(:#{table}, \"#{table}_#{attribute.name}_fkey\")"
+      end
+    end
+
+    def down(_), do: ""
   end
 
   defmodule RenameAttribute do
@@ -241,20 +246,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     @moduledoc false
     defstruct [:attribute, :table, :multitenancy, :old_multitenancy]
 
-    def up(%{multitenancy: multitenancy, attribute: attribute, table: table}) do
-      drop_foreign_key_constraint(attribute, multitenancy, table) <>
-        "\n\n" <>
-        "remove #{inspect(attribute.name)}"
-    end
-
-    def drop_foreign_key_constraint(%{references: nil}, _, _table), do: ""
-
-    def drop_foreign_key_constraint(attribute, multitenancy, table) do
-      if multitenancy do
-        "drop constraint(\"\#\{prefix\}_#{table}_#{attribute.name}_fkey\")"
-      else
-        "drop constraint(\"#{table}_#{attribute.name}_fkey\")"
-      end
+    def up(%{attribute: attribute}) do
+      "remove #{inspect(attribute.name)}"
     end
 
     def down(%{attribute: attribute, multitenancy: multitenancy}) do

@@ -35,11 +35,11 @@ defmodule AshPostgres.MigrationGenerator.Phase do
         Enum.map_join(operations, "\n", fn operation -> operation.__struct__.up(operation) end)
 
       if multitenancy.strategy == :context do
-        "alter table(#{inspect(table)}, prefix: prefix) do\n" <>
+        "alter table(:#{table}, prefix: prefix) do\n" <>
           body <>
           "\nend"
       else
-        "alter table(#{inspect(table)}) do\n" <>
+        "alter table(:#{table}) do\n" <>
           body <>
           "\nend"
       end
