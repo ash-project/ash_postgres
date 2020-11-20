@@ -15,7 +15,8 @@ defmodule AshPostgres.MigrationGenerator do
             tenant_migration_path: nil,
             quiet: false,
             format: true,
-            dry_run: false
+            dry_run: false,
+            drop_columns: false
 
   def generate(apis, opts \\ []) do
     apis = List.wrap(apis)
@@ -49,7 +50,7 @@ defmodule AshPostgres.MigrationGenerator do
       snapshots = Enum.map(deduped, &elem(&1, 0))
 
       deduped
-      |> fetch_operations()
+      |> fetch_operations(opts)
       |> Enum.uniq()
       |> case do
         [] ->
@@ -700,15 +701,15 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp after?(_, _), do: false
 
-  defp fetch_operations(snapshots) do
+  defp fetch_operations(snapshots, opts) do
     Enum.flat_map(snapshots, fn {snapshot, existing_snapshot} ->
-      do_fetch_operations(snapshot, existing_snapshot)
+      do_fetch_operations(snapshot, existing_snapshot, opts)
     end)
   end
 
-  defp do_fetch_operations(snapshot, existing_snapshot, acc \\ [])
+  defp do_fetch_operations(snapshot, existing_snapshot, opts, acc \\ [])
 
-  defp do_fetch_operations(snapshot, nil, acc) do
+  defp do_fetch_operations(snapshot, nil, opts, acc) do
     empty_snapshot = %{
       attributes: [],
       identities: [],
@@ -721,7 +722,7 @@ defmodule AshPostgres.MigrationGenerator do
       }
     }
 
-    do_fetch_operations(snapshot, empty_snapshot, [
+    do_fetch_operations(snapshot, empty_snapshot, opts, [
       %Operation.CreateTable{
         table: snapshot.table,
         multitenancy: snapshot.multitenancy,
@@ -731,8 +732,8 @@ defmodule AshPostgres.MigrationGenerator do
     ])
   end
 
-  defp do_fetch_operations(snapshot, old_snapshot, acc) do
-    attribute_operations = attribute_operations(snapshot, old_snapshot)
+  defp do_fetch_operations(snapshot, old_snapshot, opts, acc) do
+    attribute_operations = attribute_operations(snapshot, old_snapshot, opts)
 
     unique_indexes_to_remove =
       old_snapshot.identities
@@ -767,7 +768,7 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.map(&Map.put(&1, :old_multitenancy, old_snapshot.multitenancy))
   end
 
-  defp attribute_operations(snapshot, old_snapshot) do
+  defp attribute_operations(snapshot, old_snapshot, opts) do
     attributes_to_add =
       Enum.reject(snapshot.attributes, fn attribute ->
         Enum.find(old_snapshot.attributes, &(&1.name == attribute.name))
@@ -854,7 +855,11 @@ defmodule AshPostgres.MigrationGenerator do
 
     remove_attribute_events =
       Enum.map(attributes_to_remove, fn attribute ->
-        %Operation.RemoveAttribute{attribute: attribute, table: snapshot.table}
+        %Operation.RemoveAttribute{
+          attribute: attribute,
+          table: snapshot.table,
+          commented?: !opts.drop_columns
+        }
       end)
 
     add_attribute_events ++
@@ -890,6 +895,8 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp resolve_renames(adding, []), do: {adding, [], []}
+
+  defp resolve_renames([], removing), do: {[], removing, []}
 
   defp resolve_renames([adding], [removing]) do
     if Mix.shell().yes?("Are you renaming :#{removing.name} to :#{adding.name}?") do

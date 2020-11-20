@@ -9,12 +9,26 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
   * `migration_path` - a custom path to store the migrations, defaults to "priv".
     Migrations are stored in a folder for each repo, so `priv/repo_name/migrations`
   * `tenant_migration_path` - Same as `migration_path`, except for any tenant specific migrations
+  * `drop_columns` - whether or not to drop columns as attributes are removed. See below for more
 
   Flags:
 
   * `quiet` - messages for file creations will not be printed
   * `no_format` - files that are created will not be formatted with the code formatter
   * `dry_run` - no files are created, instead the new migration is printed
+
+
+  #### Dropping columns
+
+  Generally speaking, it is bad practice to drop columns when you deploy a change that
+  would remove an attribute. The main reasons for this are backwards compatibility and rolling restarts.
+  If you deploy an attribute removal, and run migrations. Regardless of your deployment sstrategy, you
+  won't be able to roll back, because the data has been deleted. In a rolling restart situation, some of
+  the machines/pods/whatever may still be running after the column has been deleted, causing errors. With
+  this in mind, its best not to delete those columns until later, after the data has been confirmed unnecessary.
+  To that end, the migration generator leaves the column dropping code commented. You can pass `--drop_columns`
+  to tell it to uncomment those statements. Additionally, you can just uncomment that code on a case by case
+  basis.
 
   #### Conflicts/Multiple Resources
 
@@ -54,7 +68,8 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
           migration_path: :string,
           quiet: :boolean,
           no_format: :boolean,
-          dry_run: :boolean
+          dry_run: :boolean,
+          drop_columns: :boolean
         ]
       )
 

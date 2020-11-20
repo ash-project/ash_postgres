@@ -244,10 +244,39 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule RemoveAttribute do
     @moduledoc false
-    defstruct [:attribute, :table, :multitenancy, :old_multitenancy]
+    defstruct [:attribute, :table, :multitenancy, :old_multitenancy, commented?: true]
+
+    def up(%{attribute: attribute, commented?: true}) do
+      """
+      # Attribute removal has been commented out to avoid data loss. See the migration generator documentation for more
+      # If you uncomment this, be sure to also uncomment the corresponding attribute *addition* in the `down` migration
+      # remove #{inspect(attribute.name)}
+      """
+    end
 
     def up(%{attribute: attribute}) do
       "remove #{inspect(attribute.name)}"
+    end
+
+    def down(%{attribute: attribute, multitenancy: multitenancy, commented?: true}) do
+      prefix = """
+      # This is the `down` migration of the statement:
+      #
+      #     remove #{inspect(attribute.name)}
+      #
+      """
+
+      contents =
+        %AshPostgres.MigrationGenerator.Operation.AddAttribute{
+          attribute: attribute,
+          multitenancy: multitenancy
+        }
+        |> AshPostgres.MigrationGenerator.Operation.AddAttribute.up()
+        |> String.split("\n")
+        |> Enum.map(&"# #{&1}")
+        |> Enum.join("\n")
+
+      prefix <> "\n" <> contents
     end
 
     def down(%{attribute: attribute, multitenancy: multitenancy}) do
