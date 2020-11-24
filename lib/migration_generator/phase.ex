@@ -3,7 +3,7 @@ defmodule AshPostgres.MigrationGenerator.Phase do
 
   defmodule Create do
     @moduledoc false
-    defstruct [:table, :multitenancy, operations: []]
+    defstruct [:table, :multitenancy, operations: [], commented?: false]
 
     def up(%{table: table, operations: operations, multitenancy: multitenancy}) do
       if multitenancy.strategy == :context do
@@ -28,7 +28,7 @@ defmodule AshPostgres.MigrationGenerator.Phase do
 
   defmodule Alter do
     @moduledoc false
-    defstruct [:table, :multitenancy, operations: []]
+    defstruct [:table, :multitenancy, operations: [], commented?: false]
 
     def up(%{table: table, operations: operations, multitenancy: multitenancy}) do
       body =

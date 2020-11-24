@@ -72,9 +72,24 @@ defmodule AshPostgres.MigrationGenerator do
           |> sort_operations()
           |> streamline()
           |> group_into_phases()
+          |> comment_out_phases()
           |> build_up_and_down()
           |> write_migration(snapshots, repo, opts, tenant?)
       end
+    end)
+  end
+
+  defp comment_out_phases(phases) do
+    Enum.map(phases, fn
+      %{operations: operations} = phase ->
+        if Enum.all?(operations, &match?(%{commented?: true}, &1)) do
+          %{phase | commented?: true}
+        else
+          phase
+        end
+
+      phase ->
+        phase
     end)
   end
 
@@ -416,18 +431,39 @@ defmodule AshPostgres.MigrationGenerator do
   defp build_up_and_down(phases) do
     up =
       Enum.map_join(phases, "\n", fn phase ->
-        phase.__struct__.up(phase) <> "\n"
+        phase
+        |> phase.__struct__.up()
+        |> Kernel.<>("\n")
+        |> maybe_comment(phase)
       end)
 
     down =
       phases
       |> Enum.reverse()
       |> Enum.map_join("\n", fn phase ->
-        phase.__struct__.down(phase) <> "\n"
+        phase
+        |> phase.__struct__.down()
+        |> Kernel.<>("\n")
+        |> maybe_comment(phase)
       end)
 
     {up, down}
   end
+
+  defp maybe_comment(text, %{commented?: true}) do
+    text
+    |> String.split("\n")
+    |> Enum.map(fn line ->
+      if String.starts_with?(line, "#") do
+        line
+      else
+        "# #{line}"
+      end
+    end)
+    |> Enum.join("\n")
+  end
+
+  defp maybe_comment(text, _), do: text
 
   defp format(string, opts) do
     if opts.format do
@@ -573,10 +609,14 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp after?(
-         %Operation.AddUniqueIndex{identity: %{keys: keys}, table: table},
+         %Operation.AddUniqueIndex{
+           identity: %{keys: keys},
+           table: table,
+           multitenancy: multitenancy
+         },
          %Operation.AddAttribute{table: table, attribute: %{name: name}}
        ) do
-    name in keys
+    name in keys || (multitenancy.attribute && name == multitenancy.attribute)
   end
 
   defp after?(
@@ -735,26 +775,34 @@ defmodule AshPostgres.MigrationGenerator do
   defp do_fetch_operations(snapshot, old_snapshot, opts, acc) do
     attribute_operations = attribute_operations(snapshot, old_snapshot, opts)
 
+    rewrite_all_identities? = changing_multitenancy_affects_identities?(snapshot, old_snapshot)
+
     unique_indexes_to_remove =
-      old_snapshot.identities
-      |> Enum.reject(fn old_identity ->
-        Enum.find(snapshot.identities, fn identity ->
-          Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
-            old_identity.base_filter == identity.base_filter
+      if rewrite_all_identities? do
+        old_snapshot.identities
+      else
+        Enum.reject(old_snapshot.identities, fn old_identity ->
+          Enum.find(snapshot.identities, fn identity ->
+            Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
+              old_identity.base_filter == identity.base_filter
+          end)
         end)
-      end)
+      end
       |> Enum.map(fn identity ->
         %Operation.RemoveUniqueIndex{identity: identity, table: snapshot.table}
       end)
 
     unique_indexes_to_add =
-      snapshot.identities
-      |> Enum.reject(fn identity ->
-        Enum.find(old_snapshot.identities, fn old_identity ->
-          Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
-            old_identity.base_filter == identity.base_filter
+      if rewrite_all_identities? do
+        snapshot.identities
+      else
+        Enum.reject(snapshot.identities, fn identity ->
+          Enum.find(old_snapshot.identities, fn old_identity ->
+            Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
+              old_identity.base_filter == identity.base_filter
+          end)
         end)
-      end)
+      end
       |> Enum.map(fn identity ->
         %Operation.AddUniqueIndex{
           identity: identity,
@@ -864,6 +912,10 @@ defmodule AshPostgres.MigrationGenerator do
 
     add_attribute_events ++
       alter_attribute_events ++ remove_attribute_events ++ rename_attribute_events
+  end
+
+  def changing_multitenancy_affects_identities?(snapshot, old_snapshot) do
+    snapshot.multitenancy != old_snapshot.multitenancy
   end
 
   def has_reference?(multitenancy, attribute) do
