@@ -333,12 +333,13 @@ defmodule AshPostgres.MigrationGenerator do
           snapshot_folder
           |> Path.join(snapshot.table <> ".version.json")
 
-        version_binary = snapshot_to_binary(%{
-          latest_version: snapshot_file
-        })
+        version_binary =
+          snapshot_to_binary(%{
+            latest_version: snapshot_file
+          })
+
         File.mkdir_p(Path.dirname(version_file))
         File.write!(version_file, version_binary, [])
-
       end)
     end
 
@@ -955,6 +956,7 @@ defmodule AshPostgres.MigrationGenerator do
 
     # get name of latest version file.
     version_file = Path.join(folder, snapshot.table <> ".version.json")
+
     file =
       if File.exists?(version_file) do
         file_content =

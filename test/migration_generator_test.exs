@@ -90,6 +90,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
     test "the snapshots contain valid json" do
       assert File.exists?(Path.join(["test_snapshots_path", "test_repo", "posts.version.json"]))
+
       assert File.read!(Path.wildcard("test_snapshots_path/test_repo/*_posts.json"))
              |> Jason.decode!(keys: :atoms!)
 
