@@ -124,7 +124,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       default =
         if attribute.default != old_attribute.default do
-          ", default: #{attribute.default}"
+          if is_nil(attribute.default) do
+            ", default: nil"
+          else
+            ", default: #{attribute.default}"
+          end
         end
 
       null =

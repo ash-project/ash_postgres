@@ -471,6 +471,17 @@ defmodule AshPostgres.MigrationGenerator do
     else
       string
     end
+  rescue
+    exception ->
+      IO.puts("""
+      Exception while formatting:
+
+      #{inspect(exception)}
+
+      #{inspect(string)}
+      """)
+
+      reraise exception, __STACKTRACE__
   end
 
   defp streamline(ops, acc \\ [])
@@ -618,6 +629,9 @@ defmodule AshPostgres.MigrationGenerator do
        ) do
     name in keys || (multitenancy.attribute && name == multitenancy.attribute)
   end
+
+  defp after?(%Operation.AddUniqueIndex{table: table}, %Operation.RemoveUniqueIndex{table: table}),
+    do: true
 
   defp after?(
          %Operation.AddUniqueIndex{identity: %{keys: keys}, table: table},
