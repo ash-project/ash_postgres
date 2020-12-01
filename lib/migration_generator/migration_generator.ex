@@ -309,20 +309,36 @@ defmodule AshPostgres.MigrationGenerator do
       Enum.each(snapshots, fn snapshot ->
         snapshot_binary = snapshot_to_binary(snapshot)
 
-        snapshot_file =
+        snapshot_table = "#{timestamp()}_#{snapshot.table}"
+
+        snapshot_folder =
           if tenant? do
             opts.snapshot_path
             |> Path.join(repo_name)
             |> Path.join("tenants")
-            |> Path.join(snapshot.table <> ".json")
           else
             opts.snapshot_path
             |> Path.join(repo_name)
-            |> Path.join(snapshot.table <> ".json")
           end
+
+        snapshot_file =
+          snapshot_folder
+          |> Path.join(snapshot_table <> ".json")
 
         File.mkdir_p(Path.dirname(snapshot_file))
         File.write!(snapshot_file, snapshot_binary, [])
+
+        # create a new version file to track latest migration file
+        version_file =
+          snapshot_folder
+          |> Path.join(snapshot.table <> ".version.json")
+
+        version_binary = snapshot_to_binary(%{
+          latest_version: snapshot_file
+        })
+        File.mkdir_p(Path.dirname(version_file))
+        File.write!(version_file, version_binary, [])
+
       end)
     end
 
@@ -937,7 +953,20 @@ defmodule AshPostgres.MigrationGenerator do
         Path.join(opts.snapshot_path, repo_name)
       end
 
-    file = Path.join(folder, snapshot.table <> ".json")
+    # get name of latest version file.
+    version_file = Path.join(folder, snapshot.table <> ".version.json")
+    file =
+      if File.exists?(version_file) do
+        file_content =
+          version_file
+          |> File.read!()
+          |> Jason.decode!(keys: :atoms!)
+
+        file_content.latest_version
+      else
+        version_file = Path.join(folder, snapshot.table <> ".json")
+        version_file
+      end
 
     if File.exists?(file) do
       file
