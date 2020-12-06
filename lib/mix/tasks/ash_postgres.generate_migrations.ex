@@ -66,6 +66,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
           apis: :string,
           snapshot_path: :string,
           migration_path: :string,
+          tenant_migration_path: :string,
           quiet: :boolean,
           no_format: :boolean,
           dry_run: :boolean,
