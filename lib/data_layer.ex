@@ -338,7 +338,7 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def resource_to_query(resource),
+  def resource_to_query(resource, _),
     do: Ecto.Queryable.to_query({table(resource), resource})
 
   @impl true
@@ -1103,6 +1103,23 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp filter_to_expr(
+         %In{left: %Ref{} = left, right: %Ref{} = right, embedded?: embedded?},
+         bindings,
+         params
+       ) do
+    simple_operator_expr(
+      :in,
+      params,
+      ref_binding(right, bindings),
+      {:in, left.attribute.type},
+      ref_binding(left, bindings),
+      left.attribute,
+      bindings,
+      embedded?
+    )
+  end
+
+  defp filter_to_expr(
          %In{left: %Ref{} = left, right: map_set, embedded?: embedded?},
          bindings,
          params
@@ -1114,6 +1131,7 @@ defmodule AshPostgres.DataLayer do
       {:in, left.attribute.type},
       ref_binding(left, bindings),
       left.attribute,
+      bindings,
       embedded?
     )
   end
@@ -1149,6 +1167,7 @@ defmodule AshPostgres.DataLayer do
       left.attribute.type,
       ref_binding(left, bindings),
       left.attribute,
+      bindings,
       embedded?
     )
   end
@@ -1302,7 +1321,25 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp simple_operator_expr(op, params, value, type, current_binding, attribute, false) do
+  defp simple_operator_expr(
+         op,
+         params,
+         %Ref{} = right,
+         _type,
+         current_binding,
+         attribute,
+         bindings,
+         _
+       ) do
+    {params,
+     {op, [],
+      [
+        {{:., [], [{:&, [], [current_binding]}, attribute.name]}, [], []},
+        {{:., [], [{:&, [], [ref_binding(right, bindings)]}, right.attribute.name]}, [], []}
+      ]}}
+  end
+
+  defp simple_operator_expr(op, params, value, type, current_binding, attribute, _bindings, false) do
     {params ++ [{value, op_type(type)}],
      {op, [],
       [
@@ -1311,7 +1348,7 @@ defmodule AshPostgres.DataLayer do
       ]}}
   end
 
-  defp simple_operator_expr(op, params, value, type, current_binding, attribute, true) do
+  defp simple_operator_expr(op, params, value, type, current_binding, attribute, _bindings, true) do
     {params,
      {op, [],
       [

@@ -213,6 +213,32 @@ defmodule AshPostgres.FilterTest do
 
       assert [%Post{title: "match"}] = results
     end
+
+    test "with related data and an inner join condition" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "match"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "match"})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      results =
+        Post
+        |> Ash.Query.filter(title == comments.title)
+        |> Api.read!()
+
+      assert [%Post{title: "match"}] = results
+
+      results =
+        Post
+        |> Ash.Query.filter(title != comments.title)
+        |> Api.read!()
+
+      assert [] = results
+    end
   end
 
   describe "trigram_similarity" do
