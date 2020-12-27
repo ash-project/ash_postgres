@@ -4,7 +4,7 @@ defmodule AshPostgres do
 
   `AshPostgres.DataLayer` provides a DataLayer, and a DSL extension to configure that data layer.
 
-  The dsl extension exposes the `postgres` section. See: `AshPostgres.DataLayer.postgres/1` for more.
+  The dsl extension exposes the `postgres` section. See: `AshPostgres.DataLayer` for more.
   """
 
   alias Ash.Dsl.Extension

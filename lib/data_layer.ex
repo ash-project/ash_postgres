@@ -1,13 +1,18 @@
 defmodule AshPostgres.DataLayer do
-  @moduledoc """
-  A postgres data layer that levereges Ecto's postgres capabilities.
-  """
-
   @manage_tenant %Ash.Dsl.Section{
     name: :manage_tenant,
     describe: """
     Configuration for the behavior of a resource that manages a tenant
     """,
+    examples: [
+      """
+      manage_tenant do
+        template ["organization_", :id]
+        create? true
+        update? false
+      end
+      """
+    ],
     schema: [
       template: [
         type: {:custom, __MODULE__, :tenant_template, []},
@@ -47,6 +52,14 @@ defmodule AshPostgres.DataLayer do
     ],
     modules: [
       :repo
+    ],
+    examples: [
+      """
+      postgres do
+        repo MyApp.Repo
+        table "organizations"
+      end
+      """
     ],
     schema: [
       repo: [
@@ -98,8 +111,19 @@ defmodule AshPostgres.DataLayer do
 
   @behaviour Ash.DataLayer
 
+  @sections [@postgres]
+
+  @moduledoc """
+  A postgres data layer that levereges Ecto's postgres capabilities.
+
+  # Table of Contents
+  #{Ash.Dsl.Extension.doc_index(@sections)}
+
+  #{Ash.Dsl.Extension.doc(@sections)}
+  """
+
   use Ash.Dsl.Extension,
-    sections: [@postgres],
+    sections: @sections,
     transformers: [AshPostgres.Transformers.VerifyRepo]
 
   @doc false

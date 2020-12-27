@@ -13,7 +13,11 @@ Custom Predicates:
 
 - AshPostgres.Predicates.Trigram
 
-### Usage
+## DSL
+
+See the DSL documentation in `AshPostgres.DataLayer` for DSL documentation
+
+## Usage
 
 First, ensure you've added ash_postgres to your `mix.exs` file.
 
@@ -33,7 +37,7 @@ postgres do
 end
 ```
 
-### Generating Migrations
+## Generating Migrations
 
 See the documentation for `Mix.Tasks.AshPostgres.GenerateMigrations` for how to generate
 migrations from your resources
