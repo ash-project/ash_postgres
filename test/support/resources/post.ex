@@ -23,4 +23,16 @@ defmodule AshPostgres.Test.Post do
   relationships do
     has_many(:comments, AshPostgres.Test.Comment, destination_field: :post_id)
   end
+
+  aggregates do
+    count(:count_of_comments, :comments)
+
+    count :count_of_comments_called_match, :comments do
+      filter(title: "match")
+    end
+
+    first :first_comment, :comments, :title do
+      sort(title: :asc_nils_last)
+    end
+  end
 end
