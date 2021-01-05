@@ -19,10 +19,16 @@ defmodule MyApp.Organization do
   use Ash.Resource,
     ...
 
-  manage_tenant do
-    template ["org_", :id]
+  postgres do
+    ...
+
+    manage_tenant do
+      template ["org_", :id]
+    end
   end
 end
 ```
 
 With this configuration, if you create an organization, it will create a corresponding schema, e.g. `org_10` in the database. Then it will run your tenant migrations on that schema. To override the tenant_migrations path, implement the `c:AshPostgres.Repo.tenant_migrations_path/0` callback.
+
+Notice that `manage_tenant` is nested inside the `postgres` block. This is because the method of managing tenants is specific to postgres, and if another data layer supported multitenancy they may or may not support managing tenants in the same way.
