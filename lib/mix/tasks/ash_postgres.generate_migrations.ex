@@ -17,6 +17,13 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
   * `no_format` - files that are created will not be formatted with the code formatter
   * `dry_run` - no files are created, instead the new migration is printed
 
+  #### Snapshots
+
+  Snapshots are stored in a folder for each table that migrations are generated for. Each snapshot is
+  stored in a file with a timestamp of when it was generated.
+  This is important because it allows for simultaneous work to be done on separate branches, and for rolling back
+  changes more easily, e.g removing a generated migration, and deleting the most recent snapshot, without having to redo
+  all of it
 
   #### Dropping columns
 

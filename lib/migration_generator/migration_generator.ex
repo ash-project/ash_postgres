@@ -74,7 +74,7 @@ defmodule AshPostgres.MigrationGenerator do
           |> group_into_phases()
           |> comment_out_phases()
           |> build_up_and_down()
-          |> write_migration(snapshots, repo, opts, tenant?)
+          |> write_migration!(snapshots, repo, opts, tenant?)
       end
     end)
   end
@@ -302,29 +302,8 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.sort()
   end
 
-  defp write_migration({up, down}, snapshots, repo, opts, tenant?) do
+  defp write_migration!({up, down}, snapshots, repo, opts, tenant?) do
     repo_name = repo |> Module.split() |> List.last() |> Macro.underscore()
-
-    unless opts.dry_run do
-      Enum.each(snapshots, fn snapshot ->
-        snapshot_binary = snapshot_to_binary(snapshot)
-
-        snapshot_file =
-          if tenant? do
-            opts.snapshot_path
-            |> Path.join(repo_name)
-            |> Path.join("tenants")
-            |> Path.join(snapshot.table <> ".json")
-          else
-            opts.snapshot_path
-            |> Path.join(repo_name)
-            |> Path.join(snapshot.table <> ".json")
-          end
-
-        File.mkdir_p(Path.dirname(snapshot_file))
-        File.write!(snapshot_file, snapshot_binary, [])
-      end)
-    end
 
     migration_path =
       if tenant? do
@@ -421,10 +400,73 @@ defmodule AshPostgres.MigrationGenerator do
     end
     """
 
-    if opts.dry_run do
-      Mix.shell().info(format(contents, opts))
-    else
-      create_file(migration_file, format(contents, opts))
+    try do
+      contents = format(contents, opts)
+
+      create_new_snapshot(snapshots, repo_name, opts, tenant?)
+
+      if opts.dry_run do
+        Mix.shell().info(contents)
+      else
+        create_file(migration_file, contents)
+      end
+    rescue
+      exception ->
+        reraise(
+          """
+          Exception while formatting generated code:
+          #{Exception.format(:error, exception, __STACKTRACE__)}
+
+          Code:
+
+          #{add_line_numbers(contents)}
+
+          To generate it unformatted anyway, but manually fix it, use the `--no-format` option.
+          """,
+          __STACKTRACE__
+        )
+    end
+  end
+
+  defp add_line_numbers(contents) do
+    lines = String.split(contents, "\n")
+
+    digits = String.length(to_string(Enum.count(lines)))
+
+    lines
+    |> Enum.with_index()
+    |> Enum.map_join("\n", fn {line, index} ->
+      "#{String.pad_trailing(to_string(index), digits, " ")} | #{line}"
+    end)
+  end
+
+  defp create_new_snapshot(snapshots, repo_name, opts, tenant?) do
+    unless opts.dry_run do
+      Enum.each(snapshots, fn snapshot ->
+        snapshot_binary = snapshot_to_binary(snapshot)
+
+        snapshot_folder =
+          if tenant? do
+            opts.snapshot_path
+            |> Path.join(repo_name)
+            |> Path.join("tenants")
+          else
+            opts.snapshot_path
+            |> Path.join(repo_name)
+          end
+
+        snapshot_file = Path.join(snapshot_folder, "#{snapshot.table}/#{timestamp()}.json")
+
+        File.mkdir_p(Path.dirname(snapshot_file))
+        File.write!(snapshot_file, snapshot_binary, [])
+
+        old_snapshot_folder = Path.join(snapshot_folder, "#{snapshot.table}.json")
+
+        if File.exists?(old_snapshot_folder) do
+          new_snapshot_folder = Path.join(snapshot_folder, "#{snapshot.table}/initial.json")
+          File.rename(old_snapshot_folder, new_snapshot_folder)
+        end
+      end)
     end
   end
 
@@ -948,13 +990,42 @@ defmodule AshPostgres.MigrationGenerator do
         |> Path.join(repo_name)
         |> Path.join("tenants")
       else
-        Path.join(opts.snapshot_path, repo_name)
+        opts.snapshot_path
+        |> Path.join(repo_name)
       end
 
-    file = Path.join(folder, snapshot.table <> ".json")
+    snapshot_folder = Path.join(folder, snapshot.table)
 
-    if File.exists?(file) do
-      file
+    if File.exists?(snapshot_folder) do
+      snapshot_folder
+      |> File.ls!()
+      |> Enum.filter(&String.ends_with?(&1, ".json"))
+      |> Enum.map(&String.trim_trailing(&1, ".json"))
+      |> Enum.map(&Integer.parse/1)
+      |> Enum.filter(fn {_int, remaining} -> remaining == "" end)
+      |> Enum.map(&elem(&1, 0))
+      |> case do
+        [] ->
+          get_old_snapshot(folder, snapshot)
+
+        timestamps ->
+          timestamp = Enum.max(timestamps)
+          snapshot_file = Path.join(snapshot_folder, "#{timestamp}.json")
+
+          snapshot_file
+          |> File.read!()
+          |> load_snapshot()
+      end
+    else
+      get_old_snapshot(folder, snapshot)
+    end
+  end
+
+  defp get_old_snapshot(folder, snapshot) do
+    old_snapshot_file = Path.join(folder, "#{snapshot.table}.json")
+    # This is adapter code for the old version, where migrations were stored in a flat directory
+    if File.exists?(old_snapshot_file) do
+      old_snapshot_file
       |> File.read!()
       |> load_snapshot()
     end
@@ -1190,6 +1261,8 @@ defmodule AshPostgres.MigrationGenerator do
     attribute
     |> Map.update!(:type, &String.to_atom/1)
     |> Map.update!(:name, &String.to_atom/1)
+    |> Map.put_new(:default, "nil")
+    |> Map.update!(:default, &(&1 || "nil"))
     |> Map.update!(:references, fn
       nil ->
         nil
