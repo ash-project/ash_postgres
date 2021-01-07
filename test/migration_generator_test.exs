@@ -349,4 +349,43 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[add :foobar, :text, null: true, default: nil, primary_key: false]
     end
   end
+
+  describe "auto incrementing integer, when generated" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+
+      defposts do
+        attributes do
+          attribute(:id, :integer, generated?: true, primary_key?: true)
+          attribute(:views, :integer, default: nil)
+        end
+      end
+
+      defapi([Post])
+
+      Mix.shell(Mix.Shell.Process)
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      :ok
+    end
+
+    test "when an integer is generated and default nil, it is a serial" do
+      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+
+      assert File.read!(file) =~
+               ~S[add :id, :serial, null: true, primary_key: true]
+
+      assert File.read!(file) =~
+               ~S[add :views, :integer, null: true, default: nil, primary_key: false]
+    end
+  end
 end
