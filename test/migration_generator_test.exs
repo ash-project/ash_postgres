@@ -79,26 +79,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
 
     test "it creates a snapshot for each resource" do
-      assert File.exists?(Path.wildcard("test_snapshots_path/test_repo/*_posts.json"))
-      assert File.exists?(Path.join(["test_snapshots_path", "test_repo", "posts.version.json"]))
+      assert File.exists?(Path.wildcard("test_snapshots_path/test_repo/posts/*.json"))
     end
 
     test "the snapshots can be loaded" do
-      assert File.exists?(Path.wildcard("test_snapshots_path/test_repo/*_posts.json"))
-      assert File.exists?(Path.join(["test_snapshots_path", "test_repo", "posts.version.json"]))
+      assert File.exists?(Path.wildcard("test_snapshots_path/test_repo/posts/*.json"))
     end
 
     test "the snapshots contain valid json" do
-      assert File.exists?(Path.join(["test_snapshots_path", "test_repo", "posts.version.json"]))
-
-      assert File.read!(Path.wildcard("test_snapshots_path/test_repo/*_posts.json"))
+      assert File.read!(Path.wildcard("test_snapshots_path/test_repo/posts/*.json"))
              |> Jason.decode!(keys: :atoms!)
-
-      version_file_content =
-        File.read!(Path.join(["test_snapshots_path", "test_repo", "posts.version.json"]))
-        |> Jason.decode!(keys: :atoms!)
-
-      assert Map.get(version_file_content, :latest_version, nil) != nil
     end
 
     test "the migration creates the table" do
