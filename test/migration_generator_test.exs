@@ -359,7 +359,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defposts do
         attributes do
-          attribute(:id, :integer, generated?: true, primary_key?: true)
+          attribute(:id, :integer, generated?: true, allow_nil?: false, primary_key?: true)
           attribute(:views, :integer, default: nil)
         end
       end
@@ -382,7 +382,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
-               ~S[add :id, :serial, null: true, primary_key: true]
+               ~S[add :id, :serial, null: false, primary_key: true]
 
       assert File.read!(file) =~
                ~S[add :views, :integer, null: true, default: nil, primary_key: false]
