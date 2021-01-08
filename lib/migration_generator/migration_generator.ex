@@ -1158,6 +1158,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp migration_type(:binary_id), do: :binary_id
   defp migration_type(:binary), do: :binary
   defp migration_type(:utc_datetime), do: :utc_datetime
+  defp migration_type(:utc_datetime_usec), do: :utc_datetime_usec
   defp migration_type(other), do: raise("No migration_type set up for #{other}")
 
   defp foreign_key?(relationship) do
