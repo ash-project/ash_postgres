@@ -90,6 +90,12 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       }"
     end
 
+    def up(%{attribute: %{type: :integer, default: "nil", generated?: true} = attribute}) do
+      "add #{inspect(attribute.name)}, :serial, null: #{attribute.allow_nil?}, primary_key: #{
+        attribute.primary_key?
+      }"
+    end
+
     def up(%{attribute: attribute}) do
       "add #{inspect(attribute.name)}, #{inspect(attribute.type)}, null: #{attribute.allow_nil?}, default: #{
         attribute.default
