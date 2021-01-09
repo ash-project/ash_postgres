@@ -2,7 +2,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
   @moduledoc false
 
   defmodule Helper do
-    def maybe_add_default(nil), do: ""
+    def maybe_add_default("nil"), do: ""
     def maybe_add_default(value), do: ", default: #{value}"
 
     def maybe_add_primary_key(true), do: ", primary_key: true"
