@@ -1,5 +1,17 @@
 defmodule AshPostgres.MigrationGenerator.Operation do
   @moduledoc false
+
+  defmodule Helper do
+    def maybe_add_default(nil), do: ""
+    def maybe_add_default(value), do: ", default: #{value}"
+
+    def maybe_add_primary_key(true), do: ", primary_key: true"
+    def maybe_add_primary_key(_), do: ""
+
+    def maybe_add_null(false), do: ", null: false"
+    def maybe_add_null(_), do: ""
+  end
+
   defmodule CreateTable do
     @moduledoc false
     defstruct [:table, :multitenancy, :old_multitenancy]
@@ -8,6 +20,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
   defmodule AddAttribute do
     @moduledoc false
     defstruct [:attribute, :table, :multitenancy, :old_multitenancy]
+
+    import Helper
 
     def up(%{
           multitenancy: %{strategy: :attribute, attribute: source_attribute},
@@ -24,7 +38,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         inspect(attribute.type)
       }, column: #{inspect(destination_field)}, with: [#{source_attribute}: :#{
         destination_attribute
-      }]), default: #{attribute.default}, primary_key: #{attribute.primary_key?}"
+      }]) #{maybe_add_default(attribute.default)} #{maybe_add_primary_key(attribute.primary_key?)}"
     end
 
     def up(%{
@@ -40,9 +54,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         }) do
       "add #{inspect(attribute.name)}, references(#{inspect(table)}, type: #{
         inspect(attribute.type)
-      }, column: #{inspect(destination_field)}, name: \"\#\{prefix\}_#{table}_#{attribute.name}_fkey\", prefix: \"public\"), default: #{
-        attribute.default
-      }, primary_key: #{attribute.primary_key?}"
+      }, column: #{inspect(destination_field)}, name: \"\#\{prefix\}_#{table}_#{attribute.name}_fkey\", prefix: \"public\") #{
+        maybe_add_default(attribute.default)
+      } #{maybe_add_primary_key(attribute.primary_key?)}"
     end
 
     def up(%{
@@ -62,9 +76,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       you should be aware of
       """)
 
-      "add #{inspect(attribute.name)}, #{inspect(attribute.type)}, default: #{attribute.default}, primary_key: #{
-        attribute.primary_key?
-      }"
+      "add #{inspect(attribute.name)}, #{inspect(attribute.type)} #{
+        maybe_add_default(attribute.default)
+      } #{maybe_add_primary_key(attribute.primary_key?)}"
     end
 
     def up(%{
@@ -74,9 +88,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         }) do
       "add #{inspect(attribute.name)}, references(#{inspect(table)}, type: #{
         inspect(attribute.type)
-      }, column: #{inspect(destination_field)}, name: \"\#\{prefix\}_#{table}_#{attribute.name}_fkey\"), default: #{
-        attribute.default
-      }, primary_key: #{attribute.primary_key?}"
+      }, column: #{inspect(destination_field)}, name: \"\#\{prefix\}_#{table}_#{attribute.name}_fkey\") #{
+        maybe_add_default(attribute.default)
+      } #{maybe_add_primary_key(attribute.primary_key?)}"
     end
 
     def up(%{
@@ -85,21 +99,21 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         }) do
       "add #{inspect(attribute.name)}, references(#{inspect(table)}, type: #{
         inspect(attribute.type)
-      }, column: #{inspect(destination_field)}), default: #{attribute.default}, primary_key: #{
-        attribute.primary_key?
+      }, column: #{inspect(destination_field)}) #{maybe_add_default(attribute.default)} #{
+        maybe_add_primary_key(attribute.primary_key?)
       }"
     end
 
     def up(%{attribute: %{type: :integer, default: "nil", generated?: true} = attribute}) do
-      "add #{inspect(attribute.name)}, :serial, null: #{attribute.allow_nil?}, primary_key: #{
-        attribute.primary_key?
+      "add #{inspect(attribute.name)}, :serial #{maybe_add_null(attribute.allow_nil?)} #{
+        maybe_add_primary_key(attribute.primary_key?)
       }"
     end
 
     def up(%{attribute: attribute}) do
-      "add #{inspect(attribute.name)}, #{inspect(attribute.type)}, null: #{attribute.allow_nil?}, default: #{
-        attribute.default
-      }, primary_key: #{attribute.primary_key?}"
+      "add #{inspect(attribute.name)}, #{inspect(attribute.type)} #{
+        maybe_add_null(attribute.allow_nil?)
+      } #{maybe_add_default(attribute.default)} #{maybe_add_primary_key(attribute.primary_key?)}"
     end
 
     def down(
