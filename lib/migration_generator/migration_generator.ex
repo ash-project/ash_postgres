@@ -509,7 +509,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp format(string, opts) do
     if opts.format do
-      Code.format_string!(string)
+      Code.format_string!(string, locals_without_parens: ecto_sql_locals_without_parens())
     else
       string
     end
@@ -524,6 +524,17 @@ defmodule AshPostgres.MigrationGenerator do
       """)
 
       reraise exception, __STACKTRACE__
+  end
+
+  defp ecto_sql_locals_without_parens do
+    path = File.cwd!() |> Path.join("deps/ecto_sql/.formatter.exs")
+
+    if File.exists?(path) do
+      {opts, _} = Code.eval_file(path)
+      Keyword.get(opts, :locals_without_parens, [])
+    else
+      []
+    end
   end
 
   defp streamline(ops, acc \\ [])
