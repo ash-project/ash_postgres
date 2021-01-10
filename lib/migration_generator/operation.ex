@@ -2,6 +2,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
   @moduledoc false
 
   defmodule Helper do
+    @moduledoc false
     def join(list), do: list |> List.flatten() |> Enum.reject(&is_nil/1) |> Enum.join(", ")
 
     def maybe_add_default("nil"), do: nil
