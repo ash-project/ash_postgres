@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.29.4](https://github.com/ash-project/ash_postgres/compare/v0.29.3...v0.29.4) (2021-01-10)
+
+
+
+
+### Improvements:
+
+* Omit field opts if they are default values (#37)
+
 ## [v0.29.3](https://github.com/ash-project/ash_postgres/compare/v0.29.2...v0.29.3) (2021-01-08)
 
 
