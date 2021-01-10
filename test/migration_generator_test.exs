@@ -101,14 +101,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
-               ~S[add :id, :binary_id, null: true, default: fragment("uuid_generate_v4()"), primary_key: true]
+               ~S[add :id, :binary_id, default: fragment("uuid_generate_v4()"), primary_key: true]
     end
 
     test "the migration adds other attributes" do
       assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
-               ~S[add :title, :text, null: true, default: nil, primary_key: false]
+               ~S[add :title, :text]
     end
 
     test "the migration creates unique_indexes based on the identities of the resource" do
@@ -181,7 +181,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~
-               ~S[add :name, :text, null: false, default: nil, primary_key: false]
+               ~S[add :name, :text, null: false]
     end
 
     test "when renaming a field, it asks if you are renaming it, and renames it if you are" do
@@ -232,7 +232,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~
-               ~S[add :name, :text, null: false, default: nil, primary_key: false]
+               ~S[add :name, :text, null: false]
     end
 
     test "when renaming a field, it asks which field you are renaming it to, and renames it if you are" do
@@ -286,7 +286,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~
-               ~S[add :subject, :text, null: false, default: nil, primary_key: false]
+               ~S[add :subject, :text, null: false]
     end
 
     test "when changing the primary key, it changes properly" do
@@ -311,7 +311,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~
-               ~S[add :guid, :binary_id, null: true, default: fragment("uuid_generate_v4()"), primary_key: true]
+               ~S[add :guid, :binary_id, default: fragment("uuid_generate_v4()"), primary_key: true]
     end
 
     test "when multiple schemas apply to the same table, all attributes are added" do
@@ -343,10 +343,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~
-               ~S[add :foobar, :text, null: true, default: nil, primary_key: false]
+               ~S[add :foobar, :text]
 
       assert File.read!(file2) =~
-               ~S[add :foobar, :text, null: true, default: nil, primary_key: false]
+               ~S[add :foobar, :text]
     end
   end
 
@@ -360,7 +360,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           attribute(:id, :integer, generated?: true, allow_nil?: false, primary_key?: true)
-          attribute(:views, :integer, default: nil)
+          attribute(:views, :integer)
         end
       end
 
@@ -385,7 +385,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[add :id, :serial, null: false, primary_key: true]
 
       assert File.read!(file) =~
-               ~S[add :views, :integer, null: true, default: nil, primary_key: false]
+               ~S[add :views, :integer]
     end
   end
 end
