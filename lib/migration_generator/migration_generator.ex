@@ -390,11 +390,11 @@ defmodule AshPostgres.MigrationGenerator do
 
       use Ecto.Migration
 
-      def up() do
+      def up do
         #{up}
       end
 
-      def down() do
+      def down do
         #{down}
       end
     end
