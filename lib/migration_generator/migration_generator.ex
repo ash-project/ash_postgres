@@ -16,11 +16,20 @@ defmodule AshPostgres.MigrationGenerator do
             quiet: false,
             format: true,
             dry_run: false,
+            check_generated: false,
             drop_columns: false
 
   def generate(apis, opts \\ []) do
     apis = List.wrap(apis)
-    opts = struct(__MODULE__, opts)
+
+    opts =
+      case struct(__MODULE__, opts) do
+        %{check_generated: true} = opts ->
+          %{opts | dry_run: true}
+
+        opts ->
+          opts
+      end
 
     {tenant_snapshots, snapshots} =
       apis
@@ -68,6 +77,8 @@ defmodule AshPostgres.MigrationGenerator do
           :ok
 
         operations ->
+          if opts.check_generated, do: exit({:shutdown, 1})
+
           operations
           |> sort_operations()
           |> streamline()
