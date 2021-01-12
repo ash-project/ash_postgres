@@ -393,6 +393,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
     setup do
       defposts do
         attributes do
+          attribute(:id, :uuid, primary_key?: true, default: &Ecto.UUID.generate/0)
           attribute(:title, :string)
         end
       end
