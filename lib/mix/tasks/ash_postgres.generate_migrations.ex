@@ -16,6 +16,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
   * `quiet` - messages for file creations will not be printed
   * `no_format` - files that are created will not be formatted with the code formatter
   * `dry_run` - no files are created, instead the new migration is printed
+  * `check_migrated` - no files are created, returns an exit(1) code if the current snapshots and resources don't fit
 
   #### Snapshots
 
@@ -77,6 +78,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
           quiet: :boolean,
           no_format: :boolean,
           dry_run: :boolean,
+          check_migrated: :boolean,
           drop_columns: :boolean
         ]
       )

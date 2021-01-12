@@ -388,4 +388,31 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[add :views, :integer]
     end
   end
+
+  describe "--check_migrated option" do
+    setup do
+      defposts do
+        attributes do
+          attribute(:title, :string)
+        end
+      end
+
+      defapi([Post])
+
+      [api: Api]
+    end
+
+    test "returns code(1) if snapshots and resources don't fit", %{api: api} do
+      assert catch_exit(
+               AshPostgres.MigrationGenerator.generate(api,
+                 snapshot_path: "test_snapshot_path",
+                 migration_path: "test_migration_path",
+                 check_generated: true
+               )
+             ) == {:shutdown, 1}
+
+      refute File.exists?(Path.wildcard("test_migration_path2/**/*_migrate_resources*.exs"))
+      refute File.exists?(Path.wildcard("test_snapshots_path2/test_repo/posts/*.json"))
+    end
+  end
 end
