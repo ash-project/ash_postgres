@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.29.6](https://github.com/ash-project/ash_postgres/compare/v0.29.5...v0.29.6) (2021-01-12)
+
+
+
+
+### Bug Fixes:
+
+* rename out of phase, small migration fix
+
 ## [v0.29.5](https://github.com/ash-project/ash_postgres/compare/v0.29.4...v0.29.5) (2021-01-10)
 
 
