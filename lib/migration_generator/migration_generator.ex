@@ -1013,7 +1013,13 @@ defmodule AshPostgres.MigrationGenerator do
       |> Enum.filter(&String.ends_with?(&1, ".json"))
       |> Enum.map(&String.trim_trailing(&1, ".json"))
       |> Enum.map(&Integer.parse/1)
-      |> Enum.filter(fn {_int, remaining} -> remaining == "" end)
+      |> Enum.filter(fn
+        {_int, remaining} ->
+          remaining == ""
+
+        :error ->
+          false
+      end)
       |> Enum.map(&elem(&1, 0))
       |> case do
         [] ->
@@ -1164,13 +1170,7 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp migration_type(:string), do: :text
-  defp migration_type(:integer), do: :integer
-  defp migration_type(:boolean), do: :boolean
-  defp migration_type(:binary_id), do: :binary_id
-  defp migration_type(:binary), do: :binary
-  defp migration_type(:utc_datetime), do: :utc_datetime
-  defp migration_type(:utc_datetime_usec), do: :utc_datetime_usec
-  defp migration_type(other), do: raise("No migration_type set up for #{other}")
+  defp migration_type(other), do: other
 
   defp foreign_key?(relationship) do
     Ash.Resource.data_layer(relationship.source) == AshPostgres.DataLayer &&

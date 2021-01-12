@@ -303,7 +303,14 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule RenameAttribute do
     @moduledoc false
-    defstruct [:old_attribute, :new_attribute, :table, :multitenancy, :old_multitenancy]
+    defstruct [
+      :old_attribute,
+      :new_attribute,
+      :table,
+      :multitenancy,
+      :old_multitenancy,
+      no_phase: true
+    ]
 
     def up(%{old_attribute: old_attribute, new_attribute: new_attribute, table: table}) do
       "rename table(:#{table}), #{inspect(old_attribute.name)}, to: #{inspect(new_attribute.name)}"
