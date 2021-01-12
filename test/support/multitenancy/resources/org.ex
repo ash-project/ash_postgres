@@ -5,20 +5,20 @@ defmodule AshPostgres.MultitenancyTest.Org do
 
   resource do
     identities do
-      identity(:unique_by_name, [:name])
+      identity :unique_by_name, [:name]
     end
   end
 
   attributes do
-    attribute(:id, :uuid, primary_key?: true, default: &Ash.uuid/0)
-    attribute(:name, :string)
+    uuid_primary_key :id
+    attribute :name, :string
   end
 
   actions do
-    read(:read)
-    create(:create)
-    update(:update)
-    destroy(:destroy)
+    read :read
+    create :create
+    update :update
+    destroy :destroy
   end
 
   postgres do
@@ -31,14 +31,14 @@ defmodule AshPostgres.MultitenancyTest.Org do
   end
 
   multitenancy do
-    strategy(:attribute)
-    attribute(:id)
-    global?(true)
-    parse_attribute({__MODULE__, :tenant, []})
+    strategy :attribute
+    attribute :id
+    global? true
+    parse_attribute {__MODULE__, :tenant, []}
   end
 
   relationships do
-    has_many(:posts, AshPostgres.MultitenancyTest.Post, destination_field: :org_id)
+    has_many :posts, AshPostgres.MultitenancyTest.Post, destination_field: :org_id
   end
 
   def tenant("org_" <> tenant) do

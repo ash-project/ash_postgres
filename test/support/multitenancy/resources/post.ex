@@ -4,15 +4,15 @@ defmodule AshPostgres.MultitenancyTest.Post do
     data_layer: AshPostgres.DataLayer
 
   attributes do
-    attribute(:id, :uuid, primary_key?: true, default: &Ash.uuid/0)
-    attribute(:name, :string)
+    uuid_primary_key :id
+    attribute :name, :string
   end
 
   actions do
-    create(:create)
-    read(:read)
-    update(:update)
-    destroy(:destroy)
+    create :create
+    read :read
+    update :update
+    destroy :destroy
   end
 
   postgres do
@@ -23,10 +23,10 @@ defmodule AshPostgres.MultitenancyTest.Post do
   multitenancy do
     # Tells the resource to use the data layer
     # multitenancy, in this case separate postgres schemas
-    strategy(:context)
+    strategy :context
   end
 
   relationships do
-    belongs_to(:org, AshPostgres.MultitenancyTest.Org)
+    belongs_to :org, AshPostgres.MultitenancyTest.Org
   end
 end

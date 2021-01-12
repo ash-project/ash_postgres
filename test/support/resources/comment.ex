@@ -9,16 +9,16 @@ defmodule AshPostgres.Test.Comment do
   end
 
   actions do
-    read(:read)
-    create(:create)
+    read :read
+    create :create
   end
 
   attributes do
-    attribute(:id, :uuid, primary_key?: true, default: &Ecto.UUID.generate/0)
-    attribute(:title, :string)
+    uuid_primary_key :id
+    attribute :title, :string
   end
 
   relationships do
-    belongs_to(:post, AshPostgres.Test.Post)
+    belongs_to :post, AshPostgres.Test.Post
   end
 end

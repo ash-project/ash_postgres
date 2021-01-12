@@ -3,7 +3,7 @@ defmodule AshPostgres.Test.Api do
   use Ash.Api
 
   resources do
-    resource(AshPostgres.Test.Post)
-    resource(AshPostgres.Test.Comment)
+    resource AshPostgres.Test.Post
+    resource AshPostgres.Test.Comment
   end
 end
