@@ -4,7 +4,7 @@ defmodule AshPostgres.MultitenancyTest.Post do
     data_layer: AshPostgres.DataLayer
 
   attributes do
-    uuid_primary_key(:id)
+    uuid_primary_key(:id, writable?: true)
     attribute(:name, :string)
   end
 
