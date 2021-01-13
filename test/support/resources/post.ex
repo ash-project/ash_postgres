@@ -9,30 +9,30 @@ defmodule AshPostgres.Test.Post do
   end
 
   actions do
-    read :read
-    create :create
+    read(:read)
+    create(:create)
   end
 
   attributes do
     uuid_primary_key(:id)
-    attribute :title, :string
-    attribute :score, :integer
-    attribute :public, :boolean
+    attribute(:title, :string)
+    attribute(:score, :integer)
+    attribute(:public, :boolean)
   end
 
   relationships do
-    has_many :comments, AshPostgres.Test.Comment, destination_field: :post_id
+    has_many(:comments, AshPostgres.Test.Comment, destination_field: :post_id)
   end
 
   aggregates do
-    count :count_of_comments, :comments
+    count(:count_of_comments, :comments)
 
     count :count_of_comments_called_match, :comments do
-      filter title: "match"
+      filter(title: "match")
     end
 
     first :first_comment, :comments, :title do
-      sort title: :asc_nils_last
+      sort(title: :asc_nils_last)
     end
   end
 end

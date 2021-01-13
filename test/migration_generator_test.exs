@@ -15,8 +15,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
 
         actions do
-          read :read
-          create :create
+          read(:read)
+          create(:create)
         end
 
         unquote(body)
@@ -54,13 +54,13 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         resource do
           identities do
-            identity :title, [:title]
+            identity(:title, [:title])
           end
         end
 
         attributes do
-          uuid_primary_key :id
-          attribute :title, :string
+          uuid_primary_key(:id)
+          attribute(:title, :string)
         end
       end
 
@@ -129,13 +129,13 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         resource do
           identities do
-            identity :title, [:title]
+            identity(:title, [:title])
           end
         end
 
         attributes do
-          uuid_primary_key :id
-          attribute :title, :string
+          uuid_primary_key(:id)
+          attribute(:title, :string)
         end
       end
 
@@ -157,14 +157,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         resource do
           identities do
-            identity :title, [:title]
+            identity(:title, [:title])
           end
         end
 
         attributes do
-          uuid_primary_key :id
-          attribute :title, :string
-          attribute :name, :string, allow_nil?: false
+          uuid_primary_key(:id)
+          attribute(:title, :string)
+          attribute(:name, :string, allow_nil?: false)
         end
       end
 
@@ -187,8 +187,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
     test "when renaming a field, it asks if you are renaming it, and renames it if you are" do
       defposts do
         attributes do
-          uuid_primary_key :id
-          attribute :name, :string, allow_nil?: false
+          uuid_primary_key(:id)
+          attribute(:name, :string, allow_nil?: false)
         end
       end
 
@@ -212,8 +212,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
     test "when renaming a field, it asks if you are renaming it, and adds it if you aren't" do
       defposts do
         attributes do
-          uuid_primary_key :id
-          attribute :name, :string, allow_nil?: false
+          uuid_primary_key(:id)
+          attribute(:name, :string, allow_nil?: false)
         end
       end
 
@@ -238,9 +238,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
     test "when renaming a field, it asks which field you are renaming it to, and renames it if you are" do
       defposts do
         attributes do
-          uuid_primary_key :id
-          attribute :name, :string, allow_nil?: false
-          attribute :subject, :string, allow_nil?: false
+          uuid_primary_key(:id)
+          attribute(:name, :string, allow_nil?: false)
+          attribute(:subject, :string, allow_nil?: false)
         end
       end
 
@@ -265,9 +265,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
     test "when renaming a field, it asks which field you are renaming it to, and adds it if you arent" do
       defposts do
         attributes do
-          uuid_primary_key :id
-          attribute :name, :string, allow_nil?: false
-          attribute :subject, :string, allow_nil?: false
+          uuid_primary_key(:id)
+          attribute(:name, :string, allow_nil?: false)
+          attribute(:subject, :string, allow_nil?: false)
         end
       end
 
@@ -292,9 +292,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
     test "when changing the primary key, it changes properly" do
       defposts do
         attributes do
-          attribute :id, :uuid, primary_key?: false, default: &Ecto.UUID.generate/0
-          uuid_primary_key :guid
-          attribute :title, :string
+          attribute(:id, :uuid, primary_key?: false, default: &Ecto.UUID.generate/0)
+          uuid_primary_key(:guid)
+          attribute(:title, :string)
         end
       end
 
@@ -317,16 +317,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
     test "when multiple schemas apply to the same table, all attributes are added" do
       defposts do
         attributes do
-          uuid_primary_key :id
-          attribute :title, :string
-          attribute :foobar, :string
+          uuid_primary_key(:id)
+          attribute(:title, :string)
+          attribute(:foobar, :string)
         end
       end
 
       defposts Post2 do
         attributes do
-          uuid_primary_key :id
-          attribute :name, :string
+          uuid_primary_key(:id)
+          attribute(:name, :string)
         end
       end
 
@@ -359,8 +359,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defposts do
         attributes do
-          attribute :id, :integer, generated?: true, allow_nil?: false, primary_key?: true
-          attribute :views, :integer
+          attribute(:id, :integer, generated?: true, allow_nil?: false, primary_key?: true)
+          attribute(:views, :integer)
         end
       end
 
