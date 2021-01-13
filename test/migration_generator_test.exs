@@ -393,7 +393,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
     setup do
       defposts do
         attributes do
-          uuid_primary_key :id
+          uuid_primary_key(:id)
           attribute(:title, :string)
         end
       end
