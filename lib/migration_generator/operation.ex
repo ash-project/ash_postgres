@@ -3,7 +3,13 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule Helper do
     @moduledoc false
-    def join(list), do: list |> List.flatten() |> Enum.reject(&is_nil/1) |> Enum.join(", ")
+    def join(list),
+      do:
+        list
+        |> List.flatten()
+        |> Enum.reject(&is_nil/1)
+        |> Enum.join(", ")
+        |> String.replace(", )", ")")
 
     def maybe_add_default("nil"), do: nil
     def maybe_add_default(value), do: "default: #{value}"
