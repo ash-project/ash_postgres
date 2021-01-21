@@ -8,6 +8,7 @@ locals_without_parens = [
   skip_unique_indexes: 1,
   table: 1,
   template: 1,
+  unique_index_names: 1,
   update?: 1
 ]
 

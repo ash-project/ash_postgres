@@ -84,6 +84,14 @@ defmodule AshPostgres.DataLayer do
         default: false,
         doc: "Skip generating unique indexes when generating migrations"
       ],
+      unique_index_names: [
+        type: :any,
+        default: [],
+        doc: """
+        A list of unique index names that could raise errors, or an mfa to a function that takes a changeset
+        and returns a list of names.
+        """
+      ],
       table: [
         type: :string,
         required: true,
@@ -93,19 +101,12 @@ defmodule AshPostgres.DataLayer do
   }
 
   alias Ash.Filter
-  alias Ash.Query.{Expression, Not, Ref}
+  alias Ash.Query.{BooleanExpression, Not, Ref}
 
-  alias Ash.Query.Operator.{
-    Eq,
-    GreaterThan,
-    GreaterThanOrEqual,
-    In,
-    IsNil,
-    LessThan,
-    LessThanOrEqual
-  }
+  alias Ash.Query.Function.Ago
+  alias Ash.Query.Operator.IsNil
 
-  alias AshPostgres.Functions.TrigramSimilarity
+  alias AshPostgres.Functions.{Fragment, TrigramSimilarity, Type}
 
   import AshPostgres, only: [table: 1, repo: 1]
 
@@ -180,15 +181,8 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :limit), do: true
   def can?(_, :offset), do: true
   def can?(_, :multitenancy), do: true
-  def can?(_, {:filter_operator, %{right: %Ref{}}}), do: false
-  def can?(_, {:filter_operator, %Eq{left: %Ref{}}}), do: true
-  def can?(_, {:filter_operator, %In{left: %Ref{}}}), do: true
-  def can?(_, {:filter_operator, %LessThan{left: %Ref{}}}), do: true
-  def can?(_, {:filter_operator, %GreaterThan{left: %Ref{}}}), do: true
-  def can?(_, {:filter_operator, %LessThanOrEqual{left: %Ref{}}}), do: true
-  def can?(_, {:filter_operator, %GreaterThanOrEqual{left: %Ref{}}}), do: true
-  def can?(_, {:filter_operator, %IsNil{left: %Ref{}}}), do: true
-  def can?(_, {:filter_function, %TrigramSimilarity{}}), do: true
+  def can?(_, {:filter_expr, _}), do: true
+  def can?(_, :nested_expressions), do: true
   def can?(_, {:query_aggregate, :count}), do: true
   def can?(_, :sort), do: true
   def can?(_, {:sort, _}), do: true
@@ -245,12 +239,15 @@ defmodule AshPostgres.DataLayer do
   def functions(resource) do
     config = repo(resource).config()
 
+    functions = [AshPostgres.Functions.Type, AshPostgres.Functions.Fragment]
+
     if "pg_trgm" in (config[:installed_extensions] || []) do
-      [
-        AshPostgres.Functions.TrigramSimilarity
-      ]
+      functions ++
+        [
+          AshPostgres.Functions.TrigramSimilarity
+        ]
     else
-      []
+      functions
     end
   end
 
@@ -371,6 +368,7 @@ defmodule AshPostgres.DataLayer do
     |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource)))
     |> ecto_changeset(changeset)
     |> repo(resource).insert(repo_opts(changeset))
+    |> handle_errors()
     |> case do
       {:ok, result} ->
         case maybe_create_tenant(resource, result) do
@@ -432,8 +430,43 @@ defmodule AshPostgres.DataLayer do
     end)
   end
 
+  defp handle_errors({:error, %Ecto.Changeset{errors: errors}}) do
+    {:error, Enum.map(errors, &to_ash_error/1)}
+  end
+
+  defp handle_errors({:ok, val}), do: {:ok, val}
+
+  defp to_ash_error({field, {message, vars}}) do
+    Ash.Error.Changes.InvalidAttribute.exception(field: field, message: message, vars: vars)
+  end
+
   defp ecto_changeset(record, changeset) do
-    Ecto.Changeset.change(record, changeset.attributes)
+    record
+    |> Ecto.Changeset.change(changeset.attributes)
+    |> add_unique_indexes(record.__struct__)
+  end
+
+  defp add_unique_indexes(changeset, resource) do
+    changeset =
+      resource
+      |> Ash.Resource.identities()
+      |> Enum.reduce(changeset, fn identity, changeset ->
+        name = "#{table(resource)}_#{identity.name}_unique_index"
+
+        Ecto.Changeset.unique_constraint(changeset, identity.keys, name: name)
+      end)
+
+    names =
+      resource
+      |> AshPostgres.unique_index_names()
+      |> case do
+        {m, f, a} -> apply(m, f, [changeset | a])
+        value -> List.wrap(value)
+      end
+
+    Enum.reduce(names, changeset, fn {keys, name}, changeset ->
+      Ecto.Changeset.unique_constraint(changeset, List.wrap(keys), name: name)
+    end)
   end
 
   @impl true
@@ -451,6 +484,7 @@ defmodule AshPostgres.DataLayer do
       |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource)))
       |> ecto_changeset(changeset)
       |> repo(resource).insert(repo_opts)
+      |> handle_errors()
     end
   rescue
     e ->
@@ -463,6 +497,7 @@ defmodule AshPostgres.DataLayer do
     |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource)))
     |> ecto_changeset(changeset)
     |> repo(resource).update(repo_opts(changeset))
+    |> handle_errors()
     |> case do
       {:ok, result} ->
         maybe_update_tenant(resource, changeset, result)
@@ -484,7 +519,7 @@ defmodule AshPostgres.DataLayer do
         :ok
 
       {:error, error} ->
-        {:error, error}
+        handle_errors({:error, error})
     end
   rescue
     e ->
@@ -578,22 +613,22 @@ defmodule AshPostgres.DataLayer do
 
   defp can_inner_join?(_path, expr, _seen_an_or?) when expr in [nil, true, false], do: true
 
-  defp can_inner_join?(path, %Expression{op: :and, left: left, right: right}, seen_an_or?) do
+  defp can_inner_join?(path, %BooleanExpression{op: :and, left: left, right: right}, seen_an_or?) do
     can_inner_join?(path, left, seen_an_or?) || can_inner_join?(path, right, seen_an_or?)
   end
 
-  defp can_inner_join?(path, %Expression{op: :or, left: left, right: right}, _) do
+  defp can_inner_join?(path, %BooleanExpression{op: :or, left: left, right: right}, _) do
     can_inner_join?(path, left, true) && can_inner_join?(path, right, true)
   end
 
   defp can_inner_join?(
          path,
-         %Not{expression: %Expression{op: :or, left: left, right: right}},
+         %Not{expression: %BooleanExpression{op: :or, left: left, right: right}},
          seen_an_or?
        ) do
     can_inner_join?(
       path,
-      %Expression{
+      %BooleanExpression{
         op: :and,
         left: %Not{expression: left},
         right: %Not{expression: right}
@@ -906,20 +941,6 @@ defmodule AshPostgres.DataLayer do
     %{query | select: %{query.select | expr: new_expr, params: params}}
   end
 
-  # defp aggregate_expression(:count, key) do
-  #   {:count, [], [{{:., [], [{:&, [], [0]}, key]}, [], []}]}
-  # end
-
-  # defp aggregate_expression(:first, key) do
-  #   {[limit: 1],
-  #    {:fragment, [],
-  #     [
-  #       raw: "array_agg(",
-  #       expr: {{:., [], [{:&, [], [0]}, key]}, [], []},
-  #       raw: ")"
-  #     ]}}
-  # end
-
   defp relationship_path_to_relationships(resource, path, acc \\ [])
   defp relationship_path_to_relationships(_resource, [], acc), do: Enum.reverse(acc)
 
@@ -1200,7 +1221,7 @@ defmodule AshPostgres.DataLayer do
     split_and_statements(expression)
   end
 
-  defp split_and_statements(%Expression{op: :and, left: left, right: right}) do
+  defp split_and_statements(%BooleanExpression{op: :and, left: left, right: right}) do
     split_and_statements(left) ++ split_and_statements(right)
   end
 
@@ -1209,9 +1230,9 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp split_and_statements(%Not{
-         expression: %Expression{op: :or, left: left, right: right}
+         expression: %BooleanExpression{op: :or, left: left, right: right}
        }) do
-    split_and_statements(%Expression{
+    split_and_statements(%BooleanExpression{
       op: :and,
       left: %Not{expression: left},
       right: %Not{expression: right}
@@ -1220,232 +1241,248 @@ defmodule AshPostgres.DataLayer do
 
   defp split_and_statements(other), do: [other]
 
-  defp filter_to_expr(%Filter{expression: expression}, bindings, params) do
-    filter_to_expr(expression, bindings, params)
+  defp filter_to_expr(expr, bindings, params, embedded? \\ false, type \\ nil)
+
+  defp filter_to_expr(%Filter{expression: expression}, bindings, params, embedded?, type) do
+    filter_to_expr(expression, bindings, params, embedded?, type)
   end
 
   # A nil filter means "everything"
-  defp filter_to_expr(nil, _, _), do: {[], true}
+  defp filter_to_expr(nil, _, _, _, _), do: {[], true}
   # A true filter means "everything"
-  defp filter_to_expr(true, _, _), do: {[], true}
+  defp filter_to_expr(true, _, _, _, _), do: {[], true}
   # A false filter means "nothing"
-  defp filter_to_expr(false, _, _), do: {[], false}
+  defp filter_to_expr(false, _, _, _, _), do: {[], false}
 
-  defp filter_to_expr(%Expression{op: op, left: left, right: right}, bindings, params) do
-    {params, left_expr} = filter_to_expr(left, bindings, params)
-    {params, right_expr} = filter_to_expr(right, bindings, params)
+  defp filter_to_expr(
+         %BooleanExpression{op: op, left: left, right: right},
+         bindings,
+         params,
+         embedded?,
+         _type
+       ) do
+    {params, left_expr} = filter_to_expr(left, bindings, params, embedded?)
+    {params, right_expr} = filter_to_expr(right, bindings, params, embedded?)
     {params, {op, [], [left_expr, right_expr]}}
   end
 
-  defp filter_to_expr(%Not{expression: expression}, bindings, params) do
-    {params, new_expression} = filter_to_expr(expression, bindings, params)
+  defp filter_to_expr(%Not{expression: expression}, bindings, params, embedded?, _type) do
+    {params, new_expression} = filter_to_expr(expression, bindings, params, embedded?)
     {params, {:not, [], [new_expression]}}
   end
 
   defp filter_to_expr(
-         %In{left: %Ref{} = left, right: %Ref{} = right, embedded?: embedded?},
+         %TrigramSimilarity{arguments: [arg1, arg2], embedded?: pred_embedded?},
          bindings,
-         params
+         params,
+         embedded?,
+         _type
        ) do
-    simple_operator_expr(
-      :in,
-      params,
-      ref_binding(right, bindings),
-      {:in, left.attribute.type},
-      ref_binding(left, bindings),
-      left.attribute,
-      bindings,
-      embedded?
-    )
+    {params, arg1} = filter_to_expr(arg1, bindings, params, pred_embedded? || embedded?)
+    {params, arg2} = filter_to_expr(arg2, bindings, params, pred_embedded? || embedded?)
+
+    {params, {:fragment, [], [raw: "similarity(", expr: arg1, raw: ", ", expr: arg2, raw: ")"]}}
   end
 
   defp filter_to_expr(
-         %In{left: %Ref{} = left, right: map_set, embedded?: embedded?},
+         %Type{arguments: [arg1, arg2], embedded?: pred_embedded?},
          bindings,
-         params
+         params,
+         embedded?,
+         _type
        ) do
-    simple_operator_expr(
-      :in,
-      params,
-      MapSet.to_list(map_set),
-      {:in, left.attribute.type},
-      ref_binding(left, bindings),
-      left.attribute,
-      bindings,
-      embedded?
-    )
+    {params, arg1} = filter_to_expr(arg1, bindings, params, pred_embedded? || embedded?)
+    {params, arg2} = filter_to_expr(arg2, bindings, params, pred_embedded? || embedded?)
+
+    {params, {:type, [], [arg1, arg2]}}
   end
 
   defp filter_to_expr(
-         %IsNil{left: %Ref{} = left, right: nil?},
+         %Fragment{arguments: arguments, embedded?: pred_embedded?},
          bindings,
-         params
+         params,
+         embedded?,
+         _type
        ) do
-    if nil? do
-      {params,
-       {:is_nil, [],
-        [{{:., [], [{:&, [], [ref_binding(left, bindings)]}, left.attribute.name]}, [], []}]}}
-    else
-      {params,
-       {:not, [],
-        [
-          {:is_nil, [],
-           [{{:., [], [{:&, [], [ref_binding(left, bindings)]}, left.attribute.name]}, [], []}]}
-        ]}}
+    {params, fragment_data} =
+      Enum.reduce(arguments, {params, []}, fn
+        {:raw, str}, {params, fragment_data} ->
+          {params, fragment_data ++ [{:raw, str}]}
+
+        {:expr, expr}, {params, fragment_data} ->
+          {params, expr} = filter_to_expr(expr, bindings, params, pred_embedded? || embedded?)
+          {params, fragment_data ++ [{:expr, expr}]}
+      end)
+
+    {params, {:fragment, [], fragment_data}}
+  end
+
+  defp filter_to_expr(
+         %IsNil{left: left, right: right, embedded?: pred_embedded?},
+         bindings,
+         params,
+         embedded?,
+         _type
+       ) do
+    {params, left_expr} = filter_to_expr(left, bindings, params, pred_embedded? || embedded?)
+    {params, right_expr} = filter_to_expr(right, bindings, params, pred_embedded? || embedded?)
+
+    {params,
+     {:==, [],
+      [
+        {:is_nil, [], [left_expr]},
+        right_expr
+      ]}}
+  end
+
+  defp filter_to_expr(
+         %Ago{arguments: [left, right], embedded?: _pred_embedded?},
+         _bindings,
+         params,
+         _embedded?,
+         _type
+       )
+       when is_integer(left) and (is_binary(right) or is_atom(right)) do
+    {params ++ [{DateTime.utc_now(), {:param, :any_datetime}}],
+     {:datetime_add, [], [{:^, [], [Enum.count(params)]}, left, to_string(right)]}}
+  end
+
+  defp filter_to_expr(
+         %mod{
+           __predicate__?: _,
+           left: left,
+           right: right,
+           embedded?: pred_embedded?,
+           operator: op
+         },
+         bindings,
+         params,
+         embedded?,
+         _type
+       ) do
+    {left_type, right_type} =
+      case determine_type(mod, left) do
+        nil ->
+          case determine_type(mod, right) do
+            nil ->
+              {nil, nil}
+
+            left_type ->
+              {left_type, nil}
+          end
+
+        right_type ->
+          if vague?(right_type) do
+            case determine_type(mod, right) do
+              nil ->
+                {nil, right_type}
+
+              left_type ->
+                {left_type, nil}
+            end
+          else
+            {nil, right_type}
+          end
+      end
+
+    {params, left_expr} =
+      filter_to_expr(left, bindings, params, pred_embedded? || embedded?, left_type)
+
+    {params, right_expr} =
+      filter_to_expr(right, bindings, params, pred_embedded? || embedded?, right_type)
+
+    {params,
+     {op, [],
+      [
+        left_expr,
+        right_expr
+      ]}}
+  end
+
+  defp filter_to_expr(
+         %Ref{attribute: %{name: name}} = ref,
+         bindings,
+         params,
+         _embedded?,
+         _type
+       ) do
+    {params, {{:., [], [{:&, [], [ref_binding(ref, bindings)]}, name]}, [], []}}
+  end
+
+  defp filter_to_expr({:embed, other}, _bindings, params, _true, _type) do
+    {params, other}
+  end
+
+  defp filter_to_expr(other, _bindings, params, true, _type) do
+    {params, other}
+  end
+
+  defp filter_to_expr(value, _bindings, params, false, type) do
+    type = type || :any
+    value = last_ditch_cast(value, type)
+
+    {params ++ [{value, type}], {:^, [], [Enum.count(params)]}}
+  end
+
+  defp last_ditch_cast(value, :string) when is_atom(value) do
+    to_string(value)
+  end
+
+  defp last_ditch_cast(value, _type) do
+    value
+  end
+
+  defp determine_type(mod, %Ref{attribute: %{type: type}}) do
+    mod.types
+    |> Enum.flat_map(fn
+      :any ->
+        []
+
+      :same ->
+        [type]
+
+      {:array, :any} ->
+        [{:in, :any}]
+
+      {:array, :same} ->
+        [{:in, type}]
+
+      {:array, type} ->
+        [{:in, type}]
+
+      type ->
+        [type]
+    end)
+    |> Enum.sort_by(&vague?/1)
+    |> Enum.at(0)
+    |> case do
+      nil ->
+        nil
+
+      {:in, :any} ->
+        {:in, :any}
+
+      {:in, type} ->
+        if Ash.Type.ash_type?(type) do
+          Ash.Type.storage_type(type)
+        else
+          type
+        end
+
+      type ->
+        if Ash.Type.ash_type?(type) do
+          Ash.Type.storage_type(type)
+        else
+          type
+        end
     end
   end
 
-  defp filter_to_expr(
-         %{operator: operator, left: %Ref{} = left, right: right, embedded?: embedded?},
-         bindings,
-         params
-       ) do
-    simple_operator_expr(
-      operator,
-      params,
-      right,
-      left.attribute.type,
-      ref_binding(left, bindings),
-      left.attribute,
-      bindings,
-      embedded?
-    )
-  end
+  defp determine_type(_mod, _), do: nil
 
-  defp filter_to_expr(
-         %TrigramSimilarity{arguments: [%Ref{} = ref, text, options], embedded?: false},
-         bindings,
-         params
-       ) do
-    param_count = Enum.count(params)
-
-    case Enum.into(options, %{}) do
-      %{equals: equals, greater_than: nil, less_than: nil} ->
-        {params ++ [{text, :string}, {equals, :float}],
-         {:fragment, [],
-          [
-            raw: "similarity(",
-            expr:
-              {{:., [], [{:&, [], [ref_binding(ref, bindings)]}, ref.attribute.name]}, [], []},
-            raw: ", ",
-            expr: {:^, [], [param_count]},
-            raw: ") = ",
-            expr: {:^, [], [param_count + 1]},
-            raw: ""
-          ]}}
-
-      %{equals: nil, greater_than: greater_than, less_than: nil} ->
-        {params ++ [{text, :string}, {greater_than, :float}],
-         {:fragment, [],
-          [
-            raw: "similarity(",
-            expr:
-              {{:., [], [{:&, [], [ref_binding(ref, bindings)]}, ref.attribute.name]}, [], []},
-            raw: ", ",
-            expr: {:^, [], [param_count]},
-            raw: ") > ",
-            expr: {:^, [], [param_count + 1]},
-            raw: ""
-          ]}}
-
-      %{equals: nil, greater_than: nil, less_than: less_than} ->
-        {params ++ [{text, :string}, {less_than, :float}],
-         {:fragment, [],
-          [
-            raw: "similarity(",
-            expr:
-              {{:., [], [{:&, [], [ref_binding(ref, bindings)]}, ref.attribute.name]}, [], []},
-            raw: ", ",
-            expr: {:^, [], [param_count]},
-            raw: ") < ",
-            expr: {:^, [], [param_count + 1]},
-            raw: ""
-          ]}}
-
-      %{equals: nil, greater_than: greater_than, less_than: less_than} ->
-        {params ++
-           [{text, :string}, {less_than, :float}, {greater_than, :float}],
-         {:fragment, [],
-          [
-            raw: "similarity(",
-            expr:
-              {{:., [], [{:&, [], [ref_binding(ref, bindings)]}, ref.attribute.name]}, [], []},
-            raw: ", ",
-            expr: {:^, [], [param_count]},
-            raw: ") BETWEEN ",
-            expr: {:^, [], [param_count + 1]},
-            raw: " AND ",
-            expr: {:^, [], [param_count + 2]},
-            raw: ""
-          ]}}
-    end
-  end
-
-  defp filter_to_expr(
-         %TrigramSimilarity{arguments: [%Ref{} = ref, text, options], embedded?: true},
-         bindings,
-         params
-       ) do
-    case Enum.into(options, %{}) do
-      %{equals: equals, greater_than: nil, less_than: nil} ->
-        {params,
-         {:fragment, [],
-          [
-            raw: "similarity(",
-            expr:
-              {{:., [], [{:&, [], [ref_binding(ref, bindings)]}, ref.attribute.name]}, [], []},
-            raw: ", ",
-            expr: tagged(text, :string),
-            raw: ") = ",
-            expr: tagged(equals, :float),
-            raw: ""
-          ]}}
-
-      %{equals: nil, greater_than: greater_than, less_than: nil} ->
-        {params,
-         {:fragment, [],
-          [
-            raw: "similarity(",
-            expr:
-              {{:., [], [{:&, [], [ref_binding(ref, bindings)]}, ref.attribute.name]}, [], []},
-            raw: ", ",
-            expr: tagged(text, :string),
-            raw: ") > ",
-            expr: tagged(greater_than, :float),
-            raw: ""
-          ]}}
-
-      %{equals: nil, greater_than: nil, less_than: less_than} ->
-        {params,
-         {:fragment, [],
-          [
-            raw: "similarity(",
-            expr:
-              {{:., [], [{:&, [], [ref_binding(ref, bindings)]}, ref.attribute.name]}, [], []},
-            raw: ", ",
-            expr: tagged(text, :string),
-            raw: ") < ",
-            expr: tagged(less_than, :float),
-            raw: ""
-          ]}}
-
-      %{equals: nil, greater_than: greater_than, less_than: less_than} ->
-        {params,
-         {:fragment, [],
-          [
-            raw: "similarity(",
-            expr:
-              {{:., [], [{:&, [], [ref_binding(ref, bindings)]}, ref.attribute.name]}, [], []},
-            raw: ", ",
-            expr: tagged(text, :string),
-            raw: ") BETWEEN ",
-            expr: tagged(less_than, :float),
-            raw: " AND ",
-            expr: tagged(greater_than, :float),
-            raw: ""
-          ]}}
-    end
-  end
+  defp vague?({:in, :any}), do: true
+  defp vague?(:any), do: true
+  defp vague?(_), do: false
 
   defp ref_binding(ref, bindings) do
     case ref.attribute do
@@ -1458,66 +1495,6 @@ defmodule AshPostgres.DataLayer do
         Enum.find_value(bindings, fn {binding, data} ->
           data.path == aggregate.relationship_path && data.type == :aggregate && binding
         end)
-    end
-  end
-
-  defp simple_operator_expr(
-         op,
-         params,
-         %Ref{} = right,
-         _type,
-         current_binding,
-         attribute,
-         bindings,
-         _
-       ) do
-    {params,
-     {op, [],
-      [
-        {{:., [], [{:&, [], [current_binding]}, attribute.name]}, [], []},
-        {{:., [], [{:&, [], [ref_binding(right, bindings)]}, right.attribute.name]}, [], []}
-      ]}}
-  end
-
-  defp simple_operator_expr(op, params, value, type, current_binding, attribute, _bindings, false) do
-    {params ++ [{value, op_type(type)}],
-     {op, [],
-      [
-        {{:., [], [{:&, [], [current_binding]}, attribute.name]}, [], []},
-        {:^, [], [Enum.count(params)]}
-      ]}}
-  end
-
-  defp simple_operator_expr(op, params, value, type, current_binding, attribute, _bindings, true) do
-    {params,
-     {op, [],
-      [
-        {{:., [], [{:&, [], [current_binding]}, attribute.name]}, [], []},
-        tagged(value, type)
-      ]}}
-  end
-
-  defp op_type({:in, type}) do
-    {:in, op_type(type)}
-  end
-
-  defp op_type(type) do
-    Ash.Type.ecto_type(type)
-  end
-
-  defp tagged(value, type) do
-    %Ecto.Query.Tagged{value: value, type: get_type(type)}
-  end
-
-  defp get_type({:array, type}) do
-    {:array, get_type(type)}
-  end
-
-  defp get_type(type) do
-    if Ash.Type.ash_type?(type) do
-      Ash.Type.storage_type(type)
-    else
-      type
     end
   end
 

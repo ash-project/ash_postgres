@@ -241,6 +241,23 @@ defmodule AshPostgres.FilterTest do
     end
   end
 
+  describe "basic expressions" do
+    test "basic expressions work" do
+      Post
+      |> Ash.Changeset.new(%{title: "match", score: 4})
+      |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{title: "non_match", score: 2})
+      |> Api.create!()
+
+      assert [%{title: "match"}] =
+               Post
+               |> Ash.Query.filter(score + 1 == 5)
+               |> Api.read!()
+    end
+  end
+
   describe "trigram_similarity" do
     test "it works on matches" do
       Post
@@ -249,7 +266,7 @@ defmodule AshPostgres.FilterTest do
 
       results =
         Post
-        |> Ash.Query.filter(trigram_similarity(title, "match", greater_than: 0.9))
+        |> Ash.Query.filter(trigram_similarity(title, "match") > 0.9)
         |> Api.read!()
 
       assert [%Post{title: "match"}] = results
@@ -262,7 +279,7 @@ defmodule AshPostgres.FilterTest do
 
       results =
         Post
-        |> Ash.Query.filter(trigram_similarity(title, "match", less_than: 0.1))
+        |> Ash.Query.filter(trigram_similarity(title, "match") < 0.1)
         |> Api.read!()
 
       assert [] = results

@@ -1155,9 +1155,7 @@ defmodule AshPostgres.MigrationGenerator do
       attribute
       |> Map.put(:default, default)
       |> Map.update!(:type, fn type ->
-        type
-        |> Ash.Type.storage_type()
-        |> migration_type()
+        migration_type(type)
       end)
     end)
     |> Enum.map(fn attribute ->
@@ -1180,8 +1178,10 @@ defmodule AshPostgres.MigrationGenerator do
     end)
   end
 
-  defp migration_type(:string), do: :text
-  defp migration_type(other), do: other
+  defp migration_type(Ash.Type.CiString), do: :citext
+  defp migration_type(other), do: migration_type_from_storage_type(Ash.Type.storage_type(other))
+  defp migration_type_from_storage_type(:string), do: :text
+  defp migration_type_from_storage_type(storage_type), do: storage_type
 
   defp foreign_key?(relationship) do
     Ash.Resource.data_layer(relationship.source) == AshPostgres.DataLayer &&
