@@ -5,6 +5,23 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.31.0](https://github.com/ash-project/ash_postgres/compare/v0.30.1...v0.31.0) (2021-01-22)
+
+
+
+
+### Features:
+
+* support fragments
+
+* support type casting
+
+* update to latest ash to support expressions
+
+### Bug Fixes:
+
+* update CI versions
+
 ## [v0.30.1](https://github.com/ash-project/ash_postgres/compare/v0.30.0...v0.30.1) (2021-01-13)
 
 
