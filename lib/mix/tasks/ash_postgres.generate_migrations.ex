@@ -5,18 +5,18 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
   Options:
 
   * `apis` - a comma separated list of API modules, for which migrations will be generated
-  * `snapshot_path` - a custom path to store the snapshots, defaults to "priv/resource_snapshots"
-  * `migration_path` - a custom path to store the migrations, defaults to "priv".
+  * `snapshot-path` - a custom path to store the snapshots, defaults to "priv/resource_snapshots"
+  * `migration-path` - a custom path to store the migrations, defaults to "priv".
     Migrations are stored in a folder for each repo, so `priv/repo_name/migrations`
-  * `tenant_migration_path` - Same as `migration_path`, except for any tenant specific migrations
-  * `drop_columns` - whether or not to drop columns as attributes are removed. See below for more
+  * `tenant-migration-path` - Same as `migration_path`, except for any tenant specific migrations
+  * `drop-columns` - whether or not to drop columns as attributes are removed. See below for more
 
   Flags:
 
   * `quiet` - messages for file creations will not be printed
-  * `no_format` - files that are created will not be formatted with the code formatter
-  * `dry_run` - no files are created, instead the new migration is printed
-  * `check_migrated` - no files are created, returns an exit(1) code if the current snapshots and resources don't fit
+  * `no-format` - files that are created will not be formatted with the code formatter
+  * `dry-run` - no files are created, instead the new migration is printed
+  * `check-migrated` - no files are created, returns an exit(1) code if the current snapshots and resources don't fit
 
   #### Snapshots
 
