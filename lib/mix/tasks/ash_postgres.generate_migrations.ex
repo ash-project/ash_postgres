@@ -107,7 +107,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
       |> Enum.map(&ensure_compiled(&1, args))
 
     if apis == [] do
-      raise "must supply the --apis argument, or set `config :my_app, apis: [...]` in config"
+      raise "must supply the --apis argument, or set `config :my_app, ash_apis: [...]` in config"
     end
 
     opts =
