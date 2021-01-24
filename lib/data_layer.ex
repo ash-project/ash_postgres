@@ -1344,7 +1344,7 @@ defmodule AshPostgres.DataLayer do
        )
        when is_integer(left) and (is_binary(right) or is_atom(right)) do
     {params ++ [{DateTime.utc_now(), {:param, :any_datetime}}],
-     {:datetime_add, [], [{:^, [], [Enum.count(params)]}, left, to_string(right)]}}
+     {:datetime_add, [], [{:^, [], [Enum.count(params)]}, left * -1, to_string(right)]}}
   end
 
   defp filter_to_expr(
