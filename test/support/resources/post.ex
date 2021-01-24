@@ -18,6 +18,7 @@ defmodule AshPostgres.Test.Post do
     attribute(:title, :string)
     attribute(:score, :integer)
     attribute(:public, :boolean)
+    attribute(:category, :ci_string)
   end
 
   relationships do

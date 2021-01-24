@@ -7,11 +7,15 @@ defmodule AshPostgres.Functions.Type do
 
   use Ash.Query.Function, name: :type
 
-  def args, do: [:any, :any]
+  def args, do: [[:any, :any]]
+
+  def new([left, :citext]) do
+    %AshPostgres.Functions.Fragment{arguments: ["?::citext", left]}
+  end
 
   def new([left, right]) do
     right =
-      if is_atom(right) || is_binary(right) do
+      if is_atom(right) do
         {:embed, right}
       else
         right

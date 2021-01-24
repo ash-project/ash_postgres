@@ -906,7 +906,7 @@ defmodule AshPostgres.MigrationGenerator do
       end)
 
     {attributes_to_add, attributes_to_remove, attributes_to_rename} =
-      resolve_renames(attributes_to_add, attributes_to_remove)
+      resolve_renames(snapshot.table, attributes_to_add, attributes_to_remove)
 
     attributes_to_alter =
       snapshot.attributes
@@ -1049,6 +1049,8 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
+  T
+
   defp get_old_snapshot(folder, snapshot) do
     old_snapshot_file = Path.join(folder, "#{snapshot.table}.json")
     # This is adapter code for the old version, where migrations were stored in a flat directory
@@ -1059,21 +1061,21 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  defp resolve_renames(adding, []), do: {adding, [], []}
+  defp resolve_renames(_table, adding, []), do: {adding, [], []}
 
-  defp resolve_renames([], removing), do: {[], removing, []}
+  defp resolve_renames(_table, [], removing), do: {[], removing, []}
 
-  defp resolve_renames([adding], [removing]) do
-    if Mix.shell().yes?("Are you renaming :#{removing.name} to :#{adding.name}?") do
+  defp resolve_renames(table, [adding], [removing]) do
+    if Mix.shell().yes?("Are you renaming #{table}.#{removing.name} to #{table}.#{adding.name}?") do
       {[], [], [{adding, removing}]}
     else
       {[adding], [removing], []}
     end
   end
 
-  defp resolve_renames(adding, [removing | rest]) do
+  defp resolve_renames(table, adding, [removing | rest]) do
     {new_adding, new_removing, new_renames} =
-      if Mix.shell().yes?("Are you renaming :#{removing.name}?") do
+      if Mix.shell().yes?("Are you renaming #{table}.#{removing.name}?") do
         new_attribute = get_new_attribute(adding)
 
         {adding -- [new_attribute], [], [{new_attribute, removing}]}
@@ -1081,7 +1083,7 @@ defmodule AshPostgres.MigrationGenerator do
         {adding, [removing], []}
       end
 
-    {rest_adding, rest_removing, rest_renames} = resolve_renames(new_adding, rest)
+    {rest_adding, rest_removing, rest_renames} = resolve_renames(table, new_adding, rest)
 
     {new_adding ++ rest_adding, new_removing ++ rest_removing, rest_renames ++ new_renames}
   end

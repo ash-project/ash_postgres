@@ -9,6 +9,8 @@ defmodule AshPostgres.Functions.Fragment do
 
   use Ash.Query.Function, name: :fragment
 
+  # Varargs is special, and should only be used in rare circumstances (like this one)
+  # no type casting or help can be provided for these functions.
   def args, do: :var_args
 
   def new([fragment | _]) when not is_binary(fragment) do

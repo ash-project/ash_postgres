@@ -103,7 +103,7 @@ defmodule AshPostgres.DataLayer do
   alias Ash.Filter
   alias Ash.Query.{BooleanExpression, Not, Ref}
 
-  alias Ash.Query.Function.Ago
+  alias Ash.Query.Function.{Ago, Contains}
   alias Ash.Query.Operator.IsNil
 
   alias AshPostgres.Functions.{Fragment, TrigramSimilarity, Type}
@@ -1348,6 +1348,56 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp filter_to_expr(
+         %Contains{arguments: [left, %Ash.CiString{} = right], embedded?: pred_embedded?},
+         bindings,
+         params,
+         embedded?,
+         type
+       ) do
+    filter_to_expr(
+      %Fragment{
+        embedded?: pred_embedded?,
+        arguments: [
+          raw: "strpos(",
+          expr: left,
+          raw: "::citext, ",
+          expr: right,
+          raw: ") > 0"
+        ]
+      },
+      bindings,
+      params,
+      embedded?,
+      type
+    )
+  end
+
+  defp filter_to_expr(
+         %Contains{arguments: [left, right], embedded?: pred_embedded?},
+         bindings,
+         params,
+         embedded?,
+         type
+       ) do
+    filter_to_expr(
+      %Fragment{
+        embedded?: pred_embedded?,
+        arguments: [
+          raw: "strpos(",
+          expr: left,
+          raw: ", ",
+          expr: right,
+          raw: ") > 0"
+        ]
+      },
+      bindings,
+      params,
+      embedded?,
+      type
+    )
+  end
+
+  defp filter_to_expr(
          %mod{
            __predicate__?: _,
            left: left,
@@ -1411,6 +1461,23 @@ defmodule AshPostgres.DataLayer do
 
   defp filter_to_expr({:embed, other}, _bindings, params, _true, _type) do
     {params, other}
+  end
+
+  defp filter_to_expr(%Ash.CiString{string: string}, bindings, params, embedded?, type) do
+    filter_to_expr(
+      %Fragment{
+        embedded?: embedded?,
+        arguments: [
+          raw: "",
+          expr: string,
+          raw: "::citext"
+        ]
+      },
+      bindings,
+      params,
+      embedded?,
+      type
+    )
   end
 
   defp filter_to_expr(other, _bindings, params, true, _type) do

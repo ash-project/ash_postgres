@@ -258,6 +258,70 @@ defmodule AshPostgres.FilterTest do
     end
   end
 
+  describe "case insensitive fields" do
+    test "it matches case insensitively" do
+      Post
+      |> Ash.Changeset.new(%{title: "match", category: "FoObAr"})
+      |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{category: "bazbuz"})
+      |> Api.create!()
+
+      assert [%{title: "match"}] =
+               Post
+               |> Ash.Query.filter(category == "fOoBaR")
+               |> Api.read!()
+    end
+  end
+
+  describe "contains/2" do
+    test "it works when it matches" do
+      Post
+      |> Ash.Changeset.new(%{title: "match"})
+      |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{title: "bazbuz"})
+      |> Api.create!()
+
+      assert [%{title: "match"}] =
+               Post
+               |> Ash.Query.filter(contains(title, "atc"))
+               |> Api.read!()
+    end
+
+    test "it works when a case insensitive string is provided as a value" do
+      Post
+      |> Ash.Changeset.new(%{title: "match"})
+      |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{title: "bazbuz"})
+      |> Api.create!()
+
+      assert [%{title: "match"}] =
+               Post
+               |> Ash.Query.filter(contains(title, ^%Ash.CiString{string: "ATC"}))
+               |> Api.read!()
+    end
+
+    test "it works on a case insensitive column" do
+      Post
+      |> Ash.Changeset.new(%{category: "match"})
+      |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{category: "bazbuz"})
+      |> Api.create!()
+
+      assert [%{category: %Ash.CiString{string: "match"}}] =
+               Post
+               |> Ash.Query.filter(contains(category, ^"ATC"))
+               |> Api.read!()
+    end
+  end
+
   describe "trigram_similarity" do
     test "it works on matches" do
       Post

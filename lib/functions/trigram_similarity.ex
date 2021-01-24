@@ -11,5 +11,5 @@ defmodule AshPostgres.Functions.TrigramSimilarity do
 
   use Ash.Query.Function, name: :trigram_similarity
 
-  def args, do: [:string, :string]
+  def args, do: [[:string, :string]]
 end
