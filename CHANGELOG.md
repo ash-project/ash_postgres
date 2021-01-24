@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.32.1](https://github.com/ash-project/ash_postgres/compare/v0.32.0...v0.32.1) (2021-01-24)
+
+
+
+
+### Bug Fixes:
+
+* `ago` was adding, not subtracting
+
 ## [v0.32.0](https://github.com/ash-project/ash_postgres/compare/v0.31.1...v0.32.0) (2021-01-24)
 
 
