@@ -4,18 +4,13 @@ defmodule AshPostgres.MultiTenancy do
   @dialyzer {:nowarn_function, load_migration!: 1}
 
   @tenant_name_regex ~r/^[a-zA-Z0-9_-]+$/
-  def create_tenant(tenant_name, repo) do
+  def create_tenant!(tenant_name, repo) do
     # This is done in a task, and manually cleaned up, because the
     # ecto migrator runs its migrations in async tasks, so we can't
     # be in a transaction while we do it
     Ecto.Adapters.SQL.query!(repo, "CREATE SCHEMA IF NOT EXISTS \"#{tenant_name}\"", [])
 
     migrate_tenant(tenant_name, repo)
-
-    :ok
-  rescue
-    exception ->
-      {:error, error_message(exception)}
   end
 
   def migrate_tenant(tenant_name, repo) do
@@ -91,13 +86,5 @@ defmodule AshPostgres.MultiTenancy do
     "priv/"
     |> Path.join(repo_name)
     |> Path.join("tenant_migrations")
-  end
-
-  defp error_message(msg) do
-    if Exception.exception?(msg) do
-      Exception.message(msg)
-    else
-      msg
-    end
   end
 end

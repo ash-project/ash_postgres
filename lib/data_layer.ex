@@ -89,7 +89,7 @@ defmodule AshPostgres.DataLayer do
         default: [],
         doc: """
         A list of unique index names that could raise errors, or an mfa to a function that takes a changeset
-        and returns a list of names.
+        and returns a list of names in the format `{[:affected, :keys], "name_of_constraint"}`
         """
       ],
       table: [
@@ -371,13 +371,9 @@ defmodule AshPostgres.DataLayer do
     |> handle_errors()
     |> case do
       {:ok, result} ->
-        case maybe_create_tenant(resource, result) do
-          :ok ->
-            {:ok, result}
+        maybe_create_tenant!(resource, result)
 
-          {:error, error} ->
-            {:error, error}
-        end
+        {:ok, result}
 
       {:error, error} ->
         {:error, error}
@@ -387,11 +383,11 @@ defmodule AshPostgres.DataLayer do
       {:error, e}
   end
 
-  defp maybe_create_tenant(resource, result) do
+  defp maybe_create_tenant!(resource, result) do
     if AshPostgres.manage_tenant_create?(resource) do
       tenant_name = tenant_name(resource, result)
 
-      AshPostgres.MultiTenancy.create_tenant(tenant_name, repo(resource))
+      AshPostgres.MultiTenancy.create_tenant!(tenant_name, repo(resource))
     else
       :ok
     end
@@ -443,26 +439,40 @@ defmodule AshPostgres.DataLayer do
   defp ecto_changeset(record, changeset) do
     record
     |> Ecto.Changeset.change(changeset.attributes)
-    |> add_unique_indexes(record.__struct__)
+    |> add_unique_indexes(record.__struct__, changeset.tenant)
   end
 
-  defp add_unique_indexes(changeset, resource) do
+  defp add_unique_indexes(changeset, resource, tenant) do
     changeset =
       resource
       |> Ash.Resource.identities()
       |> Enum.reduce(changeset, fn identity, changeset ->
-        name = "#{table(resource)}_#{identity.name}_unique_index"
+        name =
+          if tenant do
+            "#{tenant}_#{table(resource)}_#{identity.name}_unique_index"
+          else
+            "#{table(resource)}_#{identity.name}_unique_index"
+          end
 
-        Ecto.Changeset.unique_constraint(changeset, identity.keys, name: name)
+        opts =
+          if Map.get(identity, :message) do
+            [name: name, message: identity.message]
+          else
+            [name: name]
+          end
+
+        Ecto.Changeset.unique_constraint(changeset, identity.keys, opts)
       end)
 
     names =
       resource
       |> AshPostgres.unique_index_names()
       |> case do
-        {m, f, a} -> apply(m, f, [changeset | a])
+        {m, f, a} -> List.wrap(apply(m, f, [changeset | a]))
         value -> List.wrap(value)
       end
+
+    names = [{Ash.Resource.primary_key(resource), table(resource) <> "_pkey"} | names]
 
     Enum.reduce(names, changeset, fn {keys, name}, changeset ->
       Ecto.Changeset.unique_constraint(changeset, List.wrap(keys), name: name)
@@ -1254,50 +1264,56 @@ defmodule AshPostgres.DataLayer do
   # A false filter means "nothing"
   defp filter_to_expr(false, _, _, _, _), do: {[], false}
 
-  defp filter_to_expr(
+  defp filter_to_expr(expression, bindings, params, embedded?, type) do
+    do_filter_to_expr(expression, bindings, params, embedded?, type)
+  end
+
+  defp do_filter_to_expr(expr, bindings, params, embedded?, type \\ nil)
+
+  defp do_filter_to_expr(
          %BooleanExpression{op: op, left: left, right: right},
          bindings,
          params,
          embedded?,
          _type
        ) do
-    {params, left_expr} = filter_to_expr(left, bindings, params, embedded?)
-    {params, right_expr} = filter_to_expr(right, bindings, params, embedded?)
+    {params, left_expr} = do_filter_to_expr(left, bindings, params, embedded?)
+    {params, right_expr} = do_filter_to_expr(right, bindings, params, embedded?)
     {params, {op, [], [left_expr, right_expr]}}
   end
 
-  defp filter_to_expr(%Not{expression: expression}, bindings, params, embedded?, _type) do
-    {params, new_expression} = filter_to_expr(expression, bindings, params, embedded?)
+  defp do_filter_to_expr(%Not{expression: expression}, bindings, params, embedded?, _type) do
+    {params, new_expression} = do_filter_to_expr(expression, bindings, params, embedded?)
     {params, {:not, [], [new_expression]}}
   end
 
-  defp filter_to_expr(
+  defp do_filter_to_expr(
          %TrigramSimilarity{arguments: [arg1, arg2], embedded?: pred_embedded?},
          bindings,
          params,
          embedded?,
          _type
        ) do
-    {params, arg1} = filter_to_expr(arg1, bindings, params, pred_embedded? || embedded?)
-    {params, arg2} = filter_to_expr(arg2, bindings, params, pred_embedded? || embedded?)
+    {params, arg1} = do_filter_to_expr(arg1, bindings, params, pred_embedded? || embedded?)
+    {params, arg2} = do_filter_to_expr(arg2, bindings, params, pred_embedded? || embedded?)
 
     {params, {:fragment, [], [raw: "similarity(", expr: arg1, raw: ", ", expr: arg2, raw: ")"]}}
   end
 
-  defp filter_to_expr(
+  defp do_filter_to_expr(
          %Type{arguments: [arg1, arg2], embedded?: pred_embedded?},
          bindings,
          params,
          embedded?,
          _type
        ) do
-    {params, arg1} = filter_to_expr(arg1, bindings, params, pred_embedded? || embedded?)
-    {params, arg2} = filter_to_expr(arg2, bindings, params, pred_embedded? || embedded?)
+    {params, arg1} = do_filter_to_expr(arg1, bindings, params, pred_embedded? || embedded?)
+    {params, arg2} = do_filter_to_expr(arg2, bindings, params, pred_embedded? || embedded?)
 
     {params, {:type, [], [arg1, arg2]}}
   end
 
-  defp filter_to_expr(
+  defp do_filter_to_expr(
          %Fragment{arguments: arguments, embedded?: pred_embedded?},
          bindings,
          params,
@@ -1310,22 +1326,22 @@ defmodule AshPostgres.DataLayer do
           {params, fragment_data ++ [{:raw, str}]}
 
         {:expr, expr}, {params, fragment_data} ->
-          {params, expr} = filter_to_expr(expr, bindings, params, pred_embedded? || embedded?)
+          {params, expr} = do_filter_to_expr(expr, bindings, params, pred_embedded? || embedded?)
           {params, fragment_data ++ [{:expr, expr}]}
       end)
 
     {params, {:fragment, [], fragment_data}}
   end
 
-  defp filter_to_expr(
+  defp do_filter_to_expr(
          %IsNil{left: left, right: right, embedded?: pred_embedded?},
          bindings,
          params,
          embedded?,
          _type
        ) do
-    {params, left_expr} = filter_to_expr(left, bindings, params, pred_embedded? || embedded?)
-    {params, right_expr} = filter_to_expr(right, bindings, params, pred_embedded? || embedded?)
+    {params, left_expr} = do_filter_to_expr(left, bindings, params, pred_embedded? || embedded?)
+    {params, right_expr} = do_filter_to_expr(right, bindings, params, pred_embedded? || embedded?)
 
     {params,
      {:==, [],
@@ -1335,7 +1351,7 @@ defmodule AshPostgres.DataLayer do
       ]}}
   end
 
-  defp filter_to_expr(
+  defp do_filter_to_expr(
          %Ago{arguments: [left, right], embedded?: _pred_embedded?},
          _bindings,
          params,
@@ -1347,14 +1363,26 @@ defmodule AshPostgres.DataLayer do
      {:datetime_add, [], [{:^, [], [Enum.count(params)]}, left * -1, to_string(right)]}}
   end
 
-  defp filter_to_expr(
+  # defp do_filter_to_expr(
+  #        %In{left: [left, right], embedded?: _pred_embedded?},
+  #        _bindings,
+  #        params,
+  #        _embedded?,
+  #        _type
+  #      )
+  #      when is_integer(left) and (is_binary(right) or is_atom(right)) do
+  #   {params ++ [{DateTime.utc_now(), {:param, :any_datetime}}],
+  #    {:datetime_add, [], [{:^, [], [Enum.count(params)]}, left * -1, to_string(right)]}}
+  # end
+
+  defp do_filter_to_expr(
          %Contains{arguments: [left, %Ash.CiString{} = right], embedded?: pred_embedded?},
          bindings,
          params,
          embedded?,
          type
        ) do
-    filter_to_expr(
+    do_filter_to_expr(
       %Fragment{
         embedded?: pred_embedded?,
         arguments: [
@@ -1372,14 +1400,14 @@ defmodule AshPostgres.DataLayer do
     )
   end
 
-  defp filter_to_expr(
+  defp do_filter_to_expr(
          %Contains{arguments: [left, right], embedded?: pred_embedded?},
          bindings,
          params,
          embedded?,
          type
        ) do
-    filter_to_expr(
+    do_filter_to_expr(
       %Fragment{
         embedded?: pred_embedded?,
         arguments: [
@@ -1397,7 +1425,7 @@ defmodule AshPostgres.DataLayer do
     )
   end
 
-  defp filter_to_expr(
+  defp do_filter_to_expr(
          %mod{
            __predicate__?: _,
            left: left,
@@ -1413,7 +1441,7 @@ defmodule AshPostgres.DataLayer do
     {left_type, right_type} =
       case determine_type(mod, left) do
         nil ->
-          case determine_type(mod, right) do
+          case determine_type(mod, right, true) do
             nil ->
               {nil, nil}
 
@@ -1423,7 +1451,7 @@ defmodule AshPostgres.DataLayer do
 
         right_type ->
           if vague?(right_type) do
-            case determine_type(mod, right) do
+            case determine_type(mod, right, true) do
               nil ->
                 {nil, right_type}
 
@@ -1436,10 +1464,10 @@ defmodule AshPostgres.DataLayer do
       end
 
     {params, left_expr} =
-      filter_to_expr(left, bindings, params, pred_embedded? || embedded?, left_type)
+      do_filter_to_expr(left, bindings, params, pred_embedded? || embedded?, left_type)
 
     {params, right_expr} =
-      filter_to_expr(right, bindings, params, pred_embedded? || embedded?, right_type)
+      do_filter_to_expr(right, bindings, params, pred_embedded? || embedded?, right_type)
 
     {params,
      {op, [],
@@ -1449,7 +1477,7 @@ defmodule AshPostgres.DataLayer do
       ]}}
   end
 
-  defp filter_to_expr(
+  defp do_filter_to_expr(
          %Ref{attribute: %{name: name}} = ref,
          bindings,
          params,
@@ -1459,12 +1487,12 @@ defmodule AshPostgres.DataLayer do
     {params, {{:., [], [{:&, [], [ref_binding(ref, bindings)]}, name]}, [], []}}
   end
 
-  defp filter_to_expr({:embed, other}, _bindings, params, _true, _type) do
+  defp do_filter_to_expr({:embed, other}, _bindings, params, _true, _type) do
     {params, other}
   end
 
-  defp filter_to_expr(%Ash.CiString{string: string}, bindings, params, embedded?, type) do
-    filter_to_expr(
+  defp do_filter_to_expr(%Ash.CiString{string: string}, bindings, params, embedded?, type) do
+    do_filter_to_expr(
       %Fragment{
         embedded?: embedded?,
         arguments: [
@@ -1480,11 +1508,15 @@ defmodule AshPostgres.DataLayer do
     )
   end
 
-  defp filter_to_expr(other, _bindings, params, true, _type) do
+  defp do_filter_to_expr(%MapSet{} = mapset, bindings, params, embedded?, type) do
+    do_filter_to_expr(Enum.to_list(mapset), bindings, params, embedded?, type)
+  end
+
+  defp do_filter_to_expr(other, _bindings, params, true, _type) do
     {params, other}
   end
 
-  defp filter_to_expr(value, _bindings, params, false, type) do
+  defp do_filter_to_expr(value, _bindings, params, false, type) do
     type = type || :any
     value = last_ditch_cast(value, type)
 
@@ -1499,53 +1531,72 @@ defmodule AshPostgres.DataLayer do
     value
   end
 
-  defp determine_type(mod, %Ref{attribute: %{type: type}}) do
-    mod.types
-    |> Enum.flat_map(fn
-      :any ->
-        []
+  defp determine_type(mod, ref, flip? \\ false)
 
-      :same ->
-        [type]
+  defp determine_type(mod, %Ref{attribute: %{type: type}}, flip?) do
+    Enum.find_value(mod.types(), fn types ->
+      types =
+        case types do
+          :same ->
+            [type]
 
-      {:array, :any} ->
-        [{:in, :any}]
+          :any ->
+            []
 
-      {:array, :same} ->
-        [{:in, type}]
+          other when is_list(other) ->
+            other =
+              if flip? do
+                Enum.reverse(other)
+              else
+                other
+              end
 
-      {:array, type} ->
-        [{:in, type}]
+            Enum.map(other, fn
+              {:array, :any} ->
+                {:in, :any}
 
-      type ->
-        [type]
+              {:array, :same} ->
+                {:in, type}
+
+              {:array, type} ->
+                {:in, type}
+
+              type ->
+                type
+            end)
+
+          other ->
+            [other]
+        end
+
+      types
+      |> Enum.sort_by(&vague?/1)
+      |> Enum.at(0)
+      |> case do
+        nil ->
+          nil
+
+        {:in, :any} ->
+          {:in, :any}
+
+        {:in, type} ->
+          if Ash.Type.ash_type?(type) do
+            {:in, Ash.Type.storage_type(type)}
+          else
+            {:in, type}
+          end
+
+        type ->
+          if Ash.Type.ash_type?(type) do
+            Ash.Type.storage_type(type)
+          else
+            type
+          end
+      end
     end)
-    |> Enum.sort_by(&vague?/1)
-    |> Enum.at(0)
-    |> case do
-      nil ->
-        nil
-
-      {:in, :any} ->
-        {:in, :any}
-
-      {:in, type} ->
-        if Ash.Type.ash_type?(type) do
-          Ash.Type.storage_type(type)
-        else
-          type
-        end
-
-      type ->
-        if Ash.Type.ash_type?(type) do
-          Ash.Type.storage_type(type)
-        else
-          type
-        end
-    end
   end
 
-  defp determine_type(_mod, _), do: nil
+  defp determine_type(_mod, _, _), do: nil
 
   defp vague?({:in, :any}), do: true
   defp vague?(:any), do: true

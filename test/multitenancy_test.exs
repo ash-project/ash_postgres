@@ -78,4 +78,21 @@ defmodule AshPostgres.Test.MultitenancyTest do
                """
              )
   end
+
+  test "unique constraints are properly scoped", %{org1: org1} do
+    post =
+      Post
+      |> Ash.Changeset.new(%{})
+      |> Ash.Changeset.set_tenant(tenant(org1))
+      |> Api.create!()
+
+    assert_raise Ash.Error.Invalid,
+                 ~r/Invalid value provided for id: has already been taken/,
+                 fn ->
+                   Post
+                   |> Ash.Changeset.new(%{id: post.id})
+                   |> Ash.Changeset.set_tenant(tenant(org1))
+                   |> Api.create!()
+                 end
+  end
 end

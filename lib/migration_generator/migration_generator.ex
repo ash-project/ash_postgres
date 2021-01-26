@@ -1180,6 +1180,7 @@ defmodule AshPostgres.MigrationGenerator do
     end)
   end
 
+  defp migration_type({:array, type}), do: {:array, migration_type(type)}
   defp migration_type(Ash.Type.CiString), do: :citext
   defp migration_type(other), do: migration_type_from_storage_type(Ash.Type.storage_type(other))
   defp migration_type_from_storage_type(:string), do: :text
@@ -1255,7 +1256,21 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp snapshot_to_binary(snapshot) do
-    Jason.encode!(snapshot, pretty: true)
+    snapshot
+    |> Map.update!(:attributes, fn attributes ->
+      Enum.map(attributes, fn attribute ->
+        %{attribute | type: sanitize_type(attribute.type)}
+      end)
+    end)
+    |> Jason.encode!(pretty: true)
+  end
+
+  defp sanitize_type({:array, type}) do
+    ["array", type]
+  end
+
+  defp sanitize_type(type) do
+    type
   end
 
   defp load_snapshot(json) do
@@ -1284,7 +1299,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp load_attribute(attribute) do
     attribute
-    |> Map.update!(:type, &String.to_atom/1)
+    |> Map.update!(:type, &load_type/1)
     |> Map.update!(:name, &String.to_atom/1)
     |> Map.put_new(:default, "nil")
     |> Map.update!(:default, &(&1 || "nil"))
@@ -1302,6 +1317,14 @@ defmodule AshPostgres.MigrationGenerator do
         })
         |> Map.update!(:multitenancy, &load_multitenancy/1)
     end)
+  end
+
+  defp load_type(["array", type]) do
+    {:array, load_type(type)}
+  end
+
+  defp load_type(type) do
+    String.to_atom(type)
   end
 
   defp load_identity(identity) do

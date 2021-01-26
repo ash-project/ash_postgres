@@ -258,13 +258,29 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       }: :#{destination_attribute}])"
     end
 
-    defp reference(_, %{
-           type: type,
-           references: %{
-             table: table,
-             destination_field: destination_field
+    defp reference(
+           %{strategy: :context},
+           %{
+             type: type,
+             references: %{
+               table: table,
+               destination_field: destination_field
+             }
            }
-         }) do
+         ) do
+      "references(#{inspect(table)}, type: #{inspect(type)}, column: #{inspect(destination_field)}, prefix: \"public\")"
+    end
+
+    defp reference(
+           _,
+           %{
+             type: type,
+             references: %{
+               table: table,
+               destination_field: destination_field
+             }
+           }
+         ) do
       "references(#{inspect(table)}, type: #{inspect(type)}, column: #{inspect(destination_field)})"
     end
 

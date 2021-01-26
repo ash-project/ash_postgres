@@ -14,7 +14,7 @@ defmodule AshPostgres.Test.Post do
   end
 
   attributes do
-    uuid_primary_key(:id)
+    uuid_primary_key(:id, writable?: true)
     attribute(:title, :string)
     attribute(:score, :integer)
     attribute(:public, :boolean)

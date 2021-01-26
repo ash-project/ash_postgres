@@ -117,6 +117,28 @@ defmodule AshPostgres.FilterTest do
     end
   end
 
+  describe "in" do
+    test "it properly filters" do
+      Post
+      |> Ash.Changeset.new(%{title: "title"})
+      |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{title: "title1"})
+      |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{title: "title2"})
+      |> Api.create!()
+
+      assert [%Post{title: "title1"}, %Post{title: "title2"}] =
+               Post
+               |> Ash.Query.filter(title in ["title1", "title2"])
+               |> Ash.Query.sort(title: :asc)
+               |> Api.read!()
+    end
+  end
+
   describe "with a boolean filter applied" do
     test "with no data" do
       results =
