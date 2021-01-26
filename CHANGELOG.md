@@ -5,6 +5,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.32.2](https://github.com/ash-project/ash_postgres/compare/v0.32.1...v0.32.2) (2021-01-26)
+
+
+
+
+### Bug Fixes:
+
+* un-break the `in` filter type casting code
+
+### Improvements:
+
+* better errors for multitenant unique constraints
+
 ## [v0.32.1](https://github.com/ash-project/ash_postgres/compare/v0.32.0...v0.32.1) (2021-01-24)
 
 
