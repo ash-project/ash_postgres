@@ -58,7 +58,8 @@ defmodule AshPostgres.MixProject do
       ],
       groups_for_extras: [
         guides: [
-          "documentation/multitenancy.md"
+          "documentation/multitenancy.md",
+          "documentation/migrations_and_tasks.md"
         ]
       ],
       groups_for_modules: [
