@@ -44,6 +44,8 @@ defmodule AshPostgres.MultiTenancy do
         all: true,
         prefix: tenant_name
       )
+
+      Ecto.Migration.SchemaMigration.up(repo, repo.config(), version, tenant_name)
     end)
   after
     Code.compiler_options(ignore_module_conflict: false)
