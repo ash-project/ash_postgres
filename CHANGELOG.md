@@ -5,6 +5,25 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.33.0](https://github.com/ash-project/ash_postgres/compare/v0.32.2...v0.33.0) (2021-01-27)
+
+
+
+
+### Features:
+
+* add `mix ash_postgres.create`
+
+* add `mix ash_postgres.migrate`
+
+* add `mix ash_postgres.migrate --tenants`
+
+* add `mix ash_postgres.drop`
+
+### Bug Fixes:
+
+* rework the way multitenant migrations work
+
 ## [v0.32.2](https://github.com/ash-project/ash_postgres/compare/v0.32.1...v0.32.2) (2021-01-26)
 
 
