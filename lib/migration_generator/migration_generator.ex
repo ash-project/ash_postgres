@@ -166,6 +166,8 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp merge_attributes(attributes, table) do
     attributes
+    |> Enum.with_index()
+    |> Enum.map(fn {attr, i} -> Map.put(attr, :order, i) end)
     |> Enum.group_by(& &1.name)
     |> Enum.map(fn
       {_name, [attribute]} ->
@@ -181,6 +183,7 @@ defmodule AshPostgres.MigrationGenerator do
           primary_key?: false
         }
     end)
+    |> Enum.sort(&(&1.order <= &2.order))
   end
 
   defp merge_references(references, name, table) do
@@ -780,6 +783,12 @@ defmodule AshPostgres.MigrationGenerator do
   defp after?(%Operation.AlterAttribute{new_attribute: %{references: references}}, _)
        when not is_nil(references),
        do: true
+
+  defp after?(
+         %Operation.AddAttribute{attribute: %{order: l}},
+         %Operation.AddAttribute{attribute: %{order: r}}
+       ),
+       do: l > r
 
   defp after?(_, _), do: false
 
