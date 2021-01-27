@@ -355,42 +355,6 @@ defmodule AshPostgres.MigrationGenerator do
         Module.concat([repo, Migrations, Macro.camelize("migrate_resources#{count}")])
       end
 
-    up =
-      if tenant? do
-        """
-        tenants =
-          if prefix() do
-            [prefix()]
-          else
-            repo().all_tenants()
-          end
-
-        for prefix <- tenants do
-          #{up}
-        end
-        """
-      else
-        up
-      end
-
-    down =
-      if tenant? do
-        """
-        tenants =
-          if prefix() do
-            [prefix()]
-          else
-            repo().all_tenants()
-          end
-
-        for prefix <- tenants do
-          #{down}
-        end
-        """
-      else
-        down
-      end
-
     contents = """
     defmodule #{inspect(module_name)} do
       @moduledoc \"\"\"

@@ -7,7 +7,7 @@ defmodule AshPostgres.MigrationGenerator.Phase do
 
     def up(%{table: table, operations: operations, multitenancy: multitenancy}) do
       if multitenancy.strategy == :context do
-        "create table(:#{table}, primary_key: false, prefix: prefix) do\n" <>
+        "create table(:#{table}, primary_key: false, prefix: prefix()) do\n" <>
           Enum.map_join(operations, "\n", fn operation -> operation.__struct__.up(operation) end) <>
           "\nend"
       else
@@ -19,7 +19,7 @@ defmodule AshPostgres.MigrationGenerator.Phase do
 
     def down(%{table: table, multitenancy: multitenancy}) do
       if multitenancy.strategy == :context do
-        "drop table(#{inspect(table)}, prefix: prefix)"
+        "drop table(#{inspect(table)}, prefix: prefix())"
       else
         "drop table(#{inspect(table)})"
       end
@@ -35,7 +35,7 @@ defmodule AshPostgres.MigrationGenerator.Phase do
         Enum.map_join(operations, "\n", fn operation -> operation.__struct__.up(operation) end)
 
       if multitenancy.strategy == :context do
-        "alter table(:#{table}, prefix: prefix) do\n" <>
+        "alter table(:#{table}, prefix: prefix()) do\n" <>
           body <>
           "\nend"
       else
@@ -52,7 +52,7 @@ defmodule AshPostgres.MigrationGenerator.Phase do
         |> Enum.map_join("\n", fn operation -> operation.__struct__.down(operation) end)
 
       if multitenancy.strategy == :context do
-        "alter table(:#{table}, prefix: prefix) do\n" <>
+        "alter table(:#{table}, prefix: prefix()) do\n" <>
           body <>
           "\nend"
       else

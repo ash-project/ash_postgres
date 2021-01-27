@@ -75,7 +75,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         [
           "type: #{inspect(attribute.type)}",
           "column: #{inspect(destination_field)}",
-          "name: \"\#\{prefix\}_#{table}_#{attribute.name}_fkey\"",
+          "name: \"\#\{prefix()\}_#{table}_#{attribute.name}_fkey\"",
           "prefix: \"public\""
         ],
         ")",
@@ -122,7 +122,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         [
           "type: #{inspect(attribute.type)}",
           "column: #{inspect(destination_field)}",
-          "name: \"\#\{prefix\}_#{table}_#{attribute.name}_fkey\""
+          "name: \"\#\{prefix()\}_#{table}_#{attribute.name}_fkey\""
         ],
         ")",
         maybe_add_default(attribute.default),
@@ -240,7 +240,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
              destination_field: destination_field
            }
          }) do
-      "references(#{inspect(table)}, type: #{inspect(type)}, column: #{inspect(destination_field)}, name: \"\#\{prefix\}_#{
+      "references(#{inspect(table)}, type: #{inspect(type)}, column: #{inspect(destination_field)}, name: \"\#\{prefix()\}_#{
         table
       }_#{name}_fkey\")"
     end
@@ -268,7 +268,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
              }
            }
          ) do
-      "references(#{inspect(table)}, type: #{inspect(type)}, column: #{inspect(destination_field)}, prefix: \"public\")"
+      "references(#{inspect(table)}, type: #{inspect(type)}, column: #{inspect(destination_field)}, prefix(): \"public\")"
     end
 
     defp reference(
@@ -304,7 +304,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def up(%{attribute: attribute, table: table, multitenancy: multitenancy, direction: :up}) do
       if multitenancy && multitenancy.strategy == :context do
-        "drop constraint(:#{table}, \"\#\{prefix\}_#{table}_#{attribute.name}_fkey\")"
+        "drop constraint(:#{table}, \"\#\{prefix()\}_#{table}_#{attribute.name}_fkey\")"
       else
         "drop constraint(:#{table}, \"#{table}_#{attribute.name}_fkey\")"
       end
@@ -314,7 +314,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def down(%{attribute: attribute, table: table, multitenancy: multitenancy, direction: :down}) do
       if multitenancy && multitenancy.strategy == :context do
-        "drop constraint(:#{table}, \"\#\{prefix\}_#{table}_#{attribute.name}_fkey\")"
+        "drop constraint(:#{table}, \"\#\{prefix()\}_#{table}_#{attribute.name}_fkey\")"
       else
         "drop constraint(:#{table}, \"#{table}_#{attribute.name}_fkey\")"
       end
@@ -402,7 +402,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       {name_prefix, keys} =
         case multitenancy.strategy do
           :context ->
-            {"\#\{prefix\}_", keys}
+            {"\#\{prefix()\}_", keys}
 
           :attribute ->
             {"", [multitenancy.attribute | keys]}
@@ -430,7 +430,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       {name_prefix, keys} =
         case multitenancy.strategy do
           :context ->
-            {"\#\{prefix\}_", keys}
+            {"\#\{prefix()\}_", keys}
 
           :attribute ->
             {"", [multitenancy.attribute | keys]}
@@ -453,7 +453,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       {name_prefix, keys} =
         case multitenancy.strategy do
           :context ->
-            {"\#\{prefix\}_", keys}
+            {"\#\{prefix()\}_", keys}
 
           :attribute ->
             {"", [multitenancy.attribute | keys]}
@@ -475,7 +475,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       {name_prefix, keys} =
         case multitenancy.strategy do
           :context ->
-            {"\#\{prefix\}_", keys}
+            {"\#\{prefix()\}_", keys}
 
           :attribute ->
             {"", [multitenancy.attribute | keys]}

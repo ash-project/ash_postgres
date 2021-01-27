@@ -13,11 +13,18 @@ defmodule AshPostgres.MultiTenancy do
     migrate_tenant(tenant_name, repo)
   end
 
-  def migrate_tenant(tenant_name, repo) do
+  def migrate_tenant(tenant_name, repo, migrations_path \\ nil) do
     tenant_migrations_path =
-      repo.config()[:tenant_migrations_path] || default_tenant_migration_path(repo)
+      migrations_path ||
+        repo.config()[:tenant_migrations_path] || default_tenant_migration_path(repo)
 
     Code.compiler_options(ignore_module_conflict: true)
+
+    Ecto.Migration.SchemaMigration.ensure_schema_migrations_table!(
+      repo,
+      repo.config(),
+      prefix: tenant_name
+    )
 
     [tenant_migrations_path, "**", "*.exs"]
     |> Path.join()
