@@ -1,4 +1,5 @@
 defmodule AshPostgres.TestApp do
+  @moduledoc false
   def start(_type, _args) do
     children = [
       AshPostgres.TestRepo
