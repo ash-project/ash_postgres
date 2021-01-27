@@ -1122,7 +1122,6 @@ defmodule AshPostgres.MigrationGenerator do
 
     resource
     |> Ash.Resource.attributes()
-    |> Enum.sort_by(& &1.name)
     |> Enum.map(&Map.take(&1, [:name, :type, :default, :allow_nil?, :generated?, :primary_key?]))
     |> Enum.map(fn attribute ->
       default = default(attribute, repo)
