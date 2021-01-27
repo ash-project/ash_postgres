@@ -26,12 +26,19 @@ defmodule AshPostgres.MixProject do
         plt_add_apps: [:ecto, :ash, :mix]
       ],
       docs: docs(),
+      env: application(Mix.env()),
       aliases: aliases(),
       package: package(),
       source_url: "https://github.com/ash-project/ash_postgres",
       homepage_url: "https://github.com/ash-project/ash_postgres"
     ]
   end
+
+  def application(:test) do
+    [applications: [], mod: {AshPostgres, []}]
+  end
+
+  def application(_), do: nil
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
