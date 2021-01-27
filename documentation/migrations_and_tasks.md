@@ -4,6 +4,7 @@
 
 The available tasks are:
 
+* `mix ash_postgres.generate_migrations`
 * `mix ash_postgres.create`
 * `mix ash_postgres.drop`
 * `mix ash_postgres.migrate` (use `mix ash_postgres.migrate --tenants` to run tenant migrations)
