@@ -93,8 +93,8 @@ jobs:
           key: otp-${{matrix.otp}}-elixir-${{matrix.elixir}}-deps-2-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
           restore-keys: otp-${{matrix.otp}}-elixir-${{matrix.elixir}}-deps-2-
       - run: mix deps.get
-      - run: MIX_ENV=test mix ecto.create
-      - run: MIX_ENV=test mix ecto.migrate
+      - run: MIX_ENV=test mix ecto.create --apis AshPostgres.Test.Api,AshPostgres.MultitenancyTest.Api
+      - run: MIX_ENV=test mix ecto.migrate --apis AshPostgres.Test.Api,AshPostgres.MultitenancyTest.Api
       - run: mix coveralls.github
   release:
     runs-on: ubuntu-latest
