@@ -52,9 +52,9 @@ jobs:
           key: otp-${{matrix.otp}}-elixir-${{matrix.elixir}}-build-2-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
           restore-keys: otp-${{matrix.otp}}-elixir-${{matrix.elixir}}-build-2
       - run: mix deps.get
-      - run: MIX_ENV=test mix ash_postgres.create
-      - run: MIX_ENV=test mix ash_postgres.migrate
-      - run: MIX_ENV=test mix ash_postgres.migrate --tenants
+      - run: MIX_ENV=test mix ash_postgres.create --apis AshPostgres.Test.Api,AshPostgres.MultitenancyTest.Api
+      - run: MIX_ENV=test mix ash_postgres.migrate --apis AshPostgres.Test.Api,AshPostgres.MultitenancyTest.Api
+      - run: MIX_ENV=test mix ash_postgres.migrate --tenants --apis AshPostgres.Test.Api,AshPostgres.MultitenancyTest.Api
       - run: mix check --except dialyzer
         if: startsWith(github.ref, 'refs/tags/v')
       - run: mix check
@@ -93,8 +93,9 @@ jobs:
           key: otp-${{matrix.otp}}-elixir-${{matrix.elixir}}-deps-2-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
           restore-keys: otp-${{matrix.otp}}-elixir-${{matrix.elixir}}-deps-2-
       - run: mix deps.get
-      - run: MIX_ENV=test mix ecto.create --apis AshPostgres.Test.Api,AshPostgres.MultitenancyTest.Api
-      - run: MIX_ENV=test mix ecto.migrate --apis AshPostgres.Test.Api,AshPostgres.MultitenancyTest.Api
+      - run: MIX_ENV=test mix ash_postgres.create --apis AshPostgres.Test.Api,AshPostgres.MultitenancyTest.Api
+      - run: MIX_ENV=test mix ash_postgres.migrate --apis AshPostgres.Test.Api,AshPostgres.MultitenancyTest.Api
+      - run: MIX_ENV=test mix ash_postgres.migrate --tenants --apis AshPostgres.Test.Api,AshPostgres.MultitenancyTest.Api
       - run: mix coveralls.github
   release:
     runs-on: ubuntu-latest
