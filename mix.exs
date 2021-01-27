@@ -53,6 +53,7 @@ defmodule AshPostgres.MixProject do
       logo: "logos/small-logo.png",
       extras: [
         "README.md",
+        "documentation/migrations_and_tasks.md",
         "documentation/multitenancy.md"
       ],
       groups_for_extras: [
