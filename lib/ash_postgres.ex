@@ -19,6 +19,11 @@ defmodule AshPostgres do
     Extension.get_opt(resource, [:postgres], :table, nil, true)
   end
 
+  @doc "The configured polymorphic? for a resource"
+  def polymorphic?(resource) do
+    Extension.get_opt(resource, [:postgres], :polymorphic?, nil, true)
+  end
+
   @doc "The configured unique_index_names"
   def unique_index_names(resource) do
     Extension.get_opt(resource, [:postgres], :unique_index_names, [], true)

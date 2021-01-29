@@ -20,5 +20,10 @@ defmodule AshPostgres.Test.Comment do
 
   relationships do
     belongs_to(:post, AshPostgres.Test.Post)
+
+    has_many(:ratings, AshPostgres.Test.Rating,
+      destination_field: :resource_id,
+      context: %{data_layer: %{table: "comment_ratings"}}
+    )
   end
 end

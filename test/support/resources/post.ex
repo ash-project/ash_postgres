@@ -23,6 +23,11 @@ defmodule AshPostgres.Test.Post do
 
   relationships do
     has_many(:comments, AshPostgres.Test.Comment, destination_field: :post_id)
+
+    has_many(:ratings, AshPostgres.Test.Rating,
+      destination_field: :resource_id,
+      context: %{data_layer: %{table: "post_ratings"}}
+    )
   end
 
   aggregates do

@@ -94,8 +94,29 @@ defmodule AshPostgres.DataLayer do
       ],
       table: [
         type: :string,
-        required: true,
-        doc: "The table to store and read the resource from"
+        doc:
+          "The table to store and read the resource from. Required unless `polymorphic?` is true."
+      ],
+      polymorphic?: [
+        type: :boolean,
+        default: false,
+        doc: """
+        Declares this resource as polymorphic.
+
+        Polymorphic resources cannot be read or updated unless the table is provided in the query/changeset context.
+
+        For example:
+
+            PolymorphicResource
+            |> Ash.Query.set_context(%{data_layer: %{table: "table"}})
+            |> MyApi.read!()
+
+        When relating to polymorphic resources, you'll need to use the `context` option on relationships,
+        e.g
+
+            belongs_to :polymorphic_association, PolymorphicResource,
+              context: %{data_layer: %{table: "table"}}
+        """
       ]
     ]
   }
@@ -125,7 +146,10 @@ defmodule AshPostgres.DataLayer do
 
   use Ash.Dsl.Extension,
     sections: @sections,
-    transformers: [AshPostgres.Transformers.VerifyRepo]
+    transformers: [
+      AshPostgres.Transformers.VerifyRepo,
+      AshPostgres.Transformers.EnsureTableOrPolymorphic
+    ]
 
   @doc false
   def tenant_template(value) do
@@ -202,7 +226,20 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def source(resource) do
-    table(resource)
+    table(resource) || ""
+  end
+
+  @impl true
+  def set_context(resource, data_layer_query, context) do
+    if context[:data_layer][:table] && AshPostgres.polymorphic?(resource) do
+      {:ok,
+       %{
+         data_layer_query
+         | from: %{data_layer_query.from | source: {context[:data_layer][:table], resource}}
+       }}
+    else
+      {:ok, data_layer_query}
+    end
   end
 
   @impl true
@@ -360,7 +397,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def resource_to_query(resource, _),
-    do: Ecto.Queryable.to_query({table(resource), resource})
+    do: Ecto.Queryable.to_query({table(resource) || "", resource})
 
   @impl true
   def create(resource, changeset) do
@@ -438,8 +475,26 @@ defmodule AshPostgres.DataLayer do
 
   defp ecto_changeset(record, changeset) do
     record
+    |> set_table(changeset)
     |> Ecto.Changeset.change(changeset.attributes)
     |> add_unique_indexes(record.__struct__, changeset.tenant)
+  end
+
+  defp set_table(record, changeset) do
+    if AshPostgres.polymorphic?(record.__struct__) do
+      table = changeset.context[:data_layer][:table] || AshPostgres.table(record.__struct)
+
+      if table do
+        Ecto.put_meta(record, source: table)
+      else
+        raise """
+        Attempted to change a polymorphic resource without setting the `table` context,
+        and without a default table configured on the resource.
+        """
+      end
+    else
+      record
+    end
   end
 
   defp add_unique_indexes(changeset, resource, tenant) do
