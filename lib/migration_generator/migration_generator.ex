@@ -31,12 +31,13 @@ defmodule AshPostgres.MigrationGenerator do
           opts
       end
 
+    all_resources = Enum.flat_map(apis, &Ash.Api.resources/1)
+
     {tenant_snapshots, snapshots} =
-      apis
-      |> Enum.flat_map(&Ash.Api.resources/1)
+      all_resources
       |> Enum.filter(&(Ash.Resource.data_layer(&1) == AshPostgres.DataLayer))
       |> Enum.filter(&AshPostgres.migrate?/1)
-      |> Enum.map(&get_snapshot/1)
+      |> Enum.flat_map(&get_snapshots(&1, all_resources))
       |> Enum.split_with(&(&1.multitenancy.strategy == :context))
 
     tenant_snapshots_to_include_in_global =
@@ -56,10 +57,12 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.each(fn {repo, snapshots} ->
       deduped = deduplicate_snapshots(snapshots, opts)
 
-      snapshots = Enum.map(deduped, &elem(&1, 0))
+      snapshots_with_operations = fetch_operations(deduped, opts)
 
-      deduped
-      |> fetch_operations(opts)
+      snapshots = Enum.map(snapshots_with_operations, &elem(&1, 0))
+
+      snapshots_with_operations
+      |> Enum.flat_map(&elem(&1, 1))
       |> Enum.uniq()
       |> case do
         [] ->
@@ -784,8 +787,12 @@ defmodule AshPostgres.MigrationGenerator do
   defp after?(_, _), do: false
 
   defp fetch_operations(snapshots, opts) do
-    Enum.flat_map(snapshots, fn {snapshot, existing_snapshot} ->
-      do_fetch_operations(snapshot, existing_snapshot, opts)
+    snapshots
+    |> Enum.map(fn {snapshot, existing_snapshot} ->
+      {snapshot, do_fetch_operations(snapshot, existing_snapshot, opts)}
+    end)
+    |> Enum.reject(fn {_, ops} ->
+      Enum.empty?(ops)
     end)
   end
 
@@ -1078,11 +1085,39 @@ defmodule AshPostgres.MigrationGenerator do
   defp pad(i) when i < 10, do: <<?0, ?0 + i>>
   defp pad(i), do: to_string(i)
 
-  def get_snapshot(resource) do
+  def get_snapshots(resource, all_resources) do
+    if AshPostgres.polymorphic?(resource) do
+      all_resources
+      |> Enum.flat_map(&Ash.Resource.relationships/1)
+      |> Enum.filter(&(&1.destination == resource))
+      |> Enum.filter(& &1.context[:data_layer][:table])
+      |> Enum.map(fn relationship ->
+        resource
+        |> do_snapshot(relationship.context[:data_layer][:table])
+        |> Map.update!(:attributes, fn attributes ->
+          Enum.map(attributes, fn attribute ->
+            if attribute.name == relationship.destination_field do
+              Map.put(attribute, :references, %{
+                destination_field: relationship.source_field,
+                multitenancy: multitenancy(relationship.source),
+                table: AshPostgres.table(relationship.source)
+              })
+            else
+              attribute
+            end
+          end)
+        end)
+      end)
+    else
+      [do_snapshot(resource)]
+    end
+  end
+
+  defp do_snapshot(resource, table \\ nil) do
     snapshot = %{
       attributes: attributes(resource),
       identities: identities(resource),
-      table: AshPostgres.table(resource),
+      table: table || AshPostgres.table(resource),
       repo: AshPostgres.repo(resource),
       multitenancy: multitenancy(resource),
       base_filter: AshPostgres.base_filter_sql(resource)
