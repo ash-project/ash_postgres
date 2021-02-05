@@ -10,7 +10,12 @@ defmodule AshPostgres.Test.Post do
 
   actions do
     read(:read)
-    create(:create)
+
+    create :create do
+      argument(:rating, :map)
+
+      change(manage_relationship(:rating, :ratings, on_destroy: :ignore, on_update: :create))
+    end
   end
 
   attributes do

@@ -12,9 +12,9 @@ defmodule AshPostgres.Test.Comment do
     read(:read)
 
     create :create do
-      reject [:ratings] # Disallow editing of the relationship itself
+      argument(:rating, :map)
 
-      manage_related :ratings, :append # Now `ratings` can be used as an argument
+      change(manage_relationship(:rating, :ratings, on_destroy: :ignore, on_update: :create))
     end
   end
 

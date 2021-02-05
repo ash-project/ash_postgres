@@ -129,7 +129,7 @@ defmodule AshPostgres.DataLayer do
 
   alias AshPostgres.Functions.{Fragment, TrigramSimilarity, Type}
 
-  import AshPostgres, only: [table: 1, repo: 1]
+  import AshPostgres, only: [repo: 1]
 
   @behaviour Ash.DataLayer
 
@@ -226,12 +226,12 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def source(resource) do
-    table(resource) || ""
+    AshPostgres.table(resource) || ""
   end
 
   @impl true
   def set_context(resource, data_layer_query, context) do
-    if context[:data_layer][:table] && AshPostgres.polymorphic?(resource) do
+    if context[:data_layer][:table] do
       {:ok,
        %{
          data_layer_query
@@ -397,12 +397,12 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def resource_to_query(resource, _),
-    do: Ecto.Queryable.to_query({table(resource) || "", resource})
+    do: Ecto.Queryable.to_query({AshPostgres.table(resource) || "", resource})
 
   @impl true
   def create(resource, changeset) do
     changeset.data
-    |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource)))
+    |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
     |> ecto_changeset(changeset)
     |> repo(resource).insert(repo_opts(changeset))
     |> handle_errors()
@@ -415,9 +415,6 @@ defmodule AshPostgres.DataLayer do
       {:error, error} ->
         {:error, error}
     end
-  rescue
-    e ->
-      {:error, e}
   end
 
   defp maybe_create_tenant!(resource, result) do
@@ -477,7 +474,7 @@ defmodule AshPostgres.DataLayer do
     record
     |> set_table(changeset)
     |> Ecto.Changeset.change(changeset.attributes)
-    |> add_unique_indexes(record.__struct__, changeset.tenant)
+    |> add_unique_indexes(record.__struct__, changeset.tenant, changeset)
   end
 
   defp set_table(record, changeset) do
@@ -497,16 +494,16 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp add_unique_indexes(changeset, resource, tenant) do
+  defp add_unique_indexes(changeset, resource, tenant, ash_changeset) do
     changeset =
       resource
       |> Ash.Resource.identities()
       |> Enum.reduce(changeset, fn identity, changeset ->
         name =
           if tenant do
-            "#{tenant}_#{table(resource)}_#{identity.name}_unique_index"
+            "#{tenant}_#{table(resource, ash_changeset)}_#{identity.name}_unique_index"
           else
-            "#{table(resource)}_#{identity.name}_unique_index"
+            "#{table(resource, ash_changeset)}_#{identity.name}_unique_index"
           end
 
         opts =
@@ -527,7 +524,9 @@ defmodule AshPostgres.DataLayer do
         value -> List.wrap(value)
       end
 
-    names = [{Ash.Resource.primary_key(resource), table(resource) <> "_pkey"} | names]
+    names = [
+      {Ash.Resource.primary_key(resource), table(resource, ash_changeset) <> "_pkey"} | names
+    ]
 
     Enum.reduce(names, changeset, fn {keys, name}, changeset ->
       Ecto.Changeset.unique_constraint(changeset, List.wrap(keys), name: name)
@@ -546,20 +545,17 @@ defmodule AshPostgres.DataLayer do
       {:error, "Cannot currently upsert a resource that owns a tenant"}
     else
       changeset.data
-      |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource)))
+      |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
       |> ecto_changeset(changeset)
       |> repo(resource).insert(repo_opts)
       |> handle_errors()
     end
-  rescue
-    e ->
-      {:error, e}
   end
 
   @impl true
   def update(resource, changeset) do
     changeset.data
-    |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource)))
+    |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
     |> ecto_changeset(changeset)
     |> repo(resource).update(repo_opts(changeset))
     |> handle_errors()
@@ -572,9 +568,6 @@ defmodule AshPostgres.DataLayer do
       {:error, error} ->
         {:error, error}
     end
-  rescue
-    e ->
-      {:error, e}
   end
 
   @impl true
@@ -586,9 +579,6 @@ defmodule AshPostgres.DataLayer do
       {:error, error} ->
         handle_errors({:error, error})
     end
-  rescue
-    e ->
-      {:error, e}
   end
 
   @impl true
@@ -1418,18 +1408,6 @@ defmodule AshPostgres.DataLayer do
      {:datetime_add, [], [{:^, [], [Enum.count(params)]}, left * -1, to_string(right)]}}
   end
 
-  # defp do_filter_to_expr(
-  #        %In{left: [left, right], embedded?: _pred_embedded?},
-  #        _bindings,
-  #        params,
-  #        _embedded?,
-  #        _type
-  #      )
-  #      when is_integer(left) and (is_binary(right) or is_atom(right)) do
-  #   {params ++ [{DateTime.utc_now(), {:param, :any_datetime}}],
-  #    {:datetime_add, [], [{:^, [], [Enum.count(params)]}, left * -1, to_string(right)]}}
-  # end
-
   defp do_filter_to_expr(
          %Contains{arguments: [left, %Ash.CiString{} = right], embedded?: pred_embedded?},
          bindings,
@@ -1699,5 +1677,9 @@ defmodule AshPostgres.DataLayer do
       {:ok, query} -> query
       {:error, error} -> {:error, error}
     end
+  end
+
+  defp table(resource, changeset) do
+    changeset.context[:data_layer][:table] || AshPostgres.table(resource)
   end
 end
