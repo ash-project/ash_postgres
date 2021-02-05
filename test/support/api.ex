@@ -5,5 +5,6 @@ defmodule AshPostgres.Test.Api do
   resources do
     resource(AshPostgres.Test.Post)
     resource(AshPostgres.Test.Comment)
+    resource(AshPostgres.Test.IntegerPost)
   end
 end
