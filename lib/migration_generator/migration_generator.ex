@@ -1090,6 +1090,7 @@ defmodule AshPostgres.MigrationGenerator do
       all_resources
       |> Enum.flat_map(&Ash.Resource.relationships/1)
       |> Enum.filter(&(&1.destination == resource))
+      |> Enum.reject(&(&1.type == :belongs_to))
       |> Enum.filter(& &1.context[:data_layer][:table])
       |> Enum.map(fn relationship ->
         resource
