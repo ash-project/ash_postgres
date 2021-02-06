@@ -1173,7 +1173,9 @@ defmodule AshPostgres.MigrationGenerator do
         %{
           destination_field: relationship.destination_field,
           multitenancy: multitenancy(relationship.destination),
-          table: relationship.context[:data_layer][:table] || AshPostgres.table(relationship.destination)
+          table:
+            relationship.context[:data_layer][:table] ||
+              AshPostgres.table(relationship.destination)
         }
       end
     end)

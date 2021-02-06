@@ -467,6 +467,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
             destination_field: :resource_id,
             context: %{data_layer: %{table: "post_comments"}}
           )
+
+          belongs_to(:best_comment, Comment,
+            destination_field: :id,
+            context: %{data_layer: %{table: "post_comments"}}
+          )
         end
       end
 
