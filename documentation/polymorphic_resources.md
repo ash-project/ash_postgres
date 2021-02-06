@@ -44,7 +44,7 @@ end
 ```
 
 With this, when loading or editing related data, ash will automatically set that context.
-For managing related data, see `Ash.Changeset.manage_related/4` and other relationship functions
+For managing related data, see `Ash.Changeset.manage_relationship/4` and other relationship functions
 in `Ash.Changeset`
 
 ## Table specific actions
