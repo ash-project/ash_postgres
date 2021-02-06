@@ -416,4 +416,77 @@ defmodule AshPostgres.MigrationGeneratorTest do
       refute File.exists?(Path.wildcard("test_snapshots_path2/test_repo/posts/*.json"))
     end
   end
+
+  describe "polymorphic resources" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+
+      defmodule Comment do
+        use Ash.Resource,
+          data_layer: AshPostgres.DataLayer
+
+        postgres do
+          polymorphic? true
+          repo AshPostgres.TestRepo
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute :resource_id, :uuid
+        end
+
+        actions do
+          read(:read)
+          create(:create)
+        end
+      end
+
+      defmodule Post do
+        use Ash.Resource,
+          data_layer: AshPostgres.DataLayer
+
+        postgres do
+          table "posts"
+          repo AshPostgres.TestRepo
+        end
+
+        actions do
+          read(:read)
+          create(:create)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        relationships do
+          has_many(:comments, Comment,
+            destination_field: :resource_id,
+            context: %{data_layer: %{table: "post_comments"}}
+          )
+        end
+      end
+
+      defapi([Post, Comment])
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      [api: Api]
+    end
+
+    test "it uses the relationship's table context if it is set" do
+      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+
+      assert File.read!(file) =~
+               ~S[references(:post_comments]
+    end
+  end
 end

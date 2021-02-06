@@ -45,7 +45,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         }) do
       [
         "add #{inspect(attribute.name)}",
-        "references(#{inspect(table)}",
+        "references(:#{table}",
         [
           "type: #{inspect(attribute.type)}",
           "column: #{inspect(destination_field)}",
@@ -71,7 +71,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         }) do
       [
         "add #{inspect(attribute.name)}",
-        "references(#{inspect(table)}",
+        "references(:#{table}",
         [
           "type: #{inspect(attribute.type)}",
           "column: #{inspect(destination_field)}",
@@ -118,7 +118,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         }) do
       [
         "add #{inspect(attribute.name)}",
-        "references(#{inspect(table)}",
+        "references(:#{table}",
         [
           "type: #{inspect(attribute.type)}",
           "column: #{inspect(destination_field)}",
@@ -137,7 +137,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         }) do
       [
         "add #{inspect(attribute.name)}",
-        "references(#{inspect(table)}",
+        "references(:#{table}",
         [
           "type: #{inspect(attribute.type)}",
           "column: #{inspect(destination_field)}"
@@ -240,9 +240,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
              destination_field: destination_field
            }
          }) do
-      "references(#{inspect(table)}, type: #{inspect(type)}, column: #{inspect(destination_field)}, name: \"\#\{prefix()\}_#{
-        table
-      }_#{name}_fkey\")"
+      "references(:#{table}, type: #{inspect(type)}, column: #{
+        inspect(destination_field)
+      }, name: \"\#\{prefix()\}_#{table}_#{name}_fkey\")"
     end
 
     defp reference(%{strategy: :attribute, attribute: source_attribute}, %{
@@ -253,9 +253,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
              destination_field: destination_field
            }
          }) do
-      "references(#{inspect(table)}, type: #{inspect(type)}, column: #{inspect(destination_field)}, with: [#{
-        source_attribute
-      }: :#{destination_attribute}])"
+      "references(:#{table}, type: #{inspect(type)}, column: #{
+        inspect(destination_field)
+      }, with: [#{source_attribute}: :#{destination_attribute}])"
     end
 
     defp reference(
@@ -268,7 +268,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
              }
            }
          ) do
-      "references(#{inspect(table)}, type: #{inspect(type)}, column: #{inspect(destination_field)}, prefix(): \"public\")"
+      "references(:#{table}, type: #{inspect(type)}, column: #{
+        inspect(destination_field)
+      }, prefix(): \"public\")"
     end
 
     defp reference(
@@ -281,7 +283,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
              }
            }
          ) do
-      "references(#{inspect(table)}, type: #{inspect(type)}, column: #{inspect(destination_field)})"
+      "references(:#{table}, type: #{inspect(type)}, column: #{
+        inspect(destination_field)
+      })"
     end
 
     def down(op) do
