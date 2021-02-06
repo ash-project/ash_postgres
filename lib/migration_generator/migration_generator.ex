@@ -1100,9 +1100,7 @@ defmodule AshPostgres.MigrationGenerator do
               Map.put(attribute, :references, %{
                 destination_field: relationship.source_field,
                 multitenancy: multitenancy(relationship.source),
-                table:
-                  relationship.context[:data_layer][:table] ||
-                    AshPostgres.table(relationship.source)
+                table: AshPostgres.table(relationship.source)
               })
             else
               attribute
@@ -1175,7 +1173,7 @@ defmodule AshPostgres.MigrationGenerator do
         %{
           destination_field: relationship.destination_field,
           multitenancy: multitenancy(relationship.destination),
-          table: AshPostgres.table(relationship.destination)
+          table: relationship.context[:data_layer][:table] || AshPostgres.table(relationship.destination)
         }
       end
     end)
