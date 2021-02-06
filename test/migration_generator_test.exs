@@ -435,7 +435,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         attributes do
           uuid_primary_key(:id)
-          attribute :resource_id, :uuid
+          attribute(:resource_id, :uuid)
         end
 
         actions do
