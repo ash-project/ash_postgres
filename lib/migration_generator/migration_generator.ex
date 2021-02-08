@@ -1071,6 +1071,13 @@ defmodule AshPostgres.MigrationGenerator do
         "What are you renaming it to?: #{Enum.map_join(adding, ", ", & &1.name)}"
       )
 
+    name =
+      if name do
+        String.trim(name)
+      else
+        nil
+      end
+
     case Enum.find(adding, &(to_string(&1.name) == name)) do
       nil -> get_new_attribute(adding, tries - 1)
       new_attribute -> new_attribute
