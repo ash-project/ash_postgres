@@ -35,7 +35,7 @@ defmodule AshPostgres.MigrationGenerator do
 
     {tenant_snapshots, snapshots} =
       all_resources
-      |> Enum.filter(&(Ash.Resource.data_layer(&1) == AshPostgres.DataLayer))
+      |> Enum.filter(&(Ash.DataLayer.data_layer(&1) == AshPostgres.DataLayer))
       |> Enum.filter(&AshPostgres.migrate?/1)
       |> Enum.flat_map(&get_snapshots(&1, all_resources))
       |> Enum.split_with(&(&1.multitenancy.strategy == :context))
@@ -1095,7 +1095,7 @@ defmodule AshPostgres.MigrationGenerator do
   def get_snapshots(resource, all_resources) do
     if AshPostgres.polymorphic?(resource) do
       all_resources
-      |> Enum.flat_map(&Ash.Resource.relationships/1)
+      |> Enum.flat_map(&Ash.Resource.Info.relationships/1)
       |> Enum.filter(&(&1.destination == resource))
       |> Enum.reject(&(&1.type == :belongs_to))
       |> Enum.filter(& &1.context[:data_layer][:table])
@@ -1140,9 +1140,9 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp multitenancy(resource) do
-    strategy = Ash.Resource.multitenancy_strategy(resource)
-    attribute = Ash.Resource.multitenancy_attribute(resource)
-    global = Ash.Resource.multitenancy_global?(resource)
+    strategy = Ash.Resource.Info.multitenancy_strategy(resource)
+    attribute = Ash.Resource.Info.multitenancy_attribute(resource)
+    global = Ash.Resource.Info.multitenancy_global?(resource)
 
     %{
       strategy: strategy,
@@ -1155,7 +1155,7 @@ defmodule AshPostgres.MigrationGenerator do
     repo = AshPostgres.repo(resource)
 
     resource
-    |> Ash.Resource.attributes()
+    |> Ash.Resource.Info.attributes()
     |> Enum.sort_by(& &1.name)
     |> Enum.map(&Map.take(&1, [:name, :type, :default, :allow_nil?, :generated?, :primary_key?]))
     |> Enum.map(fn attribute ->
@@ -1175,7 +1175,7 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp find_reference(resource, attribute) do
-    Enum.find_value(Ash.Resource.relationships(resource), fn relationship ->
+    Enum.find_value(Ash.Resource.Info.relationships(resource), fn relationship ->
       if attribute.name == relationship.source_field && relationship.type == :belongs_to &&
            foreign_key?(relationship) do
         %{
@@ -1196,19 +1196,19 @@ defmodule AshPostgres.MigrationGenerator do
   defp migration_type_from_storage_type(storage_type), do: storage_type
 
   defp foreign_key?(relationship) do
-    Ash.Resource.data_layer(relationship.source) == AshPostgres.DataLayer &&
+    Ash.DataLayer.data_layer(relationship.source) == AshPostgres.DataLayer &&
       AshPostgres.repo(relationship.source) == AshPostgres.repo(relationship.destination)
   end
 
   defp identities(resource) do
     resource
-    |> Ash.Resource.identities()
+    |> Ash.Resource.Info.identities()
     |> case do
       [] ->
         []
 
       identities ->
-        base_filter = Ash.Resource.base_filter(resource)
+        base_filter = Ash.Resource.Info.base_filter(resource)
 
         if base_filter && !AshPostgres.base_filter_sql(resource) do
           raise """
@@ -1223,7 +1223,7 @@ defmodule AshPostgres.MigrationGenerator do
     end)
     |> Enum.filter(fn identity ->
       Enum.all?(identity.keys, fn key ->
-        Ash.Resource.attribute(resource, key)
+        Ash.Resource.Info.attribute(resource, key)
       end)
     end)
     |> Enum.map(fn identity ->

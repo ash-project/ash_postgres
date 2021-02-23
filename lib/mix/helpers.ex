@@ -33,7 +33,7 @@ defmodule AshPostgres.MixHelpers do
     opts
     |> apis(args)
     |> Enum.flat_map(&Ash.Api.resources/1)
-    |> Enum.filter(&(Ash.Resource.data_layer(&1) == AshPostgres.DataLayer))
+    |> Enum.filter(&(Ash.DataLayer.data_layer(&1) == AshPostgres.DataLayer))
     |> Enum.map(&AshPostgres.repo(&1))
     |> Enum.uniq()
   end

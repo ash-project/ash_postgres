@@ -182,14 +182,14 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :upsert), do: true
 
   def can?(resource, {:join, other_resource}) do
-    data_layer = Ash.Resource.data_layer(resource)
-    other_data_layer = Ash.Resource.data_layer(other_resource)
+    data_layer = Ash.DataLayer.data_layer(resource)
+    other_data_layer = Ash.DataLayer.data_layer(other_resource)
     data_layer == other_data_layer and repo(data_layer) == repo(other_data_layer)
   end
 
   def can?(resource, {:lateral_join, other_resource}) do
-    data_layer = Ash.Resource.data_layer(resource)
-    other_data_layer = Ash.Resource.data_layer(other_resource)
+    data_layer = Ash.DataLayer.data_layer(resource)
+    other_data_layer = Ash.DataLayer.data_layer(other_resource)
     data_layer == other_data_layer and repo(data_layer) == repo(other_data_layer)
   end
 
@@ -263,7 +263,7 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp repo_opts(%{tenant: tenant, resource: resource}) when not is_nil(tenant) do
-    if Ash.Resource.multitenancy_strategy(resource) == :context do
+    if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
       [prefix: tenant]
     else
       []
@@ -497,7 +497,7 @@ defmodule AshPostgres.DataLayer do
   defp add_unique_indexes(changeset, resource, tenant, ash_changeset) do
     changeset =
       resource
-      |> Ash.Resource.identities()
+      |> Ash.Resource.Info.identities()
       |> Enum.reduce(changeset, fn identity, changeset ->
         name =
           if tenant do
@@ -525,7 +525,7 @@ defmodule AshPostgres.DataLayer do
       end
 
     names = [
-      {Ash.Resource.primary_key(resource), table(resource, ash_changeset) <> "_pkey"} | names
+      {Ash.Resource.Info.primary_key(resource), table(resource, ash_changeset) <> "_pkey"} | names
     ]
 
     Enum.reduce(names, changeset, fn {keys, name}, changeset ->
@@ -539,7 +539,7 @@ defmodule AshPostgres.DataLayer do
       changeset
       |> repo_opts()
       |> Keyword.put(:on_conflict, {:replace, Map.keys(changeset.attributes)})
-      |> Keyword.put(:conflict_target, Ash.Resource.primary_key(resource))
+      |> Keyword.put(:conflict_target, Ash.Resource.Info.primary_key(resource))
 
     if AshPostgres.manage_tenant_update?(resource) do
       {:error, "Cannot currently upsert a resource that owns a tenant"}
@@ -727,7 +727,7 @@ defmodule AshPostgres.DataLayer do
     {query, binding} =
       case get_binding(resource, aggregate.relationship_path, query, :aggregate) do
         nil ->
-          relationship = Ash.Resource.relationship(resource, aggregate.relationship_path)
+          relationship = Ash.Resource.Info.relationship(resource, aggregate.relationship_path)
           subquery = aggregate_subquery(relationship, aggregate)
 
           new_query =
@@ -864,7 +864,7 @@ defmodule AshPostgres.DataLayer do
               filter(
                 join.source.from.source.query,
                 aggregate.authorization_filter,
-                Ash.Resource.related(resource, aggregate.relationship_path)
+                Ash.Resource.Info.related(resource, aggregate.relationship_path)
               )
 
             filter
@@ -969,7 +969,7 @@ defmodule AshPostgres.DataLayer do
 
   defp add_subquery_aggregate_select(query, %{kind: :count} = aggregate, resource) do
     query = default_bindings(query, aggregate.resource)
-    key = aggregate.field || List.first(Ash.Resource.primary_key(resource))
+    key = aggregate.field || List.first(Ash.Resource.Info.primary_key(resource))
     type = Ash.Type.ecto_type(aggregate.type)
 
     field = {:count, [], [{{:., [], [{:&, [], [0]}, key]}, [], []}]}
@@ -1000,7 +1000,7 @@ defmodule AshPostgres.DataLayer do
   defp relationship_path_to_relationships(_resource, [], acc), do: Enum.reverse(acc)
 
   defp relationship_path_to_relationships(resource, [relationship | rest], acc) do
-    relationship = Ash.Resource.relationship(resource, relationship)
+    relationship = Ash.Resource.Info.relationship(resource, relationship)
 
     relationship_path_to_relationships(relationship.destination, rest, [relationship | acc])
   end
@@ -1085,7 +1085,7 @@ defmodule AshPostgres.DataLayer do
   defp add_distinct(relationship, join_type, joined_query) do
     if relationship.cardinality == :many and join_type == :left && !joined_query.distinct do
       from(row in joined_query,
-        distinct: ^Ash.Resource.primary_key(relationship.destination)
+        distinct: ^Ash.Resource.Info.primary_key(relationship.destination)
       )
     else
       joined_query
