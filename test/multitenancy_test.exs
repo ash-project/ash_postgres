@@ -38,7 +38,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
   end
 
   test "attribute multitenancy is set on creation" do
-    uuid = Ash.uuid()
+    uuid = Ash.UUID.generate()
 
     org =
       Org
@@ -60,7 +60,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
   end
 
   test "schema rename on update works", %{org1: org1} do
-    new_uuid = Ash.uuid()
+    new_uuid = Ash.UUID.generate()
 
     org1
     |> Ash.Changeset.new(id: new_uuid)

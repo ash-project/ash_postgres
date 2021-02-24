@@ -15,7 +15,7 @@ defmodule AshPostgres.Functions.Type do
 
   def new([left, right]) do
     right =
-      if is_atom(right) do
+      if is_atom(right) || match?({:array, type} when is_atom(type), right) do
         {:embed, right}
       else
         right

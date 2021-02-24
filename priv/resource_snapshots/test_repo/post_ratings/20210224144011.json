@@ -1,0 +1,49 @@
+{
+  "attributes": [
+    {
+      "allow_nil?": false,
+      "default": "nil",
+      "generated?": false,
+      "name": "id",
+      "primary_key?": true,
+      "references": null,
+      "type": "binary_id"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "resource_id",
+      "primary_key?": false,
+      "references": {
+        "destination_field": "id",
+        "multitenancy": {
+          "attribute": null,
+          "global": null,
+          "strategy": null
+        },
+        "table": "posts"
+      },
+      "type": "binary_id"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "score",
+      "primary_key?": false,
+      "references": null,
+      "type": "integer"
+    }
+  ],
+  "base_filter": null,
+  "hash": "3D1683DCD3D31974593FA1123889FCA62745F9F1BE036F0BA5A1AC2E4505A2FE",
+  "identities": [],
+  "multitenancy": {
+    "attribute": null,
+    "global": null,
+    "strategy": null
+  },
+  "repo": "Elixir.AshPostgres.TestRepo",
+  "table": "post_ratings"
+}

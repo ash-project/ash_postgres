@@ -1234,11 +1234,7 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.map(&Map.put(&1, :base_filter, AshPostgres.base_filter_sql(resource)))
   end
 
-  if :erlang.function_exported(Ash, :uuid, 0) do
-    @uuid_functions [&Ash.uuid/0, &Ecto.UUID.generate/0]
-  else
-    @uuid_functions [&Ecto.UUID.generate/0]
-  end
+  @uuid_functions [&Ash.UUID.generate/0, &Ecto.UUID.generate/0]
 
   defp default(%{default: default}, repo) when is_function(default) do
     cond do

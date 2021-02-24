@@ -661,63 +661,68 @@ defmodule AshPostgres.DataLayer do
     })
   end
 
-  defp can_inner_join?(path, expr, seen_an_or? \\ false)
+  # For consistency's sake, this logic was removed.
+  # We can revisit it sometime though.
+  defp can_inner_join?(_, _), do: false
+  # defp can_inner_join?(path, expr, seen_an_or? \\ false)
 
-  defp can_inner_join?(path, %{expression: expr}, seen_an_or?),
-    do: can_inner_join?(path, expr, seen_an_or?)
+  # defp can_inner_join?(path, %{expression: expr}, seen_an_or?),
+  #   do: can_inner_join?(path, expr, seen_an_or?)
 
-  defp can_inner_join?(_path, expr, _seen_an_or?) when expr in [nil, true, false], do: true
+  # defp can_inner_join?(_path, expr, _seen_an_or?) when expr in [nil, true, false], do: true
 
-  defp can_inner_join?(path, %BooleanExpression{op: :and, left: left, right: right}, seen_an_or?) do
-    can_inner_join?(path, left, seen_an_or?) || can_inner_join?(path, right, seen_an_or?)
-  end
+  # defp can_inner_join?(path, %BooleanExpression{op: :and, left: left, right: right}, seen_an_or?) do
+  #   can_inner_join?(path, left, seen_an_or?) || can_inner_join?(path, right, seen_an_or?)
+  # end
 
-  defp can_inner_join?(path, %BooleanExpression{op: :or, left: left, right: right}, _) do
-    can_inner_join?(path, left, true) && can_inner_join?(path, right, true)
-  end
+  # defp can_inner_join?(path, %BooleanExpression{op: :or, left: left, right: right}, _) do
+  #   can_inner_join?(path, left, true) && can_inner_join?(path, right, true)
+  # end
 
-  defp can_inner_join?(
-         path,
-         %Not{expression: %BooleanExpression{op: :or, left: left, right: right}},
-         seen_an_or?
-       ) do
-    can_inner_join?(
-      path,
-      %BooleanExpression{
-        op: :and,
-        left: %Not{expression: left},
-        right: %Not{expression: right}
-      },
-      seen_an_or?
-    )
-  end
+  # defp can_inner_join?(
+  #        path,
+  #        %Not{expression: %BooleanExpression{op: :or, left: left, right: right}},
+  #        seen_an_or?
+  #      ) do
+  #   can_inner_join?(
+  #     path,
+  #     %BooleanExpression{
+  #       op: :and,
+  #       left: %Not{expression: left},
+  #       right: %Not{expression: right}
+  #     },
+  #     # We count `not` as having seen an `or` to be conservative.
+  #     # The reason for this is that `id = 1 or not(id = 1)`
+  #     true
+  #   )
+  # end
 
-  defp can_inner_join?(path, %Not{expression: expression}, seen_an_or?) do
-    can_inner_join?(path, expression, seen_an_or?)
-  end
+  # defp can_inner_join?(path, %Not{expression: expression}, seen_an_or?) do
+  #   can_inner_join?(path, expression, seen_an_or?)
+  # end
 
-  defp can_inner_join?(
-         search_path,
-         %{__operator__?: true, left: %Ref{relationship_path: relationship_path}},
-         seen_an_or?
-       )
-       when search_path == relationship_path do
-    not seen_an_or?
-  end
+  # defp can_inner_join?(
+  #        search_path,
+  #        %{__operator__?: true, left: %Ref{relationship_path: relationship_path}},
+  #        seen_an_or?
+  #      )
+  #      when search_path == relationship_path do
+  #   not seen_an_or?
+  # end
 
-  defp can_inner_join?(
-         search_path,
-         %{__function__?: true, arguments: arguments},
-         seen_an_or?
-       ) do
-    if Enum.any?(arguments, &match?(%Ref{relationship_path: ^search_path}, &1)) do
-      not seen_an_or?
-    else
-      true
-    end
-  end
+  # defp can_inner_join?(
+  #        search_path,
+  #        %{__function__?: true, arguments: arguments},
+  #        seen_an_or?
+  #      ) do
+  #   if Enum.any?(arguments, &match?(%Ref{relationship_path: ^search_path}, &1)) do
+  #     not seen_an_or?
+  #   else
+  #     true
+  #   end
+  # end
 
-  defp can_inner_join?(_, _, _), do: true
+  # defp can_inner_join?(_, _, _), do: true
 
   @impl true
   def add_aggregate(query, aggregate, _resource) do
@@ -1351,9 +1356,37 @@ defmodule AshPostgres.DataLayer do
          params,
          embedded?,
          _type
+       )
+       when pred_embedded? or embedded? do
+    {params, arg1} = do_filter_to_expr(arg1, bindings, params, true)
+    {params, arg2} = do_filter_to_expr(arg2, bindings, params, true)
+
+    case maybe_ecto_type(arg2) do
+      nil ->
+        {params, {:type, [], [arg1, arg2]}}
+
+      type ->
+        case arg1 do
+          %{__predicate__?: _} ->
+            {params, {:type, [], [arg1, arg2]}}
+
+          value ->
+            {params, %Ecto.Query.Tagged{value: value, type: type}}
+        end
+    end
+  end
+
+  defp do_filter_to_expr(
+         %Type{arguments: [arg1, arg2], embedded?: pred_embedded?},
+         bindings,
+         params,
+         embedded?,
+         _type
        ) do
     {params, arg1} = do_filter_to_expr(arg1, bindings, params, pred_embedded? || embedded?)
     {params, arg2} = do_filter_to_expr(arg2, bindings, params, pred_embedded? || embedded?)
+
+    arg2 = maybe_ecto_type(arg2)
 
     {params, {:type, [], [arg1, arg2]}}
   end
@@ -1555,6 +1588,16 @@ defmodule AshPostgres.DataLayer do
 
     {params ++ [{value, type}], {:^, [], [Enum.count(params)]}}
   end
+
+  defp maybe_ecto_type({:array, type}), do: {:array, maybe_ecto_type(type)}
+
+  defp maybe_ecto_type(type) when is_atom(type) do
+    if Ash.Type.ash_type?(type) do
+      Ash.Type.ecto_type(type)
+    end
+  end
+
+  defp maybe_ecto_type(_type), do: nil
 
   defp last_ditch_cast(value, :string) when is_atom(value) do
     to_string(value)

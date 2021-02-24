@@ -51,7 +51,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
   #### Defaults
   There are three anonymous functions that will translate to database-specific defaults currently:
 
-  * `&Ash.uuid/0` - Only if `uuid-ossp` is in your `c:AshPostgres.Repo.installed_extensions()`
+  * `&Ash.UUID.generate/0` - Only if `uuid-ossp` is in your `c:AshPostgres.Repo.installed_extensions()`
   * `&Ecto.UUID.generate/0` - Only if `uuid-ossp` is in your `c:AshPostgres.Repo.installed_extensions()`
   * `&DateTime.utc_now/0`
 
