@@ -117,6 +117,7 @@ defmodule AshPostgres.MigrationGenerator do
       {primary_key, identities} = merge_primary_keys(existing_snapshot, snapshots)
 
       attributes = Enum.flat_map(snapshots, & &1.attributes)
+      count = Enum.count(snapshots)
 
       snapshot_identities =
         snapshots
@@ -125,7 +126,7 @@ defmodule AshPostgres.MigrationGenerator do
 
       new_snapshot = %{
         snapshot
-        | attributes: merge_attributes(attributes, snapshot.table),
+        | attributes: merge_attributes(attributes, snapshot.table, count),
           identities: snapshot_identities
       }
 
@@ -167,19 +168,23 @@ defmodule AshPostgres.MigrationGenerator do
     end)
   end
 
-  defp merge_attributes(attributes, table) do
+  defp merge_attributes(attributes, table, count) do
     attributes
     |> Enum.group_by(& &1.name)
     |> Enum.map(fn
       {_name, [attribute]} ->
-        attribute
+        if count > 1 do
+          %{attribute | allow_nil?: true}
+        else
+          attribute
+        end
 
       {name, attributes} ->
         %{
           name: name,
           type: merge_types(Enum.map(attributes, & &1.type), name, table),
           default: merge_defaults(Enum.map(attributes, & &1.default)),
-          allow_nil?: Enum.any?(attributes, & &1.allow_nil?),
+          allow_nil?: Enum.any?(attributes, & &1.allow_nil?) || Enum.count(attributes) < count,
           references: merge_references(Enum.map(attributes, & &1.references), name, table),
           primary_key?: false
         }

@@ -268,7 +268,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
              }
            }
          ) do
-      "references(:#{table}, type: #{inspect(type)}, column: #{inspect(destination_field)}, prefix(): \"public\")"
+      "references(:#{table}, type: #{inspect(type)}, column: #{inspect(destination_field)}, prefix: \"public\")"
     end
 
     defp reference(

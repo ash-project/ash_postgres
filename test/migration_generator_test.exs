@@ -348,6 +348,39 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert File.read!(file2) =~
                ~S[add :foobar, :text]
     end
+
+    test "when an attribute exists only on some of the resources that use the same table, it isn't marked as null: false" do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string)
+          attribute(:example, :string, allow_nil?: false)
+        end
+      end
+
+      defposts Post2 do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defapi([Post, Post2])
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+
+      assert File.read!(file2) =~
+               ~S[add :example, :text] <> "\n"
+
+      refute File.read!(file2) =~ ~S[null: false]
+    end
   end
 
   describe "auto incrementing integer, when generated" do
