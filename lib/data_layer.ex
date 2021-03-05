@@ -666,7 +666,6 @@ defmodule AshPostgres.DataLayer do
                                 GreaterThan,
                                 GreaterThanOrEqual,
                                 In,
-                                IsNil,
                                 LessThanOrEqual,
                                 LessThan,
                                 NotEq
@@ -675,8 +674,7 @@ defmodule AshPostgres.DataLayer do
 
   @known_inner_join_functions [
                                 Ago,
-                                Contains,
-                                IsNil
+                                Contains
                               ]
                               |> Enum.map(&Module.concat(Ash.Query.Function, &1))
 
@@ -700,23 +698,11 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp can_inner_join?(
-         path,
-         %Not{expression: %BooleanExpression{op: :or, left: left, right: right}},
-         seen_an_or?
+         _,
+         %Not{},
+         _
        ) do
-    can_inner_join?(
-      path,
-      %BooleanExpression{
-        op: :and,
-        left: %Not{expression: left},
-        right: %Not{expression: right}
-      },
-      seen_an_or?
-    )
-  end
-
-  defp can_inner_join?(path, %Not{expression: expression}, seen_an_or?) do
-    can_inner_join?(path, expression, seen_an_or?)
+    false
   end
 
   defp can_inner_join?(
