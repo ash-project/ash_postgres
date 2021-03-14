@@ -25,9 +25,8 @@ First, ensure you've added ash_postgres to your `mix.exs` file.
 {:ash_postgres, "~> x.y.z"}
 ```
 
-To use this data layer, you need to define an `Ecto.Repo`. Within each Repo you
-should add `use AshPostgres.Repo` after the `use Ecto.Repo` call because
-AshPostgres adds some functionality on top of ecto repos.
+To use this data layer, you need to chage your Ecto Repo's from `use Ecto.Repo`,
+to `use AshPostgres.Repo`. because AshPostgres adds functionality to Ecto Repos.
 
 Then, configure each of your `Ash.Resource` resources by adding `use Ash.Resource, data_layer: AshPostgres.DataLayer` like so:
 
