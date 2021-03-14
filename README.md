@@ -25,15 +25,23 @@ First, ensure you've added ash_postgres to your `mix.exs` file.
 {:ash_postgres, "~> x.y.z"}
 ```
 
-To use this data layer, you need to define an `Ecto.Repo`. AshPostgres adds some
-functionality on top of ecto repos, so you'll want to use `AshPostgres.Repo`
+To use this data layer, you need to chage your Ecto Repo's from `use Ecto.Repo`,
+to `use AshPostgres.Repo`. because AshPostgres adds functionality to Ecto Repos.
 
-Then, configure your resource like so:
+Then, configure each of your `Ash.Resource` resources by adding `use Ash.Resource, data_layer: AshPostgres.DataLayer` like so:
 
 ```elixir
-postgres do
-  repo MyApp.Repo
-  table "table_name"
+defmodule MyApp.SomeResource do
+  use Ash.Resource, data_layer: AshPostgres.DataLayer
+
+  postgres do
+    repo MyApp.Repo
+    table "table_name"
+  end
+
+  attributes do
+    # ... Attribute definitions
+  end
 end
 ```
 
