@@ -5,6 +5,25 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.35.3](https://github.com/ash-project/ash_postgres/compare/v0.35.2...v0.35.3) (2021-03-19)
+
+
+
+
+### Bug Fixes:
+
+* force create extensions snapshot
+
+* more conservative inner join checks
+
+* add back in inner join detection logic
+
+### Improvements:
+
+* consistent foreign key names
+
+* support custom foreign key error messages
+
 ## [v0.35.2](https://github.com/ash-project/ash_postgres/compare/v0.35.1...v0.35.2) (2021-03-05)
 
 
