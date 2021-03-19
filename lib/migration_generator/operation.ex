@@ -75,7 +75,6 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         [
           "type: #{inspect(attribute.type)}",
           "column: #{inspect(destination_field)}",
-          "name: \"\#\{prefix()\}_#{table}_#{attribute.name}_fkey\"",
           "prefix: \"public\""
         ],
         ")",
@@ -121,8 +120,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "references(:#{table}",
         [
           "type: #{inspect(attribute.type)}",
-          "column: #{inspect(destination_field)}",
-          "name: \"\#\{prefix()\}_#{table}_#{attribute.name}_fkey\""
+          "column: #{inspect(destination_field)}"
         ],
         ")",
         maybe_add_default(attribute.default),
@@ -233,16 +231,13 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     defp reference(%{strategy: :context}, %{
            type: type,
-           name: name,
            references: %{
              multitenancy: %{strategy: :context},
              table: table,
              destination_field: destination_field
            }
          }) do
-      "references(:#{table}, type: #{inspect(type)}, column: #{inspect(destination_field)}, name: \"\#\{prefix()\}_#{
-        table
-      }_#{name}_fkey\")"
+      "references(:#{table}, type: #{inspect(type)}, column: #{inspect(destination_field)})"
     end
 
     defp reference(%{strategy: :attribute, attribute: source_attribute}, %{
@@ -302,22 +297,14 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     # We only need to drop it before altering an attribute with `references/3`
     defstruct [:attribute, :table, :multitenancy, :direction, no_phase: true]
 
-    def up(%{attribute: attribute, table: table, multitenancy: multitenancy, direction: :up}) do
-      if multitenancy && multitenancy.strategy == :context do
-        "drop constraint(:#{table}, \"\#\{prefix()\}_#{table}_#{attribute.name}_fkey\")"
-      else
-        "drop constraint(:#{table}, \"#{table}_#{attribute.name}_fkey\")"
-      end
+    def up(%{attribute: attribute, table: table, direction: :up}) do
+      "drop constraint(:#{table}, \"#{table}_#{attribute.name}_fkey\")"
     end
 
     def up(_), do: ""
 
-    def down(%{attribute: attribute, table: table, multitenancy: multitenancy, direction: :down}) do
-      if multitenancy && multitenancy.strategy == :context do
-        "drop constraint(:#{table}, \"\#\{prefix()\}_#{table}_#{attribute.name}_fkey\")"
-      else
-        "drop constraint(:#{table}, \"#{table}_#{attribute.name}_fkey\")"
-      end
+    def down(%{attribute: attribute, table: table, direction: :down}) do
+      "drop constraint(:#{table}, \"#{table}_#{attribute.name}_fkey\")"
     end
 
     def down(_), do: ""
