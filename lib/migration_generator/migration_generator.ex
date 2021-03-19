@@ -127,7 +127,7 @@ defmodule AshPostgres.MigrationGenerator do
         snapshot_contents = Jason.encode!(repo.installed_extensions(), pretty: true)
 
         contents = format(contents, opts)
-        create_file(snapshot_file, snapshot_contents)
+        create_file(snapshot_file, snapshot_contents, force: true)
         create_file(migration_file, contents)
       end
     end

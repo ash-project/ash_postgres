@@ -89,7 +89,15 @@ defmodule AshPostgres.DataLayer do
         default: [],
         doc: """
         A list of unique index names that could raise errors, or an mfa to a function that takes a changeset
-        and returns a list of names in the format `{[:affected, :keys], "name_of_constraint"}`
+        and returns the list. Must be in the format `{[:affected, :keys], "name_of_constraint"}` or `{[:affected, :keys], "name_of_constraint", "custom error message"}`
+        """
+      ],
+      foreign_key_names: [
+        type: :any,
+        default: [],
+        doc: """
+        A list of foreign keys that could raise errors, or an mfa to a function that takes a changeset and returns the list.
+        Must be in the format `{:key, "name_of_constraint"}` or `{:key, "name_of_constraint", "custom error message"}`
         """
       ],
       table: [
@@ -403,7 +411,7 @@ defmodule AshPostgres.DataLayer do
   def create(resource, changeset) do
     changeset.data
     |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
-    |> ecto_changeset(changeset)
+    |> ecto_changeset(changeset, :create)
     |> repo(resource).insert(repo_opts(changeset))
     |> handle_errors()
     |> case do
@@ -470,11 +478,32 @@ defmodule AshPostgres.DataLayer do
     Ash.Error.Changes.InvalidAttribute.exception(field: field, message: message, vars: vars)
   end
 
-  defp ecto_changeset(record, changeset) do
-    record
-    |> set_table(changeset)
-    |> Ecto.Changeset.change(changeset.attributes)
-    |> add_unique_indexes(record.__struct__, changeset.tenant, changeset)
+  defp ecto_changeset(record, changeset, type) do
+    ecto_changeset =
+      record
+      |> set_table(changeset)
+      |> Ecto.Changeset.change(changeset.attributes)
+
+    case type do
+      :create ->
+        ecto_changeset
+        |> add_unique_indexes(record.__struct__, changeset.tenant, changeset)
+        |> add_my_foreign_key_constraints(record.__struct__)
+        |> add_configured_foreign_key_constraints(record.__struct__)
+
+      type when type in [:upsert, :update] ->
+        ecto_changeset
+        |> add_unique_indexes(record.__struct__, changeset.tenant, changeset)
+        |> add_my_foreign_key_constraints(record.__struct__)
+        |> add_related_foreign_key_constraints(record.__struct__)
+        |> add_configured_foreign_key_constraints(record.__struct__)
+
+      :delete ->
+        ecto_changeset
+        |> add_unique_indexes(record.__struct__, changeset.tenant, changeset)
+        |> add_related_foreign_key_constraints(record.__struct__)
+        |> add_configured_foreign_key_constraints(record.__struct__)
+    end
   end
 
   defp set_table(record, changeset) do
@@ -492,6 +521,55 @@ defmodule AshPostgres.DataLayer do
     else
       record
     end
+  end
+
+  defp add_related_foreign_key_constraints(changeset, resource) do
+    # TODO: this doesn't guarantee us to get all of them, because if something is related to this
+    # schema and there is no back-relation, then this won't catch it's foreign key constraints
+    resource
+    |> Ash.Resource.Info.relationships()
+    |> Enum.map(& &1.destination)
+    |> Enum.uniq()
+    |> Enum.flat_map(fn related ->
+      related
+      |> Ash.Resource.Info.relationships()
+      |> Enum.filter(&(&1.destination == resource))
+      |> Enum.map(&Map.take(&1, [:source, :source_field, :destination_field]))
+    end)
+    |> Enum.uniq()
+    |> Enum.reduce(changeset, fn %{
+                                   source: source,
+                                   source_field: source_field,
+                                   destination_field: destination_field
+                                 },
+                                 changeset ->
+      Ecto.Changeset.foreign_key_constraint(changeset, destination_field,
+        name: "#{AshPostgres.table(source)}_#{source_field}_fkey",
+        message: "would leave records behind"
+      )
+    end)
+  end
+
+  defp add_my_foreign_key_constraints(changeset, resource) do
+    resource
+    |> Ash.Resource.Info.relationships()
+    |> Enum.reduce(changeset, &Ecto.Changeset.foreign_key_constraint(&2, &1.source_field))
+  end
+
+  defp add_configured_foreign_key_constraints(changeset, resource) do
+    resource
+    |> AshPostgres.foreign_key_names()
+    |> case do
+      {m, f, a} -> List.wrap(apply(m, f, [changeset | a]))
+      value -> List.wrap(value)
+    end
+    |> Enum.reduce(changeset, fn
+      {key, name}, changeset ->
+        Ecto.Changeset.foreign_key_constraint(changeset, key, name: name)
+
+      {key, name, message}, changeset ->
+        Ecto.Changeset.foreign_key_constraint(changeset, key, name: name, message: message)
+    end)
   end
 
   defp add_unique_indexes(changeset, resource, tenant, ash_changeset) do
@@ -528,8 +606,12 @@ defmodule AshPostgres.DataLayer do
       {Ash.Resource.Info.primary_key(resource), table(resource, ash_changeset) <> "_pkey"} | names
     ]
 
-    Enum.reduce(names, changeset, fn {keys, name}, changeset ->
-      Ecto.Changeset.unique_constraint(changeset, List.wrap(keys), name: name)
+    Enum.reduce(names, changeset, fn
+      {keys, name}, changeset ->
+        Ecto.Changeset.unique_constraint(changeset, List.wrap(keys), name: name)
+
+      {keys, name, message}, changeset ->
+        Ecto.Changeset.unique_constraint(changeset, List.wrap(keys), name: name, message: message)
     end)
   end
 
@@ -546,7 +628,7 @@ defmodule AshPostgres.DataLayer do
     else
       changeset.data
       |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
-      |> ecto_changeset(changeset)
+      |> ecto_changeset(changeset, :upsert)
       |> repo(resource).insert(repo_opts)
       |> handle_errors()
     end
@@ -556,7 +638,7 @@ defmodule AshPostgres.DataLayer do
   def update(resource, changeset) do
     changeset.data
     |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
-    |> ecto_changeset(changeset)
+    |> ecto_changeset(changeset, :update)
     |> repo(resource).update(repo_opts(changeset))
     |> handle_errors()
     |> case do
@@ -572,7 +654,10 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def destroy(resource, %{data: record} = changeset) do
-    case repo(resource).delete(record, repo_opts(changeset)) do
+    record
+    |> ecto_changeset(changeset, :delete)
+    |> repo(resource).delete(repo_opts(changeset))
+    |> case do
       {:ok, _record} ->
         :ok
 
