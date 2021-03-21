@@ -1291,6 +1291,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp migration_type({:array, type}), do: {:array, migration_type(type)}
   defp migration_type(Ash.Type.CiString), do: :citext
+  defp migration_type(Ash.Type.UUID), do: :uuid
   defp migration_type(other), do: migration_type_from_storage_type(Ash.Type.storage_type(other))
   defp migration_type_from_storage_type(:string), do: :text
   defp migration_type_from_storage_type(storage_type), do: storage_type
