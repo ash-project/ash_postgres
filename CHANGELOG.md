@@ -5,6 +5,23 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.35.4](https://github.com/ash-project/ash_postgres/compare/v0.35.3...v0.35.4) (2021-03-21)
+
+
+
+
+### Bug Fixes:
+
+* reroute `Ash.Type.UUID` to `:uuid` in migrations
+
+* force create extensions snapshot
+
+### Improvements:
+
+* consistent foreign key names
+
+* support custom foreign key error messages
+
 ## [v0.35.3](https://github.com/ash-project/ash_postgres/compare/v0.35.2...v0.35.3) (2021-03-19)
 
 
