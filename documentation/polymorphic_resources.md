@@ -10,6 +10,10 @@ defmodule MyApp.Reaction do
   postgres do
     polymorphic? true # Without this, `table` is a required configuration
   end
+
+  attributes do
+    attribute(:resource_id, :uuid)
+  end
   
   ...
 end
@@ -26,7 +30,8 @@ defmodule MyApp.Post do
 
   relationships do
     has_many :reactions, MyApp.Reaction,
-      context: %{data_layer: %{table: "post_reactions"}}  
+      context: %{data_layer: %{table: "post_reactions"}},
+      destination_field: :resource_id
   end
 end
 
@@ -38,7 +43,8 @@ defmodule MyApp.Comment do
 
   relationships do
     has_many :reactions, MyApp.Reaction,
-      context: %{data_layer: %{table: "comment_reactions"}}  
+      context: %{data_layer: %{table: "comment_reactions"}},
+      destination_field: :resource_id
   end
 end
 ```
