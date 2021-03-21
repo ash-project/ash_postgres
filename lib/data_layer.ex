@@ -263,8 +263,15 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def run_query(query, resource) do
-    {:ok, repo(resource).all(query, repo_opts(query))}
+    if AshPostgres.polymorphic?(resource) && no_table?(query) do
+      raise_table_error!(resource, :read)
+    else
+      {:ok, repo(resource).all(query, repo_opts(query))}
+    end
   end
+
+  defp no_table?(%{from: %{source: {"", _}}}), do: true
+  defp no_table?(_), do: false
 
   defp repo_opts(%Ash.Changeset{tenant: tenant, resource: resource}) do
     repo_opts(%{tenant: tenant, resource: resource})
@@ -481,7 +488,7 @@ defmodule AshPostgres.DataLayer do
   defp ecto_changeset(record, changeset, type) do
     ecto_changeset =
       record
-      |> set_table(changeset)
+      |> set_table(changeset, type)
       |> Ecto.Changeset.change(changeset.attributes)
 
     case type do
@@ -506,17 +513,14 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp set_table(record, changeset) do
+  defp set_table(record, changeset, operation) do
     if AshPostgres.polymorphic?(record.__struct__) do
       table = changeset.context[:data_layer][:table] || AshPostgres.table(record.__struct)
 
       if table do
         Ecto.put_meta(record, source: table)
       else
-        raise """
-        Attempted to change a polymorphic resource without setting the `table` context,
-        and without a default table configured on the resource.
-        """
+        raise_table_error!(changeset.resource, operation)
       end
     else
       record
@@ -1823,5 +1827,20 @@ defmodule AshPostgres.DataLayer do
 
   defp table(resource, changeset) do
     changeset.context[:data_layer][:table] || AshPostgres.table(resource)
+  end
+
+  defp raise_table_error!(resource, operation) do
+    if AshPostgres.polymorphic?(resource) do
+      raise """
+      Could not determine table for #{operation} on #{inspect(resource)}.
+
+      Polymorphic resources require that the `data_layer[:table]` context is provided.
+      See the guide on polymorphic resources for more information.
+      """
+    else
+      raise """
+      Could not determine table for #{operation} on #{inspect(resource)}.
+      """
+    end
   end
 end
