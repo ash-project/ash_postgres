@@ -57,7 +57,7 @@ defmodule AshPostgres.Repo do
         {:ok, new_config}
       end
 
-      defoverridable installed_extensions: 0, all_tenants: 0, tenant_migrations_path: 0
+      defoverridable init: 2, installed_extensions: 0, all_tenants: 0, tenant_migrations_path: 0
     end
   end
 end
