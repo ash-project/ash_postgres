@@ -101,7 +101,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
-               ~S[add :id, :binary_id, null: false, default: fragment("uuid_generate_v4()"), primary_key: true]
+               ~S[add :id, :uuid, null: false, default: fragment("uuid_generate_v4()"), primary_key: true]
     end
 
     test "the migration adds other attributes" do
@@ -311,7 +311,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~
-               ~S[add :guid, :binary_id, null: false, default: fragment("uuid_generate_v4()"), primary_key: true]
+               ~S[add :guid, :uuid, null: false, default: fragment("uuid_generate_v4()"), primary_key: true]
     end
 
     test "when multiple schemas apply to the same table, all attributes are added" do
