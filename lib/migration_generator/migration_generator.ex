@@ -199,7 +199,11 @@ defmodule AshPostgres.MigrationGenerator do
       {primary_key, identities} = merge_primary_keys(existing_snapshot, snapshots)
 
       attributes = Enum.flat_map(snapshots, & &1.attributes)
-      count = Enum.count(snapshots)
+
+      count_with_create =
+        snapshots
+        |> Enum.filter(& &1.has_create_action)
+        |> Enum.count()
 
       snapshot_identities =
         snapshots
@@ -208,7 +212,7 @@ defmodule AshPostgres.MigrationGenerator do
 
       new_snapshot = %{
         snapshot
-        | attributes: merge_attributes(attributes, snapshot.table, count),
+        | attributes: merge_attributes(attributes, snapshot.table, count_with_create),
           identities: snapshot_identities
       }
 
@@ -1228,7 +1232,8 @@ defmodule AshPostgres.MigrationGenerator do
       table: table || AshPostgres.table(resource),
       repo: AshPostgres.repo(resource),
       multitenancy: multitenancy(resource),
-      base_filter: AshPostgres.base_filter_sql(resource)
+      base_filter: AshPostgres.base_filter_sql(resource),
+      has_create_action: has_create_action?(resource)
     }
 
     hash =
@@ -1237,6 +1242,12 @@ defmodule AshPostgres.MigrationGenerator do
       |> Base.encode16()
 
     Map.put(snapshot, :hash, hash)
+  end
+
+  defp has_create_action?(resource) do
+    resource
+    |> Ash.Resource.Info.actions()
+    |> Enum.any?(&(&1.type == :create))
   end
 
   defp multitenancy(resource) do
@@ -1382,6 +1393,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp load_snapshot(json) do
     json
     |> Jason.decode!(keys: :atoms!)
+    |> Map.put_new(:has_create_action, true)
     |> Map.update!(:identities, fn identities ->
       Enum.map(identities, &load_identity/1)
     end)
