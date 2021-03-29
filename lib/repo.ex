@@ -16,6 +16,7 @@ defmodule AshPostgres.Repo do
 
   * `"uuid-ossp"` - Sets UUID primary keys defaults in the migration generator
   * `"pg_trgm"` - Makes the `AshPostgres.Predicates.Trigram` custom predicate available
+  * "citext" - Allows case insensitive fields to be used
 
   ```
   def installed_extensions() do
@@ -56,7 +57,7 @@ defmodule AshPostgres.Repo do
         {:ok, new_config}
       end
 
-      defoverridable installed_extensions: 0, all_tenants: 0, tenant_migrations_path: 0
+      defoverridable init: 2, installed_extensions: 0, all_tenants: 0, tenant_migrations_path: 0
     end
   end
 end

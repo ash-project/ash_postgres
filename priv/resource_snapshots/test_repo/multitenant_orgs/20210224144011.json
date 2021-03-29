@@ -1,0 +1,40 @@
+{
+  "attributes": [
+    {
+      "allow_nil?": false,
+      "default": "nil",
+      "generated?": false,
+      "name": "id",
+      "primary_key?": true,
+      "references": null,
+      "type": "binary_id"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "name",
+      "primary_key?": false,
+      "references": null,
+      "type": "text"
+    }
+  ],
+  "base_filter": null,
+  "hash": "6F256DB012689943BADC80088D8005A5E0C45920E125B6CFD3FE401CBE53B5EE",
+  "identities": [
+    {
+      "base_filter": null,
+      "keys": [
+        "name"
+      ],
+      "name": "unique_by_name"
+    }
+  ],
+  "multitenancy": {
+    "attribute": "id",
+    "global": true,
+    "strategy": "attribute"
+  },
+  "repo": "Elixir.AshPostgres.TestRepo",
+  "table": "multitenant_orgs"
+}

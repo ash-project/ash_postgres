@@ -24,7 +24,9 @@ if Mix.env() == :test do
   # sobelow_skip ["Config.Secrets"]
   config :ash_postgres, AshPostgres.TestRepo, password: "postgres"
 
-  config :ash_postgres, ecto_repos: [AshPostgres.TestRepo]
+  config :ash_postgres,
+    ecto_repos: [AshPostgres.TestRepo],
+    ash_apis: [AshPostgres.Test.Api, AshPostgres.MultitenancyTest.Api]
 
   config :ash_postgres, AshPostgres.TestRepo, migration_primary_key: [name: :id, type: :binary_id]
 

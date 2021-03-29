@@ -3,7 +3,9 @@
 locals_without_parens = [
   base_filter_sql: 1,
   create?: 1,
+  foreign_key_names: 1,
   migrate?: 1,
+  polymorphic?: 1,
   repo: 1,
   skip_unique_indexes: 1,
   table: 1,

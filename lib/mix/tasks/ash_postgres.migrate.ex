@@ -92,8 +92,6 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
 
   @impl true
   def run(args) do
-    Mix.Task.run("app.start")
-
     {opts, _} = OptionParser.parse!(args, strict: @switches, aliases: @aliases)
 
     repos = AshPostgres.MixHelpers.repos(opts, args)
@@ -115,18 +113,20 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
 
     if opts[:tenants] do
       for repo <- repos do
-        for tenant <- repo.all_tenants() do
-          rest_opts = AshPostgres.MixHelpers.delete_arg(rest_opts, "--prefix")
+        Ecto.Migrator.with_repo(repo, fn repo ->
+          for tenant <- repo.all_tenants() do
+            rest_opts = AshPostgres.MixHelpers.delete_arg(rest_opts, "--prefix")
 
-          Mix.Task.run(
-            "ecto.migrate",
-            repo_args ++
-              rest_opts ++
-              ["--prefix", tenant, "--migrations-path", tenant_migrations_path(opts, repo)]
-          )
+            Mix.Task.run(
+              "ecto.migrate",
+              repo_args ++
+                rest_opts ++
+                ["--prefix", tenant, "--migrations-path", tenant_migrations_path(opts, repo)]
+            )
 
-          Mix.Task.reenable("ecto.migrate")
-        end
+            Mix.Task.reenable("ecto.migrate")
+          end
+        end)
       end
     else
       for repo <- repos do

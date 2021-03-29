@@ -344,6 +344,21 @@ defmodule AshPostgres.FilterTest do
     end
   end
 
+  describe "atom filters" do
+    test "it works on matches" do
+      Post
+      |> Ash.Changeset.new(%{title: "match"})
+      |> Api.create!()
+
+      result =
+        Post
+        |> Ash.Query.filter(type == :sponsored)
+        |> Api.read!()
+
+      assert [%Post{title: "match"}] = result
+    end
+  end
+
   describe "trigram_similarity" do
     test "it works on matches" do
       Post

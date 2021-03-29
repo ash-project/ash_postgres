@@ -8,9 +8,24 @@ defmodule AshPostgres.Test.Post do
     repo AshPostgres.TestRepo
   end
 
+  resource do
+    base_filter(expr(type == type(:sponsored, ^Ash.Type.Atom)))
+  end
+
   actions do
     read(:read)
-    create(:create)
+
+    create :create do
+      argument(:rating, :map)
+
+      change(
+        manage_relationship(:rating, :ratings,
+          on_missing: :ignore,
+          on_no_match: :create,
+          on_match: :create
+        )
+      )
+    end
   end
 
   attributes do
@@ -19,10 +34,16 @@ defmodule AshPostgres.Test.Post do
     attribute(:score, :integer)
     attribute(:public, :boolean)
     attribute(:category, :ci_string)
+    attribute(:type, :atom, default: :sponsored, private?: true, writable?: false)
   end
 
   relationships do
     has_many(:comments, AshPostgres.Test.Comment, destination_field: :post_id)
+
+    has_many(:ratings, AshPostgres.Test.Rating,
+      destination_field: :resource_id,
+      context: %{data_layer: %{table: "post_ratings"}}
+    )
   end
 
   aggregates do

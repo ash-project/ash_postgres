@@ -6,7 +6,7 @@ defmodule AshPostgres.MixProject do
   support, and delegates to a configured repo.
   """
 
-  @version "0.33.1"
+  @version "0.35.5"
 
   def project do
     [
@@ -20,7 +20,13 @@ defmodule AshPostgres.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       preferred_cli_env: [
         coveralls: :test,
-        "coveralls.github": :test
+        "coveralls.github": :test,
+        "test.create": :test,
+        "test.migrate": :test,
+        "test.migrate_tenants": :test,
+        "test.drop": :test,
+        "test.generate_migrations": :test,
+        "test.reset": :test
       ],
       dialyzer: [
         plt_add_apps: [:ecto, :ash, :mix]
@@ -60,12 +66,14 @@ defmodule AshPostgres.MixProject do
       extras: [
         "README.md",
         "documentation/migrations_and_tasks.md",
-        "documentation/multitenancy.md"
+        "documentation/multitenancy.md",
+        "documentation/polymorphic_resources.md"
       ],
       groups_for_extras: [
         guides: [
           "documentation/multitenancy.md",
-          "documentation/migrations_and_tasks.md"
+          "documentation/migrations_and_tasks.md",
+          "documentation/polymorphic_resources.md"
         ]
       ],
       groups_for_modules: [
@@ -87,7 +95,7 @@ defmodule AshPostgres.MixProject do
       {:ecto_sql, "~> 3.5"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
-      {:ash, ash_version("~> 1.31")},
+      {:ash, ash_version("~> 1.34 and >= 1.34.6")},
       {:git_ops, "~> 2.0.1", only: :dev},
       {:ex_doc, "~> 0.22", only: :dev, runtime: false},
       {:ex_check, "~> 0.11.0", only: :dev},
@@ -112,7 +120,13 @@ defmodule AshPostgres.MixProject do
       sobelow:
         "sobelow --skip -i Config.Secrets --ignore-files lib/migration_generator/migration_generator.ex",
       credo: "credo --strict",
-      "ash.formatter": "ash.formatter --extensions AshPostgres.DataLayer"
+      "ash.formatter": "ash.formatter --extensions AshPostgres.DataLayer",
+      "test.generate_migrations": "ash_postgres.generate_migrations",
+      "test.migrate_tenants": "ash_postgres.migrate --tenants",
+      "test.migrate": "ash_postgres.migrate",
+      "test.create": "ash_postgres.create",
+      "test.reset": ["test.drop", "test.create", "test.migrate"],
+      "test.drop": "ash_postgres.drop"
     ]
   end
 end

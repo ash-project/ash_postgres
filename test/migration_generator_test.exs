@@ -101,7 +101,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
-               ~S[add :id, :binary_id, null: false, default: fragment("uuid_generate_v4()"), primary_key: true]
+               ~S[add :id, :uuid, null: false, default: fragment("uuid_generate_v4()"), primary_key: true]
     end
 
     test "the migration adds other attributes" do
@@ -311,7 +311,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
 
       assert File.read!(file2) =~
-               ~S[add :guid, :binary_id, null: false, default: fragment("uuid_generate_v4()"), primary_key: true]
+               ~S[add :guid, :uuid, null: false, default: fragment("uuid_generate_v4()"), primary_key: true]
     end
 
     test "when multiple schemas apply to the same table, all attributes are added" do
@@ -347,6 +347,39 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert File.read!(file2) =~
                ~S[add :foobar, :text]
+    end
+
+    test "when an attribute exists only on some of the resources that use the same table, it isn't marked as null: false" do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string)
+          attribute(:example, :string, allow_nil?: false)
+        end
+      end
+
+      defposts Post2 do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defapi([Post, Post2])
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+
+      assert File.read!(file2) =~
+               ~S[add :example, :text] <> "\n"
+
+      refute File.read!(file2) =~ ~S[null: false]
     end
   end
 
@@ -414,6 +447,84 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       refute File.exists?(Path.wildcard("test_migration_path2/**/*_migrate_resources*.exs"))
       refute File.exists?(Path.wildcard("test_snapshots_path2/test_repo/posts/*.json"))
+    end
+  end
+
+  describe "polymorphic resources" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+
+      defmodule Comment do
+        use Ash.Resource,
+          data_layer: AshPostgres.DataLayer
+
+        postgres do
+          polymorphic? true
+          repo AshPostgres.TestRepo
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:resource_id, :uuid)
+        end
+
+        actions do
+          read(:read)
+          create(:create)
+        end
+      end
+
+      defmodule Post do
+        use Ash.Resource,
+          data_layer: AshPostgres.DataLayer
+
+        postgres do
+          table "posts"
+          repo AshPostgres.TestRepo
+        end
+
+        actions do
+          read(:read)
+          create(:create)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        relationships do
+          has_many(:comments, Comment,
+            destination_field: :resource_id,
+            context: %{data_layer: %{table: "post_comments"}}
+          )
+
+          belongs_to(:best_comment, Comment,
+            destination_field: :id,
+            context: %{data_layer: %{table: "post_comments"}}
+          )
+        end
+      end
+
+      defapi([Post, Comment])
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      [api: Api]
+    end
+
+    test "it uses the relationship's table context if it is set" do
+      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+
+      assert File.read!(file) =~
+               ~S[references(:post_comments]
     end
   end
 end

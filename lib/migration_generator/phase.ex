@@ -19,9 +19,9 @@ defmodule AshPostgres.MigrationGenerator.Phase do
 
     def down(%{table: table, multitenancy: multitenancy}) do
       if multitenancy.strategy == :context do
-        "drop table(#{inspect(table)}, prefix: prefix())"
+        "drop table(:#{inspect(table)}, prefix: prefix())"
       else
-        "drop table(#{inspect(table)})"
+        "drop table(:#{inspect(table)})"
       end
     end
   end

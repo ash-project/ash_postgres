@@ -5,6 +5,160 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.35.5](https://github.com/ash-project/ash_postgres/compare/v0.35.4...v0.35.5) (2021-03-29)
+
+
+
+
+### Bug Fixes:
+
+* Made AshPostgres.Repo.init/2 overridable (#51)
+
+### Improvements:
+
+* only count resources w/ create action for nullability
+
+* better error message on missing table
+
+## [v0.35.4](https://github.com/ash-project/ash_postgres/compare/v0.35.3...v0.35.4) (2021-03-21)
+
+
+
+
+### Bug Fixes:
+
+* reroute `Ash.Type.UUID` to `:uuid` in migrations
+
+* force create extensions snapshot
+
+### Improvements:
+
+* consistent foreign key names
+
+* support custom foreign key error messages
+
+## [v0.35.3](https://github.com/ash-project/ash_postgres/compare/v0.35.2...v0.35.3) (2021-03-19)
+
+
+
+
+### Bug Fixes:
+
+* force create extensions snapshot
+
+* more conservative inner join checks
+
+* add back in inner join detection logic
+
+### Improvements:
+
+* consistent foreign key names
+
+* support custom foreign key error messages
+
+## [v0.35.2](https://github.com/ash-project/ash_postgres/compare/v0.35.1...v0.35.2) (2021-03-05)
+
+
+
+
+### Bug Fixes:
+
+* more conservative inner join checks
+
+* add back in inner join detection logic
+
+## [v0.35.1](https://github.com/ash-project/ash_postgres/compare/v0.35.0...v0.35.1) (2021-03-02)
+
+
+
+
+### Bug Fixes:
+
+* don't start the whole app in migrate
+
+## [v0.35.0](https://github.com/ash-project/ash_postgres/compare/v0.34.7...v0.35.0) (2021-03-02)
+
+
+
+
+### Features:
+
+* automatically install extensions from repo
+
+## [v0.34.7](https://github.com/ash-project/ash_postgres/compare/v0.34.6...v0.34.7) (2021-03-02)
+
+
+
+
+### Bug Fixes:
+
+* typo in references for multitenancy
+
+* `null: true` when attr isn't on all resources for a table
+
+## [v0.34.6](https://github.com/ash-project/ash_postgres/compare/v0.34.5...v0.34.6) (2021-02-24)
+
+
+
+
+### Bug Fixes:
+
+* better embedded filters, switch to latest ash
+
+## [v0.34.5](https://github.com/ash-project/ash_postgres/compare/v0.34.4...v0.34.5) (2021-02-23)
+
+
+
+
+### Improvements:
+
+* support latest ash
+
+## [v0.34.4](https://github.com/ash-project/ash_postgres/compare/v0.34.3...v0.34.4) (2021-02-08)
+
+
+
+
+### Bug Fixes:
+
+* trim when choosing new attribute name
+
+## [v0.34.3](https://github.com/ash-project/ash_postgres/compare/v0.34.2...v0.34.3) (2021-02-06)
+
+
+
+
+### Bug Fixes:
+
+* don't reference polymorphic tables to belongs_to relationships
+
+## [v0.34.2](https://github.com/ash-project/ash_postgres/compare/v0.34.1...v0.34.2) (2021-02-06)
+
+
+
+
+### Bug Fixes:
+
+* set up references properly
+
+## [v0.34.1](https://github.com/ash-project/ash_postgres/compare/v0.34.0...v0.34.1) (2021-02-06)
+
+
+
+
+### Bug Fixes:
+
+* reference the configured table if set
+
+## [v0.34.0](https://github.com/ash-project/ash_postgres/compare/v0.33.1...v0.34.0) (2021-02-06)
+
+
+
+
+### Features:
+
+* support polymorphic relationships
+
 ## [v0.33.1](https://github.com/ash-project/ash_postgres/compare/v0.33.0...v0.33.1) (2021-01-27)
 
 
