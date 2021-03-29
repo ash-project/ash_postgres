@@ -5,6 +5,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.35.5](https://github.com/ash-project/ash_postgres/compare/v0.35.4...v0.35.5) (2021-03-29)
+
+
+
+
+### Bug Fixes:
+
+* Made AshPostgres.Repo.init/2 overridable (#51)
+
+### Improvements:
+
+* only count resources w/ create action for nullability
+
+* better error message on missing table
+
 ## [v0.35.4](https://github.com/ash-project/ash_postgres/compare/v0.35.3...v0.35.4) (2021-03-21)
 
 
