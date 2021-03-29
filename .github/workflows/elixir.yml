@@ -35,7 +35,7 @@ jobs:
     steps:
       - run: sudo apt-get install --yes erlang-dev
       - uses: actions/checkout@v2
-      - uses: actions/setup-elixir@v1
+      - uses: erlef/setup-elixir@v1
         with:
           otp-version: ${{matrix.otp}}
           elixir-version: ${{matrix.elixir}}
@@ -82,7 +82,7 @@ jobs:
     steps:
       - run: sudo apt-get install --yes erlang-dev
       - uses: actions/checkout@v2
-      - uses: actions/setup-elixir@v1
+      - uses: erlef/setup-elixir@v1
         with:
           otp-version: ${{matrix.otp}}
           elixir-version: ${{matrix.elixir}}
@@ -111,7 +111,7 @@ jobs:
     steps:
       - run: sudo apt-get install --yes erlang-dev
       - uses: actions/checkout@v2
-      - uses: actions/setup-elixir@v1
+      - uses: erlef/setup-elixir@v1
         with:
           otp-version: ${{matrix.otp}}
           elixir-version: ${{matrix.elixir}}
