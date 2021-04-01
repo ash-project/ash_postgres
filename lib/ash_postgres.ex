@@ -19,6 +19,26 @@ defmodule AshPostgres do
     Extension.get_opt(resource, [:postgres], :table, nil, true)
   end
 
+  @doc "The configured references for a resource"
+  def references(resource) do
+    Extension.get_entities(resource, [:postgres, :references])
+  end
+
+  @doc "The configured polymorphic_reference_on_delete for a resource"
+  def polymorphic_on_delete(resource) do
+    Extension.get_opt(resource, [:postgres, :references], :polymorphic_on_delete, nil, true)
+  end
+
+  @doc "The configured polymorphic_reference_on_update for a resource"
+  def polymorphic_on_update(resource) do
+    Extension.get_opt(resource, [:postgres, :references], :polymorphic_on_update, nil, true)
+  end
+
+  @doc "The configured polymorphic_reference_name for a resource"
+  def polymorphic_name(resource) do
+    Extension.get_opt(resource, [:postgres, :references], :polymorphic_on_delete, nil, true)
+  end
+
   @doc "The configured polymorphic? for a resource"
   def polymorphic?(resource) do
     Extension.get_opt(resource, [:postgres], :polymorphic?, nil, true)

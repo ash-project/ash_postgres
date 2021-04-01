@@ -42,13 +42,68 @@ defmodule AshPostgres.DataLayer do
     ]
   }
 
+  @reference %Ash.Dsl.Entity{
+    name: :reference,
+    describe: """
+    Configures the reference for a relationship in resource migrations.
+
+    Keep in mind that multiple relationships can theoretically involve the same destination and foreign keys.
+    In those cases, you only need to configure the `reference` behavior for one of them. Any conflicts will result
+    in an error, across this resource and any other resources that share a table with this one. For this reason,
+    instead of adding a reference configuration for `:nothing`, its best to just leave the configuration out, as that
+    is the default behavior if *no* relationship anywhere has configured the behavior of that reference.
+    """,
+    examples: [
+      "reference :post, on_delete: :delete, on_update: :update, name: \"comments_to_posts_fkey\""
+    ],
+    args: [:relationship],
+    target: AshPostgres.Reference,
+    schema: AshPostgres.Reference.schema()
+  }
+
+  @references %Ash.Dsl.Section{
+    name: :references,
+    describe: """
+    A section for configuring the references (foreign keys) in resource migrations.
+
+    This section is only relevant if you are using the migration generator with this resource.
+    Otherwise, it has no effect.
+    """,
+    examples: [
+      """
+      references do
+        reference :post, on_delete: :delete, on_update: :update, name: "comments_to_posts_fkey"
+      end
+      """
+    ],
+    entities: [@reference],
+    schema: [
+      polymorphic_on_delete: [
+        type: {:one_of, [:delete, :nilify, :nothing, :restrict]},
+        doc:
+          "For polymorphic resources, configures the on_delete behavior of the automatically generated foreign keys to source tables."
+      ],
+      polymorphic_on_update: [
+        type: {:one_of, [:update, :nilify, :nothing, :restrict]},
+        doc:
+          "For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables."
+      ],
+      polymorphic_name: [
+        type: {:one_of, [:update, :nilify, :nothing, :restrict]},
+        doc:
+          "For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables."
+      ]
+    ]
+  }
+
   @postgres %Ash.Dsl.Section{
     name: :postgres,
     describe: """
     Postgres data layer configuration
     """,
     sections: [
-      @manage_tenant
+      @manage_tenant,
+      @references
     ],
     modules: [
       :repo
@@ -217,6 +272,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :nested_expressions), do: true
   def can?(_, {:query_aggregate, :count}), do: true
   def can?(_, :sort), do: true
+  def can?(_, :distinct), do: true
   def can?(_, {:sort, _}), do: true
   def can?(_, _), do: false
 
@@ -701,6 +757,40 @@ defmodule AshPostgres.DataLayer do
 
       {:ok, new_query}
     end)
+  end
+
+  @impl true
+  def distinct(query, distinct_on, resource) do
+    query = default_bindings(query, resource)
+
+    query =
+      query
+      |> default_bindings(resource)
+      |> Map.update!(:distinct, fn distinct ->
+        distinct =
+          distinct ||
+            %Ecto.Query.QueryExpr{
+              expr: []
+            }
+
+        expr =
+          Enum.map(distinct_on, fn distinct_on_field ->
+            binding =
+              case Map.fetch(query.__ash_bindings__.aggregates, distinct_on_field) do
+                {:ok, binding} ->
+                  binding
+
+                :error ->
+                  0
+              end
+
+            {:asc, {{:., [], [{:&, [], [binding]}, distinct_on_field]}, [], []}}
+          end)
+
+        %{distinct | expr: distinct.expr ++ expr}
+      end)
+
+    {:ok, query}
   end
 
   defp sanitize_sort(sort) do

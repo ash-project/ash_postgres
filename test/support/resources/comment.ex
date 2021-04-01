@@ -6,6 +6,10 @@ defmodule AshPostgres.Test.Comment do
   postgres do
     table "comments"
     repo AshPostgres.TestRepo
+
+    references do
+      reference(:post, on_delete: :delete, on_update: :update, name: "special_name_fkey")
+    end
   end
 
   actions do

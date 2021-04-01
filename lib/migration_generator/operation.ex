@@ -19,6 +19,26 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def maybe_add_null(false), do: "null: false"
     def maybe_add_null(_), do: nil
+
+    def on_delete(%{on_delete: on_delete}) when on_delete in [:delete, :nilify] do
+      "on_delete: :#{on_delete}_all"
+    end
+
+    def on_delete(%{on_delete: on_delete}) when is_atom(on_delete) and not is_nil(on_delete) do
+      "on_delete: :#{on_delete}"
+    end
+
+    def on_delete(_), do: nil
+
+    def on_update(%{on_update: on_update}) when on_update in [:update, :nilify] do
+      "on_update: :#{on_update}_all"
+    end
+
+    def on_update(%{on_update: on_update}) when is_atom(on_update) and not is_nil(on_update) do
+      "on_update: :#{on_update}"
+    end
+
+    def on_update(_), do: nil
   end
 
   defmodule CreateTable do
@@ -36,11 +56,12 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           multitenancy: %{strategy: :attribute, attribute: source_attribute},
           attribute:
             %{
-              references: %{
-                table: table,
-                destination_field: destination_field,
-                multitenancy: %{strategy: :attribute, attribute: destination_attribute}
-              }
+              references:
+                %{
+                  table: table,
+                  destination_field: destination_field,
+                  multitenancy: %{strategy: :attribute, attribute: destination_attribute}
+                } = reference
             } = attribute
         }) do
       [
@@ -49,7 +70,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         [
           "type: #{inspect(attribute.type)}",
           "column: #{inspect(destination_field)}",
-          "with: [#{source_attribute}: :#{destination_attribute}]"
+          "with: [#{source_attribute}: :#{destination_attribute}]",
+          "name: #{inspect(reference.name)}",
+          on_delete(reference),
+          on_update(reference)
         ],
         ")",
         maybe_add_default(attribute.default),
@@ -62,11 +86,12 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           multitenancy: %{strategy: :context},
           attribute:
             %{
-              references: %{
-                table: table,
-                destination_field: destination_field,
-                multitenancy: %{strategy: :attribute}
-              }
+              references:
+                %{
+                  table: table,
+                  destination_field: destination_field,
+                  multitenancy: %{strategy: :attribute}
+                } = reference
             } = attribute
         }) do
       [
@@ -75,7 +100,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         [
           "type: #{inspect(attribute.type)}",
           "column: #{inspect(destination_field)}",
-          "prefix: \"public\""
+          "prefix: \"public\"",
+          "name: #{inspect(reference.name)}",
+          on_delete(reference),
+          on_update(reference)
         ],
         ")",
         maybe_add_default(attribute.default),
@@ -113,14 +141,18 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     def up(%{
           multitenancy: %{strategy: :context},
           attribute:
-            %{references: %{table: table, destination_field: destination_field}} = attribute
+            %{references: %{table: table, destination_field: destination_field} = reference} =
+              attribute
         }) do
       [
         "add #{inspect(attribute.name)}",
         "references(:#{table}",
         [
           "type: #{inspect(attribute.type)}",
-          "column: #{inspect(destination_field)}"
+          "column: #{inspect(destination_field)}",
+          "name: #{inspect(reference.name)}",
+          on_delete(reference),
+          on_update(reference)
         ],
         ")",
         maybe_add_default(attribute.default),
@@ -131,14 +163,18 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def up(%{
           attribute:
-            %{references: %{table: table, destination_field: destination_field}} = attribute
+            %{references: %{table: table, destination_field: destination_field} = reference} =
+              attribute
         }) do
       [
         "add #{inspect(attribute.name)}",
         "references(:#{table}",
         [
           "type: #{inspect(attribute.type)}",
-          "column: #{inspect(destination_field)}"
+          "column: #{inspect(destination_field)}",
+          "name: #{inspect(reference.name)}",
+          on_delete(reference),
+          on_update(reference)
         ],
         ")",
         maybe_add_default(attribute.default),
@@ -188,6 +224,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     @moduledoc false
     defstruct [:old_attribute, :new_attribute, :table, :multitenancy, :old_multitenancy]
 
+    import Helper
+
     defp alter_opts(attribute, old_attribute) do
       primary_key =
         if attribute.primary_key? and !old_attribute.primary_key? do
@@ -231,52 +269,80 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     defp reference(%{strategy: :context}, %{
            type: type,
-           references: %{
-             multitenancy: %{strategy: :context},
-             table: table,
-             destination_field: destination_field
-           }
+           references:
+             %{
+               multitenancy: %{strategy: :context},
+               table: table,
+               destination_field: destination_field
+             } = reference
          }) do
-      "references(:#{table}, type: #{inspect(type)}, column: #{inspect(destination_field)})"
+      join([
+        "references(:#{table}, type: #{inspect(type)}, column: #{inspect(destination_field)}",
+        "name: #{inspect(reference.name)}",
+        on_delete(reference),
+        on_update(reference),
+        ")"
+      ])
     end
 
     defp reference(%{strategy: :attribute, attribute: source_attribute}, %{
            type: type,
-           references: %{
-             multitenancy: %{strategy: :attribute, attribute: destination_attribute},
-             table: table,
-             destination_field: destination_field
-           }
+           references:
+             %{
+               multitenancy: %{strategy: :attribute, attribute: destination_attribute},
+               table: table,
+               destination_field: destination_field
+             } = reference
          }) do
-      "references(:#{table}, type: #{inspect(type)}, column: #{inspect(destination_field)}, with: [#{
-        source_attribute
-      }: :#{destination_attribute}])"
+      join([
+        "references(:#{table}, type: #{inspect(type)}, column: #{inspect(destination_field)}, with: [#{
+          source_attribute
+        }: :#{destination_attribute}]",
+        "name: #{inspect(reference.name)}",
+        on_delete(reference),
+        on_update(reference),
+        ")"
+      ])
     end
 
     defp reference(
            %{strategy: :context},
            %{
              type: type,
-             references: %{
-               table: table,
-               destination_field: destination_field
-             }
+             references:
+               %{
+                 table: table,
+                 destination_field: destination_field
+               } = reference
            }
          ) do
-      "references(:#{table}, type: #{inspect(type)}, column: #{inspect(destination_field)}, prefix: \"public\")"
+      join([
+        "references(:#{table}, type: #{inspect(type)}, column: #{inspect(destination_field)}, prefix: \"public\"",
+        "name: #{inspect(reference.name)}",
+        on_delete(reference),
+        on_update(reference),
+        ")"
+      ])
     end
 
     defp reference(
            _,
            %{
              type: type,
-             references: %{
-               table: table,
-               destination_field: destination_field
-             }
+             references:
+               %{
+                 table: table,
+                 destination_field: destination_field
+               } = reference
            }
          ) do
-      "references(:#{table}, type: #{inspect(type)}, column: #{inspect(destination_field)})"
+      join([
+        "references(:#{table}, type: #{inspect(type)}, column: #{inspect(destination_field)}",
+        "name: #{inspect(reference.name)}",
+        on_delete(reference),
+        on_update(reference),
+        ")"
+      ])
     end
 
     def down(op) do
@@ -297,14 +363,14 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     # We only need to drop it before altering an attribute with `references/3`
     defstruct [:attribute, :table, :multitenancy, :direction, no_phase: true]
 
-    def up(%{attribute: attribute, table: table, direction: :up}) do
-      "drop constraint(:#{table}, \"#{table}_#{attribute.name}_fkey\")"
+    def up(%{table: table, references: reference, direction: :up}) do
+      "drop constraint(:#{table}, #{inspect(reference.name)})"
     end
 
     def up(_), do: ""
 
-    def down(%{attribute: attribute, table: table, direction: :down}) do
-      "drop constraint(:#{table}, \"#{table}_#{attribute.name}_fkey\")"
+    def down(%{table: table, references: reference, direction: :down}) do
+      "drop constraint(:#{table}, #{inspect(reference.name)})"
     end
 
     def down(_), do: ""

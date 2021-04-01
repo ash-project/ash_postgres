@@ -1,0 +1,53 @@
+{
+  "attributes": [
+    {
+      "allow_nil?": false,
+      "default": "fragment(\"uuid_generate_v4()\")",
+      "generated?": false,
+      "name": "id",
+      "primary_key?": true,
+      "references": null,
+      "type": "uuid"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "resource_id",
+      "primary_key?": false,
+      "references": {
+        "destination_field": "id",
+        "multitenancy": {
+          "attribute": null,
+          "global": null,
+          "strategy": null
+        },
+        "name": "comment_ratings_id_fkey",
+        "on_delete": null,
+        "on_update": null,
+        "table": "comments"
+      },
+      "type": "uuid"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "score",
+      "primary_key?": false,
+      "references": null,
+      "type": "integer"
+    }
+  ],
+  "base_filter": null,
+  "has_create_action": true,
+  "hash": "C5E5F3D67674E95A1AE3F53029243C4A8B5D39F327B851F2F28F950BF232121B",
+  "identities": [],
+  "multitenancy": {
+    "attribute": null,
+    "global": null,
+    "strategy": null
+  },
+  "repo": "Elixir.AshPostgres.TestRepo",
+  "table": "comment_ratings"
+}
