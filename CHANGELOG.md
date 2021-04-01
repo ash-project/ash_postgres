@@ -5,6 +5,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.36.0](https://github.com/ash-project/ash_postgres/compare/v0.35.5...v0.36.0) (2021-04-01)
+
+
+
+
+### Features:
+
+* support configuring references
+
+* support configuring polymorphic references
+
+* support `distinct` Ash queries
+
 ## [v0.35.5](https://github.com/ash-project/ash_postgres/compare/v0.35.4...v0.35.5) (2021-03-29)
 
 
