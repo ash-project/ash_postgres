@@ -45,7 +45,19 @@ defmodule AshPostgres.Repo do
       def installed_extensions, do: []
       def tenant_migrations_path, do: nil
       def migrations_path, do: nil
-      def all_tenants, do: []
+
+      def all_tenants do
+        raise """
+        `#{inspect(__MODULE__)}.all_tenants/0` was called, but was not defined. In order to migrate tenants, you must define this function.
+        For example, you might say:
+
+          def all_tenants do
+            for org <- MyApp.Accounts.all_organizations!() do
+              org.schema
+            end
+          end
+        """
+      end
 
       def init(_, config) do
         new_config =
