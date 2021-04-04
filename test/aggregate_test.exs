@@ -139,4 +139,77 @@ defmodule AshPostgres.AggregateTest do
                |> Api.read_one!()
     end
   end
+
+  describe "sum" do
+    test "with no related data it returns nil" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      assert %{sum_of_comment_likes: nil} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:sum_of_comment_likes)
+               |> Api.read_one!()
+    end
+
+    test "with data, it returns the sum" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "match", likes: 2})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      assert %{sum_of_comment_likes: 2} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:sum_of_comment_likes)
+               |> Api.read_one!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "match", likes: 3})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      assert %{sum_of_comment_likes: 5} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:sum_of_comment_likes)
+               |> Api.read_one!()
+    end
+
+    test "with data and a filter, it returns the sum" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "match", likes: 2})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      assert %{sum_of_comment_likes_called_match: 2} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:sum_of_comment_likes_called_match)
+               |> Api.read_one!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "not_match", likes: 3})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      assert %{sum_of_comment_likes_called_match: 2} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:sum_of_comment_likes_called_match)
+               |> Api.read_one!()
+    end
+  end
 end

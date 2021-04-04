@@ -25,6 +25,7 @@ defmodule AshPostgres.Test.Comment do
   attributes do
     uuid_primary_key(:id)
     attribute(:title, :string)
+    attribute(:likes, :integer)
   end
 
   relationships do

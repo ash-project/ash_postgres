@@ -56,5 +56,11 @@ defmodule AshPostgres.Test.Post do
     first :first_comment, :comments, :title do
       sort(title: :asc_nils_last)
     end
+
+    sum(:sum_of_comment_likes, :comments, :likes)
+
+    sum :sum_of_comment_likes_called_match, :comments, :likes do
+      filter(title: "match")
+    end
   end
 end

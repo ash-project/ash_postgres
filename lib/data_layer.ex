@@ -258,6 +258,7 @@ defmodule AshPostgres.DataLayer do
 
   def can?(_, :boolean_filter), do: true
   def can?(_, {:aggregate, :count}), do: true
+  def can?(_, {:aggregate, :sum}), do: true
   def can?(_, :aggregate_filter), do: true
   def can?(_, :aggregate_sort), do: true
   def can?(_, :create), do: true
@@ -1165,12 +1166,13 @@ defmodule AshPostgres.DataLayer do
     %{query | select: %{query.select | expr: new_expr, params: params}}
   end
 
-  defp add_subquery_aggregate_select(query, %{kind: :count} = aggregate, resource) do
+  defp add_subquery_aggregate_select(query, %{kind: kind} = aggregate, resource)
+       when kind in [:count, :sum] do
     query = default_bindings(query, aggregate.resource)
     key = aggregate.field || List.first(Ash.Resource.Info.primary_key(resource))
     type = Ash.Type.ecto_type(aggregate.type)
 
-    field = {:count, [], [{{:., [], [{:&, [], [0]}, key]}, [], []}]}
+    field = {kind, [], [{{:., [], [{:&, [], [0]}, key]}, [], []}]}
 
     {params, filtered} =
       if aggregate.query && aggregate.query.filter &&
