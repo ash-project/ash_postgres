@@ -5,6 +5,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.36.1](https://github.com/ash-project/ash_postgres/compare/v0.36.0...v0.36.1) (2021-04-04)
+
+
+
+
+### Bug Fixes:
+
+* raise when `all_tenants/0` default impl is called
+
+### Improvements:
+
+* add sum aggregate (#53)
+
 ## [v0.36.0](https://github.com/ash-project/ash_postgres/compare/v0.35.5...v0.36.0) (2021-04-01)
 
 
