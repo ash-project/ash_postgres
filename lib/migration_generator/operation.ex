@@ -114,21 +114,13 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def up(%{
           multitenancy: %{strategy: :attribute},
-          table: current_table,
           attribute:
             %{
               references: %{
-                table: table,
                 multitenancy: %{strategy: :context}
               }
             } = attribute
         }) do
-      Mix.shell().info("""
-      table `#{current_table}` with attribute multitenancy refers to table `#{table}` with schema based multitenancy.
-      This means that it is not possible to use a foreign key. This is not necessarily a problem, just something
-      you should be aware of
-      """)
-
       [
         "add #{inspect(attribute.name)}",
         inspect(attribute.type),

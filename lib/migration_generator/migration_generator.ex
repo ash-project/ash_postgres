@@ -14,6 +14,9 @@ defmodule AshPostgres.MigrationGenerator do
             migration_path: nil,
             tenant_migration_path: nil,
             quiet: false,
+            current_snapshots: nil,
+            answers: [],
+            no_shell?: false,
             format: true,
             dry_run: false,
             check_generated: false,
@@ -43,7 +46,7 @@ defmodule AshPostgres.MigrationGenerator do
     tenant_snapshots_to_include_in_global =
       tenant_snapshots
       |> Enum.filter(& &1.multitenancy.global)
-      |> Enum.map(&Map.put(&1, :multitenancy, %{strategy: nil, attribute: nil, global: false}))
+      |> Enum.map(&Map.put(&1, :multitenancy, %{strategy: nil, attribute: nil, global: nil}))
 
     snapshots = snapshots ++ tenant_snapshots_to_include_in_global
 
@@ -55,6 +58,48 @@ defmodule AshPostgres.MigrationGenerator do
     create_extension_migrations(repos, opts)
     create_migrations(tenant_snapshots, opts, true)
     create_migrations(snapshots, opts, false)
+  end
+
+  @doc """
+  A work in progress utility for getting snapshots.
+
+  Does not support everything supported by the migration generator.
+  """
+  def take_snapshots(api, repo) do
+    all_resources = Ash.Api.resources(api)
+
+    all_resources
+    |> Enum.filter(&(Ash.DataLayer.data_layer(&1) == AshPostgres.DataLayer))
+    |> Enum.filter(&(AshPostgres.repo(&1) == repo))
+    |> Enum.flat_map(&get_snapshots(&1, all_resources))
+  end
+
+  @doc """
+  A work in progress utility for getting operations between snapshots.
+
+  Does not support everything supported by the migration generator.
+  """
+  def get_operations_from_snapshots(old_snapshots, new_snapshots, opts \\ []) do
+    opts = %{opts(opts) | no_shell?: true}
+
+    old_snapshots = Enum.map(old_snapshots, &sanitize_snapshot/1)
+
+    new_snapshots
+    |> deduplicate_snapshots(opts, old_snapshots)
+    |> fetch_operations(opts)
+    |> Enum.flat_map(&elem(&1, 1))
+    |> Enum.uniq()
+    |> organize_operations()
+  end
+
+  defp opts(opts) do
+    case struct(__MODULE__, opts) do
+      %{check_generated: true} = opts ->
+        %{opts | dry_run: true}
+
+      opts ->
+        opts
+    end
   end
 
   defp create_extension_migrations(repos, opts) do
@@ -165,14 +210,21 @@ defmodule AshPostgres.MigrationGenerator do
           if opts.check_generated, do: exit({:shutdown, 1})
 
           operations
-          |> sort_operations()
-          |> streamline()
-          |> group_into_phases()
-          |> comment_out_phases()
+          |> organize_operations
           |> build_up_and_down()
           |> write_migration!(snapshots, repo, opts, tenant?)
       end
     end)
+  end
+
+  defp organize_operations([]), do: []
+
+  defp organize_operations(operations) do
+    operations
+    |> sort_operations()
+    |> streamline()
+    |> group_into_phases()
+    |> comment_out_phases()
   end
 
   defp comment_out_phases(phases) do
@@ -189,14 +241,20 @@ defmodule AshPostgres.MigrationGenerator do
     end)
   end
 
-  defp deduplicate_snapshots(snapshots, opts) do
+  defp deduplicate_snapshots(snapshots, opts, existing_snapshots \\ []) do
     snapshots
     |> Enum.group_by(fn snapshot ->
       snapshot.table
     end)
     |> Enum.map(fn {_table, [snapshot | _] = snapshots} ->
-      existing_snapshot = get_existing_snapshot(snapshot, opts)
-      {primary_key, identities} = merge_primary_keys(existing_snapshot, snapshots)
+      existing_snapshot =
+        if opts.no_shell? do
+          Enum.find(existing_snapshots, &(&1.table == snapshot.table))
+        else
+          get_existing_snapshot(snapshot, opts)
+        end
+
+      {primary_key, identities} = merge_primary_keys(existing_snapshot, snapshots, opts)
 
       attributes = Enum.flat_map(snapshots, & &1.attributes)
 
@@ -336,7 +394,7 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  defp merge_primary_keys(nil, [snapshot | _] = snapshots) do
+  defp merge_primary_keys(nil, [snapshot | _] = snapshots, opts) do
     snapshots
     |> Enum.map(&pkey_names(&1.attributes))
     |> Enum.uniq()
@@ -352,16 +410,20 @@ defmodule AshPostgres.MigrationGenerator do
             "#{index}: #{inspect(pkey)}"
           end)
 
-        message = """
-        Which primary key should be used for the table `#{snapshot.table}` (enter the number)?
-
-        #{unique_primary_key_names}
-        """
-
         choice =
-          message
-          |> Mix.shell().prompt()
-          |> String.to_integer()
+          if opts.no_shell? do
+            raise "Unimplemented: cannot resolve primary key ambiguity without shell input"
+          else
+            message = """
+            Which primary key should be used for the table `#{snapshot.table}` (enter the number)?
+
+            #{unique_primary_key_names}
+            """
+
+            message
+            |> Mix.shell().prompt()
+            |> String.to_integer()
+          end
 
         identities =
           unique_primary_keys
@@ -387,7 +449,7 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  defp merge_primary_keys(existing_snapshot, snapshots) do
+  defp merge_primary_keys(existing_snapshot, snapshots, opts) do
     pkey_names = pkey_names(existing_snapshot.attributes)
 
     one_pkey_exists? =
@@ -413,7 +475,7 @@ defmodule AshPostgres.MigrationGenerator do
 
       {pkey_names, identities}
     else
-      merge_primary_keys(nil, snapshots)
+      merge_primary_keys(nil, snapshots, opts)
     end
   end
 
@@ -565,7 +627,8 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  defp build_up_and_down(phases) do
+  @doc false
+  def build_up_and_down(phases) do
     up =
       Enum.map_join(phases, "\n", fn phase ->
         phase
@@ -924,7 +987,7 @@ defmodule AshPostgres.MigrationGenerator do
       multitenancy: %{
         attribute: nil,
         strategy: nil,
-        global: false
+        global: nil
       }
     }
 
@@ -994,7 +1057,7 @@ defmodule AshPostgres.MigrationGenerator do
       end)
 
     {attributes_to_add, attributes_to_remove, attributes_to_rename} =
-      resolve_renames(snapshot.table, attributes_to_add, attributes_to_remove)
+      resolve_renames(snapshot.table, attributes_to_add, attributes_to_remove, opts)
 
     attributes_to_alter =
       snapshot.attributes
@@ -1130,7 +1193,7 @@ defmodule AshPostgres.MigrationGenerator do
 
           snapshot_file
           |> File.read!()
-          |> load_snapshot(snapshot.table)
+          |> load_snapshot()
       end
     else
       get_old_snapshot(folder, snapshot)
@@ -1145,35 +1208,58 @@ defmodule AshPostgres.MigrationGenerator do
     if File.exists?(old_snapshot_file) do
       old_snapshot_file
       |> File.read!()
-      |> load_snapshot(snapshot.table)
+      |> load_snapshot()
     end
   end
 
-  defp resolve_renames(_table, adding, []), do: {adding, [], []}
+  defp resolve_renames(_table, adding, [], _opts), do: {adding, [], []}
 
-  defp resolve_renames(_table, [], removing), do: {[], removing, []}
+  defp resolve_renames(_table, [], removing, _opts), do: {[], removing, []}
 
-  defp resolve_renames(table, [adding], [removing]) do
-    if Mix.shell().yes?("Are you renaming #{table}.#{removing.name} to #{table}.#{adding.name}?") do
+  defp resolve_renames(table, [adding], [removing], opts) do
+    if renaming_to?(table, removing.name, adding.name, opts) do
       {[], [], [{adding, removing}]}
     else
       {[adding], [removing], []}
     end
   end
 
-  defp resolve_renames(table, adding, [removing | rest]) do
+  defp resolve_renames(table, adding, [removing | rest], opts) do
     {new_adding, new_removing, new_renames} =
-      if Mix.shell().yes?("Are you renaming #{table}.#{removing.name}?") do
-        new_attribute = get_new_attribute(adding)
+      if renaming?(table, removing, opts) do
+        new_attribute =
+          if opts.no_shell? do
+            raise "Unimplemented: Cannot get new_attribute without the shell!"
+          else
+            get_new_attribute(adding)
+          end
 
         {adding -- [new_attribute], [], [{new_attribute, removing}]}
       else
         {adding, [removing], []}
       end
 
-    {rest_adding, rest_removing, rest_renames} = resolve_renames(table, new_adding, rest)
+    {rest_adding, rest_removing, rest_renames} = resolve_renames(table, new_adding, rest, opts)
 
     {new_adding ++ rest_adding, new_removing ++ rest_removing, rest_renames ++ new_renames}
+  end
+
+  defp renaming_to?(table, removing, adding, opts) do
+    if opts.no_shell? do
+      raise "Unimplemented: cannot determine: Are you renaming #{table}.#{removing} to #{table}.#{
+              adding
+            }? without shell input"
+    else
+      Mix.shell().yes?("Are you renaming #{table}.#{removing} to #{table}.#{adding}?")
+    end
+  end
+
+  defp renaming?(table, removing, opts) do
+    if opts.no_shell? do
+      raise "Unimplemented: cannot determine: Are you renaming #{table}.#{removing.name}? without shell input"
+    else
+      Mix.shell().yes?("Are you renaming #{table}.#{removing.name}?")
+    end
   end
 
   defp get_new_attribute(adding, tries \\ 3)
@@ -1421,28 +1507,33 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp sanitize_type({:array, type}) do
-    ["array", type]
+    ["array", sanitize_type(type)]
   end
 
   defp sanitize_type(type) do
     type
   end
 
-  defp load_snapshot(json, table) do
+  defp load_snapshot(json) do
     json
     |> Jason.decode!(keys: :atoms!)
+    |> sanitize_snapshot()
+  end
+
+  defp sanitize_snapshot(snapshot) do
+    snapshot
     |> Map.put_new(:has_create_action, true)
     |> Map.update!(:identities, fn identities ->
       Enum.map(identities, &load_identity/1)
     end)
     |> Map.update!(:attributes, fn attributes ->
-      Enum.map(attributes, &load_attribute(&1, table))
+      Enum.map(attributes, &load_attribute(&1, snapshot.table))
     end)
     |> Map.update!(:repo, &String.to_atom/1)
     |> Map.put_new(:multitenancy, %{
       attribute: nil,
       strategy: nil,
-      global: false
+      global: nil
     })
     |> Map.update!(:multitenancy, &load_multitenancy/1)
   end
@@ -1472,7 +1563,7 @@ defmodule AshPostgres.MigrationGenerator do
         |> Map.put_new(:multitenancy, %{
           attribute: nil,
           strategy: nil,
-          global: false
+          global: nil
         })
         |> Map.update!(:multitenancy, &load_multitenancy/1)
     end)
