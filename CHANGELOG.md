@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.36.2](https://github.com/ash-project/ash_postgres/compare/v0.36.1...v0.36.2) (2021-04-09)
+
+
+
+
+### Improvements:
+
+* support new ash select feature
+
 ## [v0.36.1](https://github.com/ash-project/ash_postgres/compare/v0.36.0...v0.36.1) (2021-04-04)
 
 
