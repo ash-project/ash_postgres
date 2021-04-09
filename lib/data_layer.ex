@@ -262,6 +262,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :aggregate_filter), do: true
   def can?(_, :aggregate_sort), do: true
   def can?(_, :create), do: true
+  def can?(_, :select), do: true
   def can?(_, :read), do: true
   def can?(_, :update), do: true
   def can?(_, :destroy), do: true
@@ -758,6 +759,16 @@ defmodule AshPostgres.DataLayer do
 
       {:ok, new_query}
     end)
+  end
+
+  @impl true
+  def select(query, select, resource) do
+    query = default_bindings(query, resource)
+
+    {:ok,
+     from(row in query,
+       select: struct(row, ^select)
+     )}
   end
 
   @impl true
