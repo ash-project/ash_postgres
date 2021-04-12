@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.36.3](https://github.com/ash-project/ash_postgres/compare/v0.36.2...v0.36.3) (2021-04-12)
+
+
+
+
+### Improvements:
+
+* primary autoincrement key as bigserial (#54)
+
 ## [v0.36.2](https://github.com/ash-project/ash_postgres/compare/v0.36.1...v0.36.2) (2021-04-09)
 
 
