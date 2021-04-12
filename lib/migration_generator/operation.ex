@@ -39,6 +39,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     end
 
     def on_update(_), do: nil
+
+    def integer_to_bigint(:integer), do: ":bigint"
+    def integer_to_bigint(type), do: inspect(type)
   end
 
   defmodule CreateTable do
@@ -68,7 +71,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "add #{inspect(attribute.name)}",
         "references(:#{table}",
         [
-          "type: #{inspect(attribute.type)}",
+          "type: #{integer_to_bigint(attribute.type)}",
           "column: #{inspect(destination_field)}",
           "with: [#{source_attribute}: :#{destination_attribute}]",
           "name: #{inspect(reference.name)}",
@@ -98,7 +101,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "add #{inspect(attribute.name)}",
         "references(:#{table}",
         [
-          "type: #{inspect(attribute.type)}",
+          "type: #{integer_to_bigint(attribute.type)}",
           "column: #{inspect(destination_field)}",
           "prefix: \"public\"",
           "name: #{inspect(reference.name)}",
@@ -140,7 +143,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "add #{inspect(attribute.name)}",
         "references(:#{table}",
         [
-          "type: #{inspect(attribute.type)}",
+          "type: #{integer_to_bigint(attribute.type)}",
           "column: #{inspect(destination_field)}",
           "name: #{inspect(reference.name)}",
           on_delete(reference),
@@ -162,7 +165,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "add #{inspect(attribute.name)}",
         "references(:#{table}",
         [
-          "type: #{inspect(attribute.type)}",
+          "type: #{integer_to_bigint(attribute.type)}",
           "column: #{inspect(destination_field)}",
           "name: #{inspect(reference.name)}",
           on_delete(reference),
@@ -269,7 +272,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
              } = reference
          }) do
       join([
-        "references(:#{table}, type: #{inspect(type)}, column: #{inspect(destination_field)}",
+        "references(:#{table}, type: #{integer_to_bigint(type)}, column: #{
+          inspect(destination_field)
+        }",
         "name: #{inspect(reference.name)}",
         on_delete(reference),
         on_update(reference),
@@ -287,9 +292,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
              } = reference
          }) do
       join([
-        "references(:#{table}, type: #{inspect(type)}, column: #{inspect(destination_field)}, with: [#{
-          source_attribute
-        }: :#{destination_attribute}]",
+        "references(:#{table}, type: #{integer_to_bigint(type)}, column: #{
+          inspect(destination_field)
+        }, with: [#{source_attribute}: :#{destination_attribute}]",
         "name: #{inspect(reference.name)}",
         on_delete(reference),
         on_update(reference),
@@ -309,7 +314,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
            }
          ) do
       join([
-        "references(:#{table}, type: #{inspect(type)}, column: #{inspect(destination_field)}, prefix: \"public\"",
+        "references(:#{table}, type: #{integer_to_bigint(type)}, column: #{
+          inspect(destination_field)
+        }, prefix: \"public\"",
         "name: #{inspect(reference.name)}",
         on_delete(reference),
         on_update(reference),
@@ -329,7 +336,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
            }
          ) do
       join([
-        "references(:#{table}, type: #{inspect(type)}, column: #{inspect(destination_field)}",
+        "references(:#{table}, type: #{integer_to_bigint(type)}, column: #{
+          inspect(destination_field)
+        }",
         "name: #{inspect(reference.name)}",
         on_delete(reference),
         on_update(reference),
