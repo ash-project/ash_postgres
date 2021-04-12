@@ -178,7 +178,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     def up(%{attribute: %{type: :integer, default: "nil", generated?: true} = attribute}) do
       [
         "add #{inspect(attribute.name)}",
-        ":serial",
+        ":bigserial",
         maybe_add_null(attribute.allow_nil?),
         maybe_add_primary_key(attribute.primary_key?)
       ]
