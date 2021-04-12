@@ -5,6 +5,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.36.4](https://github.com/ash-project/ash_postgres/compare/v0.36.3...v0.36.4) (2021-04-12)
+
+
+
+
+### Bug Fixes:
+
+* don't explicitly set type in `references`
+
+### Improvements:
+
+* default integers to `:bigint`
+
 ## [v0.36.3](https://github.com/ash-project/ash_postgres/compare/v0.36.2...v0.36.3) (2021-04-12)
 
 
