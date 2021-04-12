@@ -418,7 +418,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[add :id, :bigserial, null: false, primary_key: true]
 
       assert File.read!(file) =~
-               ~S[add :views, :integer]
+               ~S[add :views, :bigint]
     end
   end
 
@@ -524,7 +524,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
-               ~S[references(:post_comments]
+               ~S[references(:post_comments, column: :id, name: "posts_best_comment_id_fkey")]
     end
   end
 end
