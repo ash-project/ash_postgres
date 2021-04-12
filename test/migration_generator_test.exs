@@ -411,11 +411,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       :ok
     end
 
-    test "when an integer is generated and default nil, it is a serial" do
+    test "when an integer is generated and default nil, it is a bigserial" do
       assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
-               ~S[add :id, :serial, null: false, primary_key: true]
+               ~S[add :id, :bigserial, null: false, primary_key: true]
 
       assert File.read!(file) =~
                ~S[add :views, :integer]
