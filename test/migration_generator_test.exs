@@ -450,6 +450,115 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "references" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+    end
+
+    test "references are inferred automatically" do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string)
+          attribute(:foobar, :string)
+        end
+      end
+
+      defposts Post2 do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string)
+        end
+
+        relationships do
+          belongs_to(:post, Post)
+        end
+      end
+
+      defapi([Post, Post2])
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+
+      assert File.read!(file) =~
+               ~S[references(:posts, column: :id, name: "posts_post_id_fkey")]
+    end
+
+    test "when modified, the foreign key is dropped before modification" do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string)
+          attribute(:foobar, :string)
+        end
+      end
+
+      defposts Post2 do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string)
+        end
+
+        relationships do
+          belongs_to(:post, Post)
+        end
+      end
+
+      defapi([Post, Post2])
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      defposts Post2 do
+        postgres do
+          references do
+            reference :post, name: "special_post_fkey", on_delete: :delete, on_update: :update
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string)
+        end
+
+        relationships do
+          belongs_to(:post, Post)
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert file =
+               "test_migration_path/**/*_migrate_resources*.exs"
+               |> Path.wildcard()
+               |> Enum.sort()
+               |> Enum.at(1)
+
+      assert File.read!(file) =~
+               ~S[references(:posts, column: :id, name: "special_post_fkey", on_delete: :delete_all, on_update: :update_all)]
+
+      assert File.read!(file) =~ ~S[drop constraint(:posts, "posts_post_id_fkey")]
+    end
+  end
+
   describe "polymorphic resources" do
     setup do
       on_exit(fn ->
