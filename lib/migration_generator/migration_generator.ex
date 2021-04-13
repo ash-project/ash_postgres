@@ -1565,7 +1565,7 @@ defmodule AshPostgres.MigrationGenerator do
         |> Map.put_new(:on_update, nil)
         |> Map.update!(:on_delete, &(&1 && String.to_atom(&1)))
         |> Map.update!(:on_update, &(&1 && String.to_atom(&1)))
-        |> Map.put(:name, Map.get(references, :name) || "#{table}_#{attribute.name}")
+        |> Map.put(:name, Map.get(references, :name) || "#{table}_#{attribute.name}_fkey")
         |> Map.put_new(:multitenancy, %{
           attribute: nil,
           strategy: nil,
