@@ -1122,8 +1122,8 @@ defmodule AshPostgres.MigrationGenerator do
         else
           [
             %Operation.AlterAttribute{
-              new_attribute: new_attribute,
-              old_attribute: old_attribute,
+              new_attribute: Map.delete(new_attribute, :references),
+              old_attribute: Map.delete(old_attribute, :references),
               table: snapshot.table
             }
           ]
@@ -1414,14 +1414,17 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp configured_reference(resource, attribute, relationship) do
-    resource
-    |> AshPostgres.references()
-    |> Enum.find(&(&1.relationship == relationship))
-    |> Kernel.||(%{
-      on_delete: nil,
-      on_update: nil,
-      name: "#{AshPostgres.table(resource)}_#{attribute}_fkey"
-    })
+    ref =
+      resource
+      |> AshPostgres.references()
+      |> Enum.find(&(&1.relationship == relationship))
+      |> Kernel.||(%{
+        on_delete: nil,
+        on_update: nil,
+        name: nil
+      })
+
+    Map.put(ref, :name, ref.name || "#{AshPostgres.table(resource)}_#{attribute}_fkey")
   end
 
   defp migration_type({:array, type}), do: {:array, migration_type(type)}
@@ -1560,7 +1563,9 @@ defmodule AshPostgres.MigrationGenerator do
         |> Map.update!(:destination_field, &String.to_atom/1)
         |> Map.put_new(:on_delete, nil)
         |> Map.put_new(:on_update, nil)
-        |> Map.put_new(:name, "#{table}_#{attribute.name}")
+        |> Map.update!(:on_delete, &(&1 && String.to_atom(&1)))
+        |> Map.update!(:on_update, &(&1 && String.to_atom(&1)))
+        |> Map.put(:name, Map.get(references, :name) || "#{table}_#{attribute.name}")
         |> Map.put_new(:multitenancy, %{
           attribute: nil,
           strategy: nil,

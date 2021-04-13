@@ -357,17 +357,21 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     # We only need to drop it before altering an attribute with `references/3`
     defstruct [:attribute, :table, :multitenancy, :direction, no_phase: true]
 
-    def up(%{table: table, references: reference, direction: :up}) do
+    def up(%{table: table, attribute: %{references: reference}, direction: :up}) do
       "drop constraint(:#{table}, #{inspect(reference.name)})"
     end
 
-    def up(_), do: ""
+    def up(_) do
+      ""
+    end
 
-    def down(%{table: table, references: reference, direction: :down}) do
+    def down(%{table: table, attribute: %{references: reference}, direction: :down}) do
       "drop constraint(:#{table}, #{inspect(reference.name)})"
     end
 
-    def down(_), do: ""
+    def down(_) do
+      ""
+    end
   end
 
   defmodule RenameAttribute do
