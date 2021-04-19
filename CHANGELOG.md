@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.37.0](https://github.com/ash-project/ash_postgres/compare/v0.36.5...v0.37.0) (2021-04-19)
+
+
+
+
+### Features:
+
+* add check_constraints, both for validation and migrations
+
 ## [v0.36.5](https://github.com/ash-project/ash_postgres/compare/v0.36.4...v0.36.5) (2021-04-13)
 
 
