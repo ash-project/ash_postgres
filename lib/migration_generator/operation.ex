@@ -546,4 +546,55 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       end
     end
   end
+
+  defmodule AddCheckConstraint do
+    @moduledoc false
+    defstruct [:table, :constraint, :multitenancy, :old_multitenancy, no_phase: true]
+
+    def up(%{
+          constraint: %{
+            name: name,
+            check: check,
+            base_filter: base_filter
+          },
+          table: table
+        }) do
+      if base_filter do
+        "create constraint(:#{table}, :#{name}, check: \"#{base_filter} AND #{check}\")"
+      else
+        "create constraint(:#{table}, :#{name}, check: \"#{check}\")"
+      end
+    end
+
+    def down(%{
+          constraint: %{name: name},
+          table: table
+        }) do
+      "drop_if_exists constraint(:#{table}, :#{name})"
+    end
+  end
+
+  defmodule RemoveCheckConstraint do
+    @moduledoc false
+    defstruct [:table, :constraint, :multitenancy, :old_multitenancy, no_phase: true]
+
+    def up(%{constraint: %{name: name}, table: table}) do
+      "drop_if_exists constraint(:#{table}, :#{name})"
+    end
+
+    def down(%{
+          constraint: %{
+            name: name,
+            check: check,
+            base_filter: base_filter
+          },
+          table: table
+        }) do
+      if base_filter do
+        "create constraint(:#{table}, :#{name}, check: \"#{base_filter} AND #{check}\")"
+      else
+        "create constraint(:#{table}, :#{name}, check: \"#{check}\")"
+      end
+    end
+  end
 end

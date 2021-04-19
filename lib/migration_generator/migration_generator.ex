@@ -841,8 +841,25 @@ defmodule AshPostgres.MigrationGenerator do
     name in keys || (multitenancy.attribute && name == multitenancy.attribute)
   end
 
+  defp after?(
+         %Operation.AddCheckConstraint{
+           constraint: %{attribute: attribute_or_attributes},
+           table: table,
+           multitenancy: multitenancy
+         },
+         %Operation.AddAttribute{table: table, attribute: %{name: name}}
+       ) do
+    name in List.wrap(attribute_or_attributes) ||
+      (multitenancy.attribute && multitenancy.attribute in List.wrap(attribute_or_attributes))
+  end
+
   defp after?(%Operation.AddUniqueIndex{table: table}, %Operation.RemoveUniqueIndex{table: table}),
     do: true
+
+  defp after?(%Operation.AddCheckConstraint{table: table}, %Operation.RemoveCheckConstraint{
+         table: table
+       }),
+       do: true
 
   defp after?(
          %Operation.AddUniqueIndex{identity: %{keys: keys}, table: table},
@@ -859,6 +876,26 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp after?(
+         %Operation.AddCheckConstraint{
+           constraint: %{attribute: attribute_or_attributes},
+           table: table
+         },
+         %Operation.AlterAttribute{table: table, new_attribute: %{name: name}}
+       ) do
+    name in List.wrap(attribute_or_attributes)
+  end
+
+  defp after?(
+         %Operation.AddCheckConstraint{
+           constraint: %{attribute: attribute_or_attributes},
+           table: table
+         },
+         %Operation.RenameAttribute{table: table, new_attribute: %{name: name}}
+       ) do
+    name in List.wrap(attribute_or_attributes)
+  end
+
+  defp after?(
          %Operation.RemoveUniqueIndex{identity: %{keys: keys}, table: table},
          %Operation.RemoveAttribute{table: table, attribute: %{name: name}}
        ) do
@@ -870,6 +907,20 @@ defmodule AshPostgres.MigrationGenerator do
          %Operation.RenameAttribute{table: table, old_attribute: %{name: name}}
        ) do
     name in keys
+  end
+
+  defp after?(
+         %Operation.RemoveCheckConstraint{constraint: %{attribute: attributes}, table: table},
+         %Operation.RemoveAttribute{table: table, attribute: %{name: name}}
+       ) do
+    name in List.wrap(attributes)
+  end
+
+  defp after?(
+         %Operation.RemoveCheckConstraint{constraint: %{attribute: attributes}, table: table},
+         %Operation.RenameAttribute{table: table, old_attribute: %{name: name}}
+       ) do
+    name in List.wrap(attributes)
   end
 
   defp after?(%Operation.AlterAttribute{table: table}, %Operation.DropForeignKey{
@@ -960,6 +1011,10 @@ defmodule AshPostgres.MigrationGenerator do
     true
   end
 
+  defp after?(%Operation.AddCheckConstraint{table: table}, %Operation.CreateTable{table: table}) do
+    true
+  end
+
   defp after?(%Operation.AlterAttribute{new_attribute: %{references: references}}, _)
        when not is_nil(references),
        do: true
@@ -982,6 +1037,7 @@ defmodule AshPostgres.MigrationGenerator do
     empty_snapshot = %{
       attributes: [],
       identities: [],
+      check_constraints: [],
       table: snapshot.table,
       repo: snapshot.repo,
       multitenancy: %{
@@ -1039,7 +1095,42 @@ defmodule AshPostgres.MigrationGenerator do
         }
       end)
 
-    [unique_indexes_to_remove, attribute_operations, unique_indexes_to_add, acc]
+    constraints_to_add =
+      snapshot.check_constraints
+      |> Enum.reject(fn constraint ->
+        Enum.find(old_snapshot.check_constraints, fn old_constraint ->
+          old_constraint.check == constraint.check && old_constraint.name == constraint.name
+        end)
+      end)
+      |> Enum.map(fn constraint ->
+        %Operation.AddCheckConstraint{
+          constraint: constraint,
+          table: snapshot.table
+        }
+      end)
+
+    constraints_to_remove =
+      old_snapshot.check_constraints
+      |> Enum.reject(fn old_constraint ->
+        Enum.find(snapshot.check_constraints, fn constraint ->
+          old_constraint.check == constraint.check && old_constraint.name == constraint.name
+        end)
+      end)
+      |> Enum.map(fn old_constraint ->
+        %Operation.RemoveCheckConstraint{
+          constraint: old_constraint,
+          table: old_snapshot.table
+        }
+      end)
+
+    [
+      unique_indexes_to_remove,
+      attribute_operations,
+      unique_indexes_to_add,
+      constraints_to_add,
+      constraints_to_remove,
+      acc
+    ]
     |> Enum.concat()
     |> Enum.map(&Map.put(&1, :multitenancy, snapshot.multitenancy))
     |> Enum.map(&Map.put(&1, :old_multitenancy, old_snapshot.multitenancy))
@@ -1338,6 +1429,7 @@ defmodule AshPostgres.MigrationGenerator do
       attributes: attributes(resource),
       identities: identities(resource),
       table: table || AshPostgres.table(resource),
+      check_constraints: check_constraints(resource),
       repo: AshPostgres.repo(resource),
       multitenancy: multitenancy(resource),
       base_filter: AshPostgres.base_filter_sql(resource),
@@ -1356,6 +1448,37 @@ defmodule AshPostgres.MigrationGenerator do
     resource
     |> Ash.Resource.Info.actions()
     |> Enum.any?(&(&1.type == :create))
+  end
+
+  defp check_constraints(resource) do
+    resource
+    |> AshPostgres.check_constraints()
+    |> Enum.filter(& &1.check)
+    |> case do
+      [] ->
+        []
+
+      constraints ->
+        base_filter = Ash.Resource.Info.base_filter(resource)
+
+        if base_filter && !AshPostgres.base_filter_sql(resource) do
+          raise """
+          Cannot create a check constraint for a resource with a base filter without also configuring `base_filter_sql`.
+
+          You must provide the `base_filter_sql` option, or manually create add the check constraint to your migrations.
+          """
+        end
+
+        constraints
+    end
+    |> Enum.map(fn constraint ->
+      %{
+        name: constraint.name,
+        attribute: List.wrap(constraint.attribute),
+        check: constraint.check,
+        base_filter: AshPostgres.base_filter_sql(resource)
+      }
+    end)
   end
 
   defp multitenancy(resource) do
@@ -1452,7 +1575,9 @@ defmodule AshPostgres.MigrationGenerator do
 
         if base_filter && !AshPostgres.base_filter_sql(resource) do
           raise """
-          Currently, ash_postgres cannot translate your base_filter #{inspect(base_filter)} into sql. You must provide the `base_filter_sql` option, or skip unique indexes with `skip_unique_indexes`"
+          Cannot create a unique index for a resource with a base filter without also configuring `base_filter_sql`.
+
+          You must provide the `base_filter_sql` option, or skip unique indexes with `skip_unique_indexes`"
           """
         end
 
@@ -1533,6 +1658,8 @@ defmodule AshPostgres.MigrationGenerator do
     |> Map.update!(:attributes, fn attributes ->
       Enum.map(attributes, &load_attribute(&1, snapshot.table))
     end)
+    |> Map.put_new(:check_constraints, [])
+    |> Map.update!(:check_constraints, &load_check_constraints/1)
     |> Map.update!(:repo, &String.to_atom/1)
     |> Map.put_new(:multitenancy, %{
       attribute: nil,
@@ -1540,6 +1667,16 @@ defmodule AshPostgres.MigrationGenerator do
       global: nil
     })
     |> Map.update!(:multitenancy, &load_multitenancy/1)
+  end
+
+  defp load_check_constraints(constraints) do
+    Enum.map(constraints, fn constraint ->
+      Map.update!(constraint, :attribute, fn attribute ->
+        attribute
+        |> List.wrap()
+        |> Enum.map(&String.to_atom/1)
+      end)
+    end)
   end
 
   defp load_multitenancy(multitenancy) do

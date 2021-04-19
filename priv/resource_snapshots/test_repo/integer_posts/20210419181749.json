@@ -1,0 +1,34 @@
+{
+  "attributes": [
+    {
+      "allow_nil?": false,
+      "default": "nil",
+      "generated?": true,
+      "name": "id",
+      "primary_key?": true,
+      "references": null,
+      "type": "bigint"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "title",
+      "primary_key?": false,
+      "references": null,
+      "type": "text"
+    }
+  ],
+  "base_filter": null,
+  "check_constraints": [],
+  "has_create_action": true,
+  "hash": "38D842CAAC012D0973D6A661E8EF0C429BDB535E3AB78EC4F24C951ED323FEFE",
+  "identities": [],
+  "multitenancy": {
+    "attribute": null,
+    "global": null,
+    "strategy": null
+  },
+  "repo": "Elixir.AshPostgres.TestRepo",
+  "table": "integer_posts"
+}

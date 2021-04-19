@@ -2,8 +2,12 @@
 # DONT MODIFY IT BY HAND
 locals_without_parens = [
   base_filter_sql: 1,
+  check: 1,
+  check_constraint: 2,
+  check_constraint: 3,
   create?: 1,
   foreign_key_names: 1,
+  message: 1,
   migrate?: 1,
   name: 1,
   on_delete: 1,

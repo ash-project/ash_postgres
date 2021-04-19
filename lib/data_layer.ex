@@ -96,6 +96,79 @@ defmodule AshPostgres.DataLayer do
     ]
   }
 
+  @check_constraint %Ash.Dsl.Entity{
+    name: :check_constraint,
+    describe: """
+    Add a check constraint to be validated.
+
+    If a check constraint exists on the table but not in this section, and it produces an error, a runtime error will be raised.
+
+    Provide a list of attributes instead of a single attribute to add the message to multiple attributes.
+
+    By adding the `check` option, the migration generator will include it when generating migrations.
+    """,
+    examples: [
+      """
+      check_constraint :price, "price_must_be_positive", check: "price > 0", message: "price must be positive"
+      """
+    ],
+    args: [:attribute, :name],
+    target: AshPostgres.CheckConstraint,
+    schema: AshPostgres.CheckConstraint.schema()
+  }
+
+  @check_constraints %Ash.Dsl.Section{
+    name: :check_constraints,
+    describe: """
+    A section for configuring the check constraints for a given table.
+
+    This can be used to automatically create those check constraints, or just to provide message when they are raised
+    """,
+    examples: [
+      """
+      check_constraints do
+        check_constraint :price, "price_must_be_positive", check: "price > 0", message: "price must be positive"
+      end
+      """
+    ],
+    entities: [@check_constraint]
+  }
+
+  @references %Ash.Dsl.Section{
+    name: :references,
+    describe: """
+    A section for configuring the references (foreign keys) in resource migrations.
+
+    This section is only relevant if you are using the migration generator with this resource.
+    Otherwise, it has no effect.
+    """,
+    examples: [
+      """
+      references do
+        reference :post, on_delete: :delete, on_update: :update, name: "comments_to_posts_fkey"
+      end
+      """
+    ],
+    entities: [@reference],
+    schema: [
+      polymorphic_on_delete: [
+        type: {:one_of, [:delete, :nilify, :nothing, :restrict]},
+        doc:
+          "For polymorphic resources, configures the on_delete behavior of the automatically generated foreign keys to source tables."
+      ],
+      polymorphic_on_update: [
+        type: {:one_of, [:update, :nilify, :nothing, :restrict]},
+        doc:
+          "For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables."
+      ],
+      polymorphic_name: [
+        type: {:one_of, [:update, :nilify, :nothing, :restrict]},
+        doc:
+          "For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables."
+      ]
+    ]
+  }
+
   @postgres %Ash.Dsl.Section{
     name: :postgres,
     describe: """
@@ -103,7 +176,8 @@ defmodule AshPostgres.DataLayer do
     """,
     sections: [
       @manage_tenant,
-      @references
+      @references,
+      @check_constraints
     ],
     modules: [
       :repo
@@ -548,26 +622,23 @@ defmodule AshPostgres.DataLayer do
       record
       |> set_table(changeset, type)
       |> Ecto.Changeset.change(changeset.attributes)
+      |> add_configured_foreign_key_constraints(record.__struct__)
+      |> add_unique_indexes(record.__struct__, changeset.tenant, changeset)
+      |> add_check_constraints(record.__struct__)
 
     case type do
       :create ->
         ecto_changeset
-        |> add_unique_indexes(record.__struct__, changeset.tenant, changeset)
         |> add_my_foreign_key_constraints(record.__struct__)
-        |> add_configured_foreign_key_constraints(record.__struct__)
 
       type when type in [:upsert, :update] ->
         ecto_changeset
-        |> add_unique_indexes(record.__struct__, changeset.tenant, changeset)
         |> add_my_foreign_key_constraints(record.__struct__)
         |> add_related_foreign_key_constraints(record.__struct__)
-        |> add_configured_foreign_key_constraints(record.__struct__)
 
       :delete ->
         ecto_changeset
-        |> add_unique_indexes(record.__struct__, changeset.tenant, changeset)
         |> add_related_foreign_key_constraints(record.__struct__)
-        |> add_configured_foreign_key_constraints(record.__struct__)
     end
   end
 
@@ -583,6 +654,21 @@ defmodule AshPostgres.DataLayer do
     else
       record
     end
+  end
+
+  defp add_check_constraints(changeset, resource) do
+    resource
+    |> AshPostgres.check_constraints()
+    |> Enum.reduce(changeset, fn constraint, changeset ->
+      constraint.attribute
+      |> List.wrap()
+      |> Enum.reduce(changeset, fn attribute, changeset ->
+        Ecto.Changeset.check_constraint(changeset, attribute,
+          name: constraint.name,
+          message: constraint.message || "is invalid"
+        )
+      end)
+    end)
   end
 
   defp add_related_foreign_key_constraints(changeset, resource) do

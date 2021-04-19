@@ -559,6 +559,95 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "check constraints" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+    end
+
+    test "when added, the constraint is created" do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:price, :integer)
+        end
+
+        postgres do
+          check_constraints do
+            check_constraint(:price, "price_must_be_positive", check: "price > 0")
+          end
+        end
+      end
+
+      defapi([Post])
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert file =
+               "test_migration_path/**/*_migrate_resources*.exs"
+               |> Path.wildcard()
+               |> Enum.sort()
+               |> Enum.at(0)
+
+      assert File.read!(file) =~
+               ~S[create constraint(:posts, :price_must_be_positive, check: "price > 0")]
+    end
+
+    test "when removed, the constraint is dropped before modification" do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:price, :integer)
+        end
+
+        postgres do
+          check_constraints do
+            check_constraint(:price, "price_must_be_positive", check: "price > 0")
+          end
+        end
+      end
+
+      defapi([Post])
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:price, :integer)
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert file =
+               "test_migration_path/**/*_migrate_resources*.exs"
+               |> Path.wildcard()
+               |> Enum.sort()
+               |> Enum.at(1)
+
+      assert File.read!(file) =~
+               ~S[drop_if_exists constraint(:posts, :price_must_be_positive)]
+    end
+  end
+
   describe "polymorphic resources" do
     setup do
       on_exit(fn ->

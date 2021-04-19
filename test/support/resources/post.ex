@@ -6,6 +6,14 @@ defmodule AshPostgres.Test.Post do
   postgres do
     table "posts"
     repo AshPostgres.TestRepo
+    base_filter_sql "type = 'sponsored'"
+
+    check_constraints do
+      check_constraint(:price, "price_must_be_positive",
+        message: "yo, bad price",
+        check: "price > 0"
+      )
+    end
   end
 
   resource do
@@ -35,6 +43,7 @@ defmodule AshPostgres.Test.Post do
     attribute(:public, :boolean)
     attribute(:category, :ci_string)
     attribute(:type, :atom, default: :sponsored, private?: true, writable?: false)
+    attribute(:price, :integer)
   end
 
   relationships do
