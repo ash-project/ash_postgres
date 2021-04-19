@@ -39,6 +39,17 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     end
 
     def on_update(_), do: nil
+
+    def reference_type(
+          %{type: :integer},
+          %{destination_field_generated: true, destination_field_default: "nil"}
+        ) do
+      :bigint
+    end
+
+    def reference_type(%{type: type}, _) do
+      type
+    end
   end
 
   defmodule CreateTable do
@@ -71,6 +82,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "column: #{inspect(destination_field)}",
           "with: [#{source_attribute}: :#{destination_attribute}]",
           "name: #{inspect(reference.name)}",
+          "type: #{inspect(reference_type(attribute, reference))}",
           on_delete(reference),
           on_update(reference)
         ],
@@ -100,6 +112,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "column: #{inspect(destination_field)}",
           "prefix: \"public\"",
           "name: #{inspect(reference.name)}",
+          "type: #{inspect(reference_type(attribute, reference))}",
           on_delete(reference),
           on_update(reference)
         ],
@@ -140,6 +153,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         [
           "column: #{inspect(destination_field)}",
           "name: #{inspect(reference.name)}",
+          "type: #{inspect(reference_type(attribute, reference))}",
           on_delete(reference),
           on_update(reference)
         ],
@@ -161,6 +175,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         [
           "column: #{inspect(destination_field)}",
           "name: #{inspect(reference.name)}",
+          "type: #{inspect(reference_type(attribute, reference))}",
           on_delete(reference),
           on_update(reference)
         ],
@@ -265,36 +280,44 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       }"
     end
 
-    defp reference(%{strategy: :context}, %{
-           references:
-             %{
-               multitenancy: %{strategy: :context},
-               table: table,
-               destination_field: destination_field
-             } = reference
-         }) do
+    defp reference(
+           %{strategy: :context},
+           %{
+             references:
+               %{
+                 multitenancy: %{strategy: :context},
+                 table: table,
+                 destination_field: destination_field
+               } = reference
+           } = attribute
+         ) do
       join([
         "references(:#{table}, column: #{inspect(destination_field)}",
         "name: #{inspect(reference.name)}",
+        "type: #{inspect(reference_type(attribute, reference))}",
         on_delete(reference),
         on_update(reference),
         ")"
       ])
     end
 
-    defp reference(%{strategy: :attribute, attribute: source_attribute}, %{
-           references:
-             %{
-               multitenancy: %{strategy: :attribute, attribute: destination_attribute},
-               table: table,
-               destination_field: destination_field
-             } = reference
-         }) do
+    defp reference(
+           %{strategy: :attribute, attribute: source_attribute},
+           %{
+             references:
+               %{
+                 multitenancy: %{strategy: :attribute, attribute: destination_attribute},
+                 table: table,
+                 destination_field: destination_field
+               } = reference
+           } = attribute
+         ) do
       join([
         "references(:#{table}, column: #{inspect(destination_field)}, with: [#{source_attribute}: :#{
           destination_attribute
         }]",
         "name: #{inspect(reference.name)}",
+        "type: #{inspect(reference_type(attribute, reference))}",
         on_delete(reference),
         on_update(reference),
         ")"
@@ -309,11 +332,12 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                  table: table,
                  destination_field: destination_field
                } = reference
-           }
+           } = attribute
          ) do
       join([
         "references(:#{table}, column: #{inspect(destination_field)}, prefix: \"public\"",
         "name: #{inspect(reference.name)}",
+        "type: #{inspect(reference_type(attribute, reference))}",
         on_delete(reference),
         on_update(reference),
         ")"
@@ -328,11 +352,12 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                  table: table,
                  destination_field: destination_field
                } = reference
-           }
+           } = attribute
          ) do
       join([
         "references(:#{table}, column: #{inspect(destination_field)}",
         "name: #{inspect(reference.name)}",
+        "type: #{inspect(reference_type(attribute, reference))}",
         on_delete(reference),
         on_update(reference),
         ")"

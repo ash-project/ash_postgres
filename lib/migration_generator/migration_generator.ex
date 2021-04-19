@@ -339,6 +339,10 @@ defmodule AshPostgres.MigrationGenerator do
       references ->
         %{
           destination_field: merge_uniq!(references, table, :destination_field, name),
+          destination_field_default:
+            merge_uniq!(references, table, :destination_field_default, name),
+          destination_field_generated:
+            merge_uniq!(references, table, :destination_field_generated, name),
           multitenancy: merge_uniq!(references, table, :multitenancy, name),
           on_delete: merge_uniq!(references, table, :on_delete, name),
           on_update: merge_uniq!(references, table, :on_update, name),
@@ -1403,8 +1407,14 @@ defmodule AshPostgres.MigrationGenerator do
         |> Map.update!(:attributes, fn attributes ->
           Enum.map(attributes, fn attribute ->
             if attribute.name == relationship.destination_field do
+              source_attribute =
+                Ash.Resource.Info.attribute(relationship.source, relationship.source_field)
+
               Map.put(attribute, :references, %{
                 destination_field: relationship.source_field,
+                destination_field_default:
+                  default(source_attribute, AshPostgres.repo(relationship.destination)),
+                destination_field_generated: source_attribute.generated?,
                 multitenancy: multitenancy(relationship.source),
                 table: AshPostgres.table(relationship.source),
                 on_delete: AshPostgres.polymorphic_on_delete(relationship.source),
@@ -1698,6 +1708,8 @@ defmodule AshPostgres.MigrationGenerator do
       references ->
         references
         |> Map.update!(:destination_field, &String.to_atom/1)
+        |> Map.put_new(:destination_field_default, "nil")
+        |> Map.put_new(:destination_field_generated, false)
         |> Map.put_new(:on_delete, nil)
         |> Map.put_new(:on_update, nil)
         |> Map.update!(:on_delete, &(&1 && String.to_atom(&1)))

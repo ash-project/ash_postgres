@@ -490,7 +490,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
-               ~S[references(:posts, column: :id, name: "posts_post_id_fkey")]
+               ~S[references(:posts, column: :id, name: "posts_post_id_fkey", type: :uuid)]
     end
 
     test "when modified, the foreign key is dropped before modification" do
@@ -553,7 +553,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
                |> Enum.at(1)
 
       assert File.read!(file) =~
-               ~S[references(:posts, column: :id, name: "special_post_fkey", on_delete: :delete_all, on_update: :update_all)]
+               ~S[references(:posts, column: :id, name: "special_post_fkey", type: :uuid, on_delete: :delete_all, on_update: :update_all)]
 
       assert File.read!(file) =~ ~S[drop constraint(:posts, "posts_post_id_fkey")]
     end
@@ -722,7 +722,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
-               ~S[references(:post_comments, column: :id, name: "posts_best_comment_id_fkey")]
+               ~S[references(:post_comments, column: :id, name: "posts_best_comment_id_fkey", type: :uuid)]
     end
   end
 end
