@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.37.2](https://github.com/ash-project/ash_postgres/compare/v0.37.1...v0.37.2) (2021-04-21)
+
+
+
+
+### Improvements:
+
+* support ash enums
+
 ## [v0.37.1](https://github.com/ash-project/ash_postgres/compare/v0.37.0...v0.37.1) (2021-04-19)
 
 
