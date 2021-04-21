@@ -1,0 +1,56 @@
+{
+  "attributes": [
+    {
+      "allow_nil?": false,
+      "default": "fragment(\"uuid_generate_v4()\")",
+      "generated?": false,
+      "name": "id",
+      "primary_key?": true,
+      "references": null,
+      "type": "uuid"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "resource_id",
+      "primary_key?": false,
+      "references": {
+        "destination_field": "id",
+        "destination_field_default": "fragment(\"uuid_generate_v4()\")",
+        "destination_field_generated": null,
+        "multitenancy": {
+          "attribute": null,
+          "global": null,
+          "strategy": null
+        },
+        "name": "comment_ratings_id_fkey",
+        "on_delete": null,
+        "on_update": null,
+        "table": "comments"
+      },
+      "type": "uuid"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "score",
+      "primary_key?": false,
+      "references": null,
+      "type": "bigint"
+    }
+  ],
+  "base_filter": null,
+  "check_constraints": [],
+  "has_create_action": true,
+  "hash": "38D98E7F5B0891597BF0D1A1632638954CB7721E01310F989A41D1379E470DF8",
+  "identities": [],
+  "multitenancy": {
+    "attribute": null,
+    "global": null,
+    "strategy": null
+  },
+  "repo": "Elixir.AshPostgres.TestRepo",
+  "table": "comment_ratings"
+}

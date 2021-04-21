@@ -44,6 +44,7 @@ defmodule AshPostgres.Test.Post do
     attribute(:category, :ci_string)
     attribute(:type, :atom, default: :sponsored, private?: true, writable?: false)
     attribute(:price, :integer)
+    attribute(:status, AshPostgres.Test.Types.Status)
   end
 
   relationships do

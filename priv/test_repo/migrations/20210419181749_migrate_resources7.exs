@@ -15,6 +15,11 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources7 do
 
     create constraint(:posts, :price_must_be_positive, check: "type = 'sponsored' AND price > 0")
 
+    # This is just to ensure tests are trying out the enum migration logic
+    AshPostgres.Migration.create_enum(AshPostgres.Test.Types.Status)
+    AshPostgres.Migration.drop_enum(AshPostgres.Test.Types.Status)
+    AshPostgres.Migration.create_enum(AshPostgres.Test.Types.Status)
+
     alter table(:post_ratings) do
       modify :score, :bigint
     end
