@@ -1,0 +1,106 @@
+{
+  "attributes": [
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "category",
+      "primary_key?": false,
+      "references": null,
+      "type": "citext"
+    },
+    {
+      "allow_nil?": true,
+      "default": "0",
+      "generated?": false,
+      "name": "decimal",
+      "primary_key?": false,
+      "references": null,
+      "type": "decimal"
+    },
+    {
+      "allow_nil?": false,
+      "default": "fragment(\"uuid_generate_v4()\")",
+      "generated?": false,
+      "name": "id",
+      "primary_key?": true,
+      "references": null,
+      "type": "uuid"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "price",
+      "primary_key?": false,
+      "references": null,
+      "type": "bigint"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "public",
+      "primary_key?": false,
+      "references": null,
+      "type": "boolean"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "score",
+      "primary_key?": false,
+      "references": null,
+      "type": "bigint"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "status",
+      "primary_key?": false,
+      "references": null,
+      "type": "status"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "title",
+      "primary_key?": false,
+      "references": null,
+      "type": "text"
+    },
+    {
+      "allow_nil?": true,
+      "default": "\"sponsored\"",
+      "generated?": false,
+      "name": "type",
+      "primary_key?": false,
+      "references": null,
+      "type": "text"
+    }
+  ],
+  "base_filter": "type = 'sponsored'",
+  "check_constraints": [
+    {
+      "attribute": [
+        "price"
+      ],
+      "base_filter": "type = 'sponsored'",
+      "check": "price > 0",
+      "name": "price_must_be_positive"
+    }
+  ],
+  "has_create_action": true,
+  "hash": "42B75BE079D8BBC3AE0EC4B1517A4D0E150F381E9817F9D8FA53E1E689A80D3B",
+  "identities": [],
+  "multitenancy": {
+    "attribute": null,
+    "global": null,
+    "strategy": null
+  },
+  "repo": "Elixir.AshPostgres.TestRepo",
+  "table": "posts"
+}

@@ -1630,9 +1630,18 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp default(%{default: value, type: type}, _) do
     case Ash.Type.dump_to_native(type, value) do
-      {:ok, value} -> inspect(value)
-      _ -> "nil"
+      {:ok, value} when is_struct(value) ->
+        to_string(value)
+
+      {:ok, value} ->
+        inspect(value)
+
+      _ ->
+        "nil"
     end
+  rescue
+    _ ->
+      "nil"
   end
 
   defp snapshot_to_binary(snapshot) do

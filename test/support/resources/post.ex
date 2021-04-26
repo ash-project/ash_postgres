@@ -4,9 +4,9 @@ defmodule AshPostgres.Test.Post do
     data_layer: AshPostgres.DataLayer
 
   postgres do
-    table "posts"
-    repo AshPostgres.TestRepo
-    base_filter_sql "type = 'sponsored'"
+    table("posts")
+    repo(AshPostgres.TestRepo)
+    base_filter_sql("type = 'sponsored'")
 
     check_constraints do
       check_constraint(:price, "price_must_be_positive",
@@ -44,6 +44,7 @@ defmodule AshPostgres.Test.Post do
     attribute(:category, :ci_string)
     attribute(:type, :atom, default: :sponsored, private?: true, writable?: false)
     attribute(:price, :integer)
+    attribute(:decimal, :decimal, default: Decimal.new(0))
     attribute(:status, AshPostgres.Test.Types.Status)
   end
 
