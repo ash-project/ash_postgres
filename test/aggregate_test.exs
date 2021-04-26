@@ -77,6 +77,55 @@ defmodule AshPostgres.AggregateTest do
     end
   end
 
+  describe "list" do
+    test "with no related data it returns an empty list" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      assert %{comment_titles: []} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:comment_titles)
+               |> Api.read_one!()
+    end
+
+    test "with related data, it returns the value" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "bbb"})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "ccc"})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      assert %{comment_titles: ["bbb", "ccc"]} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:comment_titles)
+               |> Api.read_one!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "aaa"})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      assert %{comment_titles: ["aaa", "bbb", "ccc"]} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:comment_titles)
+               |> Api.read_one!()
+    end
+  end
+
   describe "first" do
     test "with no related data it returns nil" do
       post =

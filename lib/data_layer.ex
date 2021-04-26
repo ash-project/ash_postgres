@@ -1076,16 +1076,7 @@ defmodule AshPostgres.DataLayer do
          binding,
          %{load: nil} = aggregate
        ) do
-    accessed =
-      if aggregate.kind == :first do
-        {:fragment, [],
-         [
-           expr: {{:., [], [{:&, [], [binding]}, aggregate.name]}, [], []},
-           raw: "[1]"
-         ]}
-      else
-        {{:., [], [{:&, [], [binding]}, aggregate.name]}, [], []}
-      end
+    accessed = {{:., [], [{:&, [], [binding]}, aggregate.name]}, [], []}
 
     field =
       {:type, [],
@@ -1101,7 +1092,11 @@ defmodule AshPostgres.DataLayer do
         {:coalesce, [],
          [
            field,
-           aggregate.default_value
+           {:type, [],
+            [
+              aggregate.default_value,
+              Ash.Type.ecto_type(aggregate.type)
+            ]}
          ]}
       end
 
@@ -1118,17 +1113,7 @@ defmodule AshPostgres.DataLayer do
          binding,
          %{load: load_as} = aggregate
        ) do
-    accessed =
-      if aggregate.kind == :first do
-        {:fragment, [],
-         [
-           raw: "",
-           expr: {{:., [], [{:&, [], [binding]}, aggregate.name]}, [], []},
-           raw: "[1]"
-         ]}
-      else
-        {{:., [], [{:&, [], [binding]}, aggregate.name]}, [], []}
-      end
+    accessed = {{:., [], [{:&, [], [binding]}, aggregate.name]}, [], []}
 
     field =
       {:type, [],
@@ -1144,7 +1129,11 @@ defmodule AshPostgres.DataLayer do
         {:coalesce, [],
          [
            field,
-           aggregate.default_value
+           {:type, [],
+            [
+              aggregate.default_value,
+              Ash.Type.ecto_type(aggregate.type)
+            ]}
          ]}
       end
 
@@ -1204,7 +1193,8 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp add_subquery_aggregate_select(query, %{kind: :first} = aggregate, _resource) do
+  defp add_subquery_aggregate_select(query, %{kind: kind} = aggregate, _resource)
+       when kind in [:first, :list] do
     query = default_bindings(query, aggregate.resource)
     key = aggregate.field
     type = Ash.Type.ecto_type(aggregate.type)
@@ -1229,7 +1219,84 @@ defmodule AshPostgres.DataLayer do
          [
            raw: "array_agg(",
            expr: {{:., [], [{:&, [], [0]}, key]}, [], []},
-           raw: "ORDER BY "
+           raw: " ORDER BY "
+         ] ++
+           sort_expr ++ [raw: ")"]}
+      else
+        {:fragment, [],
+         [
+           raw: "array_agg(",
+           expr: {{:., [], [{:&, [], [0]}, key]}, [], []},
+           raw: ")"
+         ]}
+      end
+
+    {params, filtered} =
+      if aggregate.query && aggregate.query.filter &&
+           not match?(%Ash.Filter{expression: nil}, aggregate.query.filter) do
+        {params, expr} =
+          filter_to_expr(
+            aggregate.query.filter,
+            query.__ash_bindings__.bindings,
+            query.select.params
+          )
+
+        {params, {:filter, [], [field, expr]}}
+      else
+        {[], field}
+      end
+
+    casted =
+      if kind == :first do
+        {:type, [],
+         [
+           {:fragment, [],
+            [
+              raw: "(",
+              expr: filtered,
+              raw: ")[1]"
+            ]},
+           type
+         ]}
+      else
+        {:type, [],
+         [
+           filtered,
+           {:array, type}
+         ]}
+      end
+
+    new_expr = {:merge, [], [query.select.expr, {:%{}, [], [{aggregate.name, casted}]}]}
+
+    %{query | select: %{query.select | expr: new_expr, params: params}}
+  end
+
+  defp add_subquery_aggregate_select(query, %{kind: :list} = aggregate, _resource) do
+    query = default_bindings(query, aggregate.resource)
+    key = aggregate.field
+    type = Ash.Type.ecto_type(aggregate.type)
+
+    field =
+      if aggregate.query && aggregate.query.sort && aggregate.query.sort != [] do
+        sort_expr =
+          aggregate.query.sort
+          |> Enum.map(fn {sort, order} ->
+            case order_to_postgres_order(order) do
+              nil ->
+                [expr: {{:., [], [{:&, [], [0]}, sort]}, [], []}]
+
+              order ->
+                [expr: {{:., [], [{:&, [], [0]}, sort]}, [], []}, raw: order]
+            end
+          end)
+          |> Enum.intersperse(raw: ", ")
+          |> List.flatten()
+
+        {:fragment, [],
+         [
+           raw: "array_agg(",
+           expr: {{:., [], [{:&, [], [0]}, key]}, [], []},
+           raw: " ORDER BY "
          ] ++
            sort_expr ++ [raw: ")"]}
       else
