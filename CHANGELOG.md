@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.37.4](https://github.com/ash-project/ash_postgres/compare/v0.37.3...v0.37.4) (2021-04-26)
+
+
+
+
+### Improvements:
+
+* support `list` aggregate
+
 ## [v0.37.3](https://github.com/ash-project/ash_postgres/compare/v0.37.2...v0.37.3) (2021-04-26)
 
 
