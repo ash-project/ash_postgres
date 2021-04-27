@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.37.7](https://github.com/ash-project/ash_postgres/compare/v0.37.6...v0.37.7) (2021-04-27)
+
+
+
+
+### Bug Fixes:
+
+* remove inspects that were left in by accident
+
 ## [v0.37.6](https://github.com/ash-project/ash_postgres/compare/v0.37.5...v0.37.6) (2021-04-27)
 
 
