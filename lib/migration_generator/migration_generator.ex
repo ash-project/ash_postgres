@@ -836,13 +836,11 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp after?(
          %Operation.AddUniqueIndex{
-           identity: %{keys: keys},
-           table: table,
-           multitenancy: multitenancy
+           table: table
          },
-         %Operation.AddAttribute{table: table, attribute: %{name: name}}
+         %{table: table}
        ) do
-    name in keys || (multitenancy.attribute && name == multitenancy.attribute)
+    true
   end
 
   defp after?(
@@ -857,29 +855,12 @@ defmodule AshPostgres.MigrationGenerator do
       (multitenancy.attribute && multitenancy.attribute in List.wrap(attribute_or_attributes))
   end
 
-  defp after?(%Operation.AddUniqueIndex{table: table}, %Operation.RemoveUniqueIndex{table: table}),
-    do: true
-
   defp after?(%Operation.AddCheckConstraint{table: table}, %Operation.RemoveCheckConstraint{
          table: table
        }),
        do: true
 
   defp after?(
-         %Operation.AddUniqueIndex{identity: %{keys: keys}, table: table},
-         %Operation.AlterAttribute{table: table, new_attribute: %{name: name}}
-       ) do
-    name in keys
-  end
-
-  defp after?(
-         %Operation.AddUniqueIndex{identity: %{keys: keys}, table: table},
-         %Operation.RenameAttribute{table: table, new_attribute: %{name: name}}
-       ) do
-    name in keys
-  end
-
-  defp after?(
          %Operation.AddCheckConstraint{
            constraint: %{attribute: attribute_or_attributes},
            table: table
@@ -900,17 +881,17 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp after?(
-         %Operation.RemoveUniqueIndex{identity: %{keys: keys}, table: table},
-         %Operation.RemoveAttribute{table: table, attribute: %{name: name}}
+         %Operation.RemoveUniqueIndex{table: table},
+         %Operation.AddUniqueIndex{table: table}
        ) do
-    name in keys
+    false
   end
 
   defp after?(
-         %Operation.RemoveUniqueIndex{identity: %{keys: keys}, table: table},
-         %Operation.RenameAttribute{table: table, old_attribute: %{name: name}}
+         %Operation.RemoveUniqueIndex{table: table},
+         %{table: table}
        ) do
-    name in keys
+    true
   end
 
   defp after?(
@@ -1010,10 +991,6 @@ defmodule AshPostgres.MigrationGenerator do
          %Operation.AddAttribute{table: table, attribute: %{name: name}}
        ),
        do: true
-
-  defp after?(%Operation.AddUniqueIndex{table: table}, %Operation.CreateTable{table: table}) do
-    true
-  end
 
   defp after?(%Operation.AddCheckConstraint{table: table}, %Operation.CreateTable{table: table}) do
     true
