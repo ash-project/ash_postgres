@@ -54,6 +54,11 @@ defmodule AshPostgres do
     Extension.get_opt(resource, [:postgres], :unique_index_names, [], true)
   end
 
+  @doc "The configured identity_index_names"
+  def identity_index_names(resource) do
+    Extension.get_opt(resource, [:postgres], :identity_index_names, [], true)
+  end
+
   @doc "The configured foreign_key_names"
   def foreign_key_names(resource) do
     Extension.get_opt(resource, [:postgres], :foreign_key_names, [], true)

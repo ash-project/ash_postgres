@@ -219,6 +219,18 @@ defmodule AshPostgres.DataLayer do
         doc: """
         A list of unique index names that could raise errors, or an mfa to a function that takes a changeset
         and returns the list. Must be in the format `{[:affected, :keys], "name_of_constraint"}` or `{[:affected, :keys], "name_of_constraint", "custom error message"}`
+
+        Note that this is *not* used to rename the unique indexes created from `identities`.
+        Use `identity_index_names` for that. This is used to tell ash_postgres about unique indexes that
+        exist in the database that it didn't create.
+        """
+      ],
+      identity_index_names: [
+        type: :any,
+        default: [],
+        doc: """
+        A keyword list of identity names to the unique index name that they should use when being managed by the migration
+        generator.
         """
       ],
       foreign_key_names: [
@@ -623,7 +635,7 @@ defmodule AshPostgres.DataLayer do
       |> set_table(changeset, type)
       |> Ecto.Changeset.change(changeset.attributes)
       |> add_configured_foreign_key_constraints(record.__struct__)
-      |> add_unique_indexes(record.__struct__, changeset.tenant, changeset)
+      |> add_unique_indexes(record.__struct__, changeset)
       |> add_check_constraints(record.__struct__)
 
     case type do
@@ -720,17 +732,14 @@ defmodule AshPostgres.DataLayer do
     end)
   end
 
-  defp add_unique_indexes(changeset, resource, tenant, ash_changeset) do
+  defp add_unique_indexes(changeset, resource, ash_changeset) do
     changeset =
       resource
       |> Ash.Resource.Info.identities()
       |> Enum.reduce(changeset, fn identity, changeset ->
         name =
-          if tenant do
-            "#{tenant}_#{table(resource, ash_changeset)}_#{identity.name}_unique_index"
-          else
-            "#{table(resource, ash_changeset)}_#{identity.name}_unique_index"
-          end
+          AshPostgres.identity_index_names(resource)[identity.name] ||
+            "#{table(resource, ash_changeset)}_#{identity.name}_index"
 
         opts =
           if Map.get(identity, :message) do

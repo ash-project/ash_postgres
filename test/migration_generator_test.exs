@@ -52,10 +52,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end)
 
       defposts do
-        resource do
-          identities do
-            identity(:title, [:title])
-          end
+        identities do
+          identity(:title, [:title])
         end
 
         attributes do
@@ -115,7 +113,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
-               ~S{create unique_index(:posts, [:title], name: "posts_title_unique_index")}
+               ~S{create unique_index(:posts, [:title], name: "posts_title_index")}
     end
   end
 
@@ -127,10 +125,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end)
 
       defposts do
-        resource do
-          identities do
-            identity(:title, [:title])
-          end
+        identities do
+          identity(:title, [:title])
         end
 
         attributes do
@@ -153,12 +149,42 @@ defmodule AshPostgres.MigrationGeneratorTest do
       :ok
     end
 
+    test "when renaming an index, it is properly renamed" do
+      defposts do
+        postgres do
+          identity_index_names(title: "titles_r_unique_dawg")
+        end
+
+        identities do
+          identity(:title, [:title])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string)
+        end
+      end
+
+      defapi([Post])
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+
+      assert File.read!(file2) =~
+               ~S[ALTER INDEX posts_title_index RENAME TO titles_r_unique_dawg]
+    end
+
     test "when adding a field, it adds the field" do
       defposts do
-        resource do
-          identities do
-            identity(:title, [:title])
-          end
+        identities do
+          identity(:title, [:title])
         end
 
         attributes do

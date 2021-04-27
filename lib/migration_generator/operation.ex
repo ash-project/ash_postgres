@@ -471,7 +471,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     defstruct [:identity, :table, :multitenancy, :old_multitenancy, no_phase: true]
 
     def up(%{
-          identity: %{name: name, keys: keys, base_filter: base_filter},
+          identity: %{name: name, keys: keys, base_filter: base_filter, index_name: index_name},
           table: table,
           multitenancy: multitenancy
         }) do
@@ -484,19 +484,21 @@ defmodule AshPostgres.MigrationGenerator.Operation do
             keys
         end
 
+      index_name = index_name || "#{table}_#{name}_index"
+
       if base_filter do
         "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
-          table
-        }_#{name}_unique_index\", where: \"#{base_filter}\")"
+          index_name
+        }\", where: \"#{base_filter}\")"
       else
         "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
-          table
-        }_#{name}_unique_index\")"
+          index_name
+        }\")"
       end
     end
 
     def down(%{
-          identity: %{name: name, keys: keys},
+          identity: %{name: name, keys: keys, index_name: index_name},
           table: table,
           multitenancy: multitenancy
         }) do
@@ -509,9 +511,45 @@ defmodule AshPostgres.MigrationGenerator.Operation do
             keys
         end
 
+      index_name = index_name || "#{table}_#{name}_index"
+
       "drop_if_exists unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
-        table
-      }_#{name}_unique_index\")"
+        index_name
+      }\")"
+    end
+  end
+
+  defmodule RenameUniqueIndex do
+    @moduledoc false
+    defstruct [
+      :new_identity,
+      :old_identity,
+      :table,
+      :multitenancy,
+      :old_multitenancy,
+      no_phase: true
+    ]
+
+    def up(%{
+          old_identity: %{index_name: old_index_name, name: old_name},
+          new_identity: %{index_name: new_index_name},
+          table: table
+        }) do
+      old_index_name = old_index_name || "#{table}_#{old_name}_index"
+
+      "execute(\"ALTER INDEX #{old_index_name} " <>
+        "RENAME TO #{new_index_name}\")\n"
+    end
+
+    def down(%{
+          old_identity: %{index_name: old_index_name, name: old_name},
+          new_identity: %{index_name: new_index_name},
+          table: table
+        }) do
+      old_index_name = old_index_name || "#{table}_#{old_name}_index"
+
+      "execute(\"ALTER INDEX #{new_index_name} " <>
+        "RENAME TO #{old_index_name}\")\n"
     end
   end
 
@@ -519,7 +557,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     @moduledoc false
     defstruct [:identity, :table, :multitenancy, :old_multitenancy, no_phase: true]
 
-    def up(%{identity: %{name: name, keys: keys}, table: table, old_multitenancy: multitenancy}) do
+    def up(%{
+          identity: %{name: name, keys: keys, index_name: index_name},
+          table: table,
+          old_multitenancy: multitenancy
+        }) do
       keys =
         case multitenancy.strategy do
           :attribute ->
@@ -529,13 +571,15 @@ defmodule AshPostgres.MigrationGenerator.Operation do
             keys
         end
 
+      index_name = index_name || "#{table}_#{name}_index"
+
       "drop_if_exists unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
-        table
-      }_#{name}_unique_index\")"
+        index_name
+      }\")"
     end
 
     def down(%{
-          identity: %{name: name, keys: keys, base_filter: base_filter},
+          identity: %{name: name, keys: keys, base_filter: base_filter, index_name: index_name},
           table: table,
           multitenancy: multitenancy
         }) do
@@ -548,14 +592,16 @@ defmodule AshPostgres.MigrationGenerator.Operation do
             keys
         end
 
+      index_name = index_name || "#{table}_#{name}_index"
+
       if base_filter do
         "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
-          table
-        }_#{name}_unique_index\", where: \"#{base_filter}\")"
+          index_name
+        }\", where: \"#{base_filter}\")"
       else
         "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
-          table
-        }_#{name}_unique_index\")"
+          index_name
+        }\")"
       end
     end
   end

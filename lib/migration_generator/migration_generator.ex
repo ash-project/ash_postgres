@@ -835,6 +835,15 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp after?(
+         %Operation.RenameUniqueIndex{
+           table: table
+         },
+         %{table: table}
+       ) do
+    true
+  end
+
+  defp after?(
          %Operation.AddUniqueIndex{
            table: table
          },
@@ -1049,7 +1058,8 @@ defmodule AshPostgres.MigrationGenerator do
       else
         Enum.reject(old_snapshot.identities, fn old_identity ->
           Enum.find(snapshot.identities, fn identity ->
-            Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
+            identity.name == old_identity.name &&
+              Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
               old_identity.base_filter == identity.base_filter
           end)
         end)
@@ -1058,13 +1068,37 @@ defmodule AshPostgres.MigrationGenerator do
         %Operation.RemoveUniqueIndex{identity: identity, table: snapshot.table}
       end)
 
+    unique_indexes_to_rename =
+      if rewrite_all_identities? do
+        []
+      else
+        snapshot.identities
+        |> Enum.map(fn identity ->
+          Enum.find_value(old_snapshot.identities, fn old_identity ->
+            if old_identity.name == identity.name &&
+                 old_identity.index_name != identity.index_name do
+              {old_identity, identity}
+            end
+          end)
+        end)
+        |> Enum.filter(& &1)
+      end
+      |> Enum.map(fn {old_identity, new_identity} ->
+        %Operation.RenameUniqueIndex{
+          old_identity: old_identity,
+          new_identity: new_identity,
+          table: snapshot.table
+        }
+      end)
+
     unique_indexes_to_add =
       if rewrite_all_identities? do
         snapshot.identities
       else
         Enum.reject(snapshot.identities, fn identity ->
           Enum.find(old_snapshot.identities, fn old_identity ->
-            Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
+            old_identity.name == identity.name &&
+              Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
               old_identity.base_filter == identity.base_filter
           end)
         end)
@@ -1108,6 +1142,7 @@ defmodule AshPostgres.MigrationGenerator do
       unique_indexes_to_remove,
       attribute_operations,
       unique_indexes_to_add,
+      unique_indexes_to_rename,
       constraints_to_add,
       constraints_to_remove,
       acc
@@ -1551,6 +1586,8 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp identities(resource) do
+    identity_index_names = AshPostgres.identity_index_names(resource)
+
     resource
     |> Ash.Resource.Info.identities()
     |> case do
@@ -1583,6 +1620,14 @@ defmodule AshPostgres.MigrationGenerator do
     end)
     |> Enum.sort_by(& &1.name)
     |> Enum.map(&Map.take(&1, [:name, :keys]))
+    |> Enum.map(fn identity ->
+      Map.put(
+        identity,
+        :index_name,
+        identity_index_names[identity.name] ||
+          "#{AshPostgres.table(resource)}_#{identity.name}_index"
+      )
+    end)
     |> Enum.map(&Map.put(&1, :base_filter, AshPostgres.base_filter_sql(resource)))
   end
 
@@ -1649,7 +1694,7 @@ defmodule AshPostgres.MigrationGenerator do
     snapshot
     |> Map.put_new(:has_create_action, true)
     |> Map.update!(:identities, fn identities ->
-      Enum.map(identities, &load_identity/1)
+      Enum.map(identities, &load_identity(&1, snapshot.table))
     end)
     |> Map.update!(:attributes, fn attributes ->
       Enum.map(attributes, &load_attribute(&1, snapshot.table))
@@ -1718,7 +1763,7 @@ defmodule AshPostgres.MigrationGenerator do
     String.to_atom(type)
   end
 
-  defp load_identity(identity) do
+  defp load_identity(identity, table) do
     identity
     |> Map.update!(:name, &String.to_atom/1)
     |> Map.update!(:keys, fn keys ->
@@ -1726,6 +1771,11 @@ defmodule AshPostgres.MigrationGenerator do
       |> Enum.map(&String.to_atom/1)
       |> Enum.sort()
     end)
+    |> add_index_name(table)
     |> Map.put_new(:base_filter, nil)
+  end
+
+  defp add_index_name(%{name: name} = index, table) do
+    Map.put_new(index, :index_name, "#{table}_#{name}_unique_index")
   end
 end

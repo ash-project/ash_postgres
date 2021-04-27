@@ -7,6 +7,7 @@ locals_without_parens = [
   check_constraint: 3,
   create?: 1,
   foreign_key_names: 1,
+  identity_index_names: 1,
   message: 1,
   migrate?: 1,
   name: 1,
