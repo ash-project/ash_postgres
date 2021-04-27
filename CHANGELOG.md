@@ -5,6 +5,23 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.37.8](https://github.com/ash-project/ash_postgres/compare/v0.37.7...v0.37.8) (2021-04-27)
+
+
+
+
+### Bug Fixes:
+
+* simpler index names
+
+* don't prefix unique indices with prefix()
+
+* sort index operations last
+
+### Improvements:
+
+* custom index names
+
 ## [v0.37.7](https://github.com/ash-project/ash_postgres/compare/v0.37.6...v0.37.7) (2021-04-27)
 
 
