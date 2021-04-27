@@ -490,11 +490,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       if base_filter do
         "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
           name_prefix
-        }#{table}_#{name}_unique_index\", where: \"#{base_filter}\")"
+        }#{table}_#{name}_index\", where: \"#{base_filter}\")"
       else
         "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
           name_prefix
-        }#{table}_#{name}_unique_index\")"
+        }#{table}_#{name}_index\")"
       end
     end
 
@@ -517,7 +517,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       "drop_if_exists unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
         name_prefix
-      }#{table}_#{name}_unique_index\")"
+      }#{table}_#{name}_index\")"
     end
   end
 
@@ -540,7 +540,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       "drop_if_exists unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
         name_prefix
-      }#{table}_#{name}_unique_index\")"
+      }#{table}_#{name}_index\")"
     end
 
     def down(%{
@@ -563,11 +563,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       if base_filter do
         "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
           name_prefix
-        }#{table}_#{name}_unique_index\", where: \"#{base_filter}\")"
+        }#{table}_#{name}_index\", where: \"#{base_filter}\")"
       else
         "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
           name_prefix
-        }#{table}_#{name}_unique_index\")"
+        }#{table}_#{name}_index\")"
       end
     end
   end
