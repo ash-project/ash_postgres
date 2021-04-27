@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.37.5](https://github.com/ash-project/ash_postgres/compare/v0.37.4...v0.37.5) (2021-04-27)
+
+
+
+
+### Bug Fixes:
+
+* properly type cast
+
 ## [v0.37.4](https://github.com/ash-project/ash_postgres/compare/v0.37.3...v0.37.4) (2021-04-26)
 
 
