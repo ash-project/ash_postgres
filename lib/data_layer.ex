@@ -1863,30 +1863,7 @@ defmodule AshPostgres.DataLayer do
          embedded?,
          _type
        ) do
-    {left_type, right_type} =
-      case determine_type(mod, left) do
-        nil ->
-          case determine_type(mod, right, true) do
-            nil ->
-              {nil, nil}
-
-            left_type ->
-              {left_type, nil}
-          end
-
-        right_type ->
-          if vague?(right_type) do
-            case determine_type(mod, right, true) do
-              nil ->
-                {nil, right_type}
-
-              left_type ->
-                {left_type, nil}
-            end
-          else
-            {nil, right_type}
-          end
-      end
+    [left_type, right_type] = determine_types(mod, [left, right])
 
     {params, left_expr} =
       do_filter_to_expr(left, bindings, params, pred_embedded? || embedded?, left_type)
@@ -1966,76 +1943,101 @@ defmodule AshPostgres.DataLayer do
     value
   end
 
-  defp determine_type(mod, ref, flip? \\ false)
+  defp determine_types(mod, values) do
+    mod.types()
+    |> Enum.map(fn types ->
+      case types do
+        :same ->
+          types =
+            for _ <- values do
+              :same
+            end
 
-  defp determine_type(mod, %Ref{attribute: %{type: type}}, flip?) do
-    Enum.find_value(mod.types(), fn types ->
-      types =
-        case types do
-          :same ->
-            [type]
+          closest_fitting_type(types, values)
 
-          :any ->
-            []
-
-          other when is_list(other) ->
-            other =
-              if flip? do
-                Enum.reverse(other)
-              else
-                other
-              end
-
-            Enum.map(other, fn
-              {:array, :any} ->
-                {:in, :any}
-
-              {:array, :same} ->
-                {:in, type}
-
-              {:array, type} ->
-                {:in, type}
-
-              type ->
-                type
-            end)
-
-          other ->
-            [other]
-        end
-
-      types
-      |> Enum.sort_by(&vague?/1)
-      |> Enum.at(0)
-      |> case do
-        nil ->
-          nil
-
-        {:in, :any} ->
-          {:in, :any}
-
-        {:in, type} ->
-          if Ash.Type.ash_type?(type) do
-            {:in, Ash.Type.storage_type(type)}
-          else
-            {:in, type}
+        :any ->
+          for _ <- values do
+            :any
           end
 
-        type ->
-          if Ash.Type.ash_type?(type) do
-            Ash.Type.storage_type(type)
-          else
-            type
-          end
+        types ->
+          closest_fitting_type(types, values)
       end
+    end)
+    |> Enum.min_by(fn types ->
+      types
+      |> Enum.map(&vagueness/1)
+      |> Enum.sum()
     end)
   end
 
-  defp determine_type(_mod, _, _), do: nil
+  defp closest_fitting_type(types, values) do
+    types_with_values = Enum.zip(types, values)
 
-  defp vague?({:in, :any}), do: true
-  defp vague?(:any), do: true
-  defp vague?(_), do: false
+    types_with_values
+    |> fill_in_known_types()
+    |> clarify_types()
+  end
+
+  defp clarify_types(types) do
+    basis =
+      types
+      |> Enum.map(&elem(&1, 0))
+      |> Enum.min_by(&vagueness(&1))
+
+    Enum.map(types, fn {type, _value} ->
+      replace_same(type, basis)
+    end)
+  end
+
+  defp replace_same({:in, type}, basis) do
+    {:in, replace_same(type, basis)}
+  end
+
+  defp replace_same(:same, :same) do
+    :any
+  end
+
+  defp replace_same(:same, {:in, :same}) do
+    {:in, :any}
+  end
+
+  defp replace_same(:same, basis) do
+    basis
+  end
+
+  defp replace_same(other, _basis) do
+    other
+  end
+
+  defp fill_in_known_types(types) do
+    Enum.map(types, &fill_in_known_type/1)
+  end
+
+  defp fill_in_known_type({vague_type, %Ref{attribute: %{type: type}}} = ref)
+       when vague_type in [:any, :same] do
+    if Ash.Type.ash_type?(type) do
+      {type |> Ash.Type.storage_type() |> array_to_in(), ref}
+    else
+      {type |> array_to_in(), ref}
+    end
+  end
+
+  defp fill_in_known_type(
+         {{:array, type}, %Ref{attribute: %{type: {:array, type}} = attribute} = ref}
+       ) do
+    {:in, fill_in_known_type({type, %{ref | attribute: %{attribute | type: type}}})}
+  end
+
+  defp fill_in_known_type({type, value}), do: {array_to_in(type), value}
+
+  defp array_to_in({:array, v}), do: {:in, array_to_in(v)}
+  defp array_to_in(v), do: v
+
+  defp vagueness({:in, type}), do: vagueness(type)
+  defp vagueness(:same), do: 2
+  defp vagueness(:any), do: 1
+  defp vagueness(_), do: 0
 
   defp ref_binding(ref, bindings) do
     case ref.attribute do
