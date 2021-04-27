@@ -123,7 +123,7 @@ defmodule AshPostgres.MigrationGenerator do
         {module, migration_name} =
           case to_install do
             [single] ->
-              {"install_#{single}", "#{timestamp(true)}_install_#{single}"}
+              {"install_#{single}", "#{timestamp(true)}_install_#{single}_extension"}
 
             multiple ->
               {"install_#{Enum.count(multiple)}_extensions",
