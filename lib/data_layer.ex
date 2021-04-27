@@ -1920,7 +1920,9 @@ defmodule AshPostgres.DataLayer do
 
   defp do_filter_to_expr(value, _bindings, params, false, type) do
     type = type || :any
-    value = last_ditch_cast(value, type)
+    IO.inspect(value)
+    IO.inspect(type)
+    value = last_ditch_cast(value, type) |> IO.inspect(label: "casted")
 
     {params ++ [{value, type}], {:^, [], [Enum.count(params)]}}
   end
@@ -1935,7 +1937,11 @@ defmodule AshPostgres.DataLayer do
 
   defp maybe_ecto_type(_type), do: nil
 
-  defp last_ditch_cast(value, :string) when is_atom(value) do
+  defp last_ditch_cast(value, {:in, type}) when is_list(value) do
+    Enum.map(value, &last_ditch_cast(&1, type))
+  end
+
+  defp last_ditch_cast(value, _) when is_atom(value) do
     to_string(value)
   end
 
