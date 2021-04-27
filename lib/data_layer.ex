@@ -1920,9 +1920,7 @@ defmodule AshPostgres.DataLayer do
 
   defp do_filter_to_expr(value, _bindings, params, false, type) do
     type = type || :any
-    IO.inspect(value)
-    IO.inspect(type)
-    value = last_ditch_cast(value, type) |> IO.inspect(label: "casted")
+    value = last_ditch_cast(value, type)
 
     {params ++ [{value, type}], {:^, [], [Enum.count(params)]}}
   end
