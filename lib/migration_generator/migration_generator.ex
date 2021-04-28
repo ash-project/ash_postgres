@@ -234,6 +234,8 @@ defmodule AshPostgres.MigrationGenerator do
     %{op | new_attribute: attribute}
   end
 
+  defp add_order_to_operation(op, _), do: op
+
   defp organize_operations([]), do: []
 
   defp organize_operations(operations) do
