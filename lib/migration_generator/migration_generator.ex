@@ -1037,6 +1037,9 @@ defmodule AshPostgres.MigrationGenerator do
        when not is_nil(references),
        do: true
 
+  defp after?(%Operation.AddCheckConstraint{}, _), do: true
+  defp after?(%Operation.RemoveCheckConstraint{}, _), do: true
+
   defp after?(_, _), do: false
 
   defp fetch_operations(snapshots, opts) do
