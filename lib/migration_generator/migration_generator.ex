@@ -24,15 +24,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   def generate(apis, opts \\ []) do
     apis = List.wrap(apis)
-
-    opts =
-      case struct(__MODULE__, opts) do
-        %{check_generated: true} = opts ->
-          %{opts | dry_run: true}
-
-        opts ->
-          opts
-      end
+    opts = opts(opts)
 
     all_resources = Enum.flat_map(apis, &Ash.Api.resources/1)
 
@@ -184,7 +176,10 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.each(fn {repo, snapshots} ->
       deduped = deduplicate_snapshots(snapshots, opts)
 
-      snapshots_with_operations = fetch_operations(deduped, opts)
+      snapshots_with_operations =
+        deduped
+        |> fetch_operations(opts)
+        |> Enum.map(&add_order_to_operations/1)
 
       snapshots = Enum.map(snapshots_with_operations, &elem(&1, 0))
 
@@ -216,6 +211,28 @@ defmodule AshPostgres.MigrationGenerator do
       end
     end)
   end
+
+  defp add_order_to_operations({snapshot, operations}) do
+    operations_with_order = Enum.map(operations, &add_order_to_operation(&1, snapshot.attributes))
+
+    {snapshot, operations_with_order}
+  end
+
+  defp add_order_to_operation(%{attribute: attribute} = op, attributes) do
+    order = Enum.find_index(attributes, &(&1.name == attribute.name))
+    attribute = Map.put(attribute, :order, order)
+
+    %{op | attribute: attribute}
+  end
+
+  defp add_order_to_operation(%{new_attribute: attribute} = op, attributes) do
+    order = Enum.find_index(attributes, &(&1.name == attribute.name))
+    attribute = Map.put(attribute, :order, order)
+
+    %{op | new_attribute: attribute}
+  end
+
+  defp add_order_to_operation(op, _), do: op
 
   defp organize_operations([]), do: []
 
@@ -314,6 +331,8 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp merge_attributes(attributes, table, count) do
     attributes
+    |> Enum.with_index()
+    |> Enum.map(fn {attr, i} -> Map.put(attr, :order, i) end)
     |> Enum.group_by(& &1.name)
     |> Enum.map(fn {name, attributes} ->
       %{
@@ -323,9 +342,12 @@ defmodule AshPostgres.MigrationGenerator do
         allow_nil?: Enum.any?(attributes, & &1.allow_nil?) || Enum.count(attributes) < count,
         generated?: Enum.any?(attributes, & &1.generated?),
         references: merge_references(Enum.map(attributes, & &1.references), name, table),
-        primary_key?: false
+        primary_key?: false,
+        order: attributes |> Enum.map(& &1.order) |> Enum.min()
       }
     end)
+    |> Enum.sort(&(&1.order < &2.order))
+    |> Enum.map(&Map.drop(&1, [:order]))
   end
 
   defp merge_references(references, name, table) do
@@ -835,6 +857,12 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp after?(
+         %Operation.AddAttribute{attribute: %{order: l}, table: table},
+         %Operation.AddAttribute{attribute: %{order: r}, table: table}
+       ),
+       do: l > r
+
+  defp after?(
          %Operation.RenameUniqueIndex{
            table: table
          },
@@ -1008,6 +1036,9 @@ defmodule AshPostgres.MigrationGenerator do
   defp after?(%Operation.AlterAttribute{new_attribute: %{references: references}}, _)
        when not is_nil(references),
        do: true
+
+  defp after?(%Operation.AddCheckConstraint{}, _), do: true
+  defp after?(%Operation.RemoveCheckConstraint{}, _), do: true
 
   defp after?(_, _), do: false
 
@@ -1520,7 +1551,6 @@ defmodule AshPostgres.MigrationGenerator do
 
     resource
     |> Ash.Resource.Info.attributes()
-    |> Enum.sort_by(& &1.name)
     |> Enum.map(&Map.take(&1, [:name, :type, :default, :allow_nil?, :generated?, :primary_key?]))
     |> Enum.map(fn attribute ->
       default = default(attribute, repo)
