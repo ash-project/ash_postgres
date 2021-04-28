@@ -213,9 +213,7 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp add_order_to_operations({snapshot, operations}) do
-    %{attributes: attributes} = snapshot
-
-    operations_with_order = Enum.map(operations, &add_order_to_operation(&1, attributes))
+    operations_with_order = Enum.map(operations, &add_order_to_operation(&1, snapshot.attributes))
 
     {snapshot, operations_with_order}
   end
