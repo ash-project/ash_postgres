@@ -336,10 +336,14 @@ defmodule AshPostgres.DataLayer do
     data_layer == other_data_layer and repo(data_layer) == repo(other_data_layer)
   end
 
-  def can?(resource, {:lateral_join, other_resource}) do
+  def can?(resource, {:lateral_join, resources}) do
+    repo = repo(resource)
     data_layer = Ash.DataLayer.data_layer(resource)
-    other_data_layer = Ash.DataLayer.data_layer(other_resource)
-    data_layer == other_data_layer and repo(data_layer) == repo(other_data_layer)
+
+    data_layer == __MODULE__ &&
+      Enum.all?(resources, fn resource ->
+        Ash.DataLayer.data_layer(resource) == data_layer && repo(resource) == repo
+      end)
   end
 
   def can?(_, :boolean_filter), do: true
@@ -471,19 +475,20 @@ defmodule AshPostgres.DataLayer do
         query,
         aggregates,
         root_data,
-        source_resource,
         destination_resource,
-        source_field,
-        destination_field
+        path
       ) do
     lateral_join_query =
       lateral_join_query(
         query,
         root_data,
-        source_resource,
-        source_field,
-        destination_field
+        path
       )
+
+    source_resource =
+      path
+      |> Enum.at(0)
+      |> elem(0)
 
     subquery = from(row in subquery(lateral_join_query), select: %{})
 
@@ -501,19 +506,20 @@ defmodule AshPostgres.DataLayer do
   def run_query_with_lateral_join(
         query,
         root_data,
-        source_resource,
         _destination_resource,
-        source_field,
-        destination_field
+        path
       ) do
     query =
       lateral_join_query(
         query,
         root_data,
-        source_resource,
-        source_field,
-        destination_field
+        path
       )
+
+    source_resource =
+      path
+      |> Enum.at(0)
+      |> elem(0)
 
     {:ok, repo(source_resource).all(query, repo_opts(query))}
   end
@@ -521,9 +527,7 @@ defmodule AshPostgres.DataLayer do
   defp lateral_join_query(
          query,
          root_data,
-         source_resource,
-         source_field,
-         destination_field
+         [{source_resource, source_field, destination_field, relationship}]
        ) do
     source_values = Enum.map(root_data, &Map.get(&1, source_field))
 
@@ -538,6 +542,8 @@ defmodule AshPostgres.DataLayer do
 
     source_resource
     |> Ash.Query.new()
+    |> Ash.Query.set_context(relationship.context)
+    |> Ash.Query.do_filter(relationship.filter)
     |> Ash.Query.data_layer_query()
     |> case do
       {:ok, data_layer_query} ->
@@ -546,8 +552,65 @@ defmodule AshPostgres.DataLayer do
           where: field(source, ^source_field) in ^source_values,
           inner_lateral_join: destination in ^subquery,
           on: field(source, ^source_field) == field(destination, ^destination_field),
+          distinct: field(source, ^source_field),
           select: destination
         )
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  defp lateral_join_query(
+         query,
+         root_data,
+         [
+           {source_resource, source_field, source_field_on_join_table, relationship},
+           {through_resource, destination_field_on_join_table, destination_field,
+            through_relationship}
+         ]
+       ) do
+    source_values = Enum.map(root_data, &Map.get(&1, source_field))
+
+    subquery =
+      subquery(
+        from(destination in query,
+          where:
+            field(destination, ^destination_field) ==
+              field(parent_as(:source_record), ^destination_field_on_join_table)
+        )
+      )
+
+    through_resource
+    |> Ash.Query.new()
+    |> Ash.Query.set_context(through_relationship.context)
+    |> Ash.Query.do_filter(through_relationship.filter)
+    |> Ash.Query.data_layer_query()
+    |> case do
+      {:ok, through_query} ->
+        source_resource
+        |> Ash.Query.new()
+        |> Ash.Query.set_context(relationship.context)
+        |> Ash.Query.do_filter(relationship.filter)
+        |> Ash.Query.data_layer_query()
+        |> case do
+          {:ok, data_layer_query} ->
+            from(source in data_layer_query,
+              where: field(source, ^source_field) in ^source_values,
+              join: through in ^through_query,
+              as: :source_record,
+              on: field(through, ^source_field_on_join_table) == field(source, ^source_field),
+              inner_lateral_join: destination in ^subquery,
+              on:
+                field(through, ^destination_field_on_join_table) ==
+                  field(destination, ^destination_field),
+              distinct: field(source, ^source_field),
+              select: destination
+            )
+
+          {:error, error} ->
+            {:error, error}
+        end
 
       {:error, error} ->
         {:error, error}
@@ -1479,10 +1542,11 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp do_join_relationship(query, %{type: :many_to_many} = relationship, path, kind, source) do
-    relationship_through = maybe_get_resource_query(relationship.through)
+    join_relationship = Ash.Resource.Info.relationship(source, relationship.join_relationship)
+    relationship_through = maybe_get_resource_query(relationship.through, join_relationship)
 
     relationship_destination =
-      Ecto.Queryable.to_query(maybe_get_resource_query(relationship.destination))
+      Ecto.Queryable.to_query(maybe_get_resource_query(relationship.destination, relationship))
 
     current_binding =
       Enum.find_value(query.__ash_bindings__.bindings, 0, fn {binding, data} ->
@@ -1564,7 +1628,7 @@ defmodule AshPostgres.DataLayer do
 
   defp do_join_relationship(query, relationship, path, kind, source) do
     relationship_destination =
-      Ecto.Queryable.to_query(maybe_get_resource_query(relationship.destination))
+      Ecto.Queryable.to_query(maybe_get_resource_query(relationship.destination, relationship))
 
     current_binding =
       Enum.find_value(query.__ash_bindings__.bindings, 0, fn {binding, data} ->
@@ -2089,8 +2153,13 @@ defmodule AshPostgres.DataLayer do
     repo(resource).rollback(term)
   end
 
-  defp maybe_get_resource_query(resource) do
-    case Ash.Query.data_layer_query(Ash.Query.new(resource), only_validate_filter?: false) do
+  defp maybe_get_resource_query(resource, relationship) do
+    resource
+    |> Ash.Query.new()
+    |> Ash.Query.set_context(relationship.context)
+    |> Ash.Query.do_filter(Map.get(relationship, :filter))
+    |> Ash.Query.data_layer_query(only_validate_filter?: false)
+    |> case do
       {:ok, query} -> query
       {:error, error} -> {:error, error}
     end

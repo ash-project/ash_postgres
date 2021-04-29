@@ -43,4 +43,104 @@ defmodule AshPostgres.Test.SideLoadTest do
 
     assert [%Comment{post: %{title: "match"}}] = results
   end
+
+  test "many_to_many side loads work" do
+    source_post =
+      Post
+      |> Ash.Changeset.new(%{title: "source"})
+      |> Api.create!()
+
+    destination_post =
+      Post
+      |> Ash.Changeset.new(%{title: "destination"})
+      |> Api.create!()
+
+    source_post
+    |> Ash.Changeset.new()
+    |> Ash.Changeset.replace_relationship(:linked_posts, [destination_post])
+    |> Api.update!()
+
+    results =
+      source_post
+      |> Api.load!(:linked_posts)
+
+    assert %{linked_posts: [%{title: "destination"}]} = results
+  end
+
+  describe "lateral join side loads" do
+    test "lateral join side loads (loads with limits or offsets) are supported" do
+      assert %Post{comments: %Ash.NotLoaded{type: :relationship}} =
+               post =
+               Post
+               |> Ash.Changeset.new(%{title: "title"})
+               |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "abc"})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "def"})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      comments_query =
+        Comment
+        |> Ash.Query.limit(1)
+        |> Ash.Query.sort(:title)
+
+      results =
+        Post
+        |> Ash.Query.load(comments: comments_query)
+        |> Api.read!()
+
+      assert [%Post{comments: [%{title: "abc"}]}] = results
+
+      comments_query =
+        Comment
+        |> Ash.Query.limit(1)
+        |> Ash.Query.sort(title: :desc)
+
+      results =
+        Post
+        |> Ash.Query.load(comments: comments_query)
+        |> Api.read!()
+
+      assert [%Post{comments: [%{title: "def"}]}] = results
+    end
+
+    test "lateral join side loads with many to many relationships are supported" do
+      source_post =
+        Post
+        |> Ash.Changeset.new(%{title: "source"})
+        |> Api.create!()
+
+      destination_post =
+        Post
+        |> Ash.Changeset.new(%{title: "abc"})
+        |> Api.create!()
+
+      destination_post2 =
+        Post
+        |> Ash.Changeset.new(%{title: "def"})
+        |> Api.create!()
+
+      source_post
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.replace_relationship(:linked_posts, [destination_post, destination_post2])
+      |> Api.update!()
+
+      linked_posts_query =
+        Post
+        |> Ash.Query.limit(1)
+        |> Ash.Query.sort(title: :asc)
+
+      results =
+        source_post
+        |> Api.load!(linked_posts: linked_posts_query)
+
+      assert %{linked_posts: [%{title: "abc"}]} = results
+    end
+  end
 end

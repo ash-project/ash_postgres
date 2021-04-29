@@ -55,6 +55,12 @@ defmodule AshPostgres.Test.Post do
       destination_field: :resource_id,
       context: %{data_layer: %{table: "post_ratings"}}
     )
+
+    many_to_many(:linked_posts, __MODULE__,
+      through: AshPostgres.Test.PostLink,
+      source_field_on_join_table: :source_post_id,
+      destination_field_on_join_table: :destination_post_id
+    )
   end
 
   aggregates do
