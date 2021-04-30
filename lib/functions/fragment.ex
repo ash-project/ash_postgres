@@ -20,10 +20,10 @@ defmodule AshPostgres.Functions.Fragment do
   def new([fragment | rest]) do
     split = split_fragment(fragment)
 
-    if Enum.count(split, &(&1 == "")) != length(rest) do
+    if Enum.count(split, &(&1 == :slot)) != length(rest) do
       {:error,
        "fragment(...) expects extra arguments in the same amount of question marks in string. " <>
-         "It received #{Enum.count(split, &(&1 == ""))} extra argument(s) but expected #{
+         "It received #{Enum.count(split, &(&1 == :slot))} extra argument(s) but expected #{
            length(rest)
          }"}
     else
@@ -33,7 +33,7 @@ defmodule AshPostgres.Functions.Fragment do
 
   defp merge_fragment([], []), do: []
 
-  defp merge_fragment(["" | rest], [arg | rest_args]) do
+  defp merge_fragment([:slot | rest], [arg | rest_args]) do
     [{:expr, arg} | merge_fragment(rest, rest_args)]
   end
 
@@ -47,7 +47,7 @@ defmodule AshPostgres.Functions.Fragment do
     do: [consumed]
 
   defp split_fragment(<<??, rest::binary>>, consumed),
-    do: [consumed | split_fragment(rest, "")]
+    do: [consumed, :slot | split_fragment(rest, "")]
 
   defp split_fragment(<<?\\, ??, rest::binary>>, consumed),
     do: split_fragment(rest, consumed <> <<??>>)
