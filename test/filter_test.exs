@@ -386,4 +386,27 @@ defmodule AshPostgres.FilterTest do
       assert [] = results
     end
   end
+
+  describe "fragments" do
+    test "double replacement works" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "match", score: 4})
+        |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{title: "non_match", score: 2})
+      |> Api.create!()
+
+      assert [%{title: "match"}] =
+               Post
+               |> Ash.Query.filter(fragment("? = ?", title, ^post.title))
+               |> Api.read!()
+
+      assert [] =
+               Post
+               |> Ash.Query.filter(fragment("? = ?", title, "nope"))
+               |> Api.read!()
+    end
+  end
 end
