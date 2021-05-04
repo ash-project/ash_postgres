@@ -5,6 +5,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.38.2](https://github.com/ash-project/ash_postgres/compare/v0.38.1...v0.38.2) (2021-05-04)
+
+
+
+
+### Bug Fixes:
+
+* join to join table in lateral join query
+
+* multitenancy + lateral join sources
+
+* don't distinct in lateral joins
+
 ## [v0.38.1](https://github.com/ash-project/ash_postgres/compare/v0.38.0...v0.38.1) (2021-05-04)
 
 
