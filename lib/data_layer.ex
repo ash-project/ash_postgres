@@ -572,15 +572,6 @@ defmodule AshPostgres.DataLayer do
        ) do
     source_values = Enum.map(root_data, &Map.get(&1, source_field))
 
-    subquery =
-      subquery(
-        from(destination in query,
-          where:
-            field(destination, ^destination_field) ==
-              field(parent_as(:source_record), ^destination_field_on_join_table)
-        )
-      )
-
     through_resource
     |> Ash.Query.new()
     |> Ash.Query.set_context(through_relationship.context)
@@ -597,16 +588,24 @@ defmodule AshPostgres.DataLayer do
         |> Ash.Query.data_layer_query()
         |> case do
           {:ok, data_layer_query} ->
+            subquery =
+              subquery(
+                from(destination in query,
+                  join: through in ^through_query,
+                  on:
+                    field(through, ^destination_field_on_join_table) ==
+                      field(destination, ^destination_field),
+                  where:
+                    field(through, ^source_field_on_join_table) ==
+                      field(parent_as(:source_record), ^source_field)
+                )
+              )
+
             from(source in data_layer_query,
-              where: field(source, ^source_field) in ^source_values,
-              join: through in ^through_query,
               as: :source_record,
-              on: field(through, ^source_field_on_join_table) == field(source, ^source_field),
-              inner_lateral_join: destination in ^subquery,
-              on:
-                field(through, ^destination_field_on_join_table) ==
-                  field(destination, ^destination_field),
-              select: destination
+              where: field(source, ^source_field) in ^source_values,
+              inner_lateral_join: through in ^subquery,
+              select: through
             )
 
           {:error, error} ->

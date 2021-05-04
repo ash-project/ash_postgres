@@ -108,6 +108,18 @@ defmodule AshPostgres.Test.SideLoadTest do
         |> Api.read!()
 
       assert [%Post{comments: [%{title: "def"}]}] = results
+
+      comments_query =
+        Comment
+        |> Ash.Query.limit(2)
+        |> Ash.Query.sort(title: :desc)
+
+      results =
+        Post
+        |> Ash.Query.load(comments: comments_query)
+        |> Api.read!()
+
+      assert [%Post{comments: [%{title: "def"}, %{title: "abc"}]}] = results
     end
 
     test "lateral join side loads with many to many relationships are supported" do
@@ -141,6 +153,17 @@ defmodule AshPostgres.Test.SideLoadTest do
         |> Api.load!(linked_posts: linked_posts_query)
 
       assert %{linked_posts: [%{title: "abc"}]} = results
+
+      linked_posts_query =
+        Post
+        |> Ash.Query.limit(2)
+        |> Ash.Query.sort(title: :asc)
+
+      results =
+        source_post
+        |> Api.load!(linked_posts: linked_posts_query)
+
+      assert %{linked_posts: [%{title: "abc"}, %{title: "def"}]} = results
     end
   end
 end
