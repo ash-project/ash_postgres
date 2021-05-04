@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.38.1](https://github.com/ash-project/ash_postgres/compare/v0.38.0...v0.38.1) (2021-05-04)
+
+
+
+
+### Bug Fixes:
+
+* fix fragment processing broken (#64)
+
 ## [v0.38.0](https://github.com/ash-project/ash_postgres/compare/v0.37.8...v0.38.0) (2021-04-29)
 
 
