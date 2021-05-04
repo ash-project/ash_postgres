@@ -543,6 +543,7 @@ defmodule AshPostgres.DataLayer do
     source_resource
     |> Ash.Query.new()
     |> Ash.Query.set_context(relationship.context)
+    |> set_lateral_join_prefix(query)
     |> Ash.Query.do_filter(relationship.filter)
     |> Ash.Query.data_layer_query()
     |> case do
@@ -552,7 +553,6 @@ defmodule AshPostgres.DataLayer do
           where: field(source, ^source_field) in ^source_values,
           inner_lateral_join: destination in ^subquery,
           on: field(source, ^source_field) == field(destination, ^destination_field),
-          distinct: field(source, ^source_field),
           select: destination
         )
 
@@ -584,6 +584,7 @@ defmodule AshPostgres.DataLayer do
     through_resource
     |> Ash.Query.new()
     |> Ash.Query.set_context(through_relationship.context)
+    |> set_lateral_join_prefix(query)
     |> Ash.Query.do_filter(through_relationship.filter)
     |> Ash.Query.data_layer_query()
     |> case do
@@ -591,6 +592,7 @@ defmodule AshPostgres.DataLayer do
         source_resource
         |> Ash.Query.new()
         |> Ash.Query.set_context(relationship.context)
+        |> set_lateral_join_prefix(query)
         |> Ash.Query.do_filter(relationship.filter)
         |> Ash.Query.data_layer_query()
         |> case do
@@ -604,7 +606,6 @@ defmodule AshPostgres.DataLayer do
               on:
                 field(through, ^destination_field_on_join_table) ==
                   field(destination, ^destination_field),
-              distinct: field(source, ^source_field),
               select: destination
             )
 
@@ -614,6 +615,14 @@ defmodule AshPostgres.DataLayer do
 
       {:error, error} ->
         {:error, error}
+    end
+  end
+
+  defp set_lateral_join_prefix(ash_query, query) do
+    if Ash.Resource.Info.multitenancy_strategy(ash_query.resource) == :context do
+      Ash.Query.set_tenant(ash_query, query.prefix)
+    else
+      ash_query
     end
   end
 
