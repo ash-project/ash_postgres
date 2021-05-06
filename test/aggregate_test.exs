@@ -260,5 +260,42 @@ defmodule AshPostgres.AggregateTest do
                |> Ash.Query.load(:sum_of_comment_likes_called_match)
                |> Api.read_one!()
     end
+
+    test "the sum can be filtered on when paginating" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "match", likes: 2})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      assert %{sum_of_comment_likes_called_match: 2} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:sum_of_comment_likes_called_match)
+               |> Api.read_one!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "not_match", likes: 3})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      assert %Ash.Page.Offset{results: [%{sum_of_comment_likes_called_match: 2}]} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:sum_of_comment_likes_called_match)
+               |> Ash.Query.filter(sum_of_comment_likes_called_match == 2)
+               |> Api.read!(action: :paginated, page: [limit: 1, count: true])
+
+      assert %Ash.Page.Offset{results: []} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:sum_of_comment_likes_called_match)
+               |> Ash.Query.filter(sum_of_comment_likes_called_match == 3)
+               |> Api.read!(action: :paginated, page: [limit: 1, count: true])
+    end
   end
 end

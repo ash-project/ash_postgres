@@ -57,12 +57,13 @@ defmodule AshPostgres.MigrationGenerator do
 
   Does not support everything supported by the migration generator.
   """
-  def take_snapshots(api, repo) do
+  def take_snapshots(api, repo, only_resources \\ nil) do
     all_resources = Ash.Api.resources(api)
 
     all_resources
     |> Enum.filter(&(Ash.DataLayer.data_layer(&1) == AshPostgres.DataLayer))
     |> Enum.filter(&(AshPostgres.repo(&1) == repo))
+    |> Enum.filter(&(is_nil(only_resources) || &1 in only_resources))
     |> Enum.flat_map(&get_snapshots(&1, all_resources))
   end
 

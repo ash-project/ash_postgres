@@ -21,7 +21,13 @@ defmodule AshPostgres.Test.Post do
   end
 
   actions do
-    read(:read)
+    read :read do
+      primary?(true)
+    end
+
+    read :paginated do
+      pagination(offset?: true, required?: true, countable: true)
+    end
 
     create :create do
       argument(:rating, :map)
