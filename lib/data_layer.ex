@@ -535,7 +535,7 @@ defmodule AshPostgres.DataLayer do
   defp lateral_join_query(
          query,
          root_data,
-         [{source_query, source_field, destination_field, relationship}]
+         [{source_query, source_field, destination_field, _relationship}]
        ) do
     source_values = Enum.map(root_data, &Map.get(&1, source_field))
     source_query = Ash.Query.new(source_query)
