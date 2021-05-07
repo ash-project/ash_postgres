@@ -588,7 +588,7 @@ defmodule AshPostgres.DataLayer do
     source_query = Ash.Query.new(source_query)
     source_values = Enum.map(root_data, &Map.get(&1, source_field))
 
-    through_resource.resource
+    through_resource
     |> Ash.Query.new()
     |> Ash.Query.set_context(through_relationship.context)
     |> Ash.Query.do_filter(through_relationship.filter)
