@@ -2023,6 +2023,10 @@ defmodule AshPostgres.DataLayer do
     Enum.map(value, &last_ditch_cast(&1, type))
   end
 
+  defp last_ditch_cast(value, _) when is_boolean(value) do
+    value
+  end
+
   defp last_ditch_cast(value, _) when is_atom(value) do
     to_string(value)
   end
@@ -2169,6 +2173,7 @@ defmodule AshPostgres.DataLayer do
     |> Ash.Query.new()
     |> Ash.Query.set_context(relationship.context)
     |> Ash.Query.do_filter(Map.get(relationship, :filter))
+    |> Ash.Query.sort(Map.get(relationship, :sort))
     |> Ash.Query.data_layer_query(only_validate_filter?: false)
     |> case do
       {:ok, query} -> query
