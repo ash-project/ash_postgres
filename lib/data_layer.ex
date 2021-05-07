@@ -545,6 +545,7 @@ defmodule AshPostgres.DataLayer do
     |> Ash.Query.set_context(relationship.context)
     |> set_lateral_join_prefix(query)
     |> Ash.Query.do_filter(relationship.filter)
+    |> Ash.Query.sort(Map.get(relationship, :sort))
     |> Ash.Query.data_layer_query()
     |> case do
       {:ok, data_layer_query} ->
@@ -577,6 +578,7 @@ defmodule AshPostgres.DataLayer do
     |> Ash.Query.set_context(through_relationship.context)
     |> set_lateral_join_prefix(query)
     |> Ash.Query.do_filter(through_relationship.filter)
+    |> Ash.Query.sort(Map.get(relationship, :sort))
     |> Ash.Query.data_layer_query()
     |> case do
       {:ok, through_query} ->
@@ -585,6 +587,7 @@ defmodule AshPostgres.DataLayer do
         |> Ash.Query.set_context(relationship.context)
         |> set_lateral_join_prefix(query)
         |> Ash.Query.do_filter(relationship.filter)
+        |> Ash.Query.sort(Map.get(relationship, :sort))
         |> Ash.Query.data_layer_query()
         |> case do
           {:ok, data_layer_query} ->
