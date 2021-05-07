@@ -5,6 +5,23 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.38.6](https://github.com/ash-project/ash_postgres/compare/v0.38.5...v0.38.6) (2021-05-07)
+
+
+
+
+### Bug Fixes:
+
+* properly construct sources for lateral joins
+
+* copy the correct data for lateral join queries
+
+* better errors in error cases
+
+### Improvements:
+
+* update to latest ash
+
 ## [v0.38.5](https://github.com/ash-project/ash_postgres/compare/v0.38.4...v0.38.5) (2021-05-07)
 
 
