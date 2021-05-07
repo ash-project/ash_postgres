@@ -96,7 +96,7 @@ defmodule AshPostgres.MixProject do
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
       {:ash, ash_version("~> 1.43")},
-      {:git_ops, "~> 2.0.1", only: :dev},
+      {:git_ops, "~> 2.4.2", only: :dev},
       {:ex_doc, "~> 0.22", only: :dev, runtime: false},
       {:ex_check, "~> 0.11.0", only: :dev},
       {:credo, ">= 0.0.0", only: :dev, runtime: false},
