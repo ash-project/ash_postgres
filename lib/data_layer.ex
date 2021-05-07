@@ -488,6 +488,7 @@ defmodule AshPostgres.DataLayer do
           path
           |> Enum.at(0)
           |> elem(0)
+          |> Map.get(:resource)
 
         subquery = from(row in subquery(lateral_join_query), select: %{})
 
@@ -522,6 +523,7 @@ defmodule AshPostgres.DataLayer do
           path
           |> Enum.at(0)
           |> elem(0)
+          |> Map.get(:resource)
 
         {:ok, repo(source_resource).all(query, repo_opts(query))}
 
@@ -533,9 +535,10 @@ defmodule AshPostgres.DataLayer do
   defp lateral_join_query(
          query,
          root_data,
-         [{source_resource, source_field, destination_field, relationship}]
+         [{source_query, source_field, destination_field, relationship}]
        ) do
     source_values = Enum.map(root_data, &Map.get(&1, source_field))
+    source_query = Ash.Query.new(source_query)
 
     subquery =
       subquery(
@@ -546,12 +549,10 @@ defmodule AshPostgres.DataLayer do
         )
       )
 
-    source_resource
-    |> Ash.Query.new()
-    |> Ash.Query.set_context(relationship.context)
+    source_query.resource
+    |> Ash.Query.set_context(%{:data_layer => source_query.context[:data_layer]})
+    |> Ash.Query.set_tenant(source_query.tenant)
     |> set_lateral_join_prefix(query)
-    |> Ash.Query.do_filter(relationship.filter)
-    |> Ash.Query.sort(Map.get(relationship, :sort))
     |> case do
       %{valid?: true} = query ->
         Ash.Query.data_layer_query(query)
@@ -579,19 +580,21 @@ defmodule AshPostgres.DataLayer do
          query,
          root_data,
          [
-           {source_resource, source_field, source_field_on_join_table, relationship},
+           {source_query, source_field, source_field_on_join_table, relationship},
            {through_resource, destination_field_on_join_table, destination_field,
             through_relationship}
          ]
        ) do
+    source_query = Ash.Query.new(source_query)
     source_values = Enum.map(root_data, &Map.get(&1, source_field))
 
-    through_resource
+    through_resource.resource
     |> Ash.Query.new()
     |> Ash.Query.set_context(through_relationship.context)
-    |> set_lateral_join_prefix(query)
     |> Ash.Query.do_filter(through_relationship.filter)
-    |> Ash.Query.sort(Map.get(relationship, :sort))
+    |> Ash.Query.sort(through_relationship.sort)
+    |> Ash.Query.set_tenant(source_query.tenant)
+    |> set_lateral_join_prefix(query)
     |> case do
       %{valid?: true} = query ->
         Ash.Query.data_layer_query(query)
@@ -601,9 +604,10 @@ defmodule AshPostgres.DataLayer do
     end
     |> case do
       {:ok, through_query} ->
-        source_resource
+        source_query.resource
         |> Ash.Query.new()
         |> Ash.Query.set_context(relationship.context)
+        |> Ash.Query.set_context(%{:data_layer => source_query.context[:data_layer]})
         |> set_lateral_join_prefix(query)
         |> Ash.Query.do_filter(relationship.filter)
         |> Ash.Query.sort(Map.get(relationship, :sort))
@@ -2234,7 +2238,7 @@ defmodule AshPostgres.DataLayer do
     resource
     |> Ash.Query.new()
     |> Ash.Query.set_context(relationship.context)
-    |> Ash.Query.do_filter(Map.get(relationship, :filter))
+    |> Ash.Query.do_filter(relationship.filter)
     |> Ash.Query.sort(Map.get(relationship, :sort))
     |> case do
       %{valid?: true} = query ->
