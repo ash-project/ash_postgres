@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.38.4](https://github.com/ash-project/ash_postgres/compare/v0.38.3...v0.38.4) (2021-05-07)
+
+
+
+
+### Improvements:
+
+* support latest ash version resource sorts
+
 ## [v0.38.3](https://github.com/ash-project/ash_postgres/compare/v0.38.2...v0.38.3) (2021-05-06)
 
 
