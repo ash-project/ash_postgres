@@ -349,6 +349,8 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :boolean_filter), do: true
   def can?(_, {:aggregate, :count}), do: true
   def can?(_, {:aggregate, :sum}), do: true
+  def can?(_, {:aggregate, :first}), do: true
+  def can?(_, {:aggregate, :list}), do: true
   def can?(_, :aggregate_filter), do: true
   def can?(_, :aggregate_sort), do: true
   def can?(_, :create), do: true
@@ -1036,7 +1038,7 @@ defmodule AshPostgres.DataLayer do
       end)
 
     query
-    |> join_all_relationships(relationship_paths)
+    |> join_all_relationships(relationship_paths, filter)
     |> case do
       {:ok, query} ->
         {:ok, add_filter_expression(query, filter)}
@@ -1147,7 +1149,8 @@ defmodule AshPostgres.DataLayer do
                  [
                    {{:aggregate, aggregate.name, subquery},
                     relationship_path_to_relationships(resource, aggregate.relationship_path)}
-                 ]
+                 ],
+                 nil
                ) do
             {:ok, new_query} ->
               {:ok,
@@ -1496,7 +1499,7 @@ defmodule AshPostgres.DataLayer do
     relationship_path_to_relationships(relationship.destination, rest, [relationship | acc])
   end
 
-  defp join_all_relationships(query, relationship_paths, path \\ [], source \\ nil) do
+  defp join_all_relationships(query, relationship_paths, filter, path \\ [], source \\ nil) do
     query = default_bindings(query, source)
 
     Enum.reduce_while(relationship_paths, {:ok, query}, fn
@@ -1525,7 +1528,8 @@ defmodule AshPostgres.DataLayer do
                  relationship,
                  Enum.map(path, & &1.name),
                  current_join_type,
-                 source
+                 source,
+                 filter
                ) do
             {:ok, joined_query} ->
               joined_query_with_distinct = add_distinct(relationship, join_type, joined_query)
@@ -1533,6 +1537,7 @@ defmodule AshPostgres.DataLayer do
               case join_all_relationships(
                      joined_query_with_distinct,
                      [{join_type, rest_rels}],
+                     filter,
                      current_path,
                      source
                    ) do
@@ -1592,20 +1597,27 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp join_relationship(query, relationship, path, join_type, source) do
+  defp join_relationship(query, relationship, path, join_type, source, filter) do
     case Map.get(query.__ash_bindings__.bindings, path) do
       %{type: existing_join_type} when join_type != existing_join_type ->
         raise "unreachable?"
 
       nil ->
-        do_join_relationship(query, relationship, path, join_type, source)
+        do_join_relationship(query, relationship, path, join_type, source, filter)
 
       _ ->
         {:ok, query}
     end
   end
 
-  defp do_join_relationship(query, %{type: :many_to_many} = relationship, path, kind, source) do
+  defp do_join_relationship(
+         query,
+         %{type: :many_to_many} = relationship,
+         path,
+         kind,
+         source,
+         filter
+       ) do
     join_relationship = Ash.Resource.Info.relationship(source, relationship.join_relationship)
 
     with {:ok, relationship_through} <-
@@ -1622,82 +1634,101 @@ defmodule AshPostgres.DataLayer do
           end
         end)
 
-      new_query =
-        case kind do
-          {:aggregate, _, subquery} ->
-            subquery =
-              subquery(
-                from(destination in subquery,
-                  where:
+      used_aggregates = Ash.Filter.used_aggregates(filter, path ++ [relationship.name])
+
+      Enum.reduce_while(used_aggregates, {:ok, relationship_destination}, fn agg, {:ok, query} ->
+        agg = %{agg | load: agg.name}
+
+        case add_aggregate(query, agg, relationship.destination) do
+          {:ok, query} ->
+            {:cont, {:ok, query}}
+
+          {:error, error} ->
+            {:halt, {:error, error}}
+        end
+      end)
+      |> case do
+        {:ok, relationship_destination} ->
+          new_query =
+            case kind do
+              {:aggregate, _, subquery} ->
+                subquery =
+                  subquery(
+                    from(destination in subquery,
+                      where:
+                        field(destination, ^relationship.destination_field) ==
+                          field(
+                            parent_as(:rel_through),
+                            ^relationship.destination_field_on_join_table
+                          )
+                    )
+                  )
+
+                from([{row, current_binding}] in query,
+                  left_join: through in ^relationship_through,
+                  as: :rel_through,
+                  on:
+                    field(row, ^relationship.source_field) ==
+                      field(through, ^relationship.source_field_on_join_table),
+                  left_lateral_join: destination in ^subquery,
+                  on:
                     field(destination, ^relationship.destination_field) ==
-                      field(
-                        parent_as(:rel_through),
-                        ^relationship.destination_field_on_join_table
-                      )
+                      field(through, ^relationship.destination_field_on_join_table)
                 )
-              )
 
-            from([{row, current_binding}] in query,
-              left_join: through in ^relationship_through,
-              as: :rel_through,
-              on:
-                field(row, ^relationship.source_field) ==
-                  field(through, ^relationship.source_field_on_join_table),
-              left_lateral_join: destination in ^subquery,
-              on:
-                field(destination, ^relationship.destination_field) ==
-                  field(through, ^relationship.destination_field_on_join_table)
-            )
+              :inner ->
+                from([{row, current_binding}] in query,
+                  join: through in ^relationship_through,
+                  on:
+                    field(row, ^relationship.source_field) ==
+                      field(through, ^relationship.source_field_on_join_table),
+                  join: destination in ^relationship_destination,
+                  on:
+                    field(destination, ^relationship.destination_field) ==
+                      field(through, ^relationship.destination_field_on_join_table)
+                )
 
-          :inner ->
-            from([{row, current_binding}] in query,
-              join: through in ^relationship_through,
-              on:
-                field(row, ^relationship.source_field) ==
-                  field(through, ^relationship.source_field_on_join_table),
-              join: destination in ^relationship_destination,
-              on:
-                field(destination, ^relationship.destination_field) ==
-                  field(through, ^relationship.destination_field_on_join_table)
-            )
+              _ ->
+                from([{row, current_binding}] in query,
+                  left_join: through in ^relationship_through,
+                  on:
+                    field(row, ^relationship.source_field) ==
+                      field(through, ^relationship.source_field_on_join_table),
+                  left_join: destination in ^relationship_destination,
+                  on:
+                    field(destination, ^relationship.destination_field) ==
+                      field(through, ^relationship.destination_field_on_join_table)
+                )
+            end
 
-          _ ->
-            from([{row, current_binding}] in query,
-              left_join: through in ^relationship_through,
-              on:
-                field(row, ^relationship.source_field) ==
-                  field(through, ^relationship.source_field_on_join_table),
-              left_join: destination in ^relationship_destination,
-              on:
-                field(destination, ^relationship.destination_field) ==
-                  field(through, ^relationship.destination_field_on_join_table)
-            )
-        end
+          join_path =
+            Enum.reverse([
+              String.to_existing_atom(to_string(relationship.name) <> "_join_assoc") | path
+            ])
 
-      join_path =
-        Enum.reverse([
-          String.to_existing_atom(to_string(relationship.name) <> "_join_assoc") | path
-        ])
+          full_path = Enum.reverse([relationship.name | path])
 
-      full_path = Enum.reverse([relationship.name | path])
+          binding_data =
+            case kind do
+              {:aggregate, name, _agg} ->
+                %{type: :aggregate, name: name, path: full_path, source: source}
 
-      binding_data =
-        case kind do
-          {:aggregate, name, _agg} ->
-            %{type: :aggregate, name: name, path: full_path, source: source}
+              _ ->
+                %{type: kind, path: full_path, source: source}
+            end
 
-          _ ->
-            %{type: kind, path: full_path, source: source}
-        end
+          {:ok,
+           new_query
+           |> add_binding(%{path: join_path, type: :left, source: source})
+           |> add_binding(binding_data)}
 
-      {:ok,
-       new_query
-       |> add_binding(%{path: join_path, type: :left, source: source})
-       |> add_binding(binding_data)}
+        {:error, error} ->
+          {:error, error}
+      end
     end
   end
 
-  defp do_join_relationship(query, relationship, path, kind, source) do
+  defp do_join_relationship(query, relationship, path, kind, source, filter) do
     case maybe_get_resource_query(relationship.destination, relationship) do
       {:error, error} ->
         {:error, error}
@@ -1712,61 +1743,106 @@ defmodule AshPostgres.DataLayer do
             end
           end)
 
-        new_query =
-          case kind do
-            {:aggregate, _, subquery} ->
-              subquery =
-                from(
-                  sub in subquery(
-                    from(destination in subquery,
-                      where:
-                        field(destination, ^relationship.destination_field) ==
-                          field(parent_as(:rel_source), ^relationship.source_field)
+        used_aggregates = Ash.Filter.used_aggregates(filter, path ++ [relationship.name])
+
+        Enum.reduce_while(used_aggregates, {:ok, relationship_destination}, fn agg,
+                                                                               {:ok, query} ->
+          agg = %{agg | load: agg.name}
+
+          case add_aggregate(query, agg, relationship.destination) do
+            {:ok, query} ->
+              {:cont, {:ok, query}}
+
+            {:error, error} ->
+              {:halt, {:error, error}}
+          end
+        end)
+        |> case do
+          {:ok, relationship_destination} ->
+            relationship_destination =
+              case used_aggregates do
+                [] ->
+                  relationship_destination
+
+                _ ->
+                  subquery(clean_subquery_select(relationship_destination))
+              end
+
+            new_query =
+              case kind do
+                {:aggregate, _, subquery} ->
+                  subquery =
+                    from(
+                      sub in subquery(
+                        from(destination in subquery,
+                          where:
+                            field(destination, ^relationship.destination_field) ==
+                              field(parent_as(:rel_source), ^relationship.source_field)
+                        )
+                      ),
+                      select: field(sub, ^relationship.destination_field)
                     )
-                  ),
-                  select: field(sub, ^relationship.destination_field)
-                )
 
-              from([{row, current_binding}] in query,
-                as: :rel_source,
-                left_lateral_join: destination in ^subquery,
-                on:
-                  field(row, ^relationship.source_field) ==
-                    field(destination, ^relationship.destination_field)
-              )
+                  from([{row, current_binding}] in query,
+                    as: :rel_source,
+                    left_lateral_join: destination in ^subquery,
+                    on:
+                      field(row, ^relationship.source_field) ==
+                        field(destination, ^relationship.destination_field)
+                  )
 
-            :inner ->
-              from([{row, current_binding}] in query,
-                join: destination in ^relationship_destination,
-                on:
-                  field(row, ^relationship.source_field) ==
-                    field(destination, ^relationship.destination_field)
-              )
+                :inner ->
+                  from([{row, current_binding}] in query,
+                    join: destination in ^relationship_destination,
+                    on:
+                      field(row, ^relationship.source_field) ==
+                        field(destination, ^relationship.destination_field)
+                  )
 
-            _ ->
-              from([{row, current_binding}] in query,
-                left_join: destination in ^relationship_destination,
-                on:
-                  field(row, ^relationship.source_field) ==
-                    field(destination, ^relationship.destination_field)
-              )
-          end
+                _ ->
+                  from([{row, current_binding}] in query,
+                    left_join: destination in ^relationship_destination,
+                    on:
+                      field(row, ^relationship.source_field) ==
+                        field(destination, ^relationship.destination_field)
+                  )
+              end
 
-        full_path = Enum.reverse([relationship.name | path])
+            full_path = Enum.reverse([relationship.name | path])
 
-        binding_data =
-          case kind do
-            {:aggregate, name, _agg} ->
-              %{type: :aggregate, name: name, path: full_path, source: source}
+            binding_data =
+              case kind do
+                {:aggregate, name, _agg} ->
+                  %{type: :aggregate, name: name, path: full_path, source: source}
 
-            _ ->
-              %{type: kind, path: full_path, source: source}
-          end
+                _ ->
+                  %{type: kind, path: full_path, source: source}
+              end
 
-        {:ok,
-         new_query
-         |> add_binding(binding_data)}
+            {:ok,
+             new_query
+             |> add_binding(binding_data)}
+
+          {:error, error} ->
+            {:error, error}
+        end
     end
+  end
+
+  defp clean_subquery_select(
+         %{
+           select:
+             %Ecto.Query.SelectExpr{
+               expr:
+                 {:merge, [],
+                  [
+                    _,
+                    select
+                  ]}
+             } = expr
+         } = query
+       ) do
+    %{query | select: %{expr | expr: {:merge, [], [{:&, [], [0]}, select]}}}
   end
 
   defp add_filter_expression(query, filter) do
@@ -2197,18 +2273,25 @@ defmodule AshPostgres.DataLayer do
   defp vagueness(:any), do: 1
   defp vagueness(_), do: 0
 
-  defp ref_binding(ref, bindings) do
-    case ref.attribute do
-      %Ash.Resource.Attribute{} ->
-        Enum.find_value(bindings, fn {binding, data} ->
-          data.path == ref.relationship_path && data.type in [:inner, :left, :root] && binding
-        end)
+  defp ref_binding(
+         %{attribute: %Ash.Query.Aggregate{} = aggregate, relationship_path: []},
+         bindings
+       ) do
+    Enum.find_value(bindings, fn {binding, data} ->
+      data.path == aggregate.relationship_path && data.type == :aggregate && binding
+    end)
+  end
 
-      %Ash.Query.Aggregate{} = aggregate ->
-        Enum.find_value(bindings, fn {binding, data} ->
-          data.path == aggregate.relationship_path && data.type == :aggregate && binding
-        end)
-    end
+  defp ref_binding(%{attribute: %Ash.Resource.Attribute{}} = ref, bindings) do
+    Enum.find_value(bindings, fn {binding, data} ->
+      data.path == ref.relationship_path && data.type in [:inner, :left, :root] && binding
+    end)
+  end
+
+  defp ref_binding(%{attribute: %Ash.Query.Aggregate{}} = ref, bindings) do
+    Enum.find_value(bindings, fn {binding, data} ->
+      data.path == ref.relationship_path && data.type in [:inner, :left, :root] && binding
+    end)
   end
 
   defp add_binding(query, data) do

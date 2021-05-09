@@ -189,6 +189,38 @@ defmodule AshPostgres.AggregateTest do
     end
   end
 
+  test "related aggregates can be filtered on" do
+    post =
+      Post
+      |> Ash.Changeset.new(%{title: "title"})
+      |> Api.create!()
+
+    post2 =
+      Post
+      |> Ash.Changeset.new(%{title: "title"})
+      |> Api.create!()
+
+    Comment
+    |> Ash.Changeset.new(%{title: "match"})
+    |> Ash.Changeset.replace_relationship(:post, post)
+    |> Api.create!()
+
+    Comment
+    |> Ash.Changeset.new(%{title: "non_match"})
+    |> Ash.Changeset.replace_relationship(:post, post2)
+    |> Api.create!()
+
+    Comment
+    |> Ash.Changeset.new(%{title: "non_match2"})
+    |> Ash.Changeset.replace_relationship(:post, post2)
+    |> Api.create!()
+
+    assert %{title: "match"} =
+             Comment
+             |> Ash.Query.filter(post.count_of_comments == 1)
+             |> Api.read_one!()
+  end
+
   describe "sum" do
     test "with no related data it returns nil" do
       post =
