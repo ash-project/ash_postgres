@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.38.7](https://github.com/ash-project/ash_postgres/compare/v0.38.6...v0.38.7) (2021-05-09)
+
+
+
+
+### Improvements:
+
+* support latest ash/filtering on related aggregates
+
 ## [v0.38.6](https://github.com/ash-project/ash_postgres/compare/v0.38.5...v0.38.6) (2021-05-07)
 
 
