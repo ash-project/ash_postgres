@@ -1,4 +1,4 @@
-defmodule AshPostgres.Test.SideLoadTest do
+defmodule AshPostgres.Test.LoadTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.{Api, Comment, Post}
 
@@ -44,7 +44,7 @@ defmodule AshPostgres.Test.SideLoadTest do
     assert [%Comment{post: %{title: "match"}}] = results
   end
 
-  test "many_to_many side loads work" do
+  test "many_to_many loads work" do
     source_post =
       Post
       |> Ash.Changeset.new(%{title: "source"})
@@ -67,8 +67,8 @@ defmodule AshPostgres.Test.SideLoadTest do
     assert %{linked_posts: [%{title: "destination"}]} = results
   end
 
-  describe "lateral join side loads" do
-    test "lateral join side loads (loads with limits or offsets) are supported" do
+  describe "lateral join loads" do
+    test "lateral join loads (loads with limits or offsets) are supported" do
       assert %Post{comments: %Ash.NotLoaded{type: :relationship}} =
                post =
                Post
@@ -122,7 +122,7 @@ defmodule AshPostgres.Test.SideLoadTest do
       assert [%Post{comments: [%{title: "def"}, %{title: "abc"}]}] = results
     end
 
-    test "lateral join side loads with many to many relationships are supported" do
+    test "lateral join loads with many to many relationships are supported" do
       source_post =
         Post
         |> Ash.Changeset.new(%{title: "source"})
