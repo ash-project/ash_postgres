@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.38.9](https://github.com/ash-project/ash_postgres/compare/v0.38.8...v0.38.9) (2021-05-12)
+
+
+
+
+### Bug Fixes:
+
+* properly group many_to_many aggregates
+
 ## [v0.38.8](https://github.com/ash-project/ash_postgres/compare/v0.38.7...v0.38.8) (2021-05-09)
 
 
