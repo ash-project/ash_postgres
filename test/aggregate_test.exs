@@ -47,6 +47,43 @@ defmodule AshPostgres.AggregateTest do
                |> Api.read_one!()
     end
 
+    test "with data for a many_to_many, it returns the count" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      post2 =
+        Post
+        |> Ash.Changeset.new(%{title: "title2"})
+        |> Api.create!()
+
+      post3 =
+        Post
+        |> Ash.Changeset.new(%{title: "title3"})
+        |> Api.create!()
+
+      post
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.replace_relationship(:linked_posts, [post2, post3])
+      |> Api.update!()
+
+      post2
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.replace_relationship(:linked_posts, [post3])
+      |> Api.update!()
+
+      assert [
+               %{count_of_linked_posts: 2, title: "title"},
+               %{count_of_linked_posts: 1, title: "title2"}
+             ] =
+               Post
+               |> Ash.Query.load(:count_of_linked_posts)
+               |> Ash.Query.filter(count_of_linked_posts >= 1)
+               |> Ash.Query.sort(count_of_linked_posts: :desc)
+               |> Api.read!()
+    end
+
     test "with data and a filter, it returns the count" do
       post =
         Post

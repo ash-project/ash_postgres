@@ -71,6 +71,7 @@ defmodule AshPostgres.Test.Post do
 
   aggregates do
     count(:count_of_comments, :comments)
+    count(:count_of_linked_posts, :linked_posts)
 
     count :count_of_comments_called_match, :comments do
       filter(title: "match")

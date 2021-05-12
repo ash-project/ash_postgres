@@ -1142,23 +1142,45 @@ defmodule AshPostgres.DataLayer do
       case get_binding(resource, aggregate.relationship_path, query, :aggregate) do
         nil ->
           relationship = Ash.Resource.Info.relationship(resource, aggregate.relationship_path)
-          subquery = aggregate_subquery(relationship, aggregate)
 
-          case join_all_relationships(
-                 query,
-                 [
-                   {{:aggregate, aggregate.name, subquery},
-                    relationship_path_to_relationships(resource, aggregate.relationship_path)}
-                 ],
-                 nil
-               ) do
-            {:ok, new_query} ->
-              {:ok,
-               {new_query,
-                get_binding(resource, aggregate.relationship_path, new_query, :aggregate)}}
+          if relationship.type == :many_to_many do
+            subquery = aggregate_subquery(relationship, aggregate, query)
 
-            {:error, error} ->
-              {:error, error}
+            case join_all_relationships(
+                   query,
+                   [
+                     {{:aggregate, aggregate.name, subquery},
+                      relationship_path_to_relationships(resource, aggregate.relationship_path)}
+                   ],
+                   nil
+                 ) do
+              {:ok, new_query} ->
+                {:ok,
+                 {new_query,
+                  get_binding(resource, aggregate.relationship_path, new_query, :aggregate)}}
+
+              {:error, error} ->
+                {:error, error}
+            end
+          else
+            subquery = aggregate_subquery(relationship, aggregate, query)
+
+            case join_all_relationships(
+                   query,
+                   [
+                     {{:aggregate, aggregate.name, subquery},
+                      relationship_path_to_relationships(resource, aggregate.relationship_path)}
+                   ],
+                   nil
+                 ) do
+              {:ok, new_query} ->
+                {:ok,
+                 {new_query,
+                  get_binding(resource, aggregate.relationship_path, new_query, :aggregate)}}
+
+              {:error, error} ->
+                {:error, error}
+            end
           end
 
         binding ->
@@ -1298,15 +1320,39 @@ defmodule AshPostgres.DataLayer do
     }
   end
 
-  defp aggregate_subquery(relationship, aggregate) do
+  defp aggregate_subquery(%{type: :many_to_many} = relationship, aggregate, root_query) do
+    query =
+      from(destination in relationship.destination,
+        join: through in ^relationship.through,
+        on:
+          field(through, ^relationship.destination_field_on_join_table) ==
+            field(destination, ^relationship.destination_field),
+        group_by: field(through, ^relationship.source_field_on_join_table),
+        select: %{__source_field: field(through, ^relationship.source_field_on_join_table)}
+      )
+
+    query_tenant = aggregate.query && aggregate.query.tenant
+    root_tenant = root_query.prefix
+
+    if root_tenant || query_tenant do
+      Ecto.Query.put_query_prefix(query, query_tenant || root_tenant)
+    else
+      query
+    end
+  end
+
+  defp aggregate_subquery(relationship, aggregate, root_query) do
     query =
       from(row in relationship.destination,
         group_by: ^relationship.destination_field,
         select: field(row, ^relationship.destination_field)
       )
 
-    if aggregate.query && aggregate.query.tenant do
-      Ecto.Query.put_query_prefix(query, aggregate.query.tenant)
+    query_tenant = aggregate.query && aggregate.query.tenant
+    root_tenant = root_query.prefix
+
+    if root_tenant || query_tenant do
+      Ecto.Query.put_query_prefix(query, query_tenant || root_tenant)
     else
       query
     end
@@ -1652,28 +1698,9 @@ defmodule AshPostgres.DataLayer do
           new_query =
             case kind do
               {:aggregate, _, subquery} ->
-                subquery =
-                  subquery(
-                    from(destination in subquery,
-                      where:
-                        field(destination, ^relationship.destination_field) ==
-                          field(
-                            parent_as(:rel_through),
-                            ^relationship.destination_field_on_join_table
-                          )
-                    )
-                  )
-
                 from([{row, current_binding}] in query,
-                  left_join: through in ^relationship_through,
-                  as: :rel_through,
-                  on:
-                    field(row, ^relationship.source_field) ==
-                      field(through, ^relationship.source_field_on_join_table),
-                  left_lateral_join: destination in ^subquery,
-                  on:
-                    field(destination, ^relationship.destination_field) ==
-                      field(through, ^relationship.destination_field_on_join_table)
+                  left_join: through in ^subquery(subquery),
+                  on: through.__source_field == field(row, ^relationship.source_field)
                 )
 
               :inner ->
@@ -1717,10 +1744,18 @@ defmodule AshPostgres.DataLayer do
                 %{type: kind, path: full_path, source: source}
             end
 
-          {:ok,
-           new_query
-           |> add_binding(%{path: join_path, type: :left, source: source})
-           |> add_binding(binding_data)}
+          case kind do
+            {:aggregate, _, _subquery} ->
+              {:ok,
+               new_query
+               |> add_binding(binding_data)}
+
+            _ ->
+              {:ok,
+               new_query
+               |> add_binding(%{path: join_path, type: :left, source: source})
+               |> add_binding(binding_data)}
+          end
 
         {:error, error} ->
           {:error, error}

@@ -55,16 +55,21 @@ defmodule AshPostgres.Test.LoadTest do
       |> Ash.Changeset.new(%{title: "destination"})
       |> Api.create!()
 
+    destination_post2 =
+      Post
+      |> Ash.Changeset.new(%{title: "destination"})
+      |> Api.create!()
+
     source_post
     |> Ash.Changeset.new()
-    |> Ash.Changeset.replace_relationship(:linked_posts, [destination_post])
+    |> Ash.Changeset.replace_relationship(:linked_posts, [destination_post, destination_post2])
     |> Api.update!()
 
     results =
       source_post
       |> Api.load!(:linked_posts)
 
-    assert %{linked_posts: [%{title: "destination"}]} = results
+    assert %{linked_posts: [%{title: "destination"}, %{title: "destination"}]} = results
   end
 
   describe "lateral join loads" do
