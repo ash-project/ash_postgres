@@ -59,7 +59,7 @@ defmodule AshPostgres.Test.Post do
 
     has_many(:ratings, AshPostgres.Test.Rating,
       destination_field: :resource_id,
-      context: %{data_layer: %{table: "post_ratings"}}
+      relationship_context: %{data_layer: %{table: "post_ratings"}}
     )
 
     many_to_many(:linked_posts, __MODULE__,

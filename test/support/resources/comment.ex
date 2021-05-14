@@ -33,7 +33,7 @@ defmodule AshPostgres.Test.Comment do
 
     has_many(:ratings, AshPostgres.Test.Rating,
       destination_field: :resource_id,
-      context: %{data_layer: %{table: "comment_ratings"}}
+      relationship_context: %{data_layer: %{table: "comment_ratings"}}
     )
   end
 end
