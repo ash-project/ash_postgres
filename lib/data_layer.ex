@@ -879,12 +879,14 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def upsert(resource, changeset) do
+  def upsert(resource, changeset, keys \\ nil) do
+    keys = keys || Ash.Resource.Info.primary_key(resource)
+
     repo_opts =
       changeset
       |> repo_opts()
       |> Keyword.put(:on_conflict, {:replace, Map.keys(changeset.attributes)})
-      |> Keyword.put(:conflict_target, Ash.Resource.Info.primary_key(resource))
+      |> Keyword.put(:conflict_target, keys)
 
     if AshPostgres.manage_tenant_update?(resource) do
       {:error, "Cannot currently upsert a resource that owns a tenant"}
