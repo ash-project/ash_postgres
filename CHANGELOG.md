@@ -5,6 +5,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.38.11](https://github.com/ash-project/ash_postgres/compare/v0.38.10...v0.38.11) (2021-05-23)
+
+
+
+
+### Bug Fixes:
+
+* set prefix to "public" for fkeys to public schema
+
+### Improvements:
+
+* set explicit prefix on join filters
+
 ## [v0.38.10](https://github.com/ash-project/ash_postgres/compare/v0.38.9...v0.38.10) (2021-05-19)
 
 
