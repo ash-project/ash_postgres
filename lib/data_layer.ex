@@ -1672,8 +1672,15 @@ defmodule AshPostgres.DataLayer do
            maybe_get_resource_query(relationship.through, join_relationship),
          {:ok, relationship_destination} <-
            maybe_get_resource_query(relationship.destination, relationship) do
-      relationship_through = Ecto.Queryable.to_query(relationship_through)
-      relationship_destination = Ecto.Queryable.to_query(relationship_destination)
+      relationship_through =
+        relationship_through
+        |> Ecto.Queryable.to_query()
+        |> set_join_prefix(query, relationship.through)
+
+      relationship_destination =
+        relationship_destination
+        |> Ecto.Queryable.to_query()
+        |> set_join_prefix(query, relationship.destination)
 
       current_binding =
         Enum.find_value(query.__ash_bindings__.bindings, 0, fn {binding, data} ->
@@ -1771,7 +1778,10 @@ defmodule AshPostgres.DataLayer do
         {:error, error}
 
       {:ok, relationship_destination} ->
-        relationship_destination = Ecto.Queryable.to_query(relationship_destination)
+        relationship_destination =
+          relationship_destination
+          |> Ecto.Queryable.to_query()
+          |> set_join_prefix(query, relationship.destination)
 
         current_binding =
           Enum.find_value(query.__ash_bindings__.bindings, 0, fn {binding, data} ->
@@ -1863,6 +1873,14 @@ defmodule AshPostgres.DataLayer do
           {:error, error} ->
             {:error, error}
         end
+    end
+  end
+
+  defp set_join_prefix(join_query, query, resource) do
+    if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
+      %{join_query | prefix: query.prefix}
+    else
+      %{join_query | prefix: "public"}
     end
   end
 

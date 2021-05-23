@@ -144,8 +144,43 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     def up(%{
           multitenancy: %{strategy: :context},
           attribute:
-            %{references: %{table: table, destination_field: destination_field} = reference} =
-              attribute
+            %{
+              references:
+                %{
+                  table: table,
+                  destination_field: destination_field
+                } = reference
+            } = attribute
+        }) do
+      [
+        "add #{inspect(attribute.name)}",
+        "references(:#{table}",
+        [
+          "column: #{inspect(destination_field)}",
+          "name: #{inspect(reference.name)}",
+          "type: #{inspect(reference_type(attribute, reference))}",
+          "prefix: \"public\"",
+          on_delete(reference),
+          on_update(reference)
+        ],
+        ")",
+        maybe_add_default(attribute.default),
+        maybe_add_primary_key(attribute.primary_key?)
+      ]
+      |> join()
+    end
+
+    def up(%{
+          multitenancy: %{strategy: :context},
+          attribute:
+            %{
+              references:
+                %{
+                  multitenancy: %{strategy: :context},
+                  table: table,
+                  destination_field: destination_field
+                } = reference
+            } = attribute
         }) do
       [
         "add #{inspect(attribute.name)}",
