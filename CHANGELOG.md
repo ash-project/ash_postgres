@@ -5,6 +5,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.39.0-rc0](https://github.com/ash-project/ash_postgres/compare/v0.38.11...v0.39.0-rc0) (2021-06-04)
+
+
+
+
+### Features:
+
+* support expression based calculations
+
+* support concat + if expressions
+
+### Improvements:
+
+* various other improvements
+
 ## [v0.38.11](https://github.com/ash-project/ash_postgres/compare/v0.38.10...v0.38.11) (2021-05-23)
 
 
