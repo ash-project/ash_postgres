@@ -30,6 +30,7 @@ defmodule AshPostgres.Test.Comment do
 
   relationships do
     belongs_to(:post, AshPostgres.Test.Post)
+    belongs_to(:author, AshPostgres.Test.Author)
 
     has_many(:ratings, AshPostgres.Test.Rating,
       destination_field: :resource_id,

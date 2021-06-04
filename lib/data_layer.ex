@@ -273,7 +273,7 @@ defmodule AshPostgres.DataLayer do
   alias Ash.Filter
   alias Ash.Query.{BooleanExpression, Not, Ref}
 
-  alias Ash.Query.Function.{Ago, Contains}
+  alias Ash.Query.Function.{Ago, Contains, If}
   alias Ash.Query.Operator.IsNil
 
   alias AshPostgres.Functions.{Fragment, TrigramSimilarity, Type}
@@ -283,6 +283,13 @@ defmodule AshPostgres.DataLayer do
   @behaviour Ash.DataLayer
 
   @sections [@postgres]
+
+  # This creates the atoms 0..500, which are used for calculations
+  # If you know of a way to get around the fact that subquery select statement keys
+  # *must* be atoms, please let me know so I can remove this :)
+  for i <- 0..500 do
+    :"#{i}"
+  end
 
   @moduledoc """
   A postgres data layer that levereges Ecto's postgres capabilities.
@@ -353,6 +360,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, {:aggregate, :list}), do: true
   def can?(_, :aggregate_filter), do: true
   def can?(_, :aggregate_sort), do: true
+  def can?(_, :expression_calculation), do: true
   def can?(_, :create), do: true
   def can?(_, :select), do: true
   def can?(_, :read), do: true
@@ -389,15 +397,21 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def set_context(resource, data_layer_query, context) do
-    if context[:data_layer][:table] do
-      {:ok,
-       %{
-         data_layer_query
-         | from: %{data_layer_query.from | source: {context[:data_layer][:table], resource}}
-       }}
-    else
-      {:ok, data_layer_query}
-    end
+    data_layer_query =
+      if context[:data_layer][:table] do
+        %{
+          data_layer_query
+          | from: %{data_layer_query.from | source: {context[:data_layer][:table], resource}}
+        }
+      else
+        data_layer_query
+      end
+
+    data_layer_query =
+      data_layer_query
+      |> default_bindings(resource, context)
+
+    {:ok, data_layer_query}
   end
 
   @impl true
@@ -1050,10 +1064,12 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp default_bindings(query, resource) do
+  defp default_bindings(query, resource, context \\ %{}) do
     Map.put_new(query, :__ash_bindings__, %{
       current: Enum.count(query.joins) + 1,
+      calculations: %{},
       aggregates: %{},
+      context: context,
       bindings: %{0 => %{path: [], type: :root, source: resource}}
     })
   end
@@ -1136,7 +1152,7 @@ defmodule AshPostgres.DataLayer do
   defp can_inner_join?(_, _, _), do: false
 
   @impl true
-  def add_aggregate(query, aggregate, _resource) do
+  def add_aggregate(query, aggregate, _resource, add_base? \\ true) do
     resource = aggregate.resource
     query = default_bindings(query, resource)
 
@@ -1200,7 +1216,7 @@ defmodule AshPostgres.DataLayer do
         new_query =
           query_with_aggregate_binding
           |> add_aggregate_to_subquery(resource, aggregate, binding)
-          |> select_aggregate(resource, aggregate)
+          |> select_aggregate(resource, aggregate, add_base?)
 
         {:ok, new_query}
 
@@ -1209,8 +1225,9 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp select_aggregate(query, resource, aggregate) do
-    binding = get_binding(resource, aggregate.relationship_path, query, :aggregate)
+  @impl true
+  def add_calculation(query, calculation, expression, resource) do
+    query = default_bindings(query, resource)
 
     query =
       if query.select do
@@ -1218,15 +1235,125 @@ defmodule AshPostgres.DataLayer do
       else
         from(row in query,
           select: row,
-          select_merge: %{aggregates: %{}}
+          select_merge: %{aggregates: %{}, calculations: %{}}
         )
       end
 
-    %{query | select: add_to_select(query.select, binding, aggregate)}
+    {params, expr} =
+      do_filter_to_expr(
+        expression,
+        query.__ash_bindings__,
+        query.select.params
+      )
+
+    {:ok,
+     query
+     |> Map.update!(:select, &add_to_calculation_select(&1, expr, List.wrap(params), calculation))}
   end
 
-  defp add_to_select(
-         %{expr: {:merge, _, [first, {:%{}, _, [{:aggregates, {:%{}, [], fields}}]}]}} = select,
+  defp select_aggregate(query, resource, aggregate, add_base?) do
+    binding = get_binding(resource, aggregate.relationship_path, query, :aggregate)
+
+    query =
+      if query.select do
+        query
+      else
+        if add_base? do
+          from(row in query,
+            select: row,
+            select_merge: %{aggregates: %{}, calculations: %{}}
+          )
+        else
+          from(row in query, select: row)
+        end
+      end
+
+    %{query | select: add_to_aggregate_select(query.select, binding, aggregate)}
+  end
+
+  defp add_to_calculation_select(
+         %{
+           expr:
+             {:merge, _,
+              [
+                first,
+                {:%{}, _,
+                 [{:aggregates, {:%{}, [], agg_fields}}, {:calculations, {:%{}, [], fields}}]}
+              ]}
+         } = select,
+         expr,
+         params,
+         %{load: nil} = calculation
+       ) do
+    field =
+      {:type, [],
+       [
+         expr,
+         Ash.Type.ecto_type(calculation.type)
+       ]}
+
+    name =
+      if calculation.sequence == 0 do
+        calculation.name
+      else
+        String.to_existing_atom("#{calculation.sequence}")
+      end
+
+    new_fields = [
+      {name, field}
+      | fields
+    ]
+
+    %{
+      select
+      | expr:
+          {:merge, [],
+           [
+             first,
+             {:%{}, [],
+              [{:aggregates, {:%{}, [], agg_fields}}, {:calculations, {:%{}, [], new_fields}}]}
+           ]},
+        params: params
+    }
+  end
+
+  defp add_to_calculation_select(
+         %{expr: select_expr} = select,
+         expr,
+         params,
+         %{load: load_as} = calculation
+       ) do
+    field =
+      {:type, [],
+       [
+         expr,
+         Ash.Type.ecto_type(calculation.type)
+       ]}
+
+    load_as =
+      if calculation.sequence == 0 do
+        load_as
+      else
+        "#{load_as}_#{calculation.sequence}"
+      end
+
+    %{
+      select
+      | expr: {:merge, [], [select_expr, {:%{}, [], [{load_as, field}]}]},
+        params: params
+    }
+  end
+
+  defp add_to_aggregate_select(
+         %{
+           expr:
+             {:merge, _,
+              [
+                first,
+                {:%{}, _,
+                 [{:aggregates, {:%{}, [], fields}}, {:calculations, {:%{}, [], calc_fields}}]}
+              ]}
+         } = select,
          binding,
          %{load: nil} = aggregate
        ) do
@@ -1259,10 +1386,19 @@ defmodule AshPostgres.DataLayer do
       | fields
     ]
 
-    %{select | expr: {:merge, [], [first, {:%{}, [], [{:aggregates, {:%{}, [], new_fields}}]}]}}
+    %{
+      select
+      | expr:
+          {:merge, [],
+           [
+             first,
+             {:%{}, [],
+              [{:aggregates, {:%{}, [], new_fields}}, {:calculations, {:%{}, [], calc_fields}}]}
+           ]}
+    }
   end
 
-  defp add_to_select(
+  defp add_to_aggregate_select(
          %{expr: expr} = select,
          binding,
          %{load: load_as} = aggregate
@@ -1415,7 +1551,7 @@ defmodule AshPostgres.DataLayer do
         {params, expr} =
           filter_to_expr(
             aggregate.query.filter,
-            query.__ash_bindings__.bindings,
+            query.__ash_bindings__,
             query.select.params
           )
 
@@ -1492,7 +1628,7 @@ defmodule AshPostgres.DataLayer do
         {params, expr} =
           filter_to_expr(
             aggregate.query.filter,
-            query.__ash_bindings__.bindings,
+            query.__ash_bindings__,
             query.select.params
           )
 
@@ -1522,7 +1658,7 @@ defmodule AshPostgres.DataLayer do
         {params, expr} =
           filter_to_expr(
             aggregate.query.filter,
-            query.__ash_bindings__.bindings,
+            query.__ash_bindings__,
             query.select.params
           )
 
@@ -1669,9 +1805,9 @@ defmodule AshPostgres.DataLayer do
     join_relationship = Ash.Resource.Info.relationship(source, relationship.join_relationship)
 
     with {:ok, relationship_through} <-
-           maybe_get_resource_query(relationship.through, join_relationship),
+           maybe_get_resource_query(relationship.through, join_relationship, query),
          {:ok, relationship_destination} <-
-           maybe_get_resource_query(relationship.destination, relationship) do
+           maybe_get_resource_query(relationship.destination, relationship, query) do
       relationship_through =
         relationship_through
         |> Ecto.Queryable.to_query()
@@ -1689,12 +1825,19 @@ defmodule AshPostgres.DataLayer do
           end
         end)
 
-      used_aggregates = Ash.Filter.used_aggregates(filter, path ++ [relationship.name])
+      used_calculations =
+        Ash.Filter.used_calculations(
+          filter,
+          relationship.destination,
+          path ++ [relationship.name]
+        )
+
+      used_aggregates = used_aggregates(filter, relationship, used_calculations, path)
 
       Enum.reduce_while(used_aggregates, {:ok, relationship_destination}, fn agg, {:ok, query} ->
         agg = %{agg | load: agg.name}
 
-        case add_aggregate(query, agg, relationship.destination) do
+        case add_aggregate(query, agg, relationship.destination, false) do
           {:ok, query} ->
             {:cont, {:ok, query}}
 
@@ -1704,6 +1847,15 @@ defmodule AshPostgres.DataLayer do
       end)
       |> case do
         {:ok, relationship_destination} ->
+          relationship_destination =
+            case used_aggregates do
+              [] ->
+                relationship_destination
+
+              _ ->
+                subquery(relationship_destination)
+            end
+
           new_query =
             case kind do
               {:aggregate, _, subquery} ->
@@ -1773,7 +1925,7 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp do_join_relationship(query, relationship, path, kind, source, filter) do
-    case maybe_get_resource_query(relationship.destination, relationship) do
+    case maybe_get_resource_query(relationship.destination, relationship, query) do
       {:error, error} ->
         {:error, error}
 
@@ -1790,13 +1942,20 @@ defmodule AshPostgres.DataLayer do
             end
           end)
 
-        used_aggregates = Ash.Filter.used_aggregates(filter, path ++ [relationship.name])
+        used_calculations =
+          Ash.Filter.used_calculations(
+            filter,
+            relationship.destination,
+            path ++ [relationship.name]
+          )
+
+        used_aggregates = used_aggregates(filter, relationship, used_calculations, path)
 
         Enum.reduce_while(used_aggregates, {:ok, relationship_destination}, fn agg,
                                                                                {:ok, query} ->
           agg = %{agg | load: agg.name}
 
-          case add_aggregate(query, agg, relationship.destination) do
+          case add_aggregate(query, agg, relationship.destination, false) do
             {:ok, query} ->
               {:cont, {:ok, query}}
 
@@ -1812,7 +1971,7 @@ defmodule AshPostgres.DataLayer do
                   relationship_destination
 
                 _ ->
-                  subquery(clean_subquery_select(relationship_destination))
+                  subquery(relationship_destination)
               end
 
             new_query =
@@ -1876,6 +2035,68 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
+  defp used_aggregates(filter, relationship, used_calculations, path) do
+    Ash.Filter.used_aggregates(filter, path ++ [relationship.name]) ++
+      Enum.flat_map(
+        used_calculations,
+        fn calculation ->
+          case Ash.Filter.hydrate_refs(
+                 calculation.module.expression(calculation.opts, calculation.context),
+                 %{
+                   resource: relationship.destination,
+                   aggregates: %{},
+                   calculations: %{},
+                   public?: false
+                 }
+               ) do
+            {:ok, hydrated} ->
+              Ash.Filter.used_aggregates(hydrated)
+
+            _ ->
+              []
+          end
+        end
+      )
+  end
+
+  # defp add_calculations_to_destination(
+  #        {:ok, relationship_destination},
+  #        used_calculations,
+  #        relationship
+  #      ) do
+  #   Enum.reduce_while(used_calculations, {:ok, relationship_destination}, fn calculation,
+  #                                                                            {:ok, query} ->
+  #     calculation = %{calculation | load: calculation.name}
+
+  #     calculation_context = calculation.context
+
+  #     with {:ok, hydrated} <-
+  #            Ash.Filter.hydrate_refs(
+  #              calculation.module.expression(calculation.opts, calculation_context),
+  #              %{
+  #                resource: relationship.destination,
+  #                aggregates: %{},
+  #                calculations: %{},
+  #                public?: false
+  #              }
+  #            ),
+  #          {:ok, relationship_destination} <-
+  #            add_calculation(
+  #              query,
+  #              calculation,
+  #              hydrated,
+  #              relationship.destination
+  #            ) do
+  #       {:cont, {:ok, relationship_destination}}
+  #     else
+  #       {:error, error} ->
+  #         {:halt, {:error, error}}
+  #     end
+  #   end)
+  # end
+
+  # defp add_calculations_to_destination({:error, error}, _, _), do: {:error, error}
+
   defp set_join_prefix(join_query, query, resource) do
     if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
       %{join_query | prefix: query.prefix}
@@ -1884,28 +2105,31 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp clean_subquery_select(
-         %{
-           select:
-             %Ecto.Query.SelectExpr{
-               expr:
-                 {:merge, [],
-                  [
-                    _,
-                    select
-                  ]}
-             } = expr
-         } = query
-       ) do
-    %{query | select: %{expr | expr: {:merge, [], [{:&, [], [0]}, select]}}}
-  end
+  # defp clean_subquery_select(
+  #        %{
+  #          select:
+  #            %Ecto.Query.SelectExpr{
+  #              expr:
+  #                {:merge, [],
+  #                 [
+  #                   left,
+  #                   select
+  #                 ]}
+  #            } = expr
+  #        } = query
+  #      ) do
+  #   do_clean(left)
+  #   %{query | select: %{expr | expr: {:merge, [], [{:&, [], [0]}, select]}}}
+  # end
+
+  # defp clean_subquery_select(query), do: query
 
   defp add_filter_expression(query, filter) do
     wheres =
       filter
       |> split_and_statements()
       |> Enum.map(fn filter ->
-        {params, expr} = filter_to_expr(filter, query.__ash_bindings__.bindings, [])
+        {params, expr} = filter_to_expr(filter, query.__ash_bindings__, [])
 
         %Ecto.Query.BooleanExpr{
           expr: expr,
@@ -1958,7 +2182,7 @@ defmodule AshPostgres.DataLayer do
     do_filter_to_expr(expression, bindings, params, embedded?, type)
   end
 
-  defp do_filter_to_expr(expr, bindings, params, embedded?, type \\ nil)
+  defp do_filter_to_expr(expr, bindings, params, embedded? \\ false, type \\ nil)
 
   defp do_filter_to_expr(
          %BooleanExpression{op: op, left: left, right: right},
@@ -2038,10 +2262,34 @@ defmodule AshPostgres.DataLayer do
          embedded?,
          _type
        ) do
+    arguments =
+      case arguments do
+        [{:raw, _} | _] ->
+          arguments
+
+        arguments ->
+          [{:raw, ""} | arguments]
+      end
+
+    arguments =
+      case List.last(arguments) do
+        nil ->
+          arguments
+
+        {:raw, _} ->
+          arguments
+
+        _ ->
+          arguments ++ [{:raw, ""}]
+      end
+
     {params, fragment_data} =
       Enum.reduce(arguments, {params, []}, fn
         {:raw, str}, {params, fragment_data} ->
           {params, fragment_data ++ [{:raw, str}]}
+
+        {:casted_expr, expr}, {params, fragment_data} ->
+          {params, fragment_data ++ [{:expr, expr}]}
 
         {:expr, expr}, {params, fragment_data} ->
           {params, expr} = do_filter_to_expr(expr, bindings, params, pred_embedded? || embedded?)
@@ -2132,6 +2380,88 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp do_filter_to_expr(
+         %If{arguments: [condition, when_true, when_false], embedded?: pred_embedded?},
+         bindings,
+         params,
+         embedded?,
+         type
+       ) do
+    [condition_type, when_true_type, when_false_type] =
+      determine_types(If, [condition, when_true, when_false])
+
+    {params, condition} =
+      do_filter_to_expr(condition, bindings, params, pred_embedded? || embedded?, condition_type)
+
+    {params, when_true} =
+      do_filter_to_expr(when_true, bindings, params, pred_embedded? || embedded?, when_true_type)
+
+    {params, when_false} =
+      do_filter_to_expr(
+        when_false,
+        bindings,
+        params,
+        pred_embedded? || embedded?,
+        when_false_type
+      )
+
+    do_filter_to_expr(
+      %Fragment{
+        embedded?: pred_embedded?,
+        arguments: [
+          raw: "CASE WHEN ",
+          casted_expr: condition,
+          raw: " THEN ",
+          casted_expr: when_true,
+          raw: " ELSE ",
+          casted_expr: when_false,
+          raw: " END"
+        ]
+      },
+      bindings,
+      params,
+      embedded?,
+      type
+    )
+  end
+
+  defp do_filter_to_expr(
+         %mod{
+           __predicate__?: _,
+           left: left,
+           right: right,
+           embedded?: pred_embedded?,
+           operator: :<>
+         },
+         bindings,
+         params,
+         embedded?,
+         type
+       ) do
+    [left_type, right_type] = determine_types(mod, [left, right])
+
+    {params, left_expr} =
+      do_filter_to_expr(left, bindings, params, pred_embedded? || embedded?, left_type)
+
+    {params, right_expr} =
+      do_filter_to_expr(right, bindings, params, pred_embedded? || embedded?, right_type)
+
+    do_filter_to_expr(
+      %Fragment{
+        embedded?: pred_embedded?,
+        arguments: [
+          casted_expr: left_expr,
+          raw: " || ",
+          casted_expr: right_expr
+        ]
+      },
+      bindings,
+      params,
+      embedded?,
+      type
+    )
+  end
+
+  defp do_filter_to_expr(
          %mod{
            __predicate__?: _,
            left: left,
@@ -2161,6 +2491,90 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp do_filter_to_expr(
+         %Ref{
+           attribute: %Ash.Query.Calculation{} = calculation,
+           relationship_path: [],
+           resource: resource
+         },
+         bindings,
+         params,
+         embedded?,
+         type
+       ) do
+    calculation = %{calculation | load: calculation.name}
+
+    case Ash.Filter.hydrate_refs(
+           calculation.module.expression(calculation.opts, calculation.context),
+           %{
+             resource: resource,
+             aggregates: %{},
+             calculations: %{},
+             public?: false
+           }
+         ) do
+      {:ok, expression} ->
+        do_filter_to_expr(
+          expression,
+          bindings,
+          params,
+          embedded?,
+          type
+        )
+
+      {:error, _error} ->
+        {params, nil}
+    end
+  end
+
+  defp do_filter_to_expr(
+         %Ref{
+           attribute: %Ash.Query.Calculation{} = calculation,
+           relationship_path: relationship_path
+         } = ref,
+         bindings,
+         params,
+         embedded?,
+         type
+       ) do
+    binding_to_replace =
+      Enum.find_value(bindings.bindings, fn {i, binding} ->
+        if binding.path == relationship_path do
+          i
+        end
+      end)
+
+    temp_bindings =
+      bindings.bindings
+      |> Map.delete(0)
+      |> Map.update!(binding_to_replace, &Map.merge(&1, %{path: [], type: :root}))
+
+    case Ash.Filter.hydrate_refs(
+           calculation.module.expression(calculation.opts, calculation.context),
+           %{
+             resource: ref.resource,
+             aggregates: %{},
+             calculations: %{},
+             public?: false
+           }
+         ) do
+      {:ok, hydrated} ->
+        hydrated
+        |> Ash.Filter.update_aggregates(fn aggregate, _ ->
+          %{aggregate | relationship_path: []}
+        end)
+        |> do_filter_to_expr(
+          %{bindings | bindings: temp_bindings},
+          params,
+          embedded?,
+          type
+        )
+
+      _ ->
+        {params, nil}
+    end
+  end
+
+  defp do_filter_to_expr(
          %Ref{attribute: %{name: name}} = ref,
          bindings,
          params,
@@ -2180,7 +2594,7 @@ defmodule AshPostgres.DataLayer do
         embedded?: embedded?,
         arguments: [
           raw: "",
-          expr: string,
+          casted_expr: string,
           raw: "::citext"
         ]
       },
@@ -2233,7 +2647,18 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp determine_types(mod, values) do
-    mod.types()
+    Code.ensure_compiled(mod)
+
+    cond do
+      :erlang.function_exported(mod, :types, 0) ->
+        mod.types()
+
+      :erlang.function_exported(mod, :args, 0) ->
+        mod.args()
+
+      true ->
+        [:any]
+    end
     |> Enum.map(fn types ->
       case types do
         :same ->
@@ -2332,19 +2757,31 @@ defmodule AshPostgres.DataLayer do
          %{attribute: %Ash.Query.Aggregate{} = aggregate, relationship_path: []},
          bindings
        ) do
-    Enum.find_value(bindings, fn {binding, data} ->
+    Enum.find_value(bindings.bindings, fn {binding, data} ->
       data.path == aggregate.relationship_path && data.type == :aggregate && binding
+    end) ||
+      Enum.find_value(bindings.bindings, fn {binding, data} ->
+        data.path == aggregate.relationship_path && data.type in [:inner, :left, :root] && binding
+      end)
+  end
+
+  defp ref_binding(
+         %{attribute: %Ash.Query.Calculation{}} = ref,
+         bindings
+       ) do
+    Enum.find_value(bindings.bindings, fn {binding, data} ->
+      data.path == ref.relationship_path && data.type in [:inner, :left, :root] && binding
     end)
   end
 
   defp ref_binding(%{attribute: %Ash.Resource.Attribute{}} = ref, bindings) do
-    Enum.find_value(bindings, fn {binding, data} ->
+    Enum.find_value(bindings.bindings, fn {binding, data} ->
       data.path == ref.relationship_path && data.type in [:inner, :left, :root] && binding
     end)
   end
 
   defp ref_binding(%{attribute: %Ash.Query.Aggregate{}} = ref, bindings) do
-    Enum.find_value(bindings, fn {binding, data} ->
+    Enum.find_value(bindings.bindings, fn {binding, data} ->
       data.path == ref.relationship_path && data.type in [:inner, :left, :root] && binding
     end)
   end
@@ -2372,9 +2809,10 @@ defmodule AshPostgres.DataLayer do
     repo(resource).rollback(term)
   end
 
-  defp maybe_get_resource_query(resource, relationship) do
+  defp maybe_get_resource_query(resource, relationship, root_query) do
     resource
     |> Ash.Query.new()
+    |> Map.put(:context, root_query.__ash_bindings__.context)
     |> Ash.Query.set_context(relationship.context)
     |> Ash.Query.do_filter(relationship.filter)
     |> Ash.Query.sort(Map.get(relationship, :sort))

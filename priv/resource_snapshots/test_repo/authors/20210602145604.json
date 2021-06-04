@@ -1,0 +1,43 @@
+{
+  "attributes": [
+    {
+      "allow_nil?": false,
+      "default": "fragment(\"uuid_generate_v4()\")",
+      "generated?": false,
+      "name": "id",
+      "primary_key?": true,
+      "references": null,
+      "type": "uuid"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "first_name",
+      "primary_key?": false,
+      "references": null,
+      "type": "text"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "last_name",
+      "primary_key?": false,
+      "references": null,
+      "type": "text"
+    }
+  ],
+  "base_filter": null,
+  "check_constraints": [],
+  "has_create_action": true,
+  "hash": "538DC242254A39070CF9A5D032A9336A2270F8C7F07BEAE35F15BF5EB4D90F20",
+  "identities": [],
+  "multitenancy": {
+    "attribute": null,
+    "global": null,
+    "strategy": null
+  },
+  "repo": "Elixir.AshPostgres.TestRepo",
+  "table": "authors"
+}

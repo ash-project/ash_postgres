@@ -99,7 +99,7 @@
         {Credo.Check.Readability.ModuleAttributeNames, []},
         {Credo.Check.Readability.ModuleDoc, []},
         {Credo.Check.Readability.ModuleNames, []},
-        {Credo.Check.Readability.ParenthesesInCondition, []},
+        {Credo.Check.Readability.ParenthesesInCondition, false},
         {Credo.Check.Readability.ParenthesesOnZeroArityDefs, []},
         {Credo.Check.Readability.PredicateFunctionNames, []},
         {Credo.Check.Readability.PreferImplicitTry, []},

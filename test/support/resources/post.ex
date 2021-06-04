@@ -69,6 +69,12 @@ defmodule AshPostgres.Test.Post do
     )
   end
 
+  calculations do
+    calculate(:c_times_p, :integer, expr(count_of_comments * count_of_linked_posts),
+      load: [:count_of_comments, :count_of_linked_posts]
+    )
+  end
+
   aggregates do
     count(:count_of_comments, :comments)
     count(:count_of_linked_posts, :linked_posts)
