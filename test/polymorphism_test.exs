@@ -7,18 +7,18 @@ defmodule AshPostgres.PolymorphismTest do
   test "you can create related data" do
     Post
     |> Ash.Changeset.for_create(:create, rating: %{score: 10})
-    |> Api.create!(stacktraces?: true)
+    |> Api.create!()
 
     assert [%{score: 10}] =
              Rating
              |> Ash.Query.set_context(%{data_layer: %{table: "post_ratings"}})
-             |> Api.read!(stacktraces?: true)
+             |> Api.read!()
   end
 
   test "you can read related data" do
     Post
     |> Ash.Changeset.for_create(:create, rating: %{score: 10})
-    |> Api.create!(stacktraces?: true)
+    |> Api.create!()
 
     assert [%{score: 10}] =
              Post
