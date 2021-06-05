@@ -5,6 +5,11 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.40.0-rc1](https://github.com/ash-project/ash_postgres/compare/v0.40.0-rc0...v0.40.0-rc1) (2021-06-05)
+
+
+
+
 ## [v0.39.0-rc0](https://github.com/ash-project/ash_postgres/compare/v0.38.11...v0.39.0-rc0) (2021-06-04)
 
 
