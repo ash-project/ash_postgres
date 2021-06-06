@@ -147,6 +147,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
             %{
               references:
                 %{
+                  multitenancy: %{strategy: :context},
                   table: table,
                   destination_field: destination_field
                 } = reference
@@ -159,7 +160,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "column: #{inspect(destination_field)}",
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
-          "prefix: \"public\"",
+          "prefix: prefix()",
           on_delete(reference),
           on_update(reference)
         ],
@@ -176,7 +177,6 @@ defmodule AshPostgres.MigrationGenerator.Operation do
             %{
               references:
                 %{
-                  multitenancy: %{strategy: :context},
                   table: table,
                   destination_field: destination_field
                 } = reference
@@ -189,6 +189,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "column: #{inspect(destination_field)}",
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
+          "prefix: \"public\"",
           on_delete(reference),
           on_update(reference)
         ],
@@ -330,6 +331,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "references(:#{table}, column: #{inspect(destination_field)}",
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
+        "prefix: prefix()",
         on_delete(reference),
         on_update(reference),
         ")"
