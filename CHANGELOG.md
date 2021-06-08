@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.40.0-rc2](https://github.com/ash-project/ash_postgres/compare/v0.40.0-rc1...v0.40.0-rc2) (2021-06-08)
+
+
+
+
+### Bug Fixes:
+
+* sort references only after other same-table ops
+
+* generate multitenant foreign keys properly
+
 ## [v0.40.0-rc1](https://github.com/ash-project/ash_postgres/compare/v0.40.0-rc0...v0.40.0-rc1) (2021-06-05)
 
 
