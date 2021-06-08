@@ -1034,7 +1034,10 @@ defmodule AshPostgres.MigrationGenerator do
     true
   end
 
-  defp after?(%Operation.AlterAttribute{new_attribute: %{references: references}}, _)
+  defp after?(
+         %Operation.AlterAttribute{new_attribute: %{references: references}, table: table},
+         %{table: table}
+       )
        when not is_nil(references),
        do: true
 
