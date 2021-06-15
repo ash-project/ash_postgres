@@ -88,7 +88,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         ],
         ")",
         maybe_add_default(attribute.default),
-        maybe_add_primary_key(attribute.primary_key?)
+        maybe_add_primary_key(attribute.primary_key?),
+        maybe_add_null(attribute.allow_nil?)
       ]
       |> join()
     end
@@ -118,7 +119,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         ],
         ")",
         maybe_add_default(attribute.default),
-        maybe_add_primary_key(attribute.primary_key?)
+        maybe_add_primary_key(attribute.primary_key?),
+        maybe_add_null(attribute.allow_nil?)
       ]
       |> join()
     end
@@ -136,7 +138,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "add #{inspect(attribute.name)}",
         inspect(attribute.type),
         maybe_add_default(attribute.default),
-        maybe_add_primary_key(attribute.primary_key?)
+        maybe_add_primary_key(attribute.primary_key?),
+        maybe_add_null(attribute.allow_nil?)
       ]
       |> join()
     end
@@ -166,7 +169,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         ],
         ")",
         maybe_add_default(attribute.default),
-        maybe_add_primary_key(attribute.primary_key?)
+        maybe_add_primary_key(attribute.primary_key?),
+        maybe_add_null(attribute.allow_nil?)
       ]
       |> join()
     end
@@ -195,7 +199,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         ],
         ")",
         maybe_add_default(attribute.default),
-        maybe_add_primary_key(attribute.primary_key?)
+        maybe_add_primary_key(attribute.primary_key?),
+        maybe_add_null(attribute.allow_nil?)
       ]
       |> join()
     end
@@ -217,7 +222,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         ],
         ")",
         maybe_add_default(attribute.default),
-        maybe_add_primary_key(attribute.primary_key?)
+        maybe_add_primary_key(attribute.primary_key?),
+        maybe_add_null(attribute.allow_nil?)
       ]
       |> join()
     end
