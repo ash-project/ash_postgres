@@ -5,6 +5,23 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.40.0-rc4](https://github.com/ash-project/ash_postgres/compare/v0.40.0-rc3...v0.40.0-rc4) (2021-06-23)
+
+
+
+
+### Bug Fixes:
+
+* always add nullability flag
+
+* sort references only after other same-table ops
+
+* generate multitenant foreign keys properly
+
+### Improvements:
+
+* leverage new `private_vars` for errs
+
 ## [v0.40.0-rc3](https://github.com/ash-project/ash_postgres/compare/v0.40.0-rc2...v0.40.0-rc3) (2021-06-15)
 
 
