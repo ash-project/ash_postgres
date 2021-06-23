@@ -747,7 +747,11 @@ defmodule AshPostgres.DataLayer do
   defp handle_errors({:ok, val}), do: {:ok, val}
 
   defp to_ash_error({field, {message, vars}}) do
-    Ash.Error.Changes.InvalidAttribute.exception(field: field, message: message, vars: vars)
+    Ash.Error.Changes.InvalidAttribute.exception(
+      field: field,
+      message: message,
+      private_vars: vars
+    )
   end
 
   defp ecto_changeset(record, changeset, type) do
