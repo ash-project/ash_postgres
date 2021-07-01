@@ -996,13 +996,54 @@ defmodule AshPostgres.DataLayer do
         end
 
       {order, sort}, {:ok, query} ->
-        binding =
+        expr =
           case Map.fetch(query.__ash_bindings__.aggregates, sort) do
             {:ok, binding} ->
-              binding
+              aggregate =
+                Ash.Resource.Info.aggregate(resource, sort) ||
+                  raise "No such aggregate for query aggregate #{inspect(sort)}"
+
+              {:ok, field_type} =
+                if aggregate.field do
+                  related = Ash.Resource.Info.related(resource, aggregate.relationship_path)
+
+                  attr = Ash.Resource.Info.attribute(related, aggregate.field)
+
+                  if attr && related do
+                    {:ok, attr.type}
+                  else
+                    {:ok, nil}
+                  end
+                else
+                  {:ok, nil}
+                end
+
+              default_value = Ash.Query.Aggregate.default_value(aggregate.kind)
+
+              if is_nil(default_value) do
+                {{:., [], [{:&, [], [binding]}, sort]}, [], []}
+              else
+                if field_type do
+                  {:coalesce, [],
+                   [
+                     {{:., [], [{:&, [], [binding]}, sort]}, [], []},
+                     {:type, [],
+                      [
+                        default_value,
+                        Ash.Type.ecto_type(field_type)
+                      ]}
+                   ]}
+                else
+                  {:coalesce, [],
+                   [
+                     {{:., [], [{:&, [], [binding]}, sort]}, [], []},
+                     default_value
+                   ]}
+                end
+              end
 
             :error ->
-              0
+              {{:., [], [{:&, [], [0]}, sort]}, [], []}
           end
 
         new_query =
@@ -1011,7 +1052,7 @@ defmodule AshPostgres.DataLayer do
 
             sort_expr = %Ecto.Query.QueryExpr{
               expr: [
-                {order, {{:., [], [{:&, [], [binding]}, sort]}, [], []}}
+                {order, expr}
               ]
             }
 
@@ -1570,8 +1611,7 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp add_subquery_aggregate_select(query, %{kind: kind} = aggregate, _resource)
-       when kind in [:first, :list] do
+  defp add_subquery_aggregate_select(query, %{kind: :first} = aggregate, _resource) do
     query = default_bindings(query, aggregate.resource)
     key = aggregate.field
     type = Ash.Type.ecto_type(aggregate.type)
@@ -1623,25 +1663,27 @@ defmodule AshPostgres.DataLayer do
         {[], field}
       end
 
-    casted =
-      if kind == :first do
-        {:type, [],
-         [
-           {:fragment, [],
-            [
-              raw: "(",
-              expr: filtered,
-              raw: ")[1]"
-            ]},
-           type
-         ]}
+    value =
+      {:fragment, [],
+       [
+         raw: "(",
+         expr: filtered,
+         raw: ")[1]"
+       ]}
+
+    with_default =
+      if aggregate.default_value do
+        {:coalesce, [], [value, {:type, [], [aggregate.default_value, type]}]}
       else
-        {:type, [],
-         [
-           filtered,
-           {:array, type}
-         ]}
+        value
       end
+
+    casted =
+      {:type, [],
+       [
+         with_default,
+         type
+       ]}
 
     new_expr = {:merge, [], [query.select.expr, {:%{}, [], [{aggregate.name, casted}]}]}
 
@@ -1700,7 +1742,14 @@ defmodule AshPostgres.DataLayer do
         {[], field}
       end
 
-    cast = {:type, [], [filtered, {:array, type}]}
+    with_default =
+      if aggregate.default_value do
+        {:coalesce, [], [filtered, {:type, [], [aggregate.default_value, type]}]}
+      else
+        filtered
+      end
+
+    cast = {:type, [], [with_default, {:array, type}]}
 
     new_expr = {:merge, [], [query.select.expr, {:%{}, [], [{aggregate.name, cast}]}]}
 
@@ -1730,7 +1779,14 @@ defmodule AshPostgres.DataLayer do
         {[], field}
       end
 
-    cast = {:type, [], [filtered, type]}
+    with_default =
+      if aggregate.default_value do
+        {:coalesce, [], [filtered, {:type, [], [aggregate.default_value, type]}]}
+      else
+        filtered
+      end
+
+    cast = {:type, [], [with_default, type]}
 
     new_expr = {:merge, [], [query.select.expr, {:%{}, [], [{aggregate.name, cast}]}]}
 
@@ -2583,6 +2639,33 @@ defmodule AshPostgres.DataLayer do
       _ ->
         {params, nil}
     end
+  end
+
+  defp do_filter_to_expr(
+         %Ref{attribute: %Ash.Query.Aggregate{} = aggregate} = ref,
+         bindings,
+         params,
+         _embedded?,
+         _type
+       ) do
+    expr = {{:., [], [{:&, [], [ref_binding(ref, bindings)]}, aggregate.name]}, [], []}
+    type = Ash.Type.ecto_type(aggregate.type)
+
+    type =
+      if aggregate.kind == :list do
+        {:array, type}
+      else
+        type
+      end
+
+    with_default =
+      if aggregate.default_value do
+        {:coalesce, [], [expr, {:type, [], [aggregate.default_value, type]}]}
+      else
+        expr
+      end
+
+    {params, with_default}
   end
 
   defp do_filter_to_expr(
