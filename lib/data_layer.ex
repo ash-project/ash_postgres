@@ -287,9 +287,10 @@ defmodule AshPostgres.DataLayer do
   # This creates the atoms 0..500, which are used for calculations
   # If you know of a way to get around the fact that subquery `parent_as` must be
   # an atom, let me know.
-  for i <- 0..500 do
-    :"#{i}"
-  end
+
+  @atoms Enum.into(0..500, %{}, fn i ->
+           {i, String.to_atom(to_string(i))}
+         end)
 
   @moduledoc """
   A postgres data layer that levereges Ecto's postgres capabilities.
@@ -2097,8 +2098,7 @@ defmodule AshPostgres.DataLayer do
             {new_query, new_alias_index} =
               case kind do
                 {:aggregate, _, subquery} ->
-                  alias_index =
-                    String.to_existing_atom(to_string(query.__ash_bindings__.alias_index))
+                  alias_index = @atoms[query.__ash_bindings__.alias_index]
 
                   inner_sub = from(destination in subquery, [])
 
