@@ -285,8 +285,8 @@ defmodule AshPostgres.DataLayer do
   @sections [@postgres]
 
   # This creates the atoms 0..500, which are used for calculations
-  # If you know of a way to get around the fact that subquery select statement keys
-  # *must* be atoms, please let me know so I can remove this :)
+  # If you know of a way to get around the fact that subquery `parent_as` must be
+  # an atom, let me know.
   for i <- 0..500 do
     :"#{i}"
   end
@@ -1164,6 +1164,7 @@ defmodule AshPostgres.DataLayer do
       aggregates: %{},
       aggregate_defs: %{},
       context: context,
+      alias_index: 1,
       bindings: %{0 => %{path: [], type: :root, source: resource}}
     })
   end
@@ -2093,44 +2094,68 @@ defmodule AshPostgres.DataLayer do
                   subquery(relationship_destination)
               end
 
-            new_query =
+            {new_query, new_alias_index} =
               case kind do
                 {:aggregate, _, subquery} ->
+                  alias_index =
+                    String.to_existing_atom(to_string(query.__ash_bindings__.alias_index))
+
+                  inner_sub = from(destination in subquery, [])
+
+                  inner_sub_with_where =
+                    Map.put(inner_sub, :wheres, [
+                      %Ecto.Query.BooleanExpr{
+                        expr:
+                          {:==, [],
+                           [
+                             {{:., [], [{:&, [], [0]}, relationship.destination_field]}, [], []},
+                             {{:., [],
+                               [{:parent_as, [], [alias_index]}, relationship.source_field]}, [],
+                              []}
+                           ]},
+                        op: :and
+                      }
+                    ])
+
                   subquery =
                     from(
-                      sub in subquery(
-                        from(destination in subquery,
-                          where:
-                            field(destination, ^relationship.destination_field) ==
-                              field(parent_as(:rel_source), ^relationship.source_field)
-                        )
-                      ),
+                      sub in subquery(inner_sub_with_where),
                       select: field(sub, ^relationship.destination_field)
                     )
 
-                  from([{row, current_binding}] in query,
-                    as: :rel_source,
-                    left_lateral_join: destination in ^subquery,
-                    on:
-                      field(row, ^relationship.source_field) ==
-                        field(destination, ^relationship.destination_field)
-                  )
+                  q =
+                    from([{row, current_binding}] in query,
+                      as: :rel_source,
+                      left_lateral_join: destination in ^subquery,
+                      on:
+                        field(row, ^relationship.source_field) ==
+                          field(destination, ^relationship.destination_field)
+                    )
+                    |> Map.put(:aliases, %{alias_index => 0})
+
+                  {q, query.__ash_bindings__.alias_index + 1}
 
                 :inner ->
-                  from([{row, current_binding}] in query,
-                    join: destination in ^relationship_destination,
-                    on:
-                      field(row, ^relationship.source_field) ==
-                        field(destination, ^relationship.destination_field)
-                  )
+                  q =
+                    from([{row, current_binding}] in query,
+                      join: destination in ^relationship_destination,
+                      on:
+                        field(row, ^relationship.source_field) ==
+                          field(destination, ^relationship.destination_field)
+                    )
+
+                  {q, query.__ash_bindings__.alias_index}
 
                 _ ->
-                  from([{row, current_binding}] in query,
-                    left_join: destination in ^relationship_destination,
-                    on:
-                      field(row, ^relationship.source_field) ==
-                        field(destination, ^relationship.destination_field)
-                  )
+                  q =
+                    from([{row, current_binding}] in query,
+                      left_join: destination in ^relationship_destination,
+                      on:
+                        field(row, ^relationship.source_field) ==
+                          field(destination, ^relationship.destination_field)
+                    )
+
+                  {q, query.__ash_bindings__.alias_index}
               end
 
             full_path = Enum.reverse([relationship.name | path])
@@ -2146,7 +2171,8 @@ defmodule AshPostgres.DataLayer do
 
             {:ok,
              new_query
-             |> add_binding(binding_data)}
+             |> add_binding(binding_data)
+             |> Map.update!(:__ash_bindings__, &Map.put(&1, :alias_index, new_alias_index))}
 
           {:error, error} ->
             {:error, error}
