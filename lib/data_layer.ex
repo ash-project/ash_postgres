@@ -2108,7 +2108,9 @@ defmodule AshPostgres.DataLayer do
                         expr:
                           {:==, [],
                            [
-                             {{:., [], [{:&, [], [0]}, relationship.destination_field]}, [], []},
+                             {{:., [],
+                               [{:&, [], [current_binding]}, relationship.destination_field]}, [],
+                              []},
                              {{:., [],
                                [{:parent_as, [], [alias_index]}, relationship.source_field]}, [],
                               []}
@@ -2130,7 +2132,7 @@ defmodule AshPostgres.DataLayer do
                         field(row, ^relationship.source_field) ==
                           field(destination, ^relationship.destination_field)
                     )
-                    |> Map.put(:aliases, %{alias_index => 0})
+                    |> Map.update!(:aliases, &Map.put(&1, alias_index, current_binding))
 
                   {q, query.__ash_bindings__.alias_index + 1}
 
