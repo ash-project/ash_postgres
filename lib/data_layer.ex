@@ -2125,7 +2125,6 @@ defmodule AshPostgres.DataLayer do
 
                   q =
                     from([{row, current_binding}] in query,
-                      as: :rel_source,
                       left_lateral_join: destination in ^subquery,
                       on:
                         field(row, ^relationship.source_field) ==
