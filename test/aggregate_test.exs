@@ -330,6 +330,12 @@ defmodule AshPostgres.AggregateTest do
                |> Api.read_one!()
     end
 
+    test "filtering on a nested aggregate works" do
+      Post
+      |> Ash.Query.filter(count_of_comment_ratings == 0)
+      |> Api.read!()
+    end
+
     test "the sum can be filtered on when paginating" do
       post =
         Post

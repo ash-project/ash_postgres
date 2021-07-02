@@ -96,5 +96,7 @@ defmodule AshPostgres.Test.Post do
     sum :sum_of_comment_likes_called_match, :comments, :likes do
       filter(title: "match")
     end
+
+    count(:count_of_comment_ratings, [:comments, :ratings])
   end
 end

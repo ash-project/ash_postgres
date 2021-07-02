@@ -1565,9 +1565,30 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp aggregate_subquery(%{type: :many_to_many} = relationship, aggregate, root_query) do
+    destination =
+      case maybe_get_resource_query(relationship.destination, relationship, root_query) do
+        {:ok, query} ->
+          query
+
+        _ ->
+          relationship.destination
+      end
+
+    join_relationship =
+      Ash.Resource.Info.relationship(relationship.source, relationship.join_relationship)
+
+    through =
+      case maybe_get_resource_query(relationship.through, join_relationship, root_query) do
+        {:ok, query} ->
+          query
+
+        _ ->
+          relationship.through
+      end
+
     query =
-      from(destination in relationship.destination,
-        join: through in ^relationship.through,
+      from(destination in destination,
+        join: through in ^through,
         on:
           field(through, ^relationship.destination_field_on_join_table) ==
             field(destination, ^relationship.destination_field),
@@ -1586,8 +1607,17 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp aggregate_subquery(relationship, aggregate, root_query) do
+    destination =
+      case maybe_get_resource_query(relationship.destination, relationship, root_query) do
+        {:ok, query} ->
+          query
+
+        _ ->
+          relationship.destination
+      end
+
     query =
-      from(row in relationship.destination,
+      from(row in destination,
         group_by: ^relationship.destination_field,
         select: field(row, ^relationship.destination_field)
       )

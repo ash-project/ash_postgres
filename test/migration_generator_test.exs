@@ -1,5 +1,6 @@
 defmodule AshPostgres.MigrationGeneratorTest do
   use AshPostgres.RepoCase, async: false
+  @moduletag :migration
 
   defmacrop defposts(mod \\ Post, do: body) do
     quote do
