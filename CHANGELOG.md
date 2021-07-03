@@ -5,6 +5,39 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.40.3](https://github.com/ash-project/ash_postgres/compare/v0.40.2...v0.40.3) (2021-07-03)
+
+
+
+
+### Bug Fixes:
+
+* ensure non-tenant resources can be aggregates
+
+* properly set aggregate query sources
+
+* retain parent as bindings
+
+* don't add `rel_source` at all
+
+* properly build atoms list
+
+* horribly hack ecto for dynamic bindings
+
+* properly coalesce aggregate values
+
+* always add nullability flag
+
+* sort references only after other same-table ops
+
+* generate multitenant foreign keys properly
+
+### Improvements:
+
+* update to latest ash
+
+* leverage new `private_vars` for errs
+
 ## [v0.40.2](https://github.com/ash-project/ash_postgres/compare/v0.40.1...v0.40.2) (2021-07-02)
 
 
