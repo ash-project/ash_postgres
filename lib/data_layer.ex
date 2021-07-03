@@ -1599,10 +1599,12 @@ defmodule AshPostgres.DataLayer do
     query_tenant = aggregate.query && aggregate.query.tenant
     root_tenant = root_query.prefix
 
-    if root_tenant || query_tenant do
+    if Ash.Resource.Info.multitenancy_strategy(relationship.destination) &&
+         (root_tenant ||
+            query_tenant) do
       Ecto.Query.put_query_prefix(query, query_tenant || root_tenant)
     else
-      query
+      %{query | prefix: "public"}
     end
   end
 
@@ -1625,10 +1627,12 @@ defmodule AshPostgres.DataLayer do
     query_tenant = aggregate.query && aggregate.query.tenant
     root_tenant = root_query.prefix
 
-    if root_tenant || query_tenant do
+    if Ash.Resource.Info.multitenancy_strategy(relationship.destination) &&
+         (root_tenant ||
+            query_tenant) do
       Ecto.Query.put_query_prefix(query, query_tenant || root_tenant)
     else
-      query
+      %{query | prefix: "public"}
     end
   end
 
