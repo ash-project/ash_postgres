@@ -1,6 +1,6 @@
 defmodule AshPostgres.AggregateTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Comment, Post}
+  alias AshPostgres.Test.{Api, Comment, Post, Rating}
 
   require Ash.Query
 
@@ -334,6 +334,51 @@ defmodule AshPostgres.AggregateTest do
       Post
       |> Ash.Query.filter(count_of_comment_ratings == 0)
       |> Api.read!()
+    end
+
+    test "nested first aggregate works" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      comment =
+        Comment
+        |> Ash.Changeset.new(%{title: "title", likes: 2})
+        |> Ash.Changeset.replace_relationship(:post, post)
+        |> Api.create!()
+
+      Rating
+      |> Ash.Changeset.new(%{score: 10, resource_id: comment.id})
+      |> Ash.Changeset.set_context(%{data_layer: %{table: "comment_ratings"}})
+      |> Api.create!()
+
+      post =
+        Post
+        |> Ash.Query.load(:highest_rating)
+        |> Api.read!()
+        |> Enum.at(0)
+
+      assert post.highest_rating == 10
+    end
+
+    test "loading a nested aggregate works" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "title", likes: 2})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      Post
+      |> Ash.Query.load(:count_of_comment_ratings)
+      |> Api.read!()
+      |> Enum.map(fn post ->
+        assert post.count_of_comment_ratings == 0
+      end)
     end
 
     test "the sum can be filtered on when paginating" do

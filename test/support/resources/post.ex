@@ -98,5 +98,9 @@ defmodule AshPostgres.Test.Post do
     end
 
     count(:count_of_comment_ratings, [:comments, :ratings])
+
+    first :highest_rating, [:comments, :ratings], :score do
+      sort(score: :desc)
+    end
   end
 end

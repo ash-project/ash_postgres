@@ -782,7 +782,7 @@ defmodule AshPostgres.DataLayer do
 
   defp set_table(record, changeset, operation) do
     if AshPostgres.polymorphic?(record.__struct__) do
-      table = changeset.context[:data_layer][:table] || AshPostgres.table(record.__struct)
+      table = changeset.context[:data_layer][:table] || AshPostgres.table(record.__struct__)
 
       if table do
         Ecto.put_meta(record, source: table)
@@ -1165,7 +1165,6 @@ defmodule AshPostgres.DataLayer do
       aggregates: %{},
       aggregate_defs: %{},
       context: context,
-      alias_index: 1,
       bindings: %{0 => %{path: [], type: :root, source: resource}}
     })
   end
@@ -1973,9 +1972,18 @@ defmodule AshPostgres.DataLayer do
         |> Ecto.Queryable.to_query()
         |> set_join_prefix(query, relationship.destination)
 
+      binding_kind =
+        case kind do
+          {:aggregate, _, _} ->
+            :left
+
+          other ->
+            other
+        end
+
       current_binding =
         Enum.find_value(query.__ash_bindings__.bindings, 0, fn {binding, data} ->
-          if data.type == kind && data.path == Enum.reverse(path) do
+          if data.type == binding_kind && data.path == Enum.reverse(path) do
             binding
           end
         end)
@@ -2014,10 +2022,13 @@ defmodule AshPostgres.DataLayer do
           new_query =
             case kind do
               {:aggregate, _, subquery} ->
+                {subquery, alias_name} =
+                  agg_subquery_for_lateral_join(current_binding, subquery, relationship)
+
                 from([{row, current_binding}] in query,
-                  left_join: through in ^subquery(subquery),
-                  on: through.__source_field == field(row, ^relationship.source_field)
+                  left_lateral_join: through in ^subquery
                 )
+                |> Map.update!(:aliases, &Map.put(&1, alias_name, current_binding))
 
               :inner ->
                 from([{row, current_binding}] in query,
@@ -2090,9 +2101,18 @@ defmodule AshPostgres.DataLayer do
           |> Ecto.Queryable.to_query()
           |> set_join_prefix(query, relationship.destination)
 
+        binding_kind =
+          case kind do
+            {:aggregate, _, _} ->
+              :left
+
+            other ->
+              other
+          end
+
         current_binding =
           Enum.find_value(query.__ash_bindings__.bindings, 0, fn {binding, data} ->
-            if data.type == kind && data.path == Enum.reverse(path) do
+            if data.type == binding_kind && data.path == Enum.reverse(path) do
               binding
             end
           end)
@@ -2129,68 +2149,35 @@ defmodule AshPostgres.DataLayer do
                   subquery(relationship_destination)
               end
 
-            {new_query, new_alias_index} =
+            new_query =
               case kind do
                 {:aggregate, _, subquery} ->
-                  alias_index = @atoms[query.__ash_bindings__.alias_index]
+                  {subquery, alias_name} =
+                    agg_subquery_for_lateral_join(current_binding, subquery, relationship)
 
-                  inner_sub = from(destination in subquery, [])
-
-                  inner_sub_with_where =
-                    Map.put(inner_sub, :wheres, [
-                      %Ecto.Query.BooleanExpr{
-                        expr:
-                          {:==, [],
-                           [
-                             {{:., [],
-                               [{:&, [], [current_binding]}, relationship.destination_field]}, [],
-                              []},
-                             {{:., [],
-                               [{:parent_as, [], [alias_index]}, relationship.source_field]}, [],
-                              []}
-                           ]},
-                        op: :and
-                      }
-                    ])
-
-                  subquery =
-                    from(
-                      sub in subquery(inner_sub_with_where),
-                      select: field(sub, ^relationship.destination_field)
-                    )
-
-                  q =
-                    from([{row, current_binding}] in query,
-                      left_lateral_join: destination in ^subquery,
-                      on:
-                        field(row, ^relationship.source_field) ==
-                          field(destination, ^relationship.destination_field)
-                    )
-                    |> Map.update!(:aliases, &Map.put(&1, alias_index, current_binding))
-
-                  {q, query.__ash_bindings__.alias_index + 1}
+                  from([{row, current_binding}] in query,
+                    left_lateral_join: destination in ^subquery,
+                    on:
+                      field(row, ^relationship.source_field) ==
+                        field(destination, ^relationship.destination_field)
+                  )
+                  |> Map.update!(:aliases, &Map.put(&1, alias_name, current_binding))
 
                 :inner ->
-                  q =
-                    from([{row, current_binding}] in query,
-                      join: destination in ^relationship_destination,
-                      on:
-                        field(row, ^relationship.source_field) ==
-                          field(destination, ^relationship.destination_field)
-                    )
-
-                  {q, query.__ash_bindings__.alias_index}
+                  from([{row, current_binding}] in query,
+                    join: destination in ^relationship_destination,
+                    on:
+                      field(row, ^relationship.source_field) ==
+                        field(destination, ^relationship.destination_field)
+                  )
 
                 _ ->
-                  q =
-                    from([{row, current_binding}] in query,
-                      left_join: destination in ^relationship_destination,
-                      on:
-                        field(row, ^relationship.source_field) ==
-                          field(destination, ^relationship.destination_field)
-                    )
-
-                  {q, query.__ash_bindings__.alias_index}
+                  from([{row, current_binding}] in query,
+                    left_join: destination in ^relationship_destination,
+                    on:
+                      field(row, ^relationship.source_field) ==
+                        field(destination, ^relationship.destination_field)
+                  )
               end
 
             full_path = Enum.reverse([relationship.name | path])
@@ -2206,13 +2193,48 @@ defmodule AshPostgres.DataLayer do
 
             {:ok,
              new_query
-             |> add_binding(binding_data)
-             |> Map.update!(:__ash_bindings__, &Map.put(&1, :alias_index, new_alias_index))}
+             |> add_binding(binding_data)}
 
           {:error, error} ->
             {:error, error}
         end
     end
+  end
+
+  defp agg_subquery_for_lateral_join(current_binding, subquery, relationship) do
+    alias_name = @atoms[current_binding]
+
+    inner_sub = from(destination in subquery, [])
+
+    {dest_binding, dest_field} =
+      case relationship.type do
+        :many_to_many ->
+          {1, relationship.source_field_on_join_table}
+
+        _ ->
+          {0, relationship.destination_field}
+      end
+
+    inner_sub_with_where =
+      Map.put(inner_sub, :wheres, [
+        %Ecto.Query.BooleanExpr{
+          expr:
+            {:==, [],
+             [
+               {{:., [], [{:&, [], [dest_binding]}, dest_field]}, [], []},
+               {{:., [], [{:parent_as, [], [alias_name]}, relationship.source_field]}, [], []}
+             ]},
+          op: :and
+        }
+      ])
+
+    subquery =
+      from(
+        sub in subquery(inner_sub_with_where),
+        select: field(sub, ^dest_field)
+      )
+
+    {subquery, alias_name}
   end
 
   defp used_aggregates(filter, relationship, used_calculations, path) do
