@@ -247,6 +247,9 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp comment_out_phases(phases) do
     Enum.map(phases, fn
+      %{operations: []} = phase ->
+        phase
+
       %{operations: operations} = phase ->
         if Enum.all?(operations, &match?(%{commented?: true}, &1)) do
           %{phase | commented?: true}
@@ -961,15 +964,6 @@ defmodule AshPostgres.MigrationGenerator do
        ),
        do: true
 
-  defp after?(
-         %Operation.CreateTable{table: table},
-         %Operation.DropForeignKey{
-           table: table,
-           direction: :down
-         }
-       ),
-       do: true
-
   defp after?(%Operation.AddAttribute{table: table}, %Operation.CreateTable{table: table}) do
     true
   end
@@ -1235,6 +1229,12 @@ defmodule AshPostgres.MigrationGenerator do
               old_attribute: Map.delete(attribute, :references),
               new_attribute: attribute,
               table: snapshot.table
+            },
+            %Operation.DropForeignKey{
+              attribute: attribute,
+              table: snapshot.table,
+              multitenancy: Map.get(attribute, :multitenancy),
+              direction: :down
             }
           ]
         else

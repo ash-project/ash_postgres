@@ -119,6 +119,8 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
       |> AshPostgres.MixHelpers.delete_arg("--apis")
       |> AshPostgres.MixHelpers.delete_arg("--migrations-path")
       |> AshPostgres.MixHelpers.delete_flag("--tenants")
+      |> AshPostgres.MixHelpers.delete_flag("--only-tenants")
+      |> AshPostgres.MixHelpers.delete_flag("--except-tenants")
 
     if opts[:tenants] do
       for repo <- repos do
