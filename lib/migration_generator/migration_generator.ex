@@ -12,6 +12,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   defstruct snapshot_path: @default_snapshot_path,
             migration_path: nil,
+            name: nil,
             tenant_migration_path: nil,
             quiet: false,
             current_snapshots: nil,
@@ -547,14 +548,19 @@ defmodule AshPostgres.MigrationGenerator do
 
     migration_path = migration_path(opts, repo, tenant?)
 
-    count =
-      migration_path
-      |> Path.join("*_migrate_resources*")
-      |> Path.wildcard()
-      |> Enum.count()
-      |> Kernel.+(1)
+    {migration_name, last_part} =
+      if opts.name do
+        {"#{timestamp(true)}_#{opts.name}", "#{opts.name}"}
+      else
+        count =
+          migration_path
+          |> Path.join("*_migrate_resources*")
+          |> Path.wildcard()
+          |> Enum.count()
+          |> Kernel.+(1)
 
-    migration_name = "#{timestamp(true)}_migrate_resources#{count}"
+        {"#{timestamp(true)}_migrate_resources#{count}", "migrate_resources#{count}"}
+      end
 
     migration_file =
       migration_path
@@ -562,9 +568,9 @@ defmodule AshPostgres.MigrationGenerator do
 
     module_name =
       if tenant? do
-        Module.concat([repo, TenantMigrations, Macro.camelize("migrate_resources#{count}")])
+        Module.concat([repo, TenantMigrations, Macro.camelize(last_part)])
       else
-        Module.concat([repo, Migrations, Macro.camelize("migrate_resources#{count}")])
+        Module.concat([repo, Migrations, Macro.camelize(last_part)])
       end
 
     contents = """

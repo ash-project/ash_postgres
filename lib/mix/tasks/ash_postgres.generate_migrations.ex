@@ -10,6 +10,10 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
     Migrations are stored in a folder for each repo, so `priv/repo_name/migrations`
   * `tenant-migration-path` - Same as `migration_path`, except for any tenant specific migrations
   * `drop-columns` - whether or not to drop columns as attributes are removed. See below for more
+  * `name` -
+      names the generated migrations, prepending with the timestamp. The default is `migrate_resources_<n>`,
+      where `<n>` is the count of migrations matching `*migrate_resources*` plus one.
+      For example, `--migration-name add_special_column` would get a name like `20210708181402_add_special_column.exs`
 
   Flags:
 
@@ -76,6 +80,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
           migration_path: :string,
           tenant_migration_path: :string,
           quiet: :boolean,
+          name: :string,
           no_format: :boolean,
           dry_run: :boolean,
           check_migrated: :boolean,
