@@ -5,6 +5,57 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.40.6](https://github.com/ash-project/ash_postgres/compare/v0.40.5...v0.40.6) (2021-07-08)
+
+
+
+
+### Bug Fixes:
+
+* fix migrator mix tasks w/ only/except tenants
+
+* drop foreign keys after table create properly
+
+* drop foreign keys before dropping table
+
+* left_lateral_join for many_to_many aggregates
+
+* properly reference nested aggregate fields for join
+
+* properly determine fallback table for polymorphic resources
+
+* ensure non-tenant resources can be aggregates
+
+* properly set aggregate query sources
+
+* retain parent as bindings
+
+* don't add `rel_source` at all
+
+* properly build atoms list
+
+* horribly hack ecto for dynamic bindings
+
+* properly coalesce aggregate values
+
+* always add nullability flag
+
+* sort references only after other same-table ops
+
+* generate multitenant foreign keys properly
+
+### Improvements:
+
+* `--name` when generating migrations
+
+* add `mix ash_postgres.rollback`
+
+* update to latest ash
+
+* update to latest ash
+
+* leverage new `private_vars` for errs
+
 ## [v0.40.5](https://github.com/ash-project/ash_postgres/compare/v0.40.4...v0.40.5) (2021-07-08)
 
 
