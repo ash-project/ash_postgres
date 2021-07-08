@@ -80,4 +80,50 @@ defmodule AshPostgres.MixHelpers do
         Mix.raise("Could not load #{inspect(api)}, error: #{inspect(error)}. ")
     end
   end
+
+  def tenants(repo, opts) do
+    tenants = repo.all_tenants()
+
+    tenants =
+      if is_binary(opts[:only_tenants]) do
+        Enum.filter(String.split(opts[:only_tenants], ","), fn tenant ->
+          tenant in tenants
+        end)
+      else
+        tenants
+      end
+
+    if is_binary(opts[:except_tenants]) do
+      reject = String.split(opts[:except_tenants], ",")
+
+      Enum.reject(tenants, &(&1 in reject))
+    else
+      tenants
+    end
+  end
+
+  def migrations_path(opts, repo) do
+    opts[:migrations_path] || repo.config()[:migrations_path] || derive_migrations_path(repo)
+  end
+
+  def tenant_migrations_path(opts, repo) do
+    opts[:migrations_path] || repo.config()[:tenant_migrations_path] ||
+      derive_tenant_migrations_path(repo)
+  end
+
+  def derive_migrations_path(repo) do
+    repo_name = repo |> Module.split() |> List.last() |> Macro.underscore()
+
+    "priv/"
+    |> Path.join(repo_name)
+    |> Path.join("migrations")
+  end
+
+  def derive_tenant_migrations_path(repo) do
+    repo_name = repo |> Module.split() |> List.last() |> Macro.underscore()
+
+    "priv/"
+    |> Path.join(repo_name)
+    |> Path.join("tenant_migrations")
+  end
 end

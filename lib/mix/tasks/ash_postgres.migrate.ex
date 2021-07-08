@@ -1,6 +1,9 @@
 defmodule Mix.Tasks.AshPostgres.Migrate do
   use Mix.Task
 
+  import AshPostgres.MixHelpers,
+    only: [migrations_path: 2, tenant_migrations_path: 2, tenants: 2]
+
   @shortdoc "Runs the repository migrations for all repositories in the provided (or congigured) apis"
 
   @aliases [
@@ -20,7 +23,9 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
     apis: :string,
     no_compile: :boolean,
     no_deps_check: :boolean,
-    migrations_path: :keep
+    migrations_path: :keep,
+    only_tenants: :string,
+    except_tenants: :string
   ]
 
   @moduledoc """
@@ -60,6 +65,10 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
     * `--apis` - the apis who's repos should be migrated
 
     * `--tenants` - Run the tenant migrations
+
+    * `--only-tenants` - in combo with `--tenants`, only runs migrations for the provided tenants, e.g `tenant1,tenant2,tenant3`
+
+    * `--except-tenants` - in combo with `--tenants`, does not run migrations for the provided tenants, e.g `tenant1,tenant2,tenant3`
 
     * `--all` - run all pending migrations
 
@@ -114,7 +123,7 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
     if opts[:tenants] do
       for repo <- repos do
         Ecto.Migrator.with_repo(repo, fn repo ->
-          for tenant <- repo.all_tenants() do
+          for tenant <- tenants(repo, opts) do
             rest_opts = AshPostgres.MixHelpers.delete_arg(rest_opts, "--prefix")
 
             Mix.Task.run(
@@ -138,30 +147,5 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
         Mix.Task.reenable("ecto.migrate")
       end
     end
-  end
-
-  defp migrations_path(opts, repo) do
-    opts[:migrations_path] || repo.config()[:migrations_path] || derive_migrations_path(repo)
-  end
-
-  defp tenant_migrations_path(opts, repo) do
-    opts[:migrations_path] || repo.config()[:tenant_migrations_path] ||
-      derive_tenant_migrations_path(repo)
-  end
-
-  defp derive_migrations_path(repo) do
-    repo_name = repo |> Module.split() |> List.last() |> Macro.underscore()
-
-    "priv/"
-    |> Path.join(repo_name)
-    |> Path.join("migrations")
-  end
-
-  defp derive_tenant_migrations_path(repo) do
-    repo_name = repo |> Module.split() |> List.last() |> Macro.underscore()
-
-    "priv/"
-    |> Path.join(repo_name)
-    |> Path.join("tenant_migrations")
   end
 end

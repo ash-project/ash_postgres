@@ -961,6 +961,15 @@ defmodule AshPostgres.MigrationGenerator do
        ),
        do: true
 
+  defp after?(
+         %Operation.CreateTable{table: table},
+         %Operation.DropForeignKey{
+           table: table,
+           direction: :down
+         }
+       ),
+       do: true
+
   defp after?(%Operation.AddAttribute{table: table}, %Operation.CreateTable{table: table}) do
     true
   end
