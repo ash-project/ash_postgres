@@ -1603,7 +1603,7 @@ defmodule AshPostgres.DataLayer do
             query_tenant) do
       Ecto.Query.put_query_prefix(query, query_tenant || root_tenant)
     else
-      %{query | prefix: "public"}
+      %{query | prefix: repo(relationship.destination).config()[:default_prefix] || "public"}
     end
   end
 
@@ -1631,7 +1631,10 @@ defmodule AshPostgres.DataLayer do
             query_tenant) do
       Ecto.Query.put_query_prefix(query, query_tenant || root_tenant)
     else
-      %{query | prefix: "public"}
+      %{
+        query
+        | prefix: repo(relationship.destination).config()[:default_prefix] || "public"
+      }
     end
   end
 
@@ -2263,9 +2266,12 @@ defmodule AshPostgres.DataLayer do
 
   defp set_join_prefix(join_query, query, resource) do
     if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
-      %{join_query | prefix: query.prefix}
+      %{join_query | prefix: query.prefix || "public"}
     else
-      %{join_query | prefix: "public"}
+      %{
+        join_query
+        | prefix: repo(resource).config()[:default_prefix] || "public"
+      }
     end
   end
 

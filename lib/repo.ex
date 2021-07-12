@@ -33,6 +33,8 @@ defmodule AshPostgres.Repo do
   @callback tenant_migrations_path() :: String.t()
   @doc "The path where your migrations are stored"
   @callback migrations_path() :: String.t()
+  @doc "The default prefix(postgres schema) to use when building queries"
+  @callback default_prefix() :: String.t()
 
   defmacro __using__(opts) do
     quote bind_quoted: [opts: opts] do
@@ -45,6 +47,7 @@ defmodule AshPostgres.Repo do
       def installed_extensions, do: []
       def tenant_migrations_path, do: nil
       def migrations_path, do: nil
+      def default_prefix, do: "public"
 
       def all_tenants do
         raise """
@@ -65,11 +68,16 @@ defmodule AshPostgres.Repo do
           |> Keyword.put(:installed_extensions, installed_extensions())
           |> Keyword.put(:tenant_migrations_path, tenant_migrations_path())
           |> Keyword.put(:migrations_path, migrations_path())
+          |> Keyword.put(:default_prefix, default_prefix())
 
         {:ok, new_config}
       end
 
-      defoverridable init: 2, installed_extensions: 0, all_tenants: 0, tenant_migrations_path: 0
+      defoverridable init: 2,
+                     installed_extensions: 0,
+                     all_tenants: 0,
+                     tenant_migrations_path: 0,
+                     default_prefix: 0
     end
   end
 end
