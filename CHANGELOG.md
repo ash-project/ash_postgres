@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.40.7](https://github.com/ash-project/ash_postgres/compare/v0.40.6...v0.40.7) (2021-07-12)
+
+
+
+
+### Improvements:
+
+* support default_prefix configuration
+
 ## [v0.40.6](https://github.com/ash-project/ash_postgres/compare/v0.40.5...v0.40.6) (2021-07-08)
 
 
