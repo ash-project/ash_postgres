@@ -1088,7 +1088,7 @@ defmodule AshPostgres.DataLayer do
               {{:., [], [{:&, [], [0]}, sort]}, [], []}
           end
 
-        {:cont, {:ok, %{query_expr | expr: [query_expr.expr ++ {order, expr}]}}}
+        {:cont, {:ok, %{query_expr | expr: query_expr.expr ++ [{order, expr}]}}}
     end)
     |> case do
       {:ok, %{expr: []}} ->
