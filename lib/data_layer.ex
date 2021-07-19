@@ -559,13 +559,24 @@ defmodule AshPostgres.DataLayer do
     source_query = Ash.Query.new(source_query)
 
     subquery =
-      subquery(
-        from(destination in query,
-          where:
-            field(destination, ^destination_field) ==
-              field(parent_as(:source_record), ^source_field)
+      if query.windows[:order] do
+        subquery(
+          from(destination in query,
+            select_merge: %{__order__: over(row_number(), :order)},
+            where:
+              field(destination, ^destination_field) ==
+                field(parent_as(:source_record), ^source_field)
+          )
         )
-      )
+      else
+        subquery(
+          from(destination in query,
+            where:
+              field(destination, ^destination_field) ==
+                field(parent_as(:source_record), ^source_field)
+          )
+        )
+      end
 
     source_query.resource
     |> Ash.Query.set_context(%{:data_layer => source_query.context[:data_layer]})
@@ -580,14 +591,28 @@ defmodule AshPostgres.DataLayer do
     end
     |> case do
       {:ok, data_layer_query} ->
-        {:ok,
-         from(source in data_layer_query,
-           as: :source_record,
-           where: field(source, ^source_field) in ^source_values,
-           inner_lateral_join: destination in ^subquery,
-           on: field(source, ^source_field) == field(destination, ^destination_field),
-           select: destination
-         )}
+        if query.windows[:order] do
+          {:ok,
+           from(source in data_layer_query,
+             as: :source_record,
+             where: field(source, ^source_field) in ^source_values,
+             inner_lateral_join: destination in ^subquery,
+             on: field(source, ^source_field) == field(destination, ^destination_field),
+             order_by: destination.__order__,
+             select: destination,
+             distinct: true
+           )}
+        else
+          {:ok,
+           from(source in data_layer_query,
+             as: :source_record,
+             where: field(source, ^source_field) in ^source_values,
+             inner_lateral_join: destination in ^subquery,
+             on: field(source, ^source_field) == field(destination, ^destination_field),
+             select: destination,
+             distinct: true
+           )}
+        end
 
       {:error, error} ->
         {:error, error}
@@ -628,7 +653,6 @@ defmodule AshPostgres.DataLayer do
         |> Ash.Query.set_context(%{:data_layer => source_query.context[:data_layer]})
         |> set_lateral_join_prefix(query)
         |> Ash.Query.do_filter(relationship.filter)
-        |> Ash.Query.sort(Map.get(relationship, :sort))
         |> case do
           %{valid?: true} = query ->
             Ash.Query.data_layer_query(query)
@@ -638,26 +662,53 @@ defmodule AshPostgres.DataLayer do
         end
         |> case do
           {:ok, data_layer_query} ->
-            subquery =
-              subquery(
-                from(destination in query,
-                  join: through in ^through_query,
-                  on:
-                    field(through, ^destination_field_on_join_table) ==
-                      field(destination, ^destination_field),
-                  where:
-                    field(through, ^source_field_on_join_table) ==
-                      field(parent_as(:source_record), ^source_field)
+            if query.windows[:order] do
+              subquery =
+                subquery(
+                  from(destination in query,
+                    select_merge: %{__order__: over(row_number(), :order)},
+                    join: through in ^through_query,
+                    on:
+                      field(through, ^destination_field_on_join_table) ==
+                        field(destination, ^destination_field),
+                    where:
+                      field(through, ^source_field_on_join_table) ==
+                        field(parent_as(:source_record), ^source_field)
+                  )
                 )
-              )
 
-            {:ok,
-             from(source in data_layer_query,
-               as: :source_record,
-               where: field(source, ^source_field) in ^source_values,
-               inner_lateral_join: through in ^subquery,
-               select: through
-             )}
+              {:ok,
+               from(source in data_layer_query,
+                 as: :source_record,
+                 where: field(source, ^source_field) in ^source_values,
+                 inner_lateral_join: destination in ^subquery,
+                 select: destination,
+                 order_by: destination.__order__,
+                 distinct: true
+               )}
+            else
+              subquery =
+                subquery(
+                  from(destination in query,
+                    join: through in ^through_query,
+                    on:
+                      field(through, ^destination_field_on_join_table) ==
+                        field(destination, ^destination_field),
+                    where:
+                      field(through, ^source_field_on_join_table) ==
+                        field(parent_as(:source_record), ^source_field)
+                  )
+                )
+
+              {:ok,
+               from(source in data_layer_query,
+                 as: :source_record,
+                 where: field(source, ^source_field) in ^source_values,
+                 inner_lateral_join: destination in ^subquery,
+                 select: destination,
+                 distinct: true
+               )}
+            end
 
           {:error, error} ->
             {:error, error}
@@ -957,8 +1008,8 @@ defmodule AshPostgres.DataLayer do
 
     sort
     |> sanitize_sort()
-    |> Enum.reduce_while({:ok, query}, fn
-      {order, %Ash.Query.Calculation{} = calc}, {:ok, query} ->
+    |> Enum.reduce_while({:ok, %Ecto.Query.QueryExpr{expr: [], params: []}}, fn
+      {order, %Ash.Query.Calculation{} = calc}, {:ok, query_expr} ->
         type =
           if calc.type do
             Ash.Type.ecto_type(calc.type)
@@ -976,27 +1027,17 @@ defmodule AshPostgres.DataLayer do
         })
         |> case do
           {:ok, expr} ->
-            {params, expr} = do_filter_to_expr(expr, query.__ash_bindings__, [], false, type)
+            {params, expr} =
+              do_filter_to_expr(expr, query.__ash_bindings__, query_expr.params, false, type)
 
-            new_query =
-              Map.update!(query, :order_bys, fn order_bys ->
-                order_bys = order_bys || []
-
-                sort_expr = %Ecto.Query.QueryExpr{
-                  expr: [{order, expr}],
-                  params: params
-                }
-
-                order_bys ++ [sort_expr]
-              end)
-
-            {:cont, {:ok, new_query}}
+            {:cont,
+             {:ok, %{query_expr | expr: query_expr.expr ++ [{order, expr}], params: params}}}
 
           {:error, error} ->
             {:halt, {:error, error}}
         end
 
-      {order, sort}, {:ok, query} ->
+      {order, sort}, {:ok, query_expr} ->
         expr =
           case Map.fetch(query.__ash_bindings__.aggregates, sort) do
             {:ok, binding} ->
@@ -1047,21 +1088,30 @@ defmodule AshPostgres.DataLayer do
               {{:., [], [{:&, [], [0]}, sort]}, [], []}
           end
 
-        new_query =
-          Map.update!(query, :order_bys, fn order_bys ->
-            order_bys = order_bys || []
+        {:cont, {:ok, %{query_expr | expr: [query_expr.expr ++ {order, expr}]}}}
+    end)
+    |> case do
+      {:ok, %{expr: []}} ->
+        {:ok, query}
 
-            sort_expr = %Ecto.Query.QueryExpr{
-              expr: [
-                {order, expr}
-              ]
-            }
+      {:ok, sort_expr} ->
+        new_query =
+          query
+          |> Map.update!(:order_bys, fn order_bys ->
+            order_bys = order_bys || []
 
             order_bys ++ [sort_expr]
           end)
+          |> Map.update!(:windows, fn windows ->
+            order_by_expr = %{sort_expr | expr: [order_by: sort_expr.expr]}
+            Keyword.put(windows, :order, order_by_expr)
+          end)
 
-        {:cont, {:ok, new_query}}
-    end)
+        {:ok, new_query}
+
+      {:error, error} ->
+        {:error, error}
+    end
   end
 
   @impl true
