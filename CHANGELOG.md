@@ -5,6 +5,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.40.8](https://github.com/ash-project/ash_postgres/compare/v0.40.7...v0.40.8) (2021-07-19)
+
+
+
+
+### Bug Fixes:
+
+* ensure source table is sorted in lateral join
+
+### Improvements:
+
+* fix significant performance issue in lateral joins
+
 ## [v0.40.7](https://github.com/ash-project/ash_postgres/compare/v0.40.6...v0.40.7) (2021-07-12)
 
 
