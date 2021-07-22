@@ -1238,8 +1238,6 @@ defmodule AshPostgres.DataLayer do
 
   @known_inner_join_predicates @known_inner_join_functions ++ @known_inner_join_operators
 
-  # For consistency's sake, this logic was removed.
-  # We can revisit it sometime though.
   defp can_inner_join?(path, expr, seen_an_or? \\ false)
 
   defp can_inner_join?(path, %{expression: expr}, seen_an_or?),

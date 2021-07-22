@@ -103,4 +103,11 @@ defmodule AshPostgres.SortTest do
                |> Ash.Query.select([:title, :score])
              )
   end
+
+  test "calculations can be sorted on w/o loading aggregates they reference" do
+    Post
+    |> Ash.Query.load(:count_of_comments)
+    |> Ash.Query.sort(:c_times_p)
+    |> Api.read!()
+  end
 end
