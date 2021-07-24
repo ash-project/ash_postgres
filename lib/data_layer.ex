@@ -449,10 +449,6 @@ defmodule AshPostgres.DataLayer do
 
   defp repo_opts(_), do: []
 
-  defp lateral_join_repo_opts(%Ash.Changeset{tenant: tenant}, resource) do
-    repo_opts(%{tenant: tenant, resource: resource})
-  end
-
   defp lateral_join_repo_opts(%{tenant: tenant}, resource) when not is_nil(tenant) do
     if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
       [prefix: tenant]
@@ -541,6 +537,11 @@ defmodule AshPostgres.DataLayer do
         _destination_resource,
         path
       ) do
+    source_query =
+      path
+      |> Enum.at(0)
+      |> elem(0)
+
     case lateral_join_query(
            query,
            root_data,
@@ -553,7 +554,8 @@ defmodule AshPostgres.DataLayer do
           |> elem(0)
           |> Map.get(:resource)
 
-        {:ok, repo(source_resource).all(query, lateral_join_repo_opts(query, source_resource))}
+        {:ok,
+         repo(source_resource).all(query, lateral_join_repo_opts(source_query, source_resource))}
 
       {:error, error} ->
         {:error, error}
@@ -563,7 +565,7 @@ defmodule AshPostgres.DataLayer do
   defp lateral_join_query(
          query,
          root_data,
-         [{source_query, source_field, destination_field, _relationship}]
+         [{source_query, source_field, destination_field, relationship}]
        ) do
     source_values = Enum.map(root_data, &Map.get(&1, source_field))
     source_query = Ash.Query.new(source_query)
@@ -577,6 +579,7 @@ defmodule AshPostgres.DataLayer do
               field(destination, ^destination_field) ==
                 field(parent_as(:source_record), ^source_field)
           )
+          |> set_subquery_prefix(source_query, relationship.destination)
         )
       else
         subquery(
@@ -585,6 +588,7 @@ defmodule AshPostgres.DataLayer do
               field(destination, ^destination_field) ==
                 field(parent_as(:source_record), ^source_field)
           )
+          |> set_subquery_prefix(source_query, relationship.destination)
         )
       end
 
@@ -675,9 +679,19 @@ defmodule AshPostgres.DataLayer do
             if query.windows[:order] do
               subquery =
                 subquery(
-                  from(destination in query,
+                  from(
+                    destination in set_subquery_prefix(
+                      query,
+                      source_query,
+                      relationship.destination
+                    ),
                     select_merge: %{__order__: over(row_number(), :order)},
-                    join: through in ^through_query,
+                    join:
+                      through in ^set_subquery_prefix(
+                        through_query,
+                        source_query,
+                        relationship.through
+                      ),
                     on:
                       field(through, ^destination_field_on_join_table) ==
                         field(destination, ^destination_field),
@@ -699,8 +713,18 @@ defmodule AshPostgres.DataLayer do
             else
               subquery =
                 subquery(
-                  from(destination in query,
-                    join: through in ^through_query,
+                  from(
+                    destination in set_subquery_prefix(
+                      query,
+                      source_query,
+                      relationship.destination
+                    ),
+                    join:
+                      through in ^set_subquery_prefix(
+                        through_query,
+                        source_query,
+                        relationship.through
+                      ),
                     on:
                       field(through, ^destination_field_on_join_table) ==
                         field(destination, ^destination_field),
@@ -726,6 +750,22 @@ defmodule AshPostgres.DataLayer do
 
       {:error, error} ->
         {:error, error}
+    end
+  end
+
+  defp set_subquery_prefix(data_layer_query, source_query, resource) do
+    if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
+      Ecto.Query.put_query_prefix(
+        data_layer_query,
+        source_query.tenant || repo(resource).config()[:default_prefix] ||
+          "public"
+      )
+    else
+      Ecto.Query.put_query_prefix(
+        data_layer_query,
+        repo(resource).config()[:default_prefix] ||
+          "public"
+      )
     end
   end
 

@@ -119,6 +119,56 @@ defmodule AshPostgres.Test.MultitenancyTest do
              Api.load!(org, users: Ash.Query.sort(User, :name)).users
   end
 
+  test "manage_relationship from context multitenant resource to attribute multitenant resource doesn't raise an error" do
+    org = Org |> Ash.Changeset.new() |> Api.create!()
+    user = User |> Ash.Changeset.new() |> Api.create!()
+
+    Post
+    |> Ash.Changeset.for_create(:create, %{}, tenant: tenant(org))
+    |> Ash.Changeset.replace_relationship(:user, user)
+    |> Api.create!()
+  end
+
+  test "loading attribute multitenant resources with limits from context multitenant resources works" do
+    org =
+      Org
+      |> Ash.Changeset.new()
+      |> Api.create!()
+
+    user =
+      User
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.replace_relationship(:org, org)
+      |> Api.create!()
+
+    assert Api.load!(user, :org).org.id == org.id
+  end
+
+  test "loading context multitenant resources with limits from attribute multitenant resources works" do
+    org =
+      Org
+      |> Ash.Changeset.new()
+      |> Api.create!()
+
+    user1 =
+      User
+      |> Ash.Changeset.new(%{name: "a"})
+      |> Ash.Changeset.replace_relationship(:org, org)
+      |> Api.create!()
+
+    user2 =
+      User
+      |> Ash.Changeset.new(%{name: "b"})
+      |> Ash.Changeset.replace_relationship(:org, org)
+      |> Api.create!()
+
+    user1_id = user1.id
+    user2_id = user2.id
+
+    assert [%{id: ^user1_id}, %{id: ^user2_id}] =
+             Api.load!(org, users: Ash.Query.sort(Ash.Query.limit(User, 10), :name)).users
+  end
+
   test "unique constraints are properly scoped", %{org1: org1} do
     post =
       Post
