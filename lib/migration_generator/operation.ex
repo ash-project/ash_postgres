@@ -75,12 +75,17 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                 } = reference
             } = attribute
         }) do
+      with_match =
+        if destination_attribute != destination_field do
+          "with: [#{source_attribute}: :#{destination_attribute}]"
+        end
+
       [
         "add #{inspect(attribute.name)}",
         "references(:#{table}",
         [
           "column: #{inspect(destination_field)}",
-          "with: [#{source_attribute}: :#{destination_attribute}]",
+          with_match,
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
           on_delete(reference),
@@ -355,10 +360,14 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                } = reference
            } = attribute
          ) do
+      with_match =
+        if destination_attribute != destination_field do
+          "with: [#{source_attribute}: :#{destination_attribute}]"
+        end
+
       join([
-        "references(:#{table}, column: #{inspect(destination_field)}, with: [#{source_attribute}: :#{
-          destination_attribute
-        }]",
+        "references(:#{table}, column: #{inspect(destination_field)}",
+        with_match,
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
         on_delete(reference),

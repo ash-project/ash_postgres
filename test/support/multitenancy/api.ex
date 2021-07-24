@@ -4,6 +4,7 @@ defmodule AshPostgres.MultitenancyTest.Api do
 
   resources do
     resource(AshPostgres.MultitenancyTest.Org)
+    resource(AshPostgres.MultitenancyTest.User)
     resource(AshPostgres.MultitenancyTest.Post)
   end
 end

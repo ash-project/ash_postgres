@@ -39,6 +39,7 @@ defmodule AshPostgres.MultitenancyTest.Org do
 
   relationships do
     has_many(:posts, AshPostgres.MultitenancyTest.Post, destination_field: :org_id)
+    has_many(:users, AshPostgres.MultitenancyTest.User, destination_field: :org_id)
   end
 
   def tenant("org_" <> tenant) do

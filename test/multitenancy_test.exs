@@ -1,7 +1,7 @@
 defmodule AshPostgres.Test.MultitenancyTest do
   use AshPostgres.RepoCase, async: false
 
-  alias AshPostgres.MultitenancyTest.{Api, Org, Post}
+  alias AshPostgres.MultitenancyTest.{Api, Org, Post, User}
 
   setup do
     org1 =
@@ -77,6 +77,46 @@ defmodule AshPostgres.Test.MultitenancyTest do
                }';
                """
              )
+  end
+
+  test "loading attribute multitenant resources from context multitenant resources works" do
+    org =
+      Org
+      |> Ash.Changeset.new()
+      |> Api.create!()
+
+    user =
+      User
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.replace_relationship(:org, org)
+      |> Api.create!()
+
+    assert Api.load!(user, :org).org.id == org.id
+  end
+
+  test "loading context multitenant resources from attribute multitenant resources works" do
+    org =
+      Org
+      |> Ash.Changeset.new()
+      |> Api.create!()
+
+    user1 =
+      User
+      |> Ash.Changeset.new(%{name: "a"})
+      |> Ash.Changeset.replace_relationship(:org, org)
+      |> Api.create!()
+
+    user2 =
+      User
+      |> Ash.Changeset.new(%{name: "b"})
+      |> Ash.Changeset.replace_relationship(:org, org)
+      |> Api.create!()
+
+    user1_id = user1.id
+    user2_id = user2.id
+
+    assert [%{id: ^user1_id}, %{id: ^user2_id}] =
+             Api.load!(org, users: Ash.Query.sort(User, :name)).users
   end
 
   test "unique constraints are properly scoped", %{org1: org1} do

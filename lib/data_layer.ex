@@ -439,10 +439,6 @@ defmodule AshPostgres.DataLayer do
   defp no_table?(%{from: %{source: {"", _}}}), do: true
   defp no_table?(_), do: false
 
-  defp repo_opts(%Ash.Changeset{tenant: tenant, resource: resource}) do
-    repo_opts(%{tenant: tenant, resource: resource})
-  end
-
   defp repo_opts(%{tenant: tenant, resource: resource}) when not is_nil(tenant) do
     if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
       [prefix: tenant]
@@ -452,6 +448,20 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp repo_opts(_), do: []
+
+  defp lateral_join_repo_opts(%Ash.Changeset{tenant: tenant}, resource) do
+    repo_opts(%{tenant: tenant, resource: resource})
+  end
+
+  defp lateral_join_repo_opts(%{tenant: tenant}, resource) when not is_nil(tenant) do
+    if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
+      [prefix: tenant]
+    else
+      []
+    end
+  end
+
+  defp lateral_join_repo_opts(_, _), do: []
 
   @impl true
   def functions(resource) do
@@ -517,7 +527,7 @@ defmodule AshPostgres.DataLayer do
             &add_subquery_aggregate_select(&2, &1, destination_resource)
           )
 
-        {:ok, repo(source_resource).one(query, repo_opts(:query))}
+        {:ok, repo(source_resource).one(query, lateral_join_repo_opts(query, source_resource))}
 
       {:error, error} ->
         {:error, error}
@@ -543,7 +553,7 @@ defmodule AshPostgres.DataLayer do
           |> elem(0)
           |> Map.get(:resource)
 
-        {:ok, repo(source_resource).all(query, repo_opts(query))}
+        {:ok, repo(source_resource).all(query, lateral_join_repo_opts(query, source_resource))}
 
       {:error, error} ->
         {:error, error}

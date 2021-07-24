@@ -1,4 +1,4 @@
-defmodule AshPostgres.MultitenancyTest.Post do
+defmodule AshPostgres.MultitenancyTest.User do
   @moduledoc false
   use Ash.Resource,
     data_layer: AshPostgres.DataLayer
@@ -6,28 +6,26 @@ defmodule AshPostgres.MultitenancyTest.Post do
   attributes do
     uuid_primary_key(:id, writable?: true)
     attribute(:name, :string)
-  end
-
-  actions do
-    create(:create)
-    read(:read)
-    update(:update)
-    destroy(:destroy)
+    attribute(:org_id, :uuid)
   end
 
   postgres do
-    table "multitenant_posts"
+    table "users"
     repo AshPostgres.TestRepo
   end
 
   multitenancy do
     # Tells the resource to use the data layer
     # multitenancy, in this case separate postgres schemas
-    strategy(:context)
+    strategy(:attribute)
+    attribute(:org_id)
+    parse_attribute({__MODULE__, :parse_tenant, []})
+    global?(true)
   end
 
   relationships do
     belongs_to(:org, AshPostgres.MultitenancyTest.Org)
-    belongs_to(:user, AshPostgres.MultitenancyTest.User)
   end
+
+  def parse_tenant("org_" <> id), do: id
 end
