@@ -342,6 +342,33 @@ defmodule AshPostgres.FilterTest do
                |> Ash.Query.filter(contains(category, ^"ATC"))
                |> Api.read!()
     end
+
+    test "it works on related values" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "match"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "abba"})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      post2 =
+        Post
+        |> Ash.Changeset.new(%{title: "no_match"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "acca"})
+      |> Ash.Changeset.replace_relationship(:post, post2)
+      |> Api.create!()
+
+      assert [%{title: "match"}] =
+               Post
+               |> Ash.Query.filter(contains(comments.title, ^"bb"))
+               |> Api.read!()
+    end
   end
 
   describe "atom filters" do
