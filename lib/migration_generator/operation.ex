@@ -77,7 +77,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         }) do
       with_match =
         if destination_attribute != destination_field do
-          "with: [#{source_attribute}: :#{destination_attribute}]"
+          "with: [#{source_attribute}: :#{destination_attribute}], match: :full"
         end
 
       [
@@ -362,7 +362,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
          ) do
       with_match =
         if destination_attribute != destination_field do
-          "with: [#{source_attribute}: :#{destination_attribute}]"
+          "with: [#{source_attribute}: :#{destination_attribute}], match: :full"
         end
 
       join([
