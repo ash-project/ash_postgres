@@ -48,8 +48,11 @@ defmodule AshPostgres.MigrationGenerator do
       |> Enum.map(& &1.repo)
       |> Enum.uniq()
 
+    Mix.shell().info("\nExtension Migrations: ")
     create_extension_migrations(repos, opts)
+    Mix.shell().info("\nGenerating Tenant Migrations: ")
     create_migrations(tenant_snapshots, opts, true)
+    Mix.shell().info("\nGenerating Migrations:")
     create_migrations(snapshots, opts, false)
   end
 
@@ -112,6 +115,7 @@ defmodule AshPostgres.MigrationGenerator do
       to_install = List.wrap(repo.installed_extensions()) -- List.wrap(installed_extensions)
 
       if Enum.empty?(to_install) do
+        Mix.shell().info("No extensions to install")
         :ok
       else
         {module, migration_name} =
