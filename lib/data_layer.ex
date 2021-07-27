@@ -2591,18 +2591,14 @@ defmodule AshPostgres.DataLayer do
          embedded?,
          type
        ) do
-    {params, left_expr} = do_filter_to_expr(left, bindings, params, pred_embedded? || embedded?)
-
-    {params, right_expr} = do_filter_to_expr(right, bindings, params, pred_embedded? || embedded?)
-
     do_filter_to_expr(
       %Fragment{
         embedded?: pred_embedded?,
         arguments: [
           raw: "strpos(",
-          expr: left_expr,
+          expr: left,
           raw: "::citext, ",
-          expr: right_expr,
+          expr: right,
           raw: ") > 0"
         ]
       },
@@ -2620,18 +2616,14 @@ defmodule AshPostgres.DataLayer do
          embedded?,
          type
        ) do
-    {params, left_expr} = do_filter_to_expr(left, bindings, params, pred_embedded? || embedded?)
-
-    {params, right_expr} = do_filter_to_expr(right, bindings, params, pred_embedded? || embedded?)
-
     do_filter_to_expr(
       %Fragment{
         embedded?: pred_embedded?,
         arguments: [
           raw: "strpos(",
-          expr: left_expr,
+          expr: left,
           raw: ", ",
-          expr: right_expr,
+          expr: right,
           raw: ") > 0"
         ]
       },
