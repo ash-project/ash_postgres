@@ -579,8 +579,8 @@ defmodule AshPostgres.DataLayer do
               field(destination, ^destination_field) ==
                 field(parent_as(:source_record), ^source_field)
           )
-          |> set_subquery_prefix(source_query, relationship.destination)
         )
+        |> set_subquery_prefix(source_query, relationship.destination)
       else
         subquery(
           from(destination in query,
@@ -588,8 +588,8 @@ defmodule AshPostgres.DataLayer do
               field(destination, ^destination_field) ==
                 field(parent_as(:source_record), ^source_field)
           )
-          |> set_subquery_prefix(source_query, relationship.destination)
         )
+        |> set_subquery_prefix(source_query, relationship.destination)
       end
 
     source_query.resource
@@ -680,11 +680,7 @@ defmodule AshPostgres.DataLayer do
               subquery =
                 subquery(
                   from(
-                    destination in set_subquery_prefix(
-                      query,
-                      source_query,
-                      relationship.destination
-                    ),
+                    destination in query,
                     select_merge: %{__order__: over(row_number(), :order)},
                     join:
                       through in ^set_subquery_prefix(
@@ -700,6 +696,10 @@ defmodule AshPostgres.DataLayer do
                         field(parent_as(:source_record), ^source_field)
                   )
                 )
+                |> set_subquery_prefix(
+                  source_query,
+                  relationship.destination
+                )
 
               {:ok,
                from(source in data_layer_query,
@@ -714,11 +714,7 @@ defmodule AshPostgres.DataLayer do
               subquery =
                 subquery(
                   from(
-                    destination in set_subquery_prefix(
-                      query,
-                      source_query,
-                      relationship.destination
-                    ),
+                    destination in query,
                     join:
                       through in ^set_subquery_prefix(
                         through_query,
@@ -732,6 +728,10 @@ defmodule AshPostgres.DataLayer do
                       field(through, ^source_field_on_join_table) ==
                         field(parent_as(:source_record), ^source_field)
                   )
+                )
+                |> set_subquery_prefix(
+                  source_query,
+                  relationship.destination
                 )
 
               {:ok,
@@ -2124,7 +2124,7 @@ defmodule AshPostgres.DataLayer do
             case kind do
               {:aggregate, _, subquery} ->
                 {subquery, alias_name} =
-                  agg_subquery_for_lateral_join(current_binding, subquery, relationship)
+                  agg_subquery_for_lateral_join(current_binding, query, subquery, relationship)
 
                 from([{row, current_binding}] in query,
                   left_lateral_join: through in ^subquery
@@ -2254,7 +2254,7 @@ defmodule AshPostgres.DataLayer do
               case kind do
                 {:aggregate, _, subquery} ->
                   {subquery, alias_name} =
-                    agg_subquery_for_lateral_join(current_binding, subquery, relationship)
+                    agg_subquery_for_lateral_join(current_binding, query, subquery, relationship)
 
                   from([{row, current_binding}] in query,
                     left_lateral_join: destination in ^subquery,
@@ -2302,7 +2302,7 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp agg_subquery_for_lateral_join(current_binding, subquery, relationship) do
+  defp agg_subquery_for_lateral_join(current_binding, query, subquery, relationship) do
     alias_name = @atoms[current_binding]
 
     inner_sub = from(destination in subquery, [])
@@ -2334,6 +2334,7 @@ defmodule AshPostgres.DataLayer do
         sub in subquery(inner_sub_with_where),
         select: field(sub, ^dest_field)
       )
+      |> set_join_prefix(query, relationship.destination)
 
     {subquery, alias_name}
   end
@@ -2590,14 +2591,18 @@ defmodule AshPostgres.DataLayer do
          embedded?,
          type
        ) do
+    {params, left_expr} = do_filter_to_expr(left, bindings, params, pred_embedded? || embedded?)
+
+    {params, right_expr} = do_filter_to_expr(right, bindings, params, pred_embedded? || embedded?)
+
     do_filter_to_expr(
       %Fragment{
         embedded?: pred_embedded?,
         arguments: [
           raw: "strpos(",
-          expr: left,
+          expr: left_expr,
           raw: "::citext, ",
-          expr: right,
+          expr: right_expr,
           raw: ") > 0"
         ]
       },
@@ -2615,14 +2620,18 @@ defmodule AshPostgres.DataLayer do
          embedded?,
          type
        ) do
+    {params, left_expr} = do_filter_to_expr(left, bindings, params, pred_embedded? || embedded?)
+
+    {params, right_expr} = do_filter_to_expr(right, bindings, params, pred_embedded? || embedded?)
+
     do_filter_to_expr(
       %Fragment{
         embedded?: pred_embedded?,
         arguments: [
           raw: "strpos(",
-          expr: left,
+          expr: left_expr,
           raw: ", ",
-          expr: right,
+          expr: right_expr,
           raw: ") > 0"
         ]
       },
@@ -2870,6 +2879,8 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp do_filter_to_expr(%Ash.CiString{string: string}, bindings, params, embedded?, type) do
+    {params, string} = do_filter_to_expr(string, bindings, params, embedded?)
+
     do_filter_to_expr(
       %Fragment{
         embedded?: embedded?,
