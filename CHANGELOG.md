@@ -5,6 +5,33 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.40.10](https://github.com/ash-project/ash_postgres/compare/v0.40.9...v0.40.10) (2021-07-27)
+
+
+
+
+### Bug Fixes:
+
+* set subquery source correctly
+
+* create parameter for ci strings
+
+* explicitly set prefix at each level
+
+* interaction w/ attribute and context tenancy
+
+### Improvements:
+
+* info on migration generator output
+
+* use match: :full on attr multitenancy
+
+* update to latest ash
+
+* update to latest ash
+
+* upgrade ash dep
+
 ## [v0.40.9](https://github.com/ash-project/ash_postgres/compare/v0.40.8...v0.40.9) (2021-07-22)
 
 
