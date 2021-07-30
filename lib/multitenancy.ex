@@ -91,8 +91,9 @@ defmodule AshPostgres.MultiTenancy do
 
   defp default_tenant_migration_path(repo) do
     repo_name = repo |> Module.split() |> List.last() |> Macro.underscore()
+    otp_app = repo.config()[:otp_app]
 
-    "priv/"
+    :code.priv_dir(otp_app)
     |> Path.join(repo_name)
     |> Path.join("tenant_migrations")
   end
