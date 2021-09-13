@@ -7,10 +7,21 @@ defmodule AshPostgres.Functions.Type do
 
   use Ash.Query.Function, name: :type
 
-  def args, do: [[:any, :any]]
+  def args, do: [[:any, :any], [:any, :any, :any]]
 
   def new([left, :citext]) do
-    %AshPostgres.Functions.Fragment{arguments: ["?::citext", left]}
+    {:ok, %AshPostgres.Functions.Fragment{arguments: ["?::citext", left]}}
+  end
+
+  def new([left, :citext, constraints]) do
+    {:ok,
+     %__MODULE__{
+       arguments: [
+         %AshPostgres.Functions.Fragment{arguments: ["?::citext", left]},
+         Ash.Type.CiString,
+         constraints
+       ]
+     }}
   end
 
   def new([left, right]) do
@@ -22,5 +33,16 @@ defmodule AshPostgres.Functions.Type do
       end
 
     {:ok, %__MODULE__{arguments: [left, right]}}
+  end
+
+  def new([left, right, constraints]) do
+    right =
+      if is_atom(right) || match?({:array, type} when is_atom(type), right) do
+        {:embed, right}
+      else
+        right
+      end
+
+    {:ok, %__MODULE__{arguments: [left, right, constraints]}}
   end
 end

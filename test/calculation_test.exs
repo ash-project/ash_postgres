@@ -213,7 +213,7 @@ defmodule AshPostgres.CalculationTest do
              |> Api.read_one!()
   end
 
-  test "paramaterized calculations can be sorted on" do
+  test "parameterized calculations can be sorted on" do
     Author
     |> Ash.Changeset.new(%{first_name: "tom", last_name: "holland"})
     |> Api.create!()

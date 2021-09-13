@@ -72,9 +72,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
              Ecto.Adapters.SQL.query(
                AshPostgres.TestRepo,
                """
-               SELECT schema_name FROM information_schema.schemata WHERE schema_name = '#{
-                 new_tenant
-               }';
+               SELECT schema_name FROM information_schema.schemata WHERE schema_name = '#{new_tenant}';
                """
              )
   end

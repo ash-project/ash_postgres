@@ -92,10 +92,10 @@ defmodule AshPostgres.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ecto_sql, "~> 3.5"},
+      {:ecto_sql, "~> 3.7"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
-      {:ash, ash_version("~> 1.47 and >= 1.47.4")},
+      {:ash, ash_version("1.48.0-rc.0")},
       {:git_ops, "~> 2.4.3", only: :dev},
       {:ex_doc, "~> 0.22", only: :dev, runtime: false},
       {:ex_check, "~> 0.11.0", only: :dev},

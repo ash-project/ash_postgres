@@ -1407,9 +1407,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp renaming_to?(table, removing, adding, opts) do
     if opts.no_shell? do
-      raise "Unimplemented: cannot determine: Are you renaming #{table}.#{removing} to #{table}.#{
-              adding
-            }? without shell input"
+      raise "Unimplemented: cannot determine: Are you renaming #{table}.#{removing} to #{table}.#{adding}? without shell input"
     else
       Mix.shell().yes?("Are you renaming #{table}.#{removing} to #{table}.#{adding}?")
     end

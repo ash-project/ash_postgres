@@ -1070,7 +1070,7 @@ defmodule AshPostgres.DataLayer do
       {order, %Ash.Query.Calculation{} = calc}, {:ok, query_expr} ->
         type =
           if calc.type do
-            Ash.Type.ecto_type(calc.type)
+            parameterized_type(calc.type, [])
           else
             nil
           end
@@ -1110,7 +1110,7 @@ defmodule AshPostgres.DataLayer do
                   attr = Ash.Resource.Info.attribute(related, aggregate.field)
 
                   if attr && related do
-                    {:ok, attr.type}
+                    {:ok, parameterized_type(attr.type, attr.constraints)}
                   else
                     {:ok, nil}
                   end
@@ -1130,7 +1130,7 @@ defmodule AshPostgres.DataLayer do
                      {:type, [],
                       [
                         default_value,
-                        Ash.Type.ecto_type(field_type)
+                        field_type
                       ]}
                    ]}
                 else
@@ -1500,7 +1500,7 @@ defmodule AshPostgres.DataLayer do
       {:type, [],
        [
          expr,
-         Ash.Type.ecto_type(calculation.type)
+         parameterized_type(calculation.type, [])
        ]}
 
     name =
@@ -1538,7 +1538,7 @@ defmodule AshPostgres.DataLayer do
       {:type, [],
        [
          expr,
-         Ash.Type.ecto_type(calculation.type)
+         parameterized_type(calculation.type, [])
        ]}
 
     load_as =
@@ -1553,6 +1553,22 @@ defmodule AshPostgres.DataLayer do
       | expr: {:merge, [], [select_expr, {:%{}, [], [{load_as, field}]}]},
         params: params
     }
+  end
+
+  defp parameterized_type({:array, type}, constraints) do
+    {:array, parameterized_type(type, constraints[:items] || [])}
+  end
+
+  defp parameterized_type(type, constraints) do
+    if Ash.Type.ash_type?(type) do
+      {:parameterized, Ash.Type.ecto_type(type), constraints}
+    else
+      if is_atom(type) && :erlang.function_exported(type, :type, 2) do
+        {:parameterized, Ash.Type.ecto_type(type), constraints}
+      else
+        type
+      end
+    end
   end
 
   defp add_to_aggregate_select(
@@ -1574,7 +1590,7 @@ defmodule AshPostgres.DataLayer do
       {:type, [],
        [
          accessed,
-         Ash.Type.ecto_type(aggregate.type)
+         parameterized_type(aggregate.type, [])
        ]}
 
     field_with_default =
@@ -1587,7 +1603,7 @@ defmodule AshPostgres.DataLayer do
            {:type, [],
             [
               aggregate.default_value,
-              Ash.Type.ecto_type(aggregate.type)
+              parameterized_type(aggregate.type, [])
             ]}
          ]}
       end
@@ -1620,7 +1636,7 @@ defmodule AshPostgres.DataLayer do
       {:type, [],
        [
          accessed,
-         Ash.Type.ecto_type(aggregate.type)
+         parameterized_type(aggregate.type, [])
        ]}
 
     field_with_default =
@@ -1633,7 +1649,7 @@ defmodule AshPostgres.DataLayer do
            {:type, [],
             [
               aggregate.default_value,
-              Ash.Type.ecto_type(aggregate.type)
+              parameterized_type(aggregate.type, [])
             ]}
          ]}
       end
@@ -1758,7 +1774,7 @@ defmodule AshPostgres.DataLayer do
   defp add_subquery_aggregate_select(query, %{kind: :first} = aggregate, _resource) do
     query = default_bindings(query, aggregate.resource)
     key = aggregate.field
-    type = Ash.Type.ecto_type(aggregate.type)
+    type = parameterized_type(aggregate.type, [])
 
     field =
       if aggregate.query && aggregate.query.sort && aggregate.query.sort != [] do
@@ -1782,7 +1798,9 @@ defmodule AshPostgres.DataLayer do
            expr: {{:., [], [{:&, [], [0]}, key]}, [], []},
            raw: " ORDER BY "
          ] ++
-           sort_expr ++ [raw: ")"]}
+           update_last(sort_expr, fn {:raw, str} ->
+             {:raw, str <> ")"}
+           end)}
       else
         {:fragment, [],
          [
@@ -1837,7 +1855,7 @@ defmodule AshPostgres.DataLayer do
   defp add_subquery_aggregate_select(query, %{kind: :list} = aggregate, _resource) do
     query = default_bindings(query, aggregate.resource)
     key = aggregate.field
-    type = Ash.Type.ecto_type(aggregate.type)
+    type = parameterized_type(aggregate.type, [])
 
     field =
       if aggregate.query && aggregate.query.sort && aggregate.query.sort != [] do
@@ -1861,7 +1879,7 @@ defmodule AshPostgres.DataLayer do
            expr: {{:., [], [{:&, [], [0]}, key]}, [], []},
            raw: " ORDER BY "
          ] ++
-           sort_expr ++ [raw: ")"]}
+           update_last(sort_expr, fn {:raw, str} -> {:raw, str <> ")"} end)}
       else
         {:fragment, [],
          [
@@ -1904,7 +1922,7 @@ defmodule AshPostgres.DataLayer do
        when kind in [:count, :sum] do
     query = default_bindings(query, aggregate.resource)
     key = aggregate.field || List.first(Ash.Resource.Info.primary_key(resource))
-    type = Ash.Type.ecto_type(aggregate.type)
+    type = parameterized_type(aggregate.type, [])
 
     field = {kind, [], [{{:., [], [{:&, [], [0]}, key]}, [], []}]}
 
@@ -1935,6 +1953,14 @@ defmodule AshPostgres.DataLayer do
     new_expr = {:merge, [], [query.select.expr, {:%{}, [], [{aggregate.name, cast}]}]}
 
     %{query | select: %{query.select | expr: new_expr, params: params}}
+  end
+
+  defp update_last(list, func) do
+    count = length(list)
+    List.update_at(list, count - 1, func)
+  rescue
+    _ ->
+      list
   end
 
   defp relationship_path_to_relationships(resource, path, acc \\ [])
@@ -2478,29 +2504,15 @@ defmodule AshPostgres.DataLayer do
          params,
          embedded?,
          _type
-       )
-       when pred_embedded? or embedded? do
-    {params, arg1} = do_filter_to_expr(arg1, bindings, params, true)
+       ) do
+    {params, arg1} = do_filter_to_expr(arg1, bindings, params, false)
+    {params, arg2} = do_filter_to_expr(arg2, bindings, params, pred_embedded? || embedded?)
 
-    {params, arg2} = do_filter_to_expr(arg2, bindings, params, true)
-
-    case maybe_ecto_type(arg2) do
-      nil ->
-        {params, {:type, [], [arg1, arg2]}}
-
-      type ->
-        case arg1 do
-          %{__predicate__?: _} ->
-            {params, {:type, [], [arg1, arg2]}}
-
-          value ->
-            {params, %Ecto.Query.Tagged{value: value, type: type}}
-        end
-    end
+    {params, {:type, [], [arg1, parameterized_type(arg2, [])]}}
   end
 
   defp do_filter_to_expr(
-         %Type{arguments: [arg1, arg2], embedded?: pred_embedded?},
+         %Type{arguments: [arg1, arg2, constraints], embedded?: pred_embedded?},
          bindings,
          params,
          embedded?,
@@ -2509,13 +2521,7 @@ defmodule AshPostgres.DataLayer do
     {params, arg1} = do_filter_to_expr(arg1, bindings, params, pred_embedded? || embedded?)
     {params, arg2} = do_filter_to_expr(arg2, bindings, params, pred_embedded? || embedded?)
 
-    case maybe_ecto_type(arg2) do
-      nil ->
-        {params, {:type, [], [arg1, arg2]}}
-
-      type ->
-        {params, {:type, [], [arg1, type]}}
-    end
+    {params, {:type, [], [arg1, parameterized_type(arg2, constraints)]}}
   end
 
   defp do_filter_to_expr(
@@ -2845,7 +2851,7 @@ defmodule AshPostgres.DataLayer do
          _type
        ) do
     expr = {{:., [], [{:&, [], [ref_binding(ref, bindings)]}, aggregate.name]}, [], []}
-    type = Ash.Type.ecto_type(aggregate.type)
+    type = parameterized_type(aggregate.type, [])
 
     type =
       if aggregate.kind == :list do
@@ -2911,18 +2917,6 @@ defmodule AshPostgres.DataLayer do
 
     {params ++ [{value, type}], {:^, [], [Enum.count(params)]}}
   end
-
-  defp maybe_ecto_type({:array, type}), do: {:array, maybe_ecto_type(type)}
-
-  defp maybe_ecto_type(type) when is_atom(type) do
-    if Ash.Type.ash_type?(type) do
-      Ash.Type.ecto_type(type)
-    else
-      type
-    end
-  end
-
-  defp maybe_ecto_type(_type), do: nil
 
   defp last_ditch_cast(value, {:in, type}) when is_list(value) do
     Enum.map(value, &last_ditch_cast(&1, type))
@@ -3022,12 +3016,22 @@ defmodule AshPostgres.DataLayer do
     Enum.map(types, &fill_in_known_type/1)
   end
 
-  defp fill_in_known_type({vague_type, %Ref{attribute: %{type: type}}} = ref)
+  defp fill_in_known_type(
+         {vague_type, %Ref{attribute: %{type: type, constraints: constraints}}} = ref
+       )
        when vague_type in [:any, :same] do
     if Ash.Type.ash_type?(type) do
-      {type |> Ash.Type.storage_type() |> array_to_in(), ref}
+      type = type |> Ash.Type.storage_type() |> parameterized_type(constraints) |> array_to_in()
+      {type, ref}
     else
-      {type |> array_to_in(), ref}
+      type =
+        if is_atom(type) && :erlang.function_exported(type, :type, 1) do
+          {:parameterized, type, []} |> array_to_in()
+        else
+          type |> array_to_in()
+        end
+
+      {type, ref}
     end
   end
 
@@ -3040,6 +3044,10 @@ defmodule AshPostgres.DataLayer do
   defp fill_in_known_type({type, value}), do: {array_to_in(type), value}
 
   defp array_to_in({:array, v}), do: {:in, array_to_in(v)}
+
+  defp array_to_in({:parameterized, type, constraints}),
+    do: {:parameterized, array_to_in(type), constraints}
+
   defp array_to_in(v), do: v
 
   defp vagueness({:in, type}), do: vagueness(type)

@@ -23,9 +23,7 @@ defmodule AshPostgres.Functions.Fragment do
     if Enum.count(split, &(&1 == :slot)) != length(rest) do
       {:error,
        "fragment(...) expects extra arguments in the same amount of question marks in string. " <>
-         "It received #{Enum.count(split, &(&1 == :slot))} extra argument(s) but expected #{
-           length(rest)
-         }"}
+         "It received #{Enum.count(split, &(&1 == :slot))} extra argument(s) but expected #{length(rest)}"}
     else
       {:ok, %__MODULE__{arguments: merge_fragment(split, rest)}}
     end

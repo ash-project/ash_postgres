@@ -322,9 +322,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           inspect(attribute.type)
         end
 
-      "modify #{inspect(attribute.name)}, #{type_or_reference}#{
-        alter_opts(attribute, old_attribute)
-      }"
+      "modify #{inspect(attribute.name)}, #{type_or_reference}#{alter_opts(attribute, old_attribute)}"
     end
 
     defp reference(
@@ -539,13 +537,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       index_name = index_name || "#{table}_#{name}_index"
 
       if base_filter do
-        "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
-          index_name
-        }\", where: \"#{base_filter}\")"
+        "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{index_name}\", where: \"#{base_filter}\")"
       else
-        "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
-          index_name
-        }\")"
+        "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{index_name}\")"
       end
     end
 
@@ -565,9 +559,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       index_name = index_name || "#{table}_#{name}_index"
 
-      "drop_if_exists unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
-        index_name
-      }\")"
+      "drop_if_exists unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{index_name}\")"
     end
   end
 
@@ -625,9 +617,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       index_name = index_name || "#{table}_#{name}_index"
 
-      "drop_if_exists unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
-        index_name
-      }\")"
+      "drop_if_exists unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{index_name}\")"
     end
 
     def down(%{
@@ -647,13 +637,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       index_name = index_name || "#{table}_#{name}_index"
 
       if base_filter do
-        "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
-          index_name
-        }\", where: \"#{base_filter}\")"
+        "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{index_name}\", where: \"#{base_filter}\")"
       else
-        "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{
-          index_name
-        }\")"
+        "create unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{index_name}\")"
       end
     end
   end
