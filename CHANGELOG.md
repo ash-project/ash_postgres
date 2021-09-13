@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.41.0-rc0](https://github.com/ash-project/ash_postgres/compare/v0.40.11...v0.41.0-rc0) (2021-09-13)
+### Breaking Changes:
+
+* update to latest ash/ecto versions w/ parameterized types
+
+
+
+### Improvements:
+
+* Support default tenant migration path in releases (#69)
+
 ## [v0.40.11](https://github.com/ash-project/ash_postgres/compare/v0.40.10...v0.40.11) (2021-07-28)
 
 
