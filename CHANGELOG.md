@@ -5,7 +5,7 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
-## [v0.41.0-rc0](https://github.com/ash-project/ash_postgres/compare/v0.40.11...v0.41.0-rc0) (2021-09-13)
+## [v0.41.0-rc.0](https://github.com/ash-project/ash_postgres/compare/v0.40.11...v0.41.0-rc.0) (2021-09-13)
 ### Breaking Changes:
 
 * update to latest ash/ecto versions w/ parameterized types
@@ -373,12 +373,12 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 * generate multitenant foreign keys properly
 
-## [v0.40.0-rc1](https://github.com/ash-project/ash_postgres/compare/v0.40.0-rc0...v0.40.0-rc1) (2021-06-05)
+## [v0.40.0-rc1](https://github.com/ash-project/ash_postgres/compare/v0.40.0-rc.0...v0.40.0-rc1) (2021-06-05)
 
 
 
 
-## [v0.39.0-rc0](https://github.com/ash-project/ash_postgres/compare/v0.38.11...v0.39.0-rc0) (2021-06-04)
+## [v0.39.0-rc.0](https://github.com/ash-project/ash_postgres/compare/v0.38.11...v0.39.0-rc.0) (2021-06-04)
 
 
 
