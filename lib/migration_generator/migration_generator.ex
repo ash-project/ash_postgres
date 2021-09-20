@@ -906,6 +906,15 @@ defmodule AshPostgres.MigrationGenerator do
       (multitenancy.attribute && multitenancy.attribute in List.wrap(attribute_or_attributes))
   end
 
+  defp after?(
+         %Operation.AddCustomIndex{
+           table: table
+         },
+         %Operation.AddAttribute{table: table}
+       ) do
+    true
+  end
+
   defp after?(%Operation.AddCheckConstraint{table: table}, %Operation.RemoveCheckConstraint{
          table: table
        }),
@@ -1075,9 +1084,11 @@ defmodule AshPostgres.MigrationGenerator do
     empty_snapshot = %{
       attributes: [],
       identities: [],
+      custom_indexes: [],
       check_constraints: [],
       table: snapshot.table,
       repo: snapshot.repo,
+      base_filter: nil,
       multitenancy: %{
         attribute: nil,
         strategy: nil,
@@ -1099,6 +1110,37 @@ defmodule AshPostgres.MigrationGenerator do
     attribute_operations = attribute_operations(snapshot, old_snapshot, opts)
 
     rewrite_all_identities? = changing_multitenancy_affects_identities?(snapshot, old_snapshot)
+
+    custom_indexes_to_add =
+      Enum.filter(snapshot.custom_indexes, fn index ->
+        !Enum.find(old_snapshot.custom_indexes, fn old_custom_index ->
+          old_custom_index == index
+        end)
+      end)
+      |> Enum.map(fn custom_index ->
+        %Operation.AddCustomIndex{
+          index: custom_index,
+          table: old_snapshot.table,
+          multitenancy: old_snapshot.multitenancy,
+          base_filter: old_snapshot.base_filter
+        }
+      end)
+
+    custom_indexes_to_remove =
+      Enum.filter(old_snapshot.custom_indexes, fn old_custom_index ->
+        rewrite_all_identities? ||
+          !Enum.find(snapshot.custom_indexes, fn index ->
+            old_custom_index == index
+          end)
+      end)
+      |> Enum.map(fn custom_index ->
+        %Operation.RemoveCustomIndex{
+          index: custom_index,
+          table: snapshot.table,
+          multitenancy: snapshot.multitenancy,
+          base_filter: snapshot.base_filter
+        }
+      end)
 
     unique_indexes_to_remove =
       if rewrite_all_identities? do
@@ -1193,6 +1235,8 @@ defmodule AshPostgres.MigrationGenerator do
       unique_indexes_to_rename,
       constraints_to_add,
       constraints_to_remove,
+      custom_indexes_to_add,
+      custom_indexes_to_remove,
       acc
     ]
     |> Enum.concat()
@@ -1305,7 +1349,8 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   def changing_multitenancy_affects_identities?(snapshot, old_snapshot) do
-    snapshot.multitenancy != old_snapshot.multitenancy
+    snapshot.multitenancy != old_snapshot.multitenancy ||
+      snapshot.base_filter != old_snapshot.base_filter
   end
 
   def has_reference?(multitenancy, attribute) do
@@ -1504,6 +1549,7 @@ defmodule AshPostgres.MigrationGenerator do
       identities: identities(resource),
       table: table || AshPostgres.table(resource),
       check_constraints: check_constraints(resource),
+      custom_indexes: custom_indexes(resource),
       repo: AshPostgres.repo(resource),
       multitenancy: multitenancy(resource),
       base_filter: AshPostgres.base_filter_sql(resource),
@@ -1552,6 +1598,14 @@ defmodule AshPostgres.MigrationGenerator do
         check: constraint.check,
         base_filter: AshPostgres.base_filter_sql(resource)
       }
+    end)
+  end
+
+  defp custom_indexes(resource) do
+    resource
+    |> AshPostgres.custom_indexes()
+    |> Enum.map(fn custom_index ->
+      Map.from_struct(custom_index)
     end)
   end
 
@@ -1750,6 +1804,8 @@ defmodule AshPostgres.MigrationGenerator do
     |> Map.update!(:attributes, fn attributes ->
       Enum.map(attributes, &load_attribute(&1, snapshot.table))
     end)
+    |> Map.put_new(:custom_indexes, [])
+    |> Map.update!(:custom_indexes, &load_custom_indexes/1)
     |> Map.put_new(:check_constraints, [])
     |> Map.update!(:check_constraints, &load_check_constraints/1)
     |> Map.update!(:repo, &String.to_atom/1)
@@ -1759,6 +1815,7 @@ defmodule AshPostgres.MigrationGenerator do
       global: nil
     })
     |> Map.update!(:multitenancy, &load_multitenancy/1)
+    |> Map.put_new(:base_filter, nil)
   end
 
   defp load_check_constraints(constraints) do
@@ -1768,6 +1825,25 @@ defmodule AshPostgres.MigrationGenerator do
         |> List.wrap()
         |> Enum.map(&String.to_atom/1)
       end)
+    end)
+  end
+
+  defp load_custom_indexes(custom_indexes) do
+    Enum.map(custom_indexes, fn custom_index ->
+      custom_index
+      |> Map.update!(:table, &String.to_existing_atom/1)
+      |> Map.update!(
+        :fields,
+        &Enum.map(&1, fn field ->
+          String.to_existing_atom(field)
+        end)
+      )
+      |> Map.update!(
+        :include,
+        &Enum.map(&1, fn field ->
+          String.to_existing_atom(field)
+        end)
+      )
     end)
   end
 

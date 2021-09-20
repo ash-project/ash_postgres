@@ -42,6 +42,39 @@ defmodule AshPostgres.DataLayer do
     ]
   }
 
+  @index %Ash.Dsl.Entity{
+    name: :index,
+    describe: """
+    Add an index to be managed by the migration generator.
+    """,
+    examples: [
+      "index [\"column\", \"column2\"], unique: true, where: \"thing = TRUE\""
+    ],
+    target: AshPostgres.CustomIndex,
+    schema: AshPostgres.CustomIndex.schema(),
+    args: [:fields]
+  }
+
+  @custom_indexes %Ash.Dsl.Section{
+    name: :custom_indexes,
+    describe: """
+    A section for configuring indexes to be created by the migration generator.
+
+    In general, prefer to use `identities` for simple unique constraints. This is a tool to allow
+    for declaring more complex indexes.
+    """,
+    examples: [
+      """
+      custom_indexes do
+        index [:column1, :column2], unique: true, where: "thing = TRUE"
+      end
+      """
+    ],
+    entities: [
+      @index
+    ]
+  }
+
   @reference %Ash.Dsl.Entity{
     name: :reference,
     describe: """
@@ -175,6 +208,7 @@ defmodule AshPostgres.DataLayer do
     Postgres data layer configuration
     """,
     sections: [
+      @custom_indexes,
       @manage_tenant,
       @references,
       @check_constraints

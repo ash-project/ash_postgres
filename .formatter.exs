@@ -5,9 +5,13 @@ locals_without_parens = [
   check: 1,
   check_constraint: 2,
   check_constraint: 3,
+  concurrently: 1,
   create?: 1,
   foreign_key_names: 1,
   identity_index_names: 1,
+  include: 1,
+  index: 1,
+  index: 2,
   message: 1,
   migrate?: 1,
   name: 1,
@@ -17,14 +21,18 @@ locals_without_parens = [
   polymorphic_name: 1,
   polymorphic_on_delete: 1,
   polymorphic_on_update: 1,
+  prefix: 1,
   reference: 1,
   reference: 2,
   repo: 1,
   skip_unique_indexes: 1,
   table: 1,
   template: 1,
+  unique: 1,
   unique_index_names: 1,
-  update?: 1
+  update?: 1,
+  using: 1,
+  where: 1
 ]
 
 [

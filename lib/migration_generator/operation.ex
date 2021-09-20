@@ -20,6 +20,12 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     def maybe_add_null(false), do: "null: false"
     def maybe_add_null(_), do: nil
 
+    def option(key, value) do
+      if value do
+        "#{key}: #{inspect(value)}"
+      end
+    end
+
     def on_delete(%{on_delete: on_delete}) when on_delete in [:delete, :nilify] do
       "on_delete: :#{on_delete}_all"
     end
@@ -560,6 +566,120 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       index_name = index_name || "#{table}_#{name}_index"
 
       "drop_if_exists unique_index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{index_name}\")"
+    end
+  end
+
+  defmodule AddCustomIndex do
+    @moduledoc false
+    defstruct [:table, :index, :base_filter, :multitenancy, no_phase: true]
+    import Helper
+
+    def up(%{
+          index: index,
+          table: table,
+          base_filter: base_filter,
+          multitenancy: multitenancy
+        }) do
+      keys =
+        case multitenancy.strategy do
+          :attribute ->
+            [to_string(multitenancy.attribute) | index.fields]
+
+          _ ->
+            index.fields
+        end
+
+      index =
+        if index.where && base_filter do
+          %{index | where: base_filter <> " AND " <> index.where}
+        else
+          index
+        end
+
+      opts =
+        join([
+          option(:name, index.name),
+          option(:unique, index.unique),
+          option(:concurrently, index.concurrently),
+          option(:using, index.using),
+          option(:prefix, index.prefix),
+          option(:where, index.where),
+          option(:include, index.include)
+        ])
+
+      "create index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], #{opts})"
+    end
+
+    def down(%{index: index, table: table, multitenancy: multitenancy}) do
+      index_name = AshPostgres.CustomIndex.name(table, index)
+
+      keys =
+        case multitenancy.strategy do
+          :attribute ->
+            [to_string(multitenancy.attribute) | index.fields]
+
+          _ ->
+            index.fields
+        end
+
+      "drop_if_exists index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{index_name}\")"
+    end
+  end
+
+  defmodule RemoveCustomIndex do
+    @moduledoc false
+    defstruct [:table, :index, :base_filter, :multitenancy, no_phase: true]
+    import Helper
+
+    def up(%{index: index, table: table, multitenancy: multitenancy}) do
+      index_name = AshPostgres.CustomIndex.name(table, index)
+
+      keys =
+        case multitenancy.strategy do
+          :attribute ->
+            [to_string(multitenancy.attribute) | index.fields]
+
+          _ ->
+            index.fields
+        end
+
+      "drop_if_exists index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], name: \"#{index_name}\")"
+    end
+
+    def down(%{
+          index: index,
+          table: table,
+          base_filter: base_filter,
+          multitenancy: multitenancy
+        }) do
+      keys =
+        case multitenancy.strategy do
+          :attribute ->
+            [to_string(multitenancy.attribute) | index.fields]
+
+          _ ->
+            index.fields
+        end
+
+      index =
+        if index.where && base_filter do
+          %{index | where: base_filter <> " AND " <> index.where}
+        else
+          index
+        end
+
+      opts =
+        join([
+          option(:name, index.name),
+          option(:unique, index.unique),
+          option(:concurrently, index.concurrently),
+          option(:using, index.using),
+          option(:prefix, index.prefix),
+          option(:where, index.where),
+          option(:include, index.include)
+        ])
+
+      "create index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], #{opts})"
     end
   end
 
