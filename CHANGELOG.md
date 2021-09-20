@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.41.0-rc.1](https://github.com/ash-project/ash_postgres/compare/v0.41.0-rc.0...v0.41.0-rc.1) (2021-09-20)
+
+
+
+
+### Improvements:
+
+* support `custom_indexes`
+
 ## [v0.41.0-rc.0](https://github.com/ash-project/ash_postgres/compare/v0.40.11...v0.41.0-rc.0) (2021-09-13)
 ### Breaking Changes:
 
