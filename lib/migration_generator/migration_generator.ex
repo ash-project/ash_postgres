@@ -27,7 +27,7 @@ defmodule AshPostgres.MigrationGenerator do
     apis = List.wrap(apis)
     opts = opts(opts)
 
-    all_resources = Enum.flat_map(apis, &Ash.Api.resources/1)
+    all_resources = Enum.uniq(Enum.flat_map(apis, &Ash.Api.resources/1))
 
     {tenant_snapshots, snapshots} =
       all_resources
@@ -62,7 +62,7 @@ defmodule AshPostgres.MigrationGenerator do
   Does not support everything supported by the migration generator.
   """
   def take_snapshots(api, repo, only_resources \\ nil) do
-    all_resources = Ash.Api.resources(api)
+    all_resources = api |> Ash.Api.resources() |> Enum.uniq()
 
     all_resources
     |> Enum.filter(&(Ash.DataLayer.data_layer(&1) == AshPostgres.DataLayer))
@@ -1510,6 +1510,7 @@ defmodule AshPostgres.MigrationGenerator do
       |> Enum.filter(&(&1.destination == resource))
       |> Enum.reject(&(&1.type == :belongs_to))
       |> Enum.filter(& &1.context[:data_layer][:table])
+      |> Enum.uniq()
       |> Enum.map(fn relationship ->
         resource
         |> do_snapshot(relationship.context[:data_layer][:table])
@@ -1542,7 +1543,7 @@ defmodule AshPostgres.MigrationGenerator do
                 on_update: AshPostgres.polymorphic_on_update(relationship.source),
                 name:
                   AshPostgres.polymorphic_name(relationship.source) ||
-                    "#{relationship.context[:data_layer][:table]}_#{relationship.source_field}_fkey"
+                    "#{relationship.context[:data_layer][:table]}_#{relationship.destination_field}_fkey"
               })
             else
               attribute
@@ -1551,13 +1552,13 @@ defmodule AshPostgres.MigrationGenerator do
         end)
       end)
     else
-      [do_snapshot(resource)]
+      [do_snapshot(resource, AshPostgres.table(resource))]
     end
   end
 
   defp do_snapshot(resource, table \\ nil) do
     snapshot = %{
-      attributes: attributes(resource),
+      attributes: attributes(resource, table),
       identities: identities(resource),
       table: table || AshPostgres.table(resource),
       check_constraints: check_constraints(resource),
@@ -1633,7 +1634,7 @@ defmodule AshPostgres.MigrationGenerator do
     }
   end
 
-  defp attributes(resource) do
+  defp attributes(resource, table) do
     repo = AshPostgres.repo(resource)
 
     resource
@@ -1649,17 +1650,17 @@ defmodule AshPostgres.MigrationGenerator do
       end)
     end)
     |> Enum.map(fn attribute ->
-      references = find_reference(resource, attribute)
+      references = find_reference(resource, table, attribute)
 
       Map.put(attribute, :references, references)
     end)
   end
 
-  defp find_reference(resource, attribute) do
+  defp find_reference(resource, table, attribute) do
     Enum.find_value(Ash.Resource.Info.relationships(resource), fn relationship ->
       if attribute.name == relationship.source_field && relationship.type == :belongs_to &&
            foreign_key?(relationship) do
-        configured_reference = configured_reference(resource, attribute.name, relationship.name)
+        configured_reference = configured_reference(resource, table, attribute.name, relationship)
 
         %{
           destination_field: relationship.destination_field,
@@ -1675,18 +1676,18 @@ defmodule AshPostgres.MigrationGenerator do
     end)
   end
 
-  defp configured_reference(resource, attribute, relationship) do
+  defp configured_reference(resource, table, attribute, relationship) do
     ref =
       resource
       |> AshPostgres.references()
-      |> Enum.find(&(&1.relationship == relationship))
+      |> Enum.find(&(&1.relationship == relationship.name))
       |> Kernel.||(%{
         on_delete: nil,
         on_update: nil,
         name: nil
       })
 
-    Map.put(ref, :name, ref.name || "#{AshPostgres.table(resource)}_#{attribute}_fkey")
+    Map.put(ref, :name, ref.name || "#{table}_#{attribute}_fkey")
   end
 
   defp migration_type({:array, type}), do: {:array, migration_type(type)}
@@ -1892,7 +1893,16 @@ defmodule AshPostgres.MigrationGenerator do
           global: nil
         })
         |> Map.update!(:multitenancy, &load_multitenancy/1)
+        |> sanitize_name(table)
     end)
+  end
+
+  defp sanitize_name(reference, table) do
+    if String.starts_with?(reference.name, "_") do
+      Map.put(reference, :name, "#{table}#{reference.name}")
+    else
+      reference
+    end
   end
 
   defp load_type(["array", type]) do
