@@ -1556,7 +1556,7 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  defp do_snapshot(resource, table \\ nil) do
+  defp do_snapshot(resource, table) do
     snapshot = %{
       attributes: attributes(resource, table),
       identities: identities(resource),
