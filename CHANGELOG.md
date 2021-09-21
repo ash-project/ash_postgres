@@ -5,6 +5,23 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.41.0-rc.4](https://github.com/ash-project/ash_postgres/compare/v0.41.0-rc.3...v0.41.0-rc.4) (2021-09-21)
+
+
+
+
+### Bug Fixes:
+
+* set identity names propertly for polymorphic resources
+
+* handle nil values in snapshots better
+
+* remove unused field from snapshot parsing
+
+### Improvements:
+
+* support `custom_indexes`
+
 ## [v0.41.0-rc.3](https://github.com/ash-project/ash_postgres/compare/v0.41.0-rc.2...v0.41.0-rc.3) (2021-09-21)
 
 
