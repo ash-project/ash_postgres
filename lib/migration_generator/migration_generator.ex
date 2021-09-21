@@ -1831,7 +1831,6 @@ defmodule AshPostgres.MigrationGenerator do
   defp load_custom_indexes(custom_indexes) do
     Enum.map(custom_indexes, fn custom_index ->
       custom_index
-      |> Map.update!(:table, &String.to_existing_atom/1)
       |> Map.update!(
         :fields,
         &Enum.map(&1, fn field ->
