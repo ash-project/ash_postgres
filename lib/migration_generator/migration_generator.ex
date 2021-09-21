@@ -1829,17 +1829,19 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp load_custom_indexes(custom_indexes) do
-    Enum.map(custom_indexes, fn custom_index ->
+    Enum.map(custom_indexes || [], fn custom_index ->
       custom_index
+      |> Map.put_new(:fields, [])
       |> Map.update!(
         :fields,
-        &Enum.map(&1, fn field ->
+        &Enum.map(&1 || [], fn field ->
           String.to_existing_atom(field)
         end)
       )
+      |> Map.put_new(:include, [])
       |> Map.update!(
         :include,
-        &Enum.map(&1, fn field ->
+        &Enum.map(&1 || [], fn field ->
           String.to_existing_atom(field)
         end)
       )
