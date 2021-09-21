@@ -1513,6 +1513,18 @@ defmodule AshPostgres.MigrationGenerator do
       |> Enum.map(fn relationship ->
         resource
         |> do_snapshot(relationship.context[:data_layer][:table])
+        |> Map.update!(:identities, fn identities ->
+          identity_index_names = AshPostgres.identity_index_names(resource)
+
+          Enum.map(identities, fn identity ->
+            Map.put(
+              identity,
+              :index_name,
+              identity_index_names[identity.name] ||
+                "#{relationship.context[:data_layer][:table]}_#{identity.name}_index"
+            )
+          end)
+        end)
         |> Map.update!(:attributes, fn attributes ->
           Enum.map(attributes, fn attribute ->
             if attribute.name == relationship.destination_field do
