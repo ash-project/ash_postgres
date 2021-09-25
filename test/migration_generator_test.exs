@@ -96,11 +96,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert file_contents =~ "create table(:posts, primary_key: false) do"
 
       # the migration sets up the custom_indexes
-      assert file_contents =~ ~S{create index(:posts, ["id"], name: "test_unique_index", unique: true)}
+      assert file_contents =~
+               ~S{create index(:posts, ["id"], name: "test_unique_index", unique: true)}
+
       assert file_contents =~ ~S{create index(:posts, ["id"]}
 
       # the migration adds the id, with its default
-      assert file_contents =~ ~S[add :id, :uuid, null: false, default: fragment("uuid_generate_v4()"), primary_key: true]
+      assert file_contents =~
+               ~S[add :id, :uuid, null: false, default: fragment("uuid_generate_v4()"), primary_key: true]
 
       # the migration adds other attributes
       assert file_contents =~ ~S[add :title, :text]
