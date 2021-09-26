@@ -607,7 +607,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           option(:include, index.include)
         ])
 
-      "create index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], #{opts})"
+      if opts == "",
+        do: "create index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}])",
+        else: "create index(:#{table}, [#{Enum.map_join(keys, ",", &inspect/1)}], #{opts})"
     end
 
     def down(%{index: index, table: table, multitenancy: multitenancy}) do

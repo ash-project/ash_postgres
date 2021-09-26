@@ -13,6 +13,12 @@ defmodule AshPostgres.MigrationGeneratorTest do
         postgres do
           table "posts"
           repo AshPostgres.TestRepo
+
+          custom_indexes do
+            # need one without any opts
+            index ["id"]
+            index ["id"], unique: true, name: "test_unique_index"
+          end
         end
 
         actions do
@@ -77,44 +83,33 @@ defmodule AshPostgres.MigrationGeneratorTest do
       :ok
     end
 
-    test "it creates a snapshot for each resource" do
-      assert File.exists?(Path.wildcard("test_snapshots_path/test_repo/posts/*.json"))
-    end
-
-    test "the snapshots can be loaded" do
-      assert File.exists?(Path.wildcard("test_snapshots_path/test_repo/posts/*.json"))
-    end
-
-    test "the snapshots contain valid json" do
+    test "the migration sets up resources correctly" do
+      # the snapshot exists and contains valid json
       assert File.read!(Path.wildcard("test_snapshots_path/test_repo/posts/*.json"))
              |> Jason.decode!(keys: :atoms!)
-    end
 
-    test "the migration creates the table" do
       assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
-      assert File.read!(file) =~ "create table(:posts, primary_key: false) do"
-    end
+      file_contents = File.read!(file)
 
-    test "the migration adds the id, with its default" do
-      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+      # the migration creates the table
+      assert file_contents =~ "create table(:posts, primary_key: false) do"
 
-      assert File.read!(file) =~
+      # the migration sets up the custom_indexes
+      assert file_contents =~
+               ~S{create index(:posts, ["id"], name: "test_unique_index", unique: true)}
+
+      assert file_contents =~ ~S{create index(:posts, ["id"]}
+
+      # the migration adds the id, with its default
+      assert file_contents =~
                ~S[add :id, :uuid, null: false, default: fragment("uuid_generate_v4()"), primary_key: true]
-    end
 
-    test "the migration adds other attributes" do
-      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+      # the migration adds other attributes
+      assert file_contents =~ ~S[add :title, :text]
 
-      assert File.read!(file) =~
-               ~S[add :title, :text]
-    end
-
-    test "the migration creates unique_indexes based on the identities of the resource" do
-      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
-
-      assert File.read!(file) =~
-               ~S{create unique_index(:posts, [:title], name: "posts_title_index")}
+      # the migration creates unique_indexes based on the identities of the resource
+      assert file_contents =~ ~S{create unique_index(:posts, [:title], name: "posts_title_index")}
     end
   end
 
