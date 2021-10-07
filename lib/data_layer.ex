@@ -375,7 +375,7 @@ defmodule AshPostgres.DataLayer do
   def can?(resource, {:join, other_resource}) do
     data_layer = Ash.DataLayer.data_layer(resource)
     other_data_layer = Ash.DataLayer.data_layer(other_resource)
-    data_layer == other_data_layer and repo(data_layer) == repo(other_data_layer)
+    data_layer == other_data_layer and repo(resource) == repo(other_resource)
   end
 
   def can?(resource, {:lateral_join, resources}) do
