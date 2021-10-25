@@ -1152,7 +1152,8 @@ defmodule AshPostgres.DataLayer do
                   {:ok, nil}
                 end
 
-              default_value = Ash.Query.Aggregate.default_value(aggregate.kind)
+              default_value =
+                aggregate.default || Ash.Query.Aggregate.default_value(aggregate.kind)
 
               if is_nil(default_value) do
                 {{:., [], [{:&, [], [binding]}, sort]}, [], []}

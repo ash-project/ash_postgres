@@ -92,6 +92,7 @@ defmodule AshPostgres.Test.Post do
     end
 
     sum(:sum_of_comment_likes, :comments, :likes)
+    sum(:sum_of_comment_likes_with_default, :comments, :likes, default: 0)
 
     sum :sum_of_comment_likes_called_match, :comments, :likes do
       filter(title: "match")

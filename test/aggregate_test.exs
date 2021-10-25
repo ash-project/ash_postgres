@@ -47,6 +47,9 @@ defmodule AshPostgres.AggregateTest do
                |> Api.read_one!()
     end
 
+    test "sum can have a default value" do
+    end
+
     test "with data for a many_to_many, it returns the count" do
       post =
         Post
@@ -269,6 +272,19 @@ defmodule AshPostgres.AggregateTest do
                Post
                |> Ash.Query.filter(id == ^post.id)
                |> Ash.Query.load(:sum_of_comment_likes)
+               |> Api.read_one!()
+    end
+
+    test "with no related data and a default it returns the default" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      assert %{sum_of_comment_likes_with_default: 0} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:sum_of_comment_likes_with_default)
                |> Api.read_one!()
     end
 

@@ -3,8 +3,6 @@ defmodule AshPostgres.MultitenancyTest.Api do
   use Ash.Api
 
   resources do
-    resource(AshPostgres.MultitenancyTest.Org)
-    resource(AshPostgres.MultitenancyTest.User)
-    resource(AshPostgres.MultitenancyTest.Post)
+    registry(AshPostgres.MultitenancyTest.Registry)
   end
 end

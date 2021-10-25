@@ -37,13 +37,21 @@ defmodule AshPostgres.MigrationGeneratorTest do
     quote do
       Code.compiler_options(ignore_module_conflict: true)
 
+      defmodule Registry do
+        use Ash.Registry
+
+        entries do
+          for resource <- unquote(resources) do
+            entry(resource)
+          end
+        end
+      end
+
       defmodule Api do
         use Ash.Api
 
         resources do
-          for resource <- unquote(resources) do
-            resource(resource)
-          end
+          registry(Registry)
         end
       end
 
