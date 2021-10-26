@@ -1833,9 +1833,7 @@ defmodule AshPostgres.DataLayer do
            expr: {{:., [], [{:&, [], [0]}, key]}, [], []},
            raw: " ORDER BY "
          ] ++
-           update_last(sort_expr, fn {:raw, str} ->
-             {:raw, str <> ")"}
-           end)}
+           close_paren(sort_expr)}
       else
         {:fragment, [],
          [
@@ -1914,7 +1912,7 @@ defmodule AshPostgres.DataLayer do
            expr: {{:., [], [{:&, [], [0]}, key]}, [], []},
            raw: " ORDER BY "
          ] ++
-           update_last(sort_expr, fn {:raw, str} -> {:raw, str <> ")"} end)}
+           close_paren(sort_expr)}
       else
         {:fragment, [],
          [
@@ -1990,12 +1988,18 @@ defmodule AshPostgres.DataLayer do
     %{query | select: %{query.select | expr: new_expr, params: params}}
   end
 
-  defp update_last(list, func) do
+  defp close_paren(list) do
     count = length(list)
-    List.update_at(list, count - 1, func)
-  rescue
-    _ ->
-      list
+
+    case List.last(list) do
+      {:raw, _} ->
+        List.update_at(list, count - 1, fn {:raw, str} ->
+          {:raw, str <> ")"}
+        end)
+
+      _ ->
+        list ++ [{:raw, ")"}]
+    end
   end
 
   defp relationship_path_to_relationships(resource, path, acc \\ [])
