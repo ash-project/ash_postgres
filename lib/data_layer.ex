@@ -1596,10 +1596,10 @@ defmodule AshPostgres.DataLayer do
 
   defp parameterized_type(type, constraints) do
     if Ash.Type.ash_type?(type) do
-      {:parameterized, Ash.Type.ecto_type(type), constraints}
+      parameterized_type(Ash.Type.ecto_type(type), constraints)
     else
-      if is_atom(type) && :erlang.function_exported(type, :type, 2) do
-        {:parameterized, Ash.Type.ecto_type(type), constraints}
+      if is_atom(type) && :erlang.function_exported(type, :type, 1) do
+        {:parameterized, type, constraints}
       else
         type
       end
@@ -3060,7 +3060,7 @@ defmodule AshPostgres.DataLayer do
        )
        when vague_type in [:any, :same] do
     if Ash.Type.ash_type?(type) do
-      type = type |> Ash.Type.storage_type() |> parameterized_type(constraints) |> array_to_in()
+      type = type |> Ash.Type.ecto_type() |> parameterized_type(constraints) |> array_to_in()
       {type, ref}
     else
       type =
