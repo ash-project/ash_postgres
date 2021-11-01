@@ -3159,7 +3159,12 @@ defmodule AshPostgres.DataLayer do
     |> Ash.Query.sort(Map.get(relationship, :sort))
     |> case do
       %{valid?: true} = query ->
-        Ash.Query.data_layer_query(query, only_validate_filter?: false)
+        initial_query = %{resource_to_query(resource, nil) | prefix: Map.get(root_query, :prefix)}
+
+        Ash.Query.data_layer_query(query,
+          only_validate_filter?: false,
+          initial_query: initial_query
+        )
 
       query ->
         {:error, query}
