@@ -6,7 +6,7 @@ defmodule AshPostgres.MixProject do
   support, and delegates to a configured repo.
   """
 
-  @version "0.41.0-rc.8"
+  @version "0.41.0-rc.9"
 
   def project do
     [
@@ -96,7 +96,7 @@ defmodule AshPostgres.MixProject do
       {:ecto_sql, "~> 3.7"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
-      {:ash, ash_version("1.48.0-rc.25")},
+      {:ash, ash_version("1.48.0-rc.30")},
       {:git_ops, "~> 2.4.5", only: :dev},
       {:ex_doc, "~> 0.22", only: :dev, runtime: false},
       {:ex_check, "~> 0.11.0", only: :dev},
