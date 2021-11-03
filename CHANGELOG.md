@@ -5,6 +5,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.41.1](https://github.com/ash-project/ash_postgres/compare/v0.41.0-rc.9...v0.41.1) (2021-11-03)
+
+
+
+
+### Bug Fixes:
+
+* copy query prefix to newly created query (#74)
+
+### Improvements:
+
+* update to latest version of ash
+
 ## [v0.41.0-rc.9](https://github.com/ash-project/ash_postgres/compare/v0.41.0-rc.8...v0.41.0-rc.9) (2021-11-01)
 
 
