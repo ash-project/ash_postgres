@@ -35,6 +35,8 @@ defmodule AshPostgres.Repo do
   @callback migrations_path() :: String.t()
   @doc "The default prefix(postgres schema) to use when building queries"
   @callback default_prefix() :: String.t()
+  @doc "Allows overriding a given migration type for *all* fields, for example if you wanted to always use :timestamptz for :utc_datetime fields"
+  @callback override_migration_type(atom) :: atom
 
   defmacro __using__(opts) do
     quote bind_quoted: [opts: opts] do
@@ -48,6 +50,7 @@ defmodule AshPostgres.Repo do
       def tenant_migrations_path, do: nil
       def migrations_path, do: nil
       def default_prefix, do: "public"
+      def override_migration_type(type), do: type
 
       def all_tenants do
         raise """
@@ -77,7 +80,8 @@ defmodule AshPostgres.Repo do
                      installed_extensions: 0,
                      all_tenants: 0,
                      tenant_migrations_path: 0,
-                     default_prefix: 0
+                     default_prefix: 0,
+                     override_migration_type: 1
     end
   end
 end

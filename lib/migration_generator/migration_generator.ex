@@ -344,9 +344,22 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.map(fn {attr, i} -> Map.put(attr, :order, i) end)
     |> Enum.group_by(& &1.name)
     |> Enum.map(fn {name, attributes} ->
+      size =
+        attributes
+        |> Enum.map(& &1.size)
+        |> Enum.filter(& &1)
+        |> case do
+          [] ->
+            nil
+
+          sizes ->
+            Enum.max(sizes)
+        end
+
       %{
         name: name,
         type: merge_types(Enum.map(attributes, & &1.type), name, table),
+        size: size,
         default: merge_defaults(Enum.map(attributes, & &1.default)),
         allow_nil?: Enum.any?(attributes, & &1.allow_nil?) || Enum.count(attributes) < count,
         generated?: Enum.any?(attributes, & &1.generated?),
@@ -1643,11 +1656,32 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.map(fn attribute ->
       default = default(attribute, repo)
 
+      type =
+        AshPostgres.migration_types(resource)[attribute.name] || migration_type(attribute.type)
+
+      type =
+        if :erlang.function_exported(repo, :override_migration_type, 1) do
+          repo.override_migration_type(type)
+        else
+          type
+        end
+
+      {type, size} =
+        case type do
+          {:varchar, size} ->
+            {:varchar, size}
+
+          {:binary, size} ->
+            {:binary, size}
+
+          other ->
+            {other, nil}
+        end
+
       attribute
       |> Map.put(:default, default)
-      |> Map.update!(:type, fn type ->
-        migration_type(type)
-      end)
+      |> Map.put(:size, size)
+      |> Map.put(:type, type)
     end)
     |> Enum.map(fn attribute ->
       references = find_reference(resource, table, attribute)
@@ -1788,17 +1822,25 @@ defmodule AshPostgres.MigrationGenerator do
     snapshot
     |> Map.update!(:attributes, fn attributes ->
       Enum.map(attributes, fn attribute ->
-        %{attribute | type: sanitize_type(attribute.type)}
+        %{attribute | type: sanitize_type(attribute.type, attribute[:size])}
       end)
     end)
     |> Jason.encode!(pretty: true)
   end
 
-  defp sanitize_type({:array, type}) do
-    ["array", sanitize_type(type)]
+  defp sanitize_type({:array, type}, size) do
+    ["array", sanitize_type(type, size)]
   end
 
-  defp sanitize_type(type) do
+  defp sanitize_type(:varchar, size) when not is_nil(size) do
+    ["varchar", size]
+  end
+
+  defp sanitize_type(:binary, size) when not is_nil(size) do
+    ["binary", size]
+  end
+
+  defp sanitize_type(type, _) do
     type
   end
 
@@ -1856,9 +1898,24 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp load_attribute(attribute, table) do
+    type = load_type(attribute.type)
+
+    {type, size} =
+      case type do
+        {:varchar, size} ->
+          {:varchar, size}
+
+        {:binary, size} ->
+          {:binary, size}
+
+        other ->
+          {other, nil}
+      end
+
     attribute
-    |> Map.update!(:type, &load_type/1)
     |> Map.update!(:name, &String.to_atom/1)
+    |> Map.put(:type, type)
+    |> Map.put(:size, size)
     |> Map.put_new(:default, "nil")
     |> Map.update!(:default, &(&1 || "nil"))
     |> Map.update!(:references, fn
@@ -1895,6 +1952,14 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp load_type(["array", type]) do
     {:array, load_type(type)}
+  end
+
+  defp load_type(["varchar", size]) do
+    {:varchar, size}
+  end
+
+  defp load_type(["binary", size]) do
+    {:binary, size}
   end
 
   defp load_type(type) do

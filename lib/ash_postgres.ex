@@ -24,6 +24,11 @@ defmodule AshPostgres do
     Extension.get_entities(resource, [:postgres, :references])
   end
 
+  @doc "A keyword list of customized migration types"
+  def migration_types(resource) do
+    Extension.get_opt(resource, [:postgres], :migration_types, nil, true)
+  end
+
   @doc "The configured check_constraints for a resource"
   def check_constraints(resource) do
     Extension.get_entities(resource, [:postgres, :check_constraints])

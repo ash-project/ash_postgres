@@ -67,6 +67,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end)
 
       defposts do
+        postgres do
+          migration_types second_title: {:varchar, 16}
+        end
+
         identities do
           identity(:title, [:title])
         end
@@ -74,6 +78,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
         attributes do
           uuid_primary_key(:id)
           attribute(:title, :string)
+          attribute(:second_title, :string)
         end
       end
 
@@ -115,6 +120,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       # the migration adds other attributes
       assert file_contents =~ ~S[add :title, :text]
+
+      # the migration adds custom attributes
+      assert file_contents =~ ~S[add :second_title, :varchar, size: 16]
 
       # the migration creates unique_indexes based on the identities of the resource
       assert file_contents =~ ~S{create unique_index(:posts, [:title], name: "posts_title_index")}

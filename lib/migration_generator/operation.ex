@@ -86,6 +86,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "with: [#{source_attribute}: :#{destination_attribute}], match: :full"
         end
 
+      size =
+        if attribute[:size] do
+          "size: #{attribute[:size]}"
+        end
+
       [
         "add #{inspect(attribute.name)}",
         "references(:#{table}",
@@ -95,7 +100,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
           on_delete(reference),
-          on_update(reference)
+          on_update(reference),
+          size
         ],
         ")",
         maybe_add_default(attribute.default),
@@ -117,6 +123,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                 } = reference
             } = attribute
         }) do
+      size =
+        if attribute[:size] do
+          "size: #{attribute[:size]}"
+        end
+
       [
         "add #{inspect(attribute.name)}",
         "references(:#{table}",
@@ -125,6 +136,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "prefix: \"public\"",
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
+          size,
           on_delete(reference),
           on_update(reference)
         ],
@@ -145,11 +157,17 @@ defmodule AshPostgres.MigrationGenerator.Operation do
               }
             } = attribute
         }) do
+      size =
+        if attribute.size do
+          "size: #{attribute.size}"
+        end
+
       [
         "add #{inspect(attribute.name)}",
         inspect(attribute.type),
         maybe_add_default(attribute.default),
         maybe_add_primary_key(attribute.primary_key?),
+        size,
         maybe_add_null(attribute.allow_nil?)
       ]
       |> join()
@@ -167,6 +185,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                 } = reference
             } = attribute
         }) do
+      size =
+        if attribute[:size] do
+          "size: #{attribute[:size]}"
+        end
+
       [
         "add #{inspect(attribute.name)}",
         "references(:#{table}",
@@ -175,6 +198,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
           "prefix: prefix()",
+          size,
           on_delete(reference),
           on_update(reference)
         ],
@@ -197,6 +221,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                 } = reference
             } = attribute
         }) do
+      size =
+        if attribute[:size] do
+          "size: #{attribute[:size]}"
+        end
+
       [
         "add #{inspect(attribute.name)}",
         "references(:#{table}",
@@ -205,6 +234,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
           "prefix: \"public\"",
+          size,
           on_delete(reference),
           on_update(reference)
         ],
@@ -221,6 +251,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
             %{references: %{table: table, destination_field: destination_field} = reference} =
               attribute
         }) do
+      size =
+        if attribute[:size] do
+          "size: #{attribute[:size]}"
+        end
+
       [
         "add #{inspect(attribute.name)}",
         "references(:#{table}",
@@ -228,6 +263,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "column: #{inspect(destination_field)}",
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
+          size,
           on_delete(reference),
           on_update(reference)
         ],
@@ -260,11 +296,17 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     end
 
     def up(%{attribute: attribute}) do
+      size =
+        if attribute[:size] do
+          "size: #{attribute[:size]}"
+        end
+
       [
         "add #{inspect(attribute.name)}",
         "#{inspect(attribute.type)}",
         maybe_add_null(attribute.allow_nil?),
         maybe_add_default(attribute.default),
+        size,
         maybe_add_primary_key(attribute.primary_key?)
       ]
       |> join()
@@ -342,10 +384,16 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                } = reference
            } = attribute
          ) do
+      size =
+        if attribute[:size] do
+          "size: #{attribute[:size]}"
+        end
+
       join([
         "references(:#{table}, column: #{inspect(destination_field)}",
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
+        size,
         "prefix: prefix()",
         on_delete(reference),
         on_update(reference),
@@ -369,11 +417,17 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "with: [#{source_attribute}: :#{destination_attribute}], match: :full"
         end
 
+      size =
+        if attribute[:size] do
+          "size: #{attribute[:size]}"
+        end
+
       join([
         "references(:#{table}, column: #{inspect(destination_field)}",
         with_match,
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
+        size,
         on_delete(reference),
         on_update(reference),
         ")"
@@ -390,10 +444,16 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                } = reference
            } = attribute
          ) do
+      size =
+        if attribute[:size] do
+          "size: #{attribute[:size]}"
+        end
+
       join([
         "references(:#{table}, column: #{inspect(destination_field)}, prefix: \"public\"",
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
+        size,
         on_delete(reference),
         on_update(reference),
         ")"
@@ -410,10 +470,16 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                } = reference
            } = attribute
          ) do
+      size =
+        if attribute[:size] do
+          "size: #{attribute[:size]}"
+        end
+
       join([
         "references(:#{table}, column: #{inspect(destination_field)}",
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
+        size,
         on_delete(reference),
         on_update(reference),
         ")"
