@@ -227,4 +227,38 @@ defmodule AshPostgres.CalculationTest do
              |> Ash.Query.sort(param_full_name: [separator: "~"])
              |> Api.read!()
   end
+
+  @tag mustexec: true
+  test "calculations load nullable timestamp aggregates compared to a fragment" do
+    post = Post
+    |> Ash.Changeset.new(%{title: "aaa", score: 0})
+    |> Api.create!()
+
+    Post
+    |> Ash.Changeset.new(%{title: "aaa", score: 1})
+    |> Api.create!()
+
+    Post
+    |> Ash.Changeset.new(%{title: "bbb", score: 0})
+    |> Api.create!()
+
+    Comment
+    |> Ash.Changeset.new(%{title: "aaa", likes: 1, arbitrary_timestamp: DateTime.now!("Etc/UTC")})
+    |> Ash.Changeset.replace_relationship(:post, post)
+    |> Api.create!()
+
+    Comment
+    |> Ash.Changeset.new(%{title: "bbb", likes: 1})
+    |> Ash.Changeset.replace_relationship(:post, post)
+    |> Api.create!()
+
+    Comment
+    |> Ash.Changeset.new(%{title: "aaa", likes: 2})
+    |> Ash.Changeset.replace_relationship(:post, post)
+    |> Api.create!()
+
+    Post
+    |> Ash.Query.load([:has_future_arbitrary_timestamp])
+    |> Api.read!()
+  end
 end

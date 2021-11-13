@@ -73,6 +73,8 @@ defmodule AshPostgres.Test.Post do
     calculate(:c_times_p, :integer, expr(count_of_comments * count_of_linked_posts),
       load: [:count_of_comments, :count_of_linked_posts]
     )
+
+    calculate(:has_future_arbitrary_timestamp, :boolean, expr(latest_arbitrary_timestamp > fragment("now()")))
   end
 
   aggregates do
@@ -102,6 +104,10 @@ defmodule AshPostgres.Test.Post do
 
     first :highest_rating, [:comments, :ratings], :score do
       sort(score: :desc)
+    end
+
+    first :latest_arbitrary_timestamp, :comments, :arbitrary_timestamp do
+      sort(arbitrary_timestamp: :desc)
     end
   end
 end

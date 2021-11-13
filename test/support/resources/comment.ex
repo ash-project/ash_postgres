@@ -26,6 +26,7 @@ defmodule AshPostgres.Test.Comment do
     uuid_primary_key(:id)
     attribute(:title, :string)
     attribute(:likes, :integer)
+    attribute :arbitrary_timestamp, :utc_datetime_usec
   end
 
   relationships do
