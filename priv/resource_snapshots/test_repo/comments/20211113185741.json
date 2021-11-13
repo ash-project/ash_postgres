@@ -24,7 +24,7 @@
       "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "name": "score",
+      "name": "likes",
       "primary_key?": false,
       "references": null,
       "size": null,
@@ -34,77 +34,74 @@
       "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "name": "public",
+      "name": "arbitrary_timestamp",
       "primary_key?": false,
       "references": null,
       "size": null,
-      "type": "boolean"
+      "type": "utc_datetime_usec"
+    },
+    {
+      "allow_nil?": false,
+      "default": "fragment(\"now()\")",
+      "generated?": false,
+      "name": "created_at",
+      "primary_key?": false,
+      "references": null,
+      "size": null,
+      "type": "utc_datetime_usec"
     },
     {
       "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "name": "category",
+      "name": "post_id",
       "primary_key?": false,
-      "references": null,
+      "references": {
+        "destination_field": "id",
+        "destination_field_default": null,
+        "destination_field_generated": null,
+        "multitenancy": {
+          "attribute": null,
+          "global": null,
+          "strategy": null
+        },
+        "name": "special_name_fkey",
+        "on_delete": "delete",
+        "on_update": "update",
+        "table": "posts"
+      },
       "size": null,
-      "type": "citext"
-    },
-    {
-      "allow_nil?": true,
-      "default": "\"sponsored\"",
-      "generated?": false,
-      "name": "type",
-      "primary_key?": false,
-      "references": null,
-      "size": null,
-      "type": "text"
-    },
-    {
-      "allow_nil?": true,
-      "default": "nil",
-      "generated?": false,
-      "name": "price",
-      "primary_key?": false,
-      "references": null,
-      "size": null,
-      "type": "bigint"
-    },
-    {
-      "allow_nil?": true,
-      "default": "0",
-      "generated?": false,
-      "name": "decimal",
-      "primary_key?": false,
-      "references": null,
-      "size": null,
-      "type": "decimal"
+      "type": "uuid"
     },
     {
       "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "name": "status",
+      "name": "author_id",
       "primary_key?": false,
-      "references": null,
+      "references": {
+        "destination_field": "id",
+        "destination_field_default": null,
+        "destination_field_generated": null,
+        "multitenancy": {
+          "attribute": null,
+          "global": null,
+          "strategy": null
+        },
+        "name": "comments_author_id_fkey",
+        "on_delete": null,
+        "on_update": null,
+        "table": "authors"
+      },
       "size": null,
-      "type": "text"
+      "type": "uuid"
     }
   ],
-  "base_filter": "type = 'sponsored'",
-  "check_constraints": [
-    {
-      "attribute": [
-        "price"
-      ],
-      "base_filter": "type = 'sponsored'",
-      "check": "price > 0",
-      "name": "price_must_be_positive"
-    }
-  ],
+  "base_filter": null,
+  "check_constraints": [],
   "custom_indexes": [],
   "has_create_action": true,
-  "hash": "458B2EB01A37F8768D0D26245B05D2D9B2F1996E0BAF67C8D715AFB5A46D4EE0",
+  "hash": "8C7B9F47D65676E7A767135486DDFCBC6719A2D5B493D3E97DF23F181632045D",
   "identities": [],
   "multitenancy": {
     "attribute": null,
@@ -112,5 +109,5 @@
     "strategy": null
   },
   "repo": "Elixir.AshPostgres.TestRepo",
-  "table": "posts"
+  "table": "comments"
 }

@@ -236,9 +236,10 @@ defmodule AshPostgres.CalculationTest do
 
   @tag mustexec: true
   test "calculations load nullable timestamp aggregates compared to a fragment" do
-    post = Post
-    |> Ash.Changeset.new(%{title: "aaa", score: 0})
-    |> Api.create!()
+    post =
+      Post
+      |> Ash.Changeset.new(%{title: "aaa", score: 0})
+      |> Api.create!()
 
     Post
     |> Ash.Changeset.new(%{title: "aaa", score: 1})

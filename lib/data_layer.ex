@@ -2701,7 +2701,13 @@ defmodule AshPostgres.DataLayer do
          type
        ) do
     [condition_type, when_true_type, when_false_type] =
-      determine_types(If, [condition, when_true, when_false])
+      case determine_types(If, [condition, when_true, when_false]) do
+        [condition_type, when_true] ->
+          [condition_type, when_true, nil]
+
+        [condition_type, when_true, when_false] ->
+          [condition_type, when_true, when_false]
+      end
 
     {params, condition} =
       do_filter_to_expr(condition, bindings, params, pred_embedded? || embedded?, condition_type)

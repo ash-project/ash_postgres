@@ -24,6 +24,7 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources1 do
       add :price, :bigint
       add :decimal, :decimal, default: 0
       add :status, :text
+      add :created_at, :utc_datetime_usec, null: false, default: fragment("now()")
     end
 
     create table(:post_ratings, primary_key: false) do
@@ -72,6 +73,7 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources1 do
       add :id, :uuid, null: false, default: fragment("uuid_generate_v4()"), primary_key: true
       add :title, :text
       add :likes, :bigint
+      add :arbitrary_timestamp, :utc_datetime_usec
       add :created_at, :utc_datetime_usec, null: false, default: fragment("now()")
 
       add :post_id,
