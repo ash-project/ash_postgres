@@ -126,7 +126,7 @@ defmodule AshPostgres.MixProject do
       "test.migrate_tenants": "ash_postgres.migrate --tenants",
       "test.migrate": "ash_postgres.migrate",
       "test.create": "ash_postgres.create",
-      "test.reset": ["test.drop", "test.create", "test.migrate"],
+      "test.reset": ["test.drop", "test.create", "test.migrate", "ash_postgres.migrate --tenants"],
       "test.drop": "ash_postgres.drop"
     ]
   end
