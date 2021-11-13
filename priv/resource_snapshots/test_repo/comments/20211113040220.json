@@ -7,7 +7,18 @@
       "name": "id",
       "primary_key?": true,
       "references": null,
+      "size": null,
       "type": "uuid"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "title",
+      "primary_key?": false,
+      "references": null,
+      "size": null,
+      "type": "text"
     },
     {
       "allow_nil?": true,
@@ -16,7 +27,18 @@
       "name": "likes",
       "primary_key?": false,
       "references": null,
+      "size": null,
       "type": "bigint"
+    },
+    {
+      "allow_nil?": false,
+      "default": "fragment(\"now()\")",
+      "generated?": false,
+      "name": "created_at",
+      "primary_key?": false,
+      "references": null,
+      "size": null,
+      "type": "utc_datetime_usec"
     },
     {
       "allow_nil?": true,
@@ -38,22 +60,38 @@
         "on_update": "update",
         "table": "posts"
       },
+      "size": null,
       "type": "uuid"
     },
     {
       "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "name": "title",
+      "name": "author_id",
       "primary_key?": false,
-      "references": null,
-      "type": "text"
+      "references": {
+        "destination_field": "id",
+        "destination_field_default": null,
+        "destination_field_generated": null,
+        "multitenancy": {
+          "attribute": null,
+          "global": null,
+          "strategy": null
+        },
+        "name": "comments_author_id_fkey",
+        "on_delete": null,
+        "on_update": null,
+        "table": "authors"
+      },
+      "size": null,
+      "type": "uuid"
     }
   ],
   "base_filter": null,
   "check_constraints": [],
+  "custom_indexes": [],
   "has_create_action": true,
-  "hash": "AC27C8DBB84D6687136A96A5E1393042E31235B847365E5DB26DE57F5FC55604",
+  "hash": "FF020E5617D17FF19EBBD8E2BFF9B3D99149A5CE37E48B5CDC3B208A60D42DCF",
   "identities": [],
   "multitenancy": {
     "attribute": null,

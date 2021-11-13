@@ -1,26 +1,24 @@
 {
   "attributes": [
     {
+      "allow_nil?": false,
+      "default": "fragment(\"uuid_generate_v4()\")",
+      "generated?": false,
+      "name": "id",
+      "primary_key?": true,
+      "references": null,
+      "size": null,
+      "type": "uuid"
+    },
+    {
       "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "name": "user_id",
+      "name": "name",
       "primary_key?": false,
-      "references": {
-        "destination_field": "id",
-        "destination_field_default": null,
-        "destination_field_generated": null,
-        "multitenancy": {
-          "attribute": "org_id",
-          "global": true,
-          "strategy": "attribute"
-        },
-        "name": "multitenant_posts_user_id_fkey",
-        "on_delete": null,
-        "on_update": null,
-        "table": "users"
-      },
-      "type": "uuid"
+      "references": null,
+      "size": null,
+      "type": "text"
     },
     {
       "allow_nil?": true,
@@ -42,31 +40,38 @@
         "on_update": null,
         "table": "multitenant_orgs"
       },
-      "type": "uuid"
-    },
-    {
-      "allow_nil?": false,
-      "default": "fragment(\"uuid_generate_v4()\")",
-      "generated?": false,
-      "name": "id",
-      "primary_key?": true,
-      "references": null,
+      "size": null,
       "type": "uuid"
     },
     {
       "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "name": "name",
+      "name": "user_id",
       "primary_key?": false,
-      "references": null,
-      "type": "text"
+      "references": {
+        "destination_field": "id",
+        "destination_field_default": null,
+        "destination_field_generated": null,
+        "multitenancy": {
+          "attribute": "org_id",
+          "global": true,
+          "strategy": "attribute"
+        },
+        "name": "multitenant_posts_user_id_fkey",
+        "on_delete": null,
+        "on_update": null,
+        "table": "users"
+      },
+      "size": null,
+      "type": "uuid"
     }
   ],
   "base_filter": null,
   "check_constraints": [],
+  "custom_indexes": [],
   "has_create_action": true,
-  "hash": "299E521B77B07B86656FF54CF9BF52D89A609585C31253358693194E61EAE421",
+  "hash": "50DC00709529748CE196605AA58272E506B2DC9B3794C09A9650181768578480",
   "identities": [],
   "multitenancy": {
     "attribute": null,

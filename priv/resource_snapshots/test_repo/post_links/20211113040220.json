@@ -4,28 +4,6 @@
       "allow_nil?": false,
       "default": "nil",
       "generated?": false,
-      "name": "destination_post_id",
-      "primary_key?": true,
-      "references": {
-        "destination_field": "id",
-        "destination_field_default": null,
-        "destination_field_generated": null,
-        "multitenancy": {
-          "attribute": null,
-          "global": null,
-          "strategy": null
-        },
-        "name": "post_links_destination_post_id_fkey",
-        "on_delete": null,
-        "on_update": null,
-        "table": "posts"
-      },
-      "type": "uuid"
-    },
-    {
-      "allow_nil?": false,
-      "default": "nil",
-      "generated?": false,
       "name": "source_post_id",
       "primary_key?": true,
       "references": {
@@ -42,13 +20,38 @@
         "on_update": null,
         "table": "posts"
       },
+      "size": null,
+      "type": "uuid"
+    },
+    {
+      "allow_nil?": false,
+      "default": "nil",
+      "generated?": false,
+      "name": "destination_post_id",
+      "primary_key?": true,
+      "references": {
+        "destination_field": "id",
+        "destination_field_default": null,
+        "destination_field_generated": null,
+        "multitenancy": {
+          "attribute": null,
+          "global": null,
+          "strategy": null
+        },
+        "name": "post_links_destination_post_id_fkey",
+        "on_delete": null,
+        "on_update": null,
+        "table": "posts"
+      },
+      "size": null,
       "type": "uuid"
     }
   ],
   "base_filter": null,
   "check_constraints": [],
+  "custom_indexes": [],
   "has_create_action": true,
-  "hash": "5BE6D0ABC5C1DA380CFA9926BDC9C1544E4FA4699D9ABE49C16E1E004B4E270A",
+  "hash": "0D9FE5CA8E70DB6AD89F7AB5C1904C965D7AC49F466F959EF1A354D298C190EE",
   "identities": [],
   "multitenancy": {
     "attribute": null,

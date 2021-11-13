@@ -7,51 +7,48 @@
       "name": "id",
       "primary_key?": true,
       "references": null,
+      "size": null,
       "type": "uuid"
     },
     {
       "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "name": "likes",
+      "name": "score",
       "primary_key?": false,
       "references": null,
+      "size": null,
       "type": "bigint"
     },
     {
       "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "name": "post_id",
+      "name": "resource_id",
       "primary_key?": false,
       "references": {
         "destination_field": "id",
+        "destination_field_default": "fragment(\"uuid_generate_v4()\")",
+        "destination_field_generated": null,
         "multitenancy": {
           "attribute": null,
           "global": null,
           "strategy": null
         },
-        "name": "special_name_fkey",
-        "on_delete": "delete",
-        "on_update": "update",
+        "name": "post_ratings_resource_id_fkey",
+        "on_delete": null,
+        "on_update": null,
         "table": "posts"
       },
+      "size": null,
       "type": "uuid"
-    },
-    {
-      "allow_nil?": true,
-      "default": "nil",
-      "generated?": false,
-      "name": "title",
-      "primary_key?": false,
-      "references": null,
-      "type": "text"
     }
   ],
   "base_filter": null,
   "check_constraints": [],
+  "custom_indexes": [],
   "has_create_action": true,
-  "hash": "AC27C8DBB84D6687136A96A5E1393042E31235B847365E5DB26DE57F5FC55604",
+  "hash": "AD6200C6D2E6E913A0A50201AA5CD9A0A8C21507073225E73AC4F01670C3C637",
   "identities": [],
   "multitenancy": {
     "attribute": null,
@@ -59,5 +56,5 @@
     "strategy": null
   },
   "repo": "Elixir.AshPostgres.TestRepo",
-  "table": "comments"
+  "table": "post_ratings"
 }

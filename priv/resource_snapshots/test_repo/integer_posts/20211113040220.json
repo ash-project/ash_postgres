@@ -7,6 +7,7 @@
       "name": "id",
       "primary_key?": true,
       "references": null,
+      "size": null,
       "type": "bigint"
     },
     {
@@ -16,13 +17,15 @@
       "name": "title",
       "primary_key?": false,
       "references": null,
+      "size": null,
       "type": "text"
     }
   ],
   "base_filter": null,
   "check_constraints": [],
+  "custom_indexes": [],
   "has_create_action": true,
-  "hash": "38D842CAAC012D0973D6A661E8EF0C429BDB535E3AB78EC4F24C951ED323FEFE",
+  "hash": "E3461F76157BAFC641559808C6976C637B7660DF3A28E6D560F07E5C7086FE84",
   "identities": [],
   "multitenancy": {
     "attribute": null,

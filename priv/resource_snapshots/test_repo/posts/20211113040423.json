@@ -1,30 +1,33 @@
 {
   "attributes": [
     {
-      "allow_nil?": true,
-      "default": "nil",
-      "generated?": false,
-      "name": "category",
-      "primary_key?": false,
-      "references": null,
-      "type": "citext"
-    },
-    {
       "allow_nil?": false,
       "default": "fragment(\"uuid_generate_v4()\")",
       "generated?": false,
       "name": "id",
       "primary_key?": true,
       "references": null,
+      "size": null,
       "type": "uuid"
     },
     {
       "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "name": "price",
+      "name": "title",
       "primary_key?": false,
       "references": null,
+      "size": null,
+      "type": "text"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "score",
+      "primary_key?": false,
+      "references": null,
+      "size": null,
       "type": "bigint"
     },
     {
@@ -34,34 +37,18 @@
       "name": "public",
       "primary_key?": false,
       "references": null,
+      "size": null,
       "type": "boolean"
     },
     {
       "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "name": "score",
+      "name": "category",
       "primary_key?": false,
       "references": null,
-      "type": "bigint"
-    },
-    {
-      "allow_nil?": true,
-      "default": "nil",
-      "generated?": false,
-      "name": "status",
-      "primary_key?": false,
-      "references": null,
-      "type": "status"
-    },
-    {
-      "allow_nil?": true,
-      "default": "nil",
-      "generated?": false,
-      "name": "title",
-      "primary_key?": false,
-      "references": null,
-      "type": "text"
+      "size": null,
+      "type": "citext"
     },
     {
       "allow_nil?": true,
@@ -70,7 +57,48 @@
       "name": "type",
       "primary_key?": false,
       "references": null,
+      "size": null,
       "type": "text"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "price",
+      "primary_key?": false,
+      "references": null,
+      "size": null,
+      "type": "bigint"
+    },
+    {
+      "allow_nil?": true,
+      "default": "0",
+      "generated?": false,
+      "name": "decimal",
+      "primary_key?": false,
+      "references": null,
+      "size": null,
+      "type": "decimal"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "status",
+      "primary_key?": false,
+      "references": null,
+      "size": null,
+      "type": "text"
+    },
+    {
+      "allow_nil?": false,
+      "default": "fragment(\"now()\")",
+      "generated?": false,
+      "name": "created_at",
+      "primary_key?": false,
+      "references": null,
+      "size": null,
+      "type": "utc_datetime_usec"
     }
   ],
   "base_filter": "type = 'sponsored'",
@@ -84,8 +112,9 @@
       "name": "price_must_be_positive"
     }
   ],
+  "custom_indexes": [],
   "has_create_action": true,
-  "hash": "7A770F5F8910A177ACBB48415948238B7A1CA22B0A93D01A3EBF434825D9893C",
+  "hash": "961260DD038CC7B29122786878B5F41ED182E15B4B03C765510C2FFF94D633DC",
   "identities": [],
   "multitenancy": {
     "attribute": null,

@@ -7,6 +7,7 @@
       "name": "id",
       "primary_key?": true,
       "references": null,
+      "size": null,
       "type": "uuid"
     },
     {
@@ -16,15 +17,19 @@
       "name": "name",
       "primary_key?": false,
       "references": null,
+      "size": null,
       "type": "text"
     }
   ],
   "base_filter": null,
+  "check_constraints": [],
+  "custom_indexes": [],
   "has_create_action": true,
-  "hash": "B6460C9462B201C00284E48633BDB965A05C993F5F87A7171C3A4BC086189B6C",
+  "hash": "39EACED7C5083A99B542A8EAF4562EBE69136D451387F0F76E84E994178C6185",
   "identities": [
     {
       "base_filter": null,
+      "index_name": "multitenant_orgs_unique_by_name_index",
       "keys": [
         "name"
       ],

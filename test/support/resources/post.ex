@@ -52,6 +52,7 @@ defmodule AshPostgres.Test.Post do
     attribute(:price, :integer)
     attribute(:decimal, :decimal, default: Decimal.new(0))
     attribute(:status, AshPostgres.Test.Types.Status)
+    create_timestamp(:created_at)
   end
 
   relationships do
@@ -74,7 +75,13 @@ defmodule AshPostgres.Test.Post do
       load: [:count_of_comments, :count_of_linked_posts]
     )
 
-    calculate(:has_future_arbitrary_timestamp, :boolean, expr(latest_arbitrary_timestamp > fragment("now()")))
+    calculate(
+      :has_future_arbitrary_timestamp,
+      :boolean,
+      expr(latest_arbitrary_timestamp > fragment("now()"))
+    )
+
+    calculate(:has_future_comment, :boolean, expr(latest_comment_created_at > fragment("now()")))
   end
 
   aggregates do
@@ -87,6 +94,10 @@ defmodule AshPostgres.Test.Post do
 
     first :first_comment, :comments, :title do
       sort(title: :asc_nils_last)
+    end
+
+    first :latest_comment_created_at, :comments, :created_at do
+      sort(created_at: :desc)
     end
 
     list :comment_titles, :comments, :title do

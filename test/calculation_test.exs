@@ -149,6 +149,12 @@ defmodule AshPostgres.CalculationTest do
              |> Api.read_one!()
   end
 
+  test "calculations that refer to aggregates in comparison expressions can be filtered on" do
+    Post
+    |> Ash.Query.load(:has_future_comment)
+    |> Api.read!()
+  end
+
   test "conditional calculations can be filtered on" do
     author =
       Author

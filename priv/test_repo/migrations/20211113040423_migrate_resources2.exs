@@ -1,4 +1,4 @@
-defmodule AshPostgres.TestRepo.Migrations.MigrateResources6 do
+defmodule AshPostgres.TestRepo.Migrations.MigrateResources2 do
   @moduledoc """
   Updates resources based on their most recent snapshots.
 
@@ -8,14 +8,14 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources6 do
   use Ecto.Migration
 
   def up do
-    alter table(:comments) do
-      add :likes, :integer
+    alter table(:posts) do
+      add :created_at, :utc_datetime_usec, null: false, default: fragment("now()")
     end
   end
 
   def down do
-    alter table(:comments) do
-      remove :likes
+    alter table(:posts) do
+      remove :created_at
     end
   end
 end

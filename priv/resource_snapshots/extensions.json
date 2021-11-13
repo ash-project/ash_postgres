@@ -1,4 +1,5 @@
 [
   "uuid-ossp",
-  "pg_trgm"
+  "pg_trgm",
+  "citext"
 ]

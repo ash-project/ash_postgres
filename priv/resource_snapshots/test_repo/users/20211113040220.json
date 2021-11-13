@@ -7,6 +7,7 @@
       "name": "id",
       "primary_key?": true,
       "references": null,
+      "size": null,
       "type": "uuid"
     },
     {
@@ -16,6 +17,7 @@
       "name": "name",
       "primary_key?": false,
       "references": null,
+      "size": null,
       "type": "text"
     },
     {
@@ -33,24 +35,26 @@
           "global": true,
           "strategy": "attribute"
         },
-        "name": "multitenant_posts_org_id_fkey",
+        "name": "users_org_id_fkey",
         "on_delete": null,
         "on_update": null,
         "table": "multitenant_orgs"
       },
+      "size": null,
       "type": "uuid"
     }
   ],
   "base_filter": null,
   "check_constraints": [],
+  "custom_indexes": [],
   "has_create_action": true,
-  "hash": "799C3F02A636BEE89A64FB570979E01572BBB54FAB744D1F9F86420614A67789",
+  "hash": "D71F9F7330BB06F07AABCE5D58813EE11248F703D8B57F212B6CAD00CAADDC73",
   "identities": [],
   "multitenancy": {
-    "attribute": null,
-    "global": false,
-    "strategy": "context"
+    "attribute": "org_id",
+    "global": true,
+    "strategy": "attribute"
   },
   "repo": "Elixir.AshPostgres.TestRepo",
-  "table": "multitenant_posts"
+  "table": "users"
 }

@@ -1,39 +1,33 @@
 {
   "attributes": [
     {
-      "allow_nil?": true,
-      "default": "nil",
-      "generated?": false,
-      "name": "category",
-      "primary_key?": false,
-      "references": null,
-      "type": "citext"
-    },
-    {
-      "allow_nil?": true,
-      "default": "0",
-      "generated?": false,
-      "name": "decimal",
-      "primary_key?": false,
-      "references": null,
-      "type": "decimal"
-    },
-    {
       "allow_nil?": false,
       "default": "fragment(\"uuid_generate_v4()\")",
       "generated?": false,
       "name": "id",
       "primary_key?": true,
       "references": null,
+      "size": null,
       "type": "uuid"
     },
     {
       "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "name": "price",
+      "name": "title",
       "primary_key?": false,
       "references": null,
+      "size": null,
+      "type": "text"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "score",
+      "primary_key?": false,
+      "references": null,
+      "size": null,
       "type": "bigint"
     },
     {
@@ -43,34 +37,18 @@
       "name": "public",
       "primary_key?": false,
       "references": null,
+      "size": null,
       "type": "boolean"
     },
     {
       "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "name": "score",
+      "name": "category",
       "primary_key?": false,
       "references": null,
-      "type": "bigint"
-    },
-    {
-      "allow_nil?": true,
-      "default": "nil",
-      "generated?": false,
-      "name": "status",
-      "primary_key?": false,
-      "references": null,
-      "type": "status"
-    },
-    {
-      "allow_nil?": true,
-      "default": "nil",
-      "generated?": false,
-      "name": "title",
-      "primary_key?": false,
-      "references": null,
-      "type": "text"
+      "size": null,
+      "type": "citext"
     },
     {
       "allow_nil?": true,
@@ -79,6 +57,37 @@
       "name": "type",
       "primary_key?": false,
       "references": null,
+      "size": null,
+      "type": "text"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "price",
+      "primary_key?": false,
+      "references": null,
+      "size": null,
+      "type": "bigint"
+    },
+    {
+      "allow_nil?": true,
+      "default": "0",
+      "generated?": false,
+      "name": "decimal",
+      "primary_key?": false,
+      "references": null,
+      "size": null,
+      "type": "decimal"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "name": "status",
+      "primary_key?": false,
+      "references": null,
+      "size": null,
       "type": "text"
     }
   ],
@@ -93,8 +102,9 @@
       "name": "price_must_be_positive"
     }
   ],
+  "custom_indexes": [],
   "has_create_action": true,
-  "hash": "42B75BE079D8BBC3AE0EC4B1517A4D0E150F381E9817F9D8FA53E1E689A80D3B",
+  "hash": "458B2EB01A37F8768D0D26245B05D2D9B2F1996E0BAF67C8D715AFB5A46D4EE0",
   "identities": [],
   "multitenancy": {
     "attribute": null,
