@@ -1050,11 +1050,12 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def upsert(resource, changeset, keys \\ nil) do
     keys = keys || Ash.Resource.Info.primary_key(resource)
+    attributes = Map.keys(changeset.attributes) -- Ash.Resource.Info.primary_key(resource) -- keys
 
     repo_opts =
       changeset
       |> repo_opts()
-      |> Keyword.put(:on_conflict, {:replace, Map.keys(changeset.attributes)})
+      |> Keyword.put(:on_conflict, {:replace, attributes})
       |> Keyword.put(:conflict_target, keys)
 
     if AshPostgres.manage_tenant_update?(resource) do
