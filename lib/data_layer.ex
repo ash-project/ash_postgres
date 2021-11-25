@@ -1064,7 +1064,7 @@ defmodule AshPostgres.DataLayer do
       changeset.data
       |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
       |> ecto_changeset(changeset, :upsert)
-      |> repo(resource).insert(repo_opts)
+      |> repo(resource).insert(Keyword.put(repo_opts, :returning, true))
       |> handle_errors()
     end
   end
