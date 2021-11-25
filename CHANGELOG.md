@@ -5,6 +5,27 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.41.4](https://github.com/ash-project/ash_postgres/compare/v0.41.3...v0.41.4) (2021-11-25)
+
+
+
+
+### Bug Fixes:
+
+* handle new if types
+
+* copy query prefix to newly created query (#74)
+
+### Improvements:
+
+* don't upsert defaults on conflict (#77)
+
+* relax ash version requirement
+
+* add custom migration types, and repo level override
+
+* update to latest version of ash
+
 ## [v0.41.3](https://github.com/ash-project/ash_postgres/compare/v0.41.2...v0.41.3) (2021-11-13)
 
 
