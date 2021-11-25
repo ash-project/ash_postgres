@@ -1050,7 +1050,7 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def upsert(resource, changeset, keys \\ nil) do
     keys = keys || Ash.Resource.Info.primary_key(resource)
-    attributes = Map.keys(changeset.attributes) -- Ash.Resource.Info.primary_key(resource) -- keys
+    attributes = Map.keys(changeset.attributes) -- Map.get(changeset, :defaults, []) -- keys
 
     repo_opts =
       changeset
