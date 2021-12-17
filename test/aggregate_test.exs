@@ -47,9 +47,6 @@ defmodule AshPostgres.AggregateTest do
                |> Api.read_one!()
     end
 
-    test "sum can have a default value" do
-    end
-
     test "with data for a many_to_many, it returns the count" do
       post =
         Post
