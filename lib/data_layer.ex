@@ -1601,6 +1601,10 @@ defmodule AshPostgres.DataLayer do
     {:array, parameterized_type(type, constraints[:items] || [])}
   end
 
+  defp parameterized_type(Ash.Type.CiString, constraints) do
+    parameterized_type(Ash.Type.CiStringWrapper, constraints)
+  end
+
   defp parameterized_type(type, constraints) do
     if Ash.Type.ash_type?(type) do
       parameterized_type(Ash.Type.ecto_type(type), constraints)

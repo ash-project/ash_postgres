@@ -30,6 +30,10 @@ defmodule AshPostgres.Test.Comment do
     create_timestamp(:created_at)
   end
 
+  aggregates do
+    first(:post_category, :post, :category)
+  end
+
   relationships do
     belongs_to(:post, AshPostgres.Test.Post)
     belongs_to(:author, AshPostgres.Test.Author)
