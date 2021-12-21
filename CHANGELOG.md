@@ -5,6 +5,33 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.41.6](https://github.com/ash-project/ash_postgres/compare/v0.41.5...v0.41.6) (2021-12-21)
+
+
+
+
+### Bug Fixes:
+
+* properly construct nested join relationships
+
+* use `CiStringWrapper` type in ash_postgres
+
+* ensure we are returning * on upserts (#79)
+
+* handle new if types
+
+* copy query prefix to newly created query (#74)
+
+### Improvements:
+
+* don't upsert defaults on conflict (#77)
+
+* relax ash version requirement
+
+* add custom migration types, and repo level override
+
+* update to latest version of ash
+
 ## [v0.41.5](https://github.com/ash-project/ash_postgres/compare/v0.41.4...v0.41.5) (2021-11-26)
 
 
