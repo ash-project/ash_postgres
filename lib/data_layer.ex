@@ -2141,7 +2141,8 @@ defmodule AshPostgres.DataLayer do
          source,
          filter
        ) do
-    join_relationship = Ash.Resource.Info.relationship(source, relationship.join_relationship)
+    join_relationship =
+      Ash.Resource.Info.relationship(relationship.source, relationship.join_relationship)
 
     with {:ok, relationship_through} <-
            maybe_get_resource_query(relationship.through, join_relationship, query),
