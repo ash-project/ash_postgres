@@ -98,7 +98,7 @@ defmodule AshPostgres.MixProject do
       {:ecto, path: "../ecto", override: true},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
-      {:ash, ash_version("~> 1.50 and >= 1.50.5")},
+      {:ash, ash_version("~> 1.50 and >= 1.50.14")},
       {:git_ops, "~> 2.4.5", only: :dev},
       {:ex_doc, "~> 0.22", only: :dev, runtime: false},
       {:ex_check, "~> 0.11.0", only: :dev},

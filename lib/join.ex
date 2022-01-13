@@ -280,7 +280,7 @@ defmodule AshPostgres.Join do
       Enum.reduce_while(used_aggregates, {:ok, relationship_destination}, fn agg, {:ok, query} ->
         agg = %{agg | load: agg.name}
 
-        case AshPostgres.Aggregate.add_aggregate(query, agg, relationship.destination, false) do
+        case AshPostgres.Aggregate.add_aggregates(query, [agg], relationship.destination) do
           {:ok, query} ->
             {:cont, {:ok, query}}
 
@@ -424,7 +424,7 @@ defmodule AshPostgres.Join do
                                                                                {:ok, query} ->
           agg = %{agg | load: agg.name}
 
-          case AshPostgres.Aggregate.add_aggregate(query, agg, relationship.destination, false) do
+          case AshPostgres.Aggregate.add_aggregates(query, [agg], relationship.destination) do
             {:ok, query} ->
               {:cont, {:ok, query}}
 

@@ -1169,13 +1169,13 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def add_aggregate(query, aggregate, resource) do
-    AshPostgres.Aggregate.add_aggregate(query, aggregate, resource)
+  def add_aggregates(query, aggregates, resource) do
+    AshPostgres.Aggregate.add_aggregates(query, aggregates, resource)
   end
 
   @impl true
-  def add_calculation(query, calculation, expression, resource) do
-    AshPostgres.Calculation.add_calculation(query, calculation, expression, resource)
+  def add_calculations(query, calculations, resource) do
+    AshPostgres.Calculation.add_calculations(query, calculations, resource)
   end
 
   @doc false
