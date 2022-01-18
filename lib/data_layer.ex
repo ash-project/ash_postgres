@@ -3174,7 +3174,6 @@ defmodule AshPostgres.DataLayer do
     |> Map.put(:context, root_query.__ash_bindings__.context)
     |> Ash.Query.set_context(relationship.context)
     |> Ash.Query.do_filter(relationship.filter)
-    |> Ash.Query.sort(Map.get(relationship, :sort))
     |> case do
       %{valid?: true} = query ->
         initial_query = %{resource_to_query(resource, nil) | prefix: Map.get(root_query, :prefix)}
