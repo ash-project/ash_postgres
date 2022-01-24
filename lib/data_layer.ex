@@ -713,6 +713,7 @@ defmodule AshPostgres.DataLayer do
                         source_query,
                         relationship.through
                       ),
+                    as: ^1,
                     on:
                       field(through, ^destination_field_on_join_table) ==
                         field(destination, ^destination_field),
@@ -745,6 +746,7 @@ defmodule AshPostgres.DataLayer do
                         source_query,
                         relationship.through
                       ),
+                    as: ^1,
                     on:
                       field(through, ^destination_field_on_join_table) ==
                         field(destination, ^destination_field),
@@ -810,9 +812,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def resource_to_query(resource, _) do
-    from(row in {AshPostgres.table(resource) || "", resource},
-      as: 0
-    )
+    from(row in {AshPostgres.table(resource) || "", resource}, as: ^0)
   end
 
   @impl true
@@ -1200,7 +1200,7 @@ defmodule AshPostgres.DataLayer do
     filter
     |> split_and_statements()
     |> Enum.reduce(query, fn filter, query ->
-      dynamic = AshPostgres.Expr.dynamic_expr(filter, query.__ash_bindings__)
+      dynamic = AshPostgres.Expr.dynamic_expr(query, filter, query.__ash_bindings__)
 
       Ecto.Query.where(query, ^dynamic)
     end)
@@ -1231,14 +1231,14 @@ defmodule AshPostgres.DataLayer do
   defp split_and_statements(other), do: [other]
 
   @doc false
-  def add_binding(query, data) do
+  def add_binding(query, data, additional_bindings \\ 0) do
     current = query.__ash_bindings__.current
     bindings = query.__ash_bindings__.bindings
 
     new_ash_bindings = %{
       query.__ash_bindings__
       | bindings: Map.put(bindings, current, data),
-        current: current + 1
+        current: current + 1 + additional_bindings
     }
 
     %{query | __ash_bindings__: new_ash_bindings}

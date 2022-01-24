@@ -104,7 +104,6 @@ defmodule AshPostgres.Join do
     |> Map.put(:context, root_query.__ash_bindings__.context)
     |> Ash.Query.set_context(relationship.context)
     |> Ash.Query.do_filter(relationship.filter)
-    |> Ash.Query.sort(Map.get(relationship, :sort))
     |> case do
       %{valid?: true} = query ->
         initial_query = %{
@@ -299,7 +298,7 @@ defmodule AshPostgres.Join do
                 subquery(relationship_destination)
             end
 
-          new_query =
+          {new_query, additional_binding?} =
             case kind do
               {:aggregate, _, subquery} ->
                 subquery =
@@ -310,38 +309,47 @@ defmodule AshPostgres.Join do
                     relationship
                   )
 
-                from([{row, current_binding}] in query,
-                  left_lateral_join: through in ^subquery,
-                  as: query.__ash_bindings__.current
-                )
+                q =
+                  from([{row, current_binding}] in query,
+                    left_lateral_join: through in ^subquery,
+                    as: ^query.__ash_bindings__.current
+                  )
+
+                {q, false}
 
               :inner ->
-                from([{row, current_binding}] in query,
-                  join: through in ^relationship_through,
-                  as: query.__ash_bindings__.current,
-                  on:
-                    field(row, ^relationship.source_field) ==
-                      field(through, ^relationship.source_field_on_join_table),
-                  join: destination in ^relationship_destination,
-                  as: query.__ash_bindings__.current + 1,
-                  on:
-                    field(destination, ^relationship.destination_field) ==
-                      field(through, ^relationship.destination_field_on_join_table)
-                )
+                q =
+                  from([{row, current_binding}] in query,
+                    join: through in ^relationship_through,
+                    as: ^query.__ash_bindings__.current,
+                    on:
+                      field(row, ^relationship.source_field) ==
+                        field(through, ^relationship.source_field_on_join_table),
+                    join: destination in ^relationship_destination,
+                    as: ^query.__ash_bindings__.current,
+                    on:
+                      field(destination, ^relationship.destination_field) ==
+                        field(through, ^relationship.destination_field_on_join_table)
+                  )
+
+                {q, true}
 
               _ ->
-                from([{row, current_binding}] in query,
-                  left_join: through in ^relationship_through,
-                  as: query.__ash_bindings__.current,
-                  on:
-                    field(row, ^relationship.source_field) ==
-                      field(through, ^relationship.source_field_on_join_table),
-                  left_join: destination in ^relationship_destination,
-                  as: query.__ash_bindings__.current + 1,
-                  on:
-                    field(destination, ^relationship.destination_field) ==
-                      field(through, ^relationship.destination_field_on_join_table)
-                )
+                q =
+                  from([{row, current_binding}] in query,
+                    left_join: through in ^relationship_through,
+                    as: ^query.__ash_bindings__.current,
+                    on:
+                      field(row, ^relationship.source_field) ==
+                        field(through, ^relationship.source_field_on_join_table),
+                    left_join: destination in ^relationship_destination,
+                    as: ^(query.__ash_bindings__.current + 1),
+                    on:
+                      field(destination, ^relationship.destination_field) ==
+                        field(through, ^relationship.destination_field_on_join_table)
+                  )
+
+                {q, true}
             end
 
           join_path =
@@ -362,9 +370,16 @@ defmodule AshPostgres.Join do
 
           case kind do
             {:aggregate, _, _subquery} ->
+              additional_bindings =
+                if additional_binding? do
+                  1
+                else
+                  0
+                end
+
               {:ok,
                new_query
-               |> AshPostgres.DataLayer.add_binding(binding_data)}
+               |> AshPostgres.DataLayer.add_binding(binding_data, additional_bindings)}
 
             _ ->
               {:ok,
@@ -456,16 +471,13 @@ defmodule AshPostgres.Join do
 
                   from([{row, current_binding}] in query,
                     left_lateral_join: destination in ^subquery,
-                    as: query.__ash_bindings__.current,
-                    on:
-                      field(row, ^relationship.source_field) ==
-                        field(destination, ^relationship.destination_field)
+                    as: ^query.__ash_bindings__.current
                   )
 
                 :inner ->
                   from([{row, current_binding}] in query,
                     join: destination in ^relationship_destination,
-                    as: query.__ash_bindings__.current,
+                    as: ^query.__ash_bindings__.current,
                     on:
                       field(row, ^relationship.source_field) ==
                         field(destination, ^relationship.destination_field)
@@ -474,7 +486,7 @@ defmodule AshPostgres.Join do
                 _ ->
                   from([{row, current_binding}] in query,
                     left_join: destination in ^relationship_destination,
-                    as: query.__ash_bindings__.current,
+                    as: ^query.__ash_bindings__.current,
                     on:
                       field(row, ^relationship.source_field) ==
                         field(destination, ^relationship.destination_field)

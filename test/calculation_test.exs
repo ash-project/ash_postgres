@@ -51,8 +51,6 @@ defmodule AshPostgres.CalculationTest do
              |> Api.read!()
              |> Enum.filter(&(&1.c_times_p == 6))
 
-    Application.put_env(:foo, :bar, true)
-
     assert [
              %{c_times_p: %Ash.NotLoaded{}, title: "match"}
            ] =
@@ -123,8 +121,6 @@ defmodule AshPostgres.CalculationTest do
       |> Ash.Query.filter(post.c_times_p == 6)
       |> Ash.Query.load(post: posts_query)
       |> Ash.Query.limit(1)
-
-    Application.put_env(:foo, :bar, true)
 
     assert [
              %{post: %{c_times_p: 6, title: "match"}}

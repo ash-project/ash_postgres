@@ -133,10 +133,32 @@ defmodule AshPostgres.Aggregate do
         Ecto.Query.select_merge(query, %{})
       end
 
-    query =
-      Enum.reduce(in_body, query, fn {load, _, dynamic}, query ->
-        Ecto.Query.select_merge(query, %{^load => ^dynamic})
-      end)
+    {exprs, new_params, _} =
+      Enum.reduce(
+        in_body,
+        {[], query.select.params, Enum.count(query.select.params)},
+        fn {load, _, dynamic}, {exprs, params, count} ->
+          {expr, new_params, count} =
+            Ecto.Query.Builder.Dynamic.partially_expand(
+              :select,
+              query,
+              dynamic,
+              params,
+              count
+            )
+
+          {[{load, expr} | exprs], new_params, count}
+        end
+      )
+
+    query = %{
+      query
+      | select: %{
+          query.select
+          | expr: {:merge, [], [query.select.expr, {:%{}, [], exprs}]},
+            params: new_params
+        }
+    }
 
     add_aggregates_in_aggregates(query, in_aggregates)
   end
@@ -144,13 +166,23 @@ defmodule AshPostgres.Aggregate do
   defp add_aggregates_in_aggregates(query, []), do: query
 
   defp add_aggregates_in_aggregates(%{select: %{expr: expr} = select} = query, in_aggregates) do
-    {exprs, new_params} =
-      Enum.reduce(in_aggregates, {[], select.params}, fn {_load, name, dynamic},
-                                                         {exprs, params} ->
-        expr = {name, {:^, [], [Enum.count(params)]}}
+    {exprs, new_params, _} =
+      Enum.reduce(
+        in_aggregates,
+        {[], query.select.params, Enum.count(query.select.params)},
+        fn {load, _, dynamic}, {exprs, params, count} ->
+          {expr, new_params, count} =
+            Ecto.Query.Builder.Dynamic.partially_expand(
+              :select,
+              query,
+              dynamic,
+              params,
+              count
+            )
 
-        {[expr | exprs], params ++ [{dynamic}]}
-      end)
+          {[{load, expr} | exprs], new_params, count}
+        end
+      )
 
     %{
       query
@@ -179,7 +211,7 @@ defmodule AshPostgres.Aggregate do
             field(parent_as(^current_binding), ^relationship.source_field)
       )
 
-    from(sub in subquery(inner_sub), select: %{^dest_field => field(sub, ^dest_field)})
+    from(sub in subquery(inner_sub), [])
     |> AshPostgres.Join.set_join_prefix(query, relationship.destination)
   end
 
@@ -187,27 +219,33 @@ defmodule AshPostgres.Aggregate do
     binding =
       AshPostgres.DataLayer.get_binding(resource, aggregate.relationship_path, query, :aggregate)
 
+    type = AshPostgres.Types.parameterized_type(aggregate.type, [])
+    type = Ecto.Type.type(type)
+
     field =
       Ecto.Query.dynamic(
         type(
           field(as(^binding), ^aggregate.name),
-          ^AshPostgres.Types.parameterized_type(aggregate.type, [])
+          ^type
         )
       )
 
-    if is_nil(aggregate.default_value) do
-      field
-    else
-      Ecto.Query.dynamic(
-        coalesce(
-          ^field,
-          type(
-            ^aggregate.default_value,
-            ^AshPostgres.Types.parameterized_type(aggregate.type, [])
+    coalesced =
+      if is_nil(aggregate.default_value) do
+        field
+      else
+        Ecto.Query.dynamic(
+          coalesce(
+            ^field,
+            type(
+              ^aggregate.default_value,
+              ^type
+            )
           )
         )
-      )
-    end
+      end
+
+    Ecto.Query.dynamic(type(^coalesced, ^type))
   end
 
   defp add_aggregate_to_subquery(query, resource, aggregate, binding) do
@@ -265,29 +303,22 @@ defmodule AshPostgres.Aggregate do
   def add_subquery_aggregate_select(query, %{kind: :first} = aggregate, _resource) do
     query = AshPostgres.DataLayer.default_bindings(query, aggregate.resource)
     key = aggregate.field
+
     type = AshPostgres.Types.parameterized_type(aggregate.type, [])
+    type = Ecto.Type.type(type)
 
     field =
       if aggregate.query && aggregate.query.sort && aggregate.query.sort != [] do
-        sort_expr =
-          aggregate.query.sort
-          |> Enum.map(fn {sort, order} ->
-            order =
-              case AshPostgres.Sort.order_to_postgres_order(order) do
-                nil ->
-                  :asc
+        sort_expr = AshPostgres.Sort.order_to_ecto(aggregate.query.sort)
+        question_marks = Enum.map(sort_expr, fn _ -> " ? " end)
+        field = Ecto.Query.dynamic([{^0, row}], field(row, ^key))
 
-                order ->
-                  order
-              end
+        {:ok, expr} =
+          AshPostgres.Functions.Fragment.casted_new(
+            ["array_agg(? ORDER BY #{question_marks})", field] ++ sort_expr
+          )
 
-            {order, Ecto.Query.dynamic([row], field(row, ^sort))}
-          end)
-
-        Ecto.Query.dynamic(
-          [row],
-          fragment("array_agg(? ORDER BY ?)", field(row, ^key), ^sort_expr)
-        )
+        AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__)
       else
         Ecto.Query.dynamic(
           [row],
@@ -300,6 +331,7 @@ defmodule AshPostgres.Aggregate do
            not match?(%Ash.Filter{expression: nil}, aggregate.query.filter) do
         expr =
           AshPostgres.Expr.dynamic_expr(
+            query,
             aggregate.query.filter,
             query.__ash_bindings__
           )
@@ -327,28 +359,20 @@ defmodule AshPostgres.Aggregate do
     query = AshPostgres.DataLayer.default_bindings(query, aggregate.resource)
     key = aggregate.field
     type = AshPostgres.Types.parameterized_type(aggregate.type, [])
+    type = Ecto.Type.type(type)
 
     field =
       if aggregate.query && aggregate.query.sort && aggregate.query.sort != [] do
-        sort_expr =
-          aggregate.query.sort
-          |> Enum.map(fn {sort, order} ->
-            order =
-              case AshPostgres.Sort.order_to_postgres_order(order) do
-                nil ->
-                  :asc
+        sort_expr = AshPostgres.Sort.order_to_ecto(aggregate.query.sort)
+        question_marks = Enum.map(sort_expr, fn _ -> " ? " end)
+        field = Ecto.Query.dynamic([row], field(row, ^key))
 
-                order ->
-                  order
-              end
+        {:ok, expr} =
+          AshPostgres.Functions.Fragment.casted_new(
+            ["array_agg(? ORDER BY #{question_marks})", field] ++ sort_expr
+          )
 
-            {order, Ecto.Query.dynamic([row], field(row, ^sort))}
-          end)
-
-        Ecto.Query.dynamic(
-          [row],
-          fragment("array_agg(? ORDER BY ?)", field(row, ^key), ^sort_expr)
-        )
+        AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__)
       else
         Ecto.Query.dynamic(
           [row],
@@ -361,6 +385,7 @@ defmodule AshPostgres.Aggregate do
            not match?(%Ash.Filter{expression: nil}, aggregate.query.filter) do
         expr =
           AshPostgres.Expr.dynamic_expr(
+            query,
             aggregate.query.filter,
             query.__ash_bindings__
           )
@@ -387,6 +412,7 @@ defmodule AshPostgres.Aggregate do
     query = AshPostgres.DataLayer.default_bindings(query, aggregate.resource)
     key = aggregate.field || List.first(Ash.Resource.Info.primary_key(resource))
     type = AshPostgres.Types.parameterized_type(aggregate.type, [])
+    type = Ecto.Type.type(type)
 
     field =
       case kind do
@@ -402,6 +428,7 @@ defmodule AshPostgres.Aggregate do
            not match?(%Ash.Filter{expression: nil}, aggregate.query.filter) do
         expr =
           AshPostgres.Expr.dynamic_expr(
+            query,
             aggregate.query.filter,
             query.__ash_bindings__
           )
@@ -411,24 +438,36 @@ defmodule AshPostgres.Aggregate do
         field
       end
 
-    with_default =
-      if aggregate.default_value do
-        Ecto.Query.dynamic(coalesce(^filtered, type(^aggregate.default_value, ^type)))
-      else
-        filtered
-      end
-
-    cast = Ecto.Query.dynamic(type(^with_default, ^type))
+    cast = Ecto.Query.dynamic(type(^filtered, ^type))
 
     select_or_merge(query, aggregate.name, cast)
   end
 
   defp select_or_merge(query, aggregate_name, casted) do
-    if query.select do
-      Ecto.Query.select_merge(query, %{^aggregate_name => ^casted})
-    else
-      Ecto.Query.select(query, %{^aggregate_name => ^casted})
-    end
+    query =
+      if query.select do
+        query
+      else
+        Ecto.Query.select(query, %{})
+      end
+
+    {expr, new_params, _} =
+      Ecto.Query.Builder.Dynamic.partially_expand(
+        :select,
+        query,
+        casted,
+        query.select.params,
+        Enum.count(query.select.params)
+      )
+
+    %{
+      query
+      | select: %{
+          query.select
+          | expr: {:merge, [], [query.select.expr, {:%{}, [], [{aggregate_name, expr}]}]},
+            params: new_params
+        }
+    }
   end
 
   defp aggregate_subquery(%{type: :many_to_many} = relationship, aggregate, root_query) do
@@ -464,11 +503,11 @@ defmodule AshPostgres.Aggregate do
     query =
       from(destination in destination,
         join: through in ^through,
+        as: ^1,
         on:
           field(through, ^relationship.destination_field_on_join_table) ==
             field(destination, ^relationship.destination_field),
-        group_by: field(through, ^relationship.source_field_on_join_table),
-        select: %{__source_field: field(through, ^relationship.source_field_on_join_table)}
+        group_by: field(through, ^relationship.source_field_on_join_table)
       )
 
     query_tenant = aggregate.query && aggregate.query.tenant

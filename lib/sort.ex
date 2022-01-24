@@ -27,7 +27,7 @@ defmodule AshPostgres.Sort do
         })
         |> case do
           {:ok, expr} ->
-            expr = AshPostgres.Expr.dynamic_expr(expr, query.__ash_bindings__, false, type)
+            expr = AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__, false, type)
 
             {:cont, {:ok, query_expr ++ [{order, expr}]}}
 
@@ -99,6 +99,35 @@ defmodule AshPostgres.Sort do
 
       {:error, error} ->
         {:error, error}
+    end
+  end
+
+  def order_to_ecto([]), do: []
+
+  def order_to_ecto(order) when is_list(order) do
+    Enum.map(order, &do_order_to_ecto/1)
+  end
+
+  def do_order_to_ecto({sort, order}) do
+    case order do
+      :asc ->
+        Ecto.Query.dynamic([row], fragment("? ASC", field(row, ^sort)))
+
+      :desc ->
+        Ecto.Query.dynamic([row], fragment("? DESC", field(row, ^sort)))
+
+      :asc_nils_last ->
+        Ecto.Query.dynamic([row], fragment("? ASC NULLS LAST", field(row, ^sort)))
+
+      :asc_nils_first ->
+        Ecto.Query.dynamic([row], fragment("? ASC NULLS FIRST", field(row, ^sort)))
+
+      :desc_nils_first ->
+        Ecto.Query.dynamic([row], fragment("? DESC NULLS FIRST", field(row, ^sort)))
+
+      :desc_nils_last ->
+        Ecto.Query.dynamic([row], fragment("? DESC NULLS LAST", field(row, ^sort)))
+        "DESC NULLS LAST"
     end
   end
 

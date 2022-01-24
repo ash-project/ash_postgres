@@ -19,6 +19,7 @@ defmodule AshPostgres.Calculation do
       Enum.map(calculations, fn {calculation, expression} ->
         expr =
           AshPostgres.Expr.dynamic_expr(
+            query,
             expression,
             query.__ash_bindings__
           )
@@ -37,13 +38,35 @@ defmodule AshPostgres.Calculation do
       if query.select do
         query
       else
-        Ecto.Query.select_merge(query, %{})
+        Ecto.Query.select(query, %{})
       end
 
-    query =
-      Enum.reduce(in_body, query, fn {load, _, dynamic}, query ->
-        Ecto.Query.select_merge(query, %{^load => ^dynamic})
-      end)
+    {exprs, new_params, _} =
+      Enum.reduce(
+        in_body,
+        {[], query.select.params, Enum.count(query.select.params)},
+        fn {load, _, dynamic}, {exprs, params, count} ->
+          {expr, new_params, count} =
+            Ecto.Query.Builder.Dynamic.partially_expand(
+              :select,
+              query,
+              dynamic,
+              params,
+              count
+            )
+
+          {[{load, expr} | exprs], new_params, count}
+        end
+      )
+
+    query = %{
+      query
+      | select: %{
+          query.select
+          | expr: {:merge, [], [query.select.expr, {:%{}, [], exprs}]},
+            params: new_params
+        }
+    }
 
     add_calculations_in_calculations(query, in_aggregates)
   end
@@ -54,13 +77,23 @@ defmodule AshPostgres.Calculation do
          %{select: %{expr: expr} = select} = query,
          in_calculations
        ) do
-    {exprs, new_params} =
-      Enum.reduce(in_calculations, {[], select.params}, fn {_load, name, dynamic},
-                                                           {exprs, params} ->
-        expr = {name, {:^, [], [Enum.count(params)]}}
+    {exprs, new_params, _} =
+      Enum.reduce(
+        in_calculations,
+        {[], query.select.params, Enum.count(query.select.params)},
+        fn {load, _, dynamic}, {exprs, params, count} ->
+          {expr, new_params, count} =
+            Ecto.Query.Builder.Dynamic.partially_expand(
+              :select,
+              query,
+              dynamic,
+              params,
+              count
+            )
 
-        {[expr | exprs], params ++ [{dynamic, :any}]}
-      end)
+          {[{load, expr} | exprs], new_params, count}
+        end
+      )
 
     %{
       query

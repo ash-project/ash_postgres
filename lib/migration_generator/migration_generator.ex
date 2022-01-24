@@ -31,8 +31,10 @@ defmodule AshPostgres.MigrationGenerator do
 
     {tenant_snapshots, snapshots} =
       all_resources
-      |> Enum.filter(&(Ash.DataLayer.data_layer(&1) == AshPostgres.DataLayer))
-      |> Enum.filter(&AshPostgres.migrate?/1)
+      |> Enum.filter(fn resource ->
+        Ash.DataLayer.data_layer(resource) == AshPostgres.DataLayer &&
+          AshPostgres.migrate?(resource)
+      end)
       |> Enum.flat_map(&get_snapshots(&1, all_resources))
       |> Enum.split_with(&(&1.multitenancy.strategy == :context))
 
@@ -65,9 +67,11 @@ defmodule AshPostgres.MigrationGenerator do
     all_resources = api |> Ash.Api.resources() |> Enum.uniq()
 
     all_resources
-    |> Enum.filter(&(Ash.DataLayer.data_layer(&1) == AshPostgres.DataLayer))
-    |> Enum.filter(&(AshPostgres.repo(&1) == repo))
-    |> Enum.filter(&(is_nil(only_resources) || &1 in only_resources))
+    |> Enum.filter(fn resource ->
+      Ash.DataLayer.data_layer(resource) == AshPostgres.DataLayer &&
+        AshPostgres.repo(resource) == repo &&
+        (is_nil(only_resources) || resource in only_resources)
+    end)
     |> Enum.flat_map(&get_snapshots(&1, all_resources))
   end
 
@@ -706,14 +710,13 @@ defmodule AshPostgres.MigrationGenerator do
   defp maybe_comment(text, %{commented?: true}) do
     text
     |> String.split("\n")
-    |> Enum.map(fn line ->
+    |> Enum.map_join("\n", fn line ->
       if String.starts_with?(line, "#") do
         line
       else
         "# #{line}"
       end
     end)
-    |> Enum.join("\n")
   end
 
   defp maybe_comment(text, _), do: text

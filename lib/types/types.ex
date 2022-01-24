@@ -16,7 +16,7 @@ defmodule AshPostgres.Types do
       parameterized_type(Ash.Type.ecto_type(type), constraints)
     else
       if is_atom(type) && :erlang.function_exported(type, :type, 1) do
-        {:parameterized, type, constraints}
+        {:parameterized, type, constraints || []}
       else
         type
       end

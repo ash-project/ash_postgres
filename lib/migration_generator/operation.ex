@@ -572,8 +572,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         }
         |> AshPostgres.MigrationGenerator.Operation.AddAttribute.up()
         |> String.split("\n")
-        |> Enum.map(&"# #{&1}")
-        |> Enum.join("\n")
+        |> Enum.map_join("\n", &"# #{&1}")
 
       prefix <> "\n" <> contents
     end
