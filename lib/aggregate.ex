@@ -220,7 +220,6 @@ defmodule AshPostgres.Aggregate do
       AshPostgres.DataLayer.get_binding(resource, aggregate.relationship_path, query, :aggregate)
 
     type = AshPostgres.Types.parameterized_type(aggregate.type, [])
-    type = Ecto.Type.type(type)
 
     field =
       Ecto.Query.dynamic(
@@ -305,7 +304,6 @@ defmodule AshPostgres.Aggregate do
     key = aggregate.field
 
     type = AshPostgres.Types.parameterized_type(aggregate.type, [])
-    type = Ecto.Type.type(type)
 
     field =
       if aggregate.query && aggregate.query.sort && aggregate.query.sort != [] do
@@ -359,7 +357,6 @@ defmodule AshPostgres.Aggregate do
     query = AshPostgres.DataLayer.default_bindings(query, aggregate.resource)
     key = aggregate.field
     type = AshPostgres.Types.parameterized_type(aggregate.type, [])
-    type = Ecto.Type.type(type)
 
     field =
       if aggregate.query && aggregate.query.sort && aggregate.query.sort != [] do
@@ -412,7 +409,6 @@ defmodule AshPostgres.Aggregate do
     query = AshPostgres.DataLayer.default_bindings(query, aggregate.resource)
     key = aggregate.field || List.first(Ash.Resource.Info.primary_key(resource))
     type = AshPostgres.Types.parameterized_type(aggregate.type, [])
-    type = Ecto.Type.type(type)
 
     field =
       case kind do

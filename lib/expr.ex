@@ -425,8 +425,6 @@ defmodule AshPostgres.Expr do
 
     type = AshPostgres.Types.parameterized_type(aggregate.type, [])
 
-    type = Ecto.Type.type(type)
-
     type =
       if aggregate.kind == :list do
         {:array, type}
