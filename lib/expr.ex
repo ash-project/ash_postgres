@@ -219,7 +219,7 @@ defmodule AshPostgres.Expr do
           arguments ++ [{:raw, ""}]
       end
 
-    {params, fragment_data} =
+    {params, fragment_data, _} =
       Enum.reduce(arguments, {[], [], 0}, fn
         {:raw, str}, {params, fragment_data, count} ->
           {params, fragment_data ++ [{:raw, str}], count}
