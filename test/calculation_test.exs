@@ -230,7 +230,22 @@ defmodule AshPostgres.CalculationTest do
              |> Api.read!()
   end
 
-  @tag mustexec: true
+  test "nested conditional calculations can be loaded" do
+    Author
+    |> Ash.Changeset.new(%{last_name: "holland"})
+    |> Api.create!()
+
+    Author
+    |> Ash.Changeset.new(%{first_name: "tom"})
+    |> Api.create!()
+
+    assert [%{nested_conditional: "No First Name"}, %{nested_conditional: "No Last Name"}] =
+             Author
+             |> Ash.Query.load(:nested_conditional)
+             |> Ash.Query.sort(:nested_conditional)
+             |> Api.read!()
+  end
+
   test "calculations load nullable timestamp aggregates compared to a fragment" do
     post =
       Post

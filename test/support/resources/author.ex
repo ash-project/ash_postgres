@@ -29,6 +29,22 @@ defmodule AshPostgres.Test.Author do
       )
     )
 
+    calculate(
+      :nested_conditional,
+      :string,
+      expr(
+        if(
+          is_nil(first_name),
+          "No First Name",
+          if(
+            is_nil(last_name),
+            "No Last Name",
+            first_name <> " " <> last_name
+          )
+        )
+      )
+    )
+
     calculate :param_full_name,
               :string,
               {AshPostgres.Test.Concat, keys: [:first_name, :last_name]} do

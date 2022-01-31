@@ -44,7 +44,7 @@ defmodule AshPostgres.Calculation do
     {exprs, new_params, _} =
       Enum.reduce(
         in_body,
-        {[], query.select.params, Enum.count(query.select.params)},
+        {[], Enum.reverse(query.select.params), Enum.count(query.select.params)},
         fn {load, _, dynamic}, {exprs, params, count} ->
           {expr, new_params, count} =
             Ecto.Query.Builder.Dynamic.partially_expand(
@@ -64,7 +64,7 @@ defmodule AshPostgres.Calculation do
       | select: %{
           query.select
           | expr: {:merge, [], [query.select.expr, {:%{}, [], exprs}]},
-            params: new_params
+            params: Enum.reverse(new_params)
         }
     }
 
@@ -80,7 +80,7 @@ defmodule AshPostgres.Calculation do
     {exprs, new_params, _} =
       Enum.reduce(
         in_calculations,
-        {[], query.select.params, Enum.count(query.select.params)},
+        {[], Enum.reverse(query.select.params), Enum.count(query.select.params)},
         fn {load, _, dynamic}, {exprs, params, count} ->
           {expr, new_params, count} =
             Ecto.Query.Builder.Dynamic.partially_expand(
@@ -100,7 +100,7 @@ defmodule AshPostgres.Calculation do
       | select: %{
           select
           | expr: {:merge, [], [expr, {:%{}, [], [calculations: {:%{}, [], exprs}]}]},
-            params: new_params
+            params: Enum.reverse(new_params)
         }
     }
   end
