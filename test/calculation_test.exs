@@ -141,6 +141,7 @@ defmodule AshPostgres.CalculationTest do
 
     assert %{id: ^author_id} =
              Author
+             |> Ash.Query.load(:full_name)
              |> Ash.Query.filter(full_name == "is match")
              |> Api.read_one!()
   end
@@ -165,6 +166,7 @@ defmodule AshPostgres.CalculationTest do
 
     assert %{id: ^author_id} =
              Author
+             |> Ash.Query.load([:conditional_full_name, :full_name])
              |> Ash.Query.filter(conditional_full_name == "(none)")
              |> Api.read_one!()
   end

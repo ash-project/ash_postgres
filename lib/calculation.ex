@@ -63,7 +63,7 @@ defmodule AshPostgres.Calculation do
       query
       | select: %{
           query.select
-          | expr: {:merge, [], [query.select.expr, {:%{}, [], exprs}]},
+          | expr: {:merge, [], [query.select.expr, {:%{}, [], Enum.reverse(exprs)}]},
             params: Enum.reverse(new_params)
         }
     }
@@ -99,7 +99,8 @@ defmodule AshPostgres.Calculation do
       query
       | select: %{
           select
-          | expr: {:merge, [], [expr, {:%{}, [], [calculations: {:%{}, [], exprs}]}]},
+          | expr:
+              {:merge, [], [expr, {:%{}, [], [calculations: {:%{}, [], Enum.reverse(exprs)}]}]},
             params: Enum.reverse(new_params)
         }
     }
