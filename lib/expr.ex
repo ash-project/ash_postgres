@@ -220,35 +220,35 @@ defmodule AshPostgres.Expr do
       end
 
     {params, fragment_data} =
-      Enum.reduce(arguments, {[], []}, fn
-        {:raw, str}, {params, fragment_data} ->
-          {params, fragment_data ++ [{:raw, str}]}
+      Enum.reduce(arguments, {[], [], 0}, fn
+        {:raw, str}, {params, fragment_data, count} ->
+          {params, fragment_data ++ [{:raw, str}], count}
 
-        {:casted_expr, dynamic}, {params, fragment_data} ->
-          {expr, new_params, _} =
+        {:casted_expr, dynamic}, {params, fragment_data, count} ->
+          {expr, new_params, new_count} =
             Ecto.Query.Builder.Dynamic.partially_expand(
               :select,
               query,
               dynamic,
               params,
-              Enum.count(params)
+              count
             )
 
-          {new_params, fragment_data ++ [{:expr, expr}]}
+          {new_params, fragment_data ++ [{:expr, expr}], new_count}
 
-        {:expr, expr}, {params, fragment_data} ->
+        {:expr, expr}, {params, fragment_data, count} ->
           dynamic = do_dynamic_expr(query, expr, bindings, pred_embedded? || embedded?)
 
-          {expr, new_params, _} =
+          {expr, new_params, new_count} =
             Ecto.Query.Builder.Dynamic.partially_expand(
               :select,
               query,
               dynamic,
               params,
-              Enum.count(params)
+              count
             )
 
-          {new_params, fragment_data ++ [{:expr, expr}]}
+          {new_params, fragment_data ++ [{:expr, expr}], new_count}
       end)
 
     %Ecto.Query.DynamicExpr{

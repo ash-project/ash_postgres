@@ -55,7 +55,7 @@ defmodule AshPostgres.Calculation do
               count
             )
 
-          {[{load, expr} | exprs], new_params, count}
+          {[{load, expr} | exprs], new_params, count + 1}
         end
       )
 
@@ -91,7 +91,7 @@ defmodule AshPostgres.Calculation do
               count
             )
 
-          {[{load, expr} | exprs], new_params, count}
+          {[{load, expr} | exprs], new_params, count + 1}
         end
       )
 
