@@ -110,7 +110,7 @@ defmodule AshPostgres.Types do
        )
        when vague_type in [:any, :same] do
     if Ash.Type.ash_type?(type) do
-      type = type |> Ash.Type.ecto_type() |> parameterized_type(constraints) |> array_to_in()
+      type = type |> parameterized_type(constraints) |> array_to_in()
       {type, ref}
     else
       type =
