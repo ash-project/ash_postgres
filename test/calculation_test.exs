@@ -59,6 +59,19 @@ defmodule AshPostgres.CalculationTest do
              |> Api.read!()
   end
 
+  test "calculations can refer to embedded attributes" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{bio: %{title: "Mr.", bio: "Bones"}})
+      |> Api.create!()
+
+    assert %{title: "Mr."} =
+             Author
+             |> Ash.Query.filter(id == ^author.id)
+             |> Ash.Query.load(:title)
+             |> Api.read_one!()
+  end
+
   test "calculations can be used in related filters" do
     post =
       Post

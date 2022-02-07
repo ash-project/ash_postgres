@@ -12,9 +12,11 @@ defmodule AshPostgres.Test.Author do
     uuid_primary_key(:id, writable?: true)
     attribute(:first_name, :string)
     attribute(:last_name, :string)
+    attribute(:bio, AshPostgres.Test.Bio)
   end
 
   calculations do
+    calculate(:title, :string, expr(bio[:title]))
     calculate(:full_name, :string, expr(first_name <> " " <> last_name))
 
     calculate(

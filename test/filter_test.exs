@@ -1,6 +1,6 @@
 defmodule AshPostgres.FilterTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Comment, Post}
+  alias AshPostgres.Test.{Api, Author, Comment, Post}
 
   require Ash.Query
 
@@ -260,6 +260,43 @@ defmodule AshPostgres.FilterTest do
         |> Api.read!()
 
       assert [] = results
+    end
+  end
+
+  describe "accessing embeds" do
+    setup do
+      Author
+      |> Ash.Changeset.for_create(:create, bio: %{title: "Dr.", bio: "Strange"})
+      |> Api.create!()
+
+      Author
+      |> Ash.Changeset.for_create(:create,
+        bio: %{title: "Highlander", bio: "There can be only one."}
+      )
+      |> Api.create!()
+
+      :ok
+    end
+
+    test "works using simple equality" do
+      assert [%{bio: %{title: "Dr."}}] =
+               Author
+               |> Ash.Query.filter(bio[:title] == "Dr.")
+               |> Api.read!()
+    end
+
+    test "works using an expression" do
+      assert [%{bio: %{title: "Highlander"}}] =
+               Author
+               |> Ash.Query.filter(contains(type(bio[:bio], :string), "only one."))
+               |> Api.read!()
+    end
+
+    test "calculations that use embeds can be filtered on" do
+      assert [%{bio: %{title: "Dr."}}] =
+               Author
+               |> Ash.Query.filter(title == "Dr.")
+               |> Api.read!()
     end
   end
 

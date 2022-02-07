@@ -1521,7 +1521,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   def get_snapshots(resource, all_resources) do
     Code.ensure_compiled!(AshPostgres.repo(resource))
-    
+
     if AshPostgres.polymorphic?(resource) do
       all_resources
       |> Enum.flat_map(&Ash.Resource.Info.relationships/1)
