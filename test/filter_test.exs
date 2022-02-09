@@ -408,6 +408,19 @@ defmodule AshPostgres.FilterTest do
     end
   end
 
+  describe "filtering on enum types" do
+    test "it allows simple filtering" do
+      Post
+      |> Ash.Changeset.new(status_enum: "open")
+      |> Api.create!()
+
+      assert %{status_enum: :open} =
+               Post
+               |> Ash.Query.filter(status_enum == ^"open")
+               |> Api.read_one!()
+    end
+  end
+
   describe "atom filters" do
     test "it works on matches" do
       Post
