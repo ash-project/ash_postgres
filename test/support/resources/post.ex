@@ -58,6 +58,11 @@ defmodule AshPostgres.Test.Post do
   relationships do
     has_many(:comments, AshPostgres.Test.Comment, destination_field: :post_id)
 
+    has_many :popular_comments, AshPostgres.Test.Comment do
+      destination_field(:post_id)
+      # filter(expr(likes > 10))
+    end
+
     has_many(:ratings, AshPostgres.Test.Rating,
       destination_field: :resource_id,
       relationship_context: %{data_layer: %{table: "post_ratings"}}
@@ -109,6 +114,16 @@ defmodule AshPostgres.Test.Post do
 
     sum :sum_of_comment_likes_called_match, :comments, :likes do
       filter(title: "match")
+    end
+
+    sum :sum_of_recent_popular_comment_likes, :popular_comments, :likes do
+      # not(is_nil(post_category)) is silly but its here for tests
+      filter(expr(created_at > ago(10, :day) and not is_nil(post_category)))
+    end
+
+    count :count_of_recent_popular_comments, :popular_comments do
+      # not(is_nil(post_category)) is silly but its here for tests
+      filter(expr(created_at > ago(10, :day) and not is_nil(post_category)))
     end
 
     count(:count_of_comment_ratings, [:comments, :ratings])

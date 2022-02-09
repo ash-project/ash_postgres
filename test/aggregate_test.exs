@@ -430,5 +430,69 @@ defmodule AshPostgres.AggregateTest do
                |> Ash.Query.filter(sum_of_comment_likes_called_match == 3)
                |> Api.read!(action: :paginated, page: [limit: 1, count: true])
     end
+
+    test "an aggregate on relationships with a filter returns the proper value" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title", category: "foo"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "match", likes: 20})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "match", likes: 17})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "match", likes: 50})
+      |> Ash.Changeset.force_change_attribute(
+        :created_at,
+        Timex.shift(DateTime.utc_now(), days: -20)
+      )
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      assert %Post{sum_of_recent_popular_comment_likes: 37} =
+               Post
+               |> Ash.Query.load(:sum_of_recent_popular_comment_likes)
+               |> Api.read_one!()
+    end
+
+    test "a count aggregate on relationships with a filter returns the proper value" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title", category: "foo"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "match", likes: 20})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "match", likes: 17})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "match", likes: 50})
+      |> Ash.Changeset.force_change_attribute(
+        :created_at,
+        Timex.shift(DateTime.utc_now(), days: -20)
+      )
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      assert %Post{count_of_recent_popular_comments: 2} =
+               Post
+               |> Ash.Query.load([
+                 :count_of_recent_popular_comments
+               ])
+               |> Api.read_one!()
+    end
   end
 end

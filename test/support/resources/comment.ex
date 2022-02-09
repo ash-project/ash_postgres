@@ -27,7 +27,7 @@ defmodule AshPostgres.Test.Comment do
     attribute(:title, :string)
     attribute(:likes, :integer)
     attribute(:arbitrary_timestamp, :utc_datetime_usec)
-    create_timestamp(:created_at)
+    create_timestamp(:created_at, writable?: true)
   end
 
   aggregates do

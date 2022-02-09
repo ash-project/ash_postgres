@@ -111,10 +111,16 @@ defmodule AshPostgres.Join do
           | prefix: Map.get(root_query, :prefix)
         }
 
-        Ash.Query.data_layer_query(query,
-          only_validate_filter?: false,
-          initial_query: initial_query
-        )
+        case Ash.Query.data_layer_query(query,
+               only_validate_filter?: false,
+               initial_query: initial_query
+             ) do
+          {:ok, query} ->
+            {:ok, AshPostgres.DataLayer.default_bindings(query, resource)}
+
+          {:error, error} ->
+            {:error, error}
+        end
 
       query ->
         {:error, query}

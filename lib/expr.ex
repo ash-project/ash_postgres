@@ -448,6 +448,11 @@ defmodule AshPostgres.Expr do
          _type
        ) do
     ref_binding = ref_binding(ref, bindings)
+
+    if is_nil(ref_binding) do
+      raise "Error while building reference: #{inspect(ref)}"
+    end
+
     expr = Ecto.Query.dynamic(field(as(^ref_binding), ^aggregate.name))
 
     type = AshPostgres.Types.parameterized_type(aggregate.type, [])
@@ -552,6 +557,11 @@ defmodule AshPostgres.Expr do
          _type
        ) do
     ref_binding = ref_binding(ref, bindings)
+
+    if is_nil(ref_binding) do
+      raise "Error while building reference: #{inspect(ref)}"
+    end
+
     Ecto.Query.dynamic(field(as(^ref_binding), ^name))
   end
 

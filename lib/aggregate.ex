@@ -4,112 +4,121 @@ defmodule AshPostgres.Aggregate do
   import Ecto.Query, only: [from: 2, subquery: 1]
   require Ecto.Query
 
-  def add_aggregates(query, [], _), do: {:ok, query}
+  def add_aggregates(query, aggregates, resource, select? \\ true)
+  def add_aggregates(query, [], _, _), do: {:ok, query}
 
-  def add_aggregates(query, aggregates, resource) do
+  def add_aggregates(query, aggregates, resource, select?) do
     resource = resource
     query = AshPostgres.DataLayer.default_bindings(query, resource)
 
     result =
       Enum.reduce_while(aggregates, {:ok, query, []}, fn aggregate, {:ok, query, dynamics} ->
-        query_and_binding =
-          case AshPostgres.DataLayer.get_binding(
-                 resource,
-                 aggregate.relationship_path,
-                 query,
-                 :aggregate
-               ) do
-            nil ->
-              relationship = Ash.Resource.Info.relationship(resource, aggregate.relationship_path)
+        if aggregate.query && !aggregate.query.valid? do
+          {:halt, {:error, aggregate.query.errors}}
+        else
+          query_and_binding =
+            case AshPostgres.DataLayer.get_binding(
+                   resource,
+                   aggregate.relationship_path,
+                   query,
+                   :aggregate
+                 ) do
+              nil ->
+                relationship =
+                  Ash.Resource.Info.relationship(resource, aggregate.relationship_path)
 
-              if relationship.type == :many_to_many do
-                subquery = aggregate_subquery(relationship, aggregate, query)
+                if relationship.type == :many_to_many do
+                  subquery = aggregate_subquery(relationship, aggregate, query)
 
-                case AshPostgres.Join.join_all_relationships(
-                       query,
-                       nil,
-                       [
-                         {{:aggregate, aggregate.name, subquery},
-                          AshPostgres.Join.relationship_path_to_relationships(
-                            resource,
-                            aggregate.relationship_path
-                          )}
-                       ]
-                     ) do
-                  {:ok, new_query} ->
-                    {:ok,
-                     {new_query,
-                      AshPostgres.DataLayer.get_binding(
-                        resource,
-                        aggregate.relationship_path,
-                        new_query,
-                        :aggregate
-                      )}}
+                  case AshPostgres.Join.join_all_relationships(
+                         query,
+                         nil,
+                         [
+                           {{:aggregate, aggregate.name, subquery},
+                            AshPostgres.Join.relationship_path_to_relationships(
+                              resource,
+                              aggregate.relationship_path
+                            )}
+                         ]
+                       ) do
+                    {:ok, new_query} ->
+                      {:ok,
+                       {new_query,
+                        AshPostgres.DataLayer.get_binding(
+                          resource,
+                          aggregate.relationship_path,
+                          new_query,
+                          :aggregate
+                        )}}
 
-                  {:error, error} ->
-                    {:error, error}
+                    {:error, error} ->
+                      {:error, error}
+                  end
+                else
+                  subquery = aggregate_subquery(relationship, aggregate, query)
+
+                  case AshPostgres.Join.join_all_relationships(
+                         query,
+                         nil,
+                         [
+                           {{:aggregate, aggregate.name, subquery},
+                            AshPostgres.Join.relationship_path_to_relationships(
+                              resource,
+                              aggregate.relationship_path
+                            )}
+                         ]
+                       ) do
+                    {:ok, new_query} ->
+                      {:ok,
+                       {new_query,
+                        AshPostgres.DataLayer.get_binding(
+                          resource,
+                          aggregate.relationship_path,
+                          new_query,
+                          :aggregate
+                        )}}
+
+                    {:error, error} ->
+                      {:error, error}
+                  end
                 end
+
+              binding ->
+                {:ok, {query, binding}}
+            end
+
+          case query_and_binding do
+            {:ok, {query, binding}} ->
+              query_with_aggregate_binding =
+                put_in(
+                  query.__ash_bindings__.aggregates,
+                  Map.put(query.__ash_bindings__.aggregates, aggregate.name, binding)
+                )
+
+              query_with_aggregate_defs =
+                put_in(
+                  query_with_aggregate_binding.__ash_bindings__.aggregate_defs,
+                  Map.put(
+                    query_with_aggregate_binding.__ash_bindings__.aggregate_defs,
+                    aggregate.name,
+                    aggregate
+                  )
+                )
+
+              new_query =
+                query_with_aggregate_defs
+                |> add_aggregate_to_subquery(resource, aggregate, binding)
+
+              if select? do
+                dynamic = select_dynamic(resource, query, aggregate)
+                {:cont, {:ok, new_query, [{aggregate.load, aggregate.name, dynamic} | dynamics]}}
               else
-                subquery = aggregate_subquery(relationship, aggregate, query)
-
-                case AshPostgres.Join.join_all_relationships(
-                       query,
-                       nil,
-                       [
-                         {{:aggregate, aggregate.name, subquery},
-                          AshPostgres.Join.relationship_path_to_relationships(
-                            resource,
-                            aggregate.relationship_path
-                          )}
-                       ]
-                     ) do
-                  {:ok, new_query} ->
-                    {:ok,
-                     {new_query,
-                      AshPostgres.DataLayer.get_binding(
-                        resource,
-                        aggregate.relationship_path,
-                        new_query,
-                        :aggregate
-                      )}}
-
-                  {:error, error} ->
-                    {:error, error}
-                end
+                {:cont, {:ok, new_query, dynamics}}
               end
 
-            binding ->
-              {:ok, {query, binding}}
+            {:error, error} ->
+              {:halt, {:error, error}}
           end
-
-        case query_and_binding do
-          {:ok, {query, binding}} ->
-            query_with_aggregate_binding =
-              put_in(
-                query.__ash_bindings__.aggregates,
-                Map.put(query.__ash_bindings__.aggregates, aggregate.name, binding)
-              )
-
-            query_with_aggregate_defs =
-              put_in(
-                query_with_aggregate_binding.__ash_bindings__.aggregate_defs,
-                Map.put(
-                  query_with_aggregate_binding.__ash_bindings__.aggregate_defs,
-                  aggregate.name,
-                  aggregate
-                )
-              )
-
-            new_query =
-              query_with_aggregate_defs
-              |> add_aggregate_to_subquery(resource, aggregate, binding)
-
-            dynamic = select_dynamic(resource, query, aggregate)
-
-            {:cont, {:ok, new_query, [{aggregate.load, aggregate.name, dynamic} | dynamics]}}
-
-          {:error, error} ->
-            {:halt, {:error, error}}
         end
       end)
 
@@ -257,17 +266,25 @@ defmodule AshPostgres.Aggregate do
       List.update_at(query.joins, binding - 1, fn join ->
         aggregate_query =
           if aggregate.authorization_filter do
-            {:ok, filter} =
+            {:ok, filtered} =
               AshPostgres.DataLayer.filter(
                 join.source.from.source.query,
                 aggregate.authorization_filter,
                 Ash.Resource.Info.related(resource, aggregate.relationship_path)
               )
 
-            filter
+            filtered
           else
             join.source.from.source.query
           end
+
+        {:ok, aggregate_query} =
+          AshPostgres.Aggregate.add_aggregates(
+            aggregate_query,
+            Map.values(aggregate.query.aggregates || %{}),
+            Ash.Resource.Info.related(resource, aggregate.relationship_path),
+            false
+          )
 
         new_aggregate_query = add_subquery_aggregate_select(aggregate_query, aggregate, resource)
 
@@ -439,7 +456,14 @@ defmodule AshPostgres.Aggregate do
         field
       end
 
-    cast = Ecto.Query.dynamic(type(^filtered, ^type))
+    with_default =
+      if aggregate.default_value do
+        Ecto.Query.dynamic(coalesce(^filtered, type(^aggregate.default_value, ^type)))
+      else
+        filtered
+      end
+
+    cast = Ecto.Query.dynamic(type(^with_default, ^type))
 
     select_or_merge(query, aggregate.name, cast)
   end
@@ -542,7 +566,8 @@ defmodule AshPostgres.Aggregate do
 
     query =
       from(row in destination,
-        group_by: ^relationship.destination_field
+        group_by: ^relationship.destination_field,
+        select: %{}
       )
 
     query_tenant = aggregate.query && aggregate.query.tenant
