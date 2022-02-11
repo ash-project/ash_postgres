@@ -494,5 +494,34 @@ defmodule AshPostgres.AggregateTest do
                ])
                |> Api.read_one!()
     end
+
+    test "a count aggregate with a related filter returns the proper value" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title", category: "foo"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      assert %Post{count_of_comments_that_have_a_post: 3} =
+               Post
+               |> Ash.Query.load([
+                 :count_of_comments_that_have_a_post
+               ])
+               |> Api.read_one!()
+    end
   end
 end

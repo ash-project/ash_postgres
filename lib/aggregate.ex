@@ -286,6 +286,20 @@ defmodule AshPostgres.Aggregate do
             false
           )
 
+        {:ok, aggregate_query} =
+          if aggregate.query && aggregate.query.filter do
+            AshPostgres.Join.join_all_relationships(
+              aggregate_query,
+              aggregate.query.filter,
+              nil,
+              [],
+              nil,
+              true
+            )
+          else
+            {:ok, aggregate_query}
+          end
+
         new_aggregate_query = add_subquery_aggregate_select(aggregate_query, aggregate, resource)
 
         put_in(join.source.from.source.query, new_aggregate_query)
@@ -298,7 +312,7 @@ defmodule AshPostgres.Aggregate do
   end
 
   def used_aggregates(filter, relationship, used_calculations, path) do
-    Ash.Filter.used_aggregates(filter, path ++ [relationship.name]) ++
+    Ash.Filter.used_aggregates(filter, path) ++
       Enum.flat_map(
         used_calculations,
         fn calculation ->
