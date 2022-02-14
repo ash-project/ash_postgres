@@ -758,7 +758,7 @@ defmodule AshPostgres.MigrationGenerator do
          [
            %Operation.AddAttribute{
              attribute: %{
-               name: name
+               source: name
              },
              table: table
            } = add
@@ -773,8 +773,8 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.with_index()
     |> Enum.find(fn
       {%Operation.AlterAttribute{
-         new_attribute: %{name: ^name, references: references},
-         old_attribute: %{name: ^name}
+         new_attribute: %{source: ^name, references: references},
+         old_attribute: %{source: ^name}
        }, _}
       when not is_nil(references) ->
         true
@@ -918,7 +918,7 @@ defmodule AshPostgres.MigrationGenerator do
          },
          %Operation.AddAttribute{table: table, attribute: %{source: source}}
        ) do
-    name in List.wrap(attribute_or_attributes) ||
+    source in List.wrap(attribute_or_attributes) ||
       (multitenancy.attribute && multitenancy.attribute in List.wrap(attribute_or_attributes))
   end
 
@@ -1006,10 +1006,10 @@ defmodule AshPostgres.MigrationGenerator do
   defp after?(
          %Operation.AddAttribute{
            attribute: %{
-             references: %{table: table, destination_field: source}
+             references: %{table: table, destination_field: name}
            }
          },
-         %Operation.AddAttribute{table: table, attribute: %{source: source}}
+         %Operation.AddAttribute{table: table, attribute: %{source: name}}
        ),
        do: true
 
@@ -1064,7 +1064,7 @@ defmodule AshPostgres.MigrationGenerator do
              references: %{table: table, destination_field: name}
            }
          },
-         %Operation.AddAttribute{table: table, attribute: %{source: source}}
+         %Operation.AddAttribute{table: table, attribute: %{source: name}}
        ),
        do: true
 
@@ -1556,7 +1556,7 @@ defmodule AshPostgres.MigrationGenerator do
                 Ash.Resource.Info.attribute(relationship.source, relationship.source_field)
 
               Map.put(attribute, :references, %{
-                destination_field: relationship.source_field,
+                destination_field: source_attribute.source,
                 destination_field_default:
                   default(source_attribute, AshPostgres.repo(relationship.destination)),
                 destination_field_generated: source_attribute.generated?,
@@ -1566,7 +1566,7 @@ defmodule AshPostgres.MigrationGenerator do
                 on_update: AshPostgres.polymorphic_on_update(relationship.source),
                 name:
                   AshPostgres.polymorphic_name(relationship.source) ||
-                    "#{relationship.context[:data_layer][:table]}_#{relationship.destination_field}_fkey"
+                    "#{relationship.context[:data_layer][:table]}_#{destination_field_source}_fkey"
               })
             else
               attribute
@@ -1628,9 +1628,18 @@ defmodule AshPostgres.MigrationGenerator do
         constraints
     end
     |> Enum.map(fn constraint ->
+      attributes =
+        constraint.attribute
+        |> List.wrap()
+        |> Enum.map(fn attribute ->
+          resource
+          |> Ash.Resource.Info.attribute(attribute)
+          |> Map.get(:source)
+        end)
+
       %{
         name: constraint.name,
-        attribute: List.wrap(constraint.attribute),
+        attribute: attributes,
         check: constraint.check,
         base_filter: AshPostgres.base_filter_sql(resource)
       }
@@ -1715,8 +1724,13 @@ defmodule AshPostgres.MigrationGenerator do
         configured_reference =
           configured_reference(resource, table, attribute.source, relationship)
 
+        destination_field_source =
+          relationship.destination
+          |> Ash.Resource.Info.attribute(relationship.destination_field)
+          |> Map.get(:source)
+
         %{
-          destination_field: relationship.destination_field,
+          destination_field: destination_field_source,
           multitenancy: multitenancy(relationship.destination),
           on_delete: configured_reference.on_delete,
           on_update: configured_reference.on_update,
