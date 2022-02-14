@@ -42,5 +42,11 @@ defmodule AshPostgres.Test.Comment do
       destination_field: :resource_id,
       relationship_context: %{data_layer: %{table: "comment_ratings"}}
     )
+
+    has_many(:popular_ratings, AshPostgres.Test.Rating,
+      destination_field: :resource_id,
+      relationship_context: %{data_layer: %{table: "comment_ratings"}},
+      filter: expr(score > 5)
+    )
   end
 end

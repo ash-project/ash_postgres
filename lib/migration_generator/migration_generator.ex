@@ -1278,7 +1278,10 @@ defmodule AshPostgres.MigrationGenerator do
       snapshot.attributes
       |> Enum.map(fn attribute ->
         {attribute,
-         Enum.find(old_snapshot.attributes, &(&1.source == attribute.source && &1 != attribute))}
+         Enum.find(
+           old_snapshot.attributes,
+           &(&1.source == attribute.source && attributes_unequal?(&1, attribute))
+         )}
       end)
       |> Enum.filter(&elem(&1, 1))
 
@@ -1362,6 +1365,34 @@ defmodule AshPostgres.MigrationGenerator do
 
     add_attribute_events ++
       alter_attribute_events ++ remove_attribute_events ++ rename_attribute_events
+  end
+
+  # This exists to handle the fact that the remapping of the key name -> source caused attributes
+  # to be considered unequal. We ignore things that only differ in that way using this function.
+  defp attributes_unequal?(left, right) do
+    left = add_source_and_name(left)
+
+    right = add_source_and_name(right)
+
+    left != right
+  end
+
+  defp add_source_and_name(attribute) do
+    cond do
+      attribute[:source] ->
+        Map.put(attribute, :name, attribute[:source])
+        |> Map.update!(:source, &to_string/1)
+        |> Map.update!(:name, &to_string/1)
+
+      attribute[:name] ->
+        attribute
+        |> Map.put(:source, attribute[:name])
+        |> Map.update!(:source, &to_string/1)
+        |> Map.update!(:name, &to_string/1)
+
+      true ->
+        attribute
+    end
   end
 
   def changing_multitenancy_affects_identities?(snapshot, old_snapshot) do

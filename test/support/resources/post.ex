@@ -123,6 +123,10 @@ defmodule AshPostgres.Test.Post do
       filter(expr(not is_nil(post.id)))
     end
 
+    count :count_of_popular_comments, :comments do
+      filter(expr(not is_nil(popular_ratings.id)))
+    end
+
     sum :sum_of_recent_popular_comment_likes, :popular_comments, :likes do
       # not(is_nil(post_category)) is silly but its here for tests
       filter(expr(created_at > ago(10, :day) and not is_nil(post_category)))

@@ -74,7 +74,12 @@ defmodule AshPostgres.Join do
                  use_root_query_bindings?
                ) do
             {:ok, joined_query} ->
-              joined_query_with_distinct = add_distinct(relationship, join_type, joined_query)
+              joined_query_with_distinct =
+                if use_root_query_bindings? do
+                  joined_query
+                else
+                  add_distinct(relationship, join_type, joined_query)
+                end
 
               case join_all_relationships(
                      joined_query_with_distinct,
@@ -118,7 +123,6 @@ defmodule AshPostgres.Join do
     |> Ash.Query.new(nil, base_filter?: false)
     |> Ash.Query.set_context(root_query.__ash_bindings__.context)
     |> Ash.Query.set_context(relationship.context)
-    |> Ash.Query.do_filter(relationship.filter)
     |> case do
       %{valid?: true} = query ->
         ash_query = query
@@ -129,19 +133,28 @@ defmodule AshPostgres.Join do
         }
 
         case Ash.Query.data_layer_query(query,
-               only_validate_filter?: false,
                initial_query: initial_query
              ) do
           {:ok, query} ->
-            {:ok,
-             do_base_filter(
-               query,
-               root_query,
-               ash_query,
-               resource,
-               path,
-               use_root_query_bindings?
-             )}
+            query =
+              query
+              |> do_base_filter(
+                root_query,
+                ash_query,
+                resource,
+                path,
+                use_root_query_bindings?
+              )
+              |> do_relationship_filter(
+                relationship.filter,
+                root_query,
+                ash_query,
+                resource,
+                path,
+                use_root_query_bindings?
+              )
+
+            {:ok, query}
 
           {:error, error} ->
             {:error, error}
@@ -150,6 +163,39 @@ defmodule AshPostgres.Join do
       query ->
         {:error, query}
     end
+  end
+
+  defp do_relationship_filter(query, nil, _, _, _, _, _), do: query
+
+  defp do_relationship_filter(
+         query,
+         relationship_filter,
+         root_query,
+         ash_query,
+         resource,
+         path,
+         use_root_query_bindings?
+       ) do
+    filter =
+      resource
+      |> Ash.Filter.parse!(
+        relationship_filter,
+        ash_query.aggregates,
+        ash_query.calculations,
+        ash_query.context
+      )
+
+    dynamic =
+      if use_root_query_bindings? do
+        filter = Ash.Filter.move_to_relationship_path(filter, path)
+
+        AshPostgres.Expr.dynamic_expr(root_query, filter, root_query.__ash_bindings__, true)
+      else
+        AshPostgres.Expr.dynamic_expr(query, filter, query.__ash_bindings__, true)
+      end
+
+    {:ok, query} = join_all_relationships(query, filter, nil, [], nil, use_root_query_bindings?)
+    from(row in query, where: ^dynamic)
   end
 
   defp do_base_filter(query, root_query, ash_query, resource, path, use_root_query_bindings?) do
