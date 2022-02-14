@@ -916,7 +916,7 @@ defmodule AshPostgres.MigrationGenerator do
            table: table,
            multitenancy: multitenancy
          },
-         %Operation.AddAttribute{table: table, attribute: %{name: name}}
+         %Operation.AddAttribute{table: table, attribute: %{source: source}}
        ) do
     name in List.wrap(attribute_or_attributes) ||
       (multitenancy.attribute && multitenancy.attribute in List.wrap(attribute_or_attributes))
@@ -941,9 +941,9 @@ defmodule AshPostgres.MigrationGenerator do
            constraint: %{attribute: attribute_or_attributes},
            table: table
          },
-         %Operation.AlterAttribute{table: table, new_attribute: %{name: name}}
+         %Operation.AlterAttribute{table: table, new_attribute: %{source: source}}
        ) do
-    name in List.wrap(attribute_or_attributes)
+    source in List.wrap(attribute_or_attributes)
   end
 
   defp after?(
@@ -951,9 +951,9 @@ defmodule AshPostgres.MigrationGenerator do
            constraint: %{attribute: attribute_or_attributes},
            table: table
          },
-         %Operation.RenameAttribute{table: table, new_attribute: %{name: name}}
+         %Operation.RenameAttribute{table: table, new_attribute: %{source: source}}
        ) do
-    name in List.wrap(attribute_or_attributes)
+    source in List.wrap(attribute_or_attributes)
   end
 
   defp after?(
@@ -972,16 +972,16 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp after?(
          %Operation.RemoveCheckConstraint{constraint: %{attribute: attributes}, table: table},
-         %Operation.RemoveAttribute{table: table, attribute: %{name: name}}
+         %Operation.RemoveAttribute{table: table, attribute: %{source: source}}
        ) do
-    name in List.wrap(attributes)
+    source in List.wrap(attributes)
   end
 
   defp after?(
          %Operation.RemoveCheckConstraint{constraint: %{attribute: attributes}, table: table},
-         %Operation.RenameAttribute{table: table, old_attribute: %{name: name}}
+         %Operation.RenameAttribute{table: table, old_attribute: %{source: source}}
        ) do
-    name in List.wrap(attributes)
+    source in List.wrap(attributes)
   end
 
   defp after?(%Operation.AlterAttribute{table: table}, %Operation.DropForeignKey{
@@ -1006,10 +1006,10 @@ defmodule AshPostgres.MigrationGenerator do
   defp after?(
          %Operation.AddAttribute{
            attribute: %{
-             references: %{table: table, destination_field: name}
+             references: %{table: table, destination_field: source}
            }
          },
-         %Operation.AddAttribute{table: table, attribute: %{name: name}}
+         %Operation.AddAttribute{table: table, attribute: %{source: source}}
        ),
        do: true
 
@@ -1051,9 +1051,9 @@ defmodule AshPostgres.MigrationGenerator do
        do: true
 
   defp after?(
-         %Operation.RemoveAttribute{attribute: %{name: name}, table: table},
+         %Operation.RemoveAttribute{attribute: %{source: source}, table: table},
          %Operation.AlterAttribute{
-           old_attribute: %{references: %{table: table, destination_field: name}}
+           old_attribute: %{references: %{table: table, destination_field: source}}
          }
        ),
        do: true
@@ -1064,7 +1064,7 @@ defmodule AshPostgres.MigrationGenerator do
              references: %{table: table, destination_field: name}
            }
          },
-         %Operation.AddAttribute{table: table, attribute: %{name: name}}
+         %Operation.AddAttribute{table: table, attribute: %{source: source}}
        ),
        do: true
 
