@@ -92,7 +92,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       [
-        "add #{inspect(attribute.name)}",
+        "add #{inspect(attribute.source)}",
         "references(:#{table}",
         [
           "column: #{inspect(destination_field)}",
@@ -129,7 +129,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       [
-        "add #{inspect(attribute.name)}",
+        "add #{inspect(attribute.source)}",
         "references(:#{table}",
         [
           "column: #{inspect(destination_field)}",
@@ -163,7 +163,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       [
-        "add #{inspect(attribute.name)}",
+        "add #{inspect(attribute.source)}",
         inspect(attribute.type),
         maybe_add_default(attribute.default),
         maybe_add_primary_key(attribute.primary_key?),
@@ -191,7 +191,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       [
-        "add #{inspect(attribute.name)}",
+        "add #{inspect(attribute.source)}",
         "references(:#{table}",
         [
           "column: #{inspect(destination_field)}",
@@ -227,7 +227,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       [
-        "add #{inspect(attribute.name)}",
+        "add #{inspect(attribute.source)}",
         "references(:#{table}",
         [
           "column: #{inspect(destination_field)}",
@@ -257,7 +257,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       [
-        "add #{inspect(attribute.name)}",
+        "add #{inspect(attribute.source)}",
         "references(:#{table}",
         [
           "column: #{inspect(destination_field)}",
@@ -277,7 +277,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def up(%{attribute: %{type: :bigint, default: "nil", generated?: true} = attribute}) do
       [
-        "add #{inspect(attribute.name)}",
+        "add #{inspect(attribute.source)}",
         ":bigserial",
         maybe_add_null(attribute.allow_nil?),
         maybe_add_primary_key(attribute.primary_key?)
@@ -287,7 +287,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def up(%{attribute: %{type: :integer, default: "nil", generated?: true} = attribute}) do
       [
-        "add #{inspect(attribute.name)}",
+        "add #{inspect(attribute.source)}",
         ":serial",
         maybe_add_null(attribute.allow_nil?),
         maybe_add_primary_key(attribute.primary_key?)
@@ -302,7 +302,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       [
-        "add #{inspect(attribute.name)}",
+        "add #{inspect(attribute.source)}",
         "#{inspect(attribute.type)}",
         maybe_add_null(attribute.allow_nil?),
         maybe_add_default(attribute.default),
@@ -370,7 +370,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           inspect(attribute.type)
         end
 
-      "modify #{inspect(attribute.name)}, #{type_or_reference}#{alter_opts(attribute, old_attribute)}"
+      "modify #{inspect(attribute.source)}, #{type_or_reference}#{alter_opts(attribute, old_attribute)}"
     end
 
     defp reference(
@@ -533,11 +533,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     ]
 
     def up(%{old_attribute: old_attribute, new_attribute: new_attribute, table: table}) do
-      "rename table(:#{table}), #{inspect(old_attribute.name)}, to: #{inspect(new_attribute.name)}"
+      "rename table(:#{table}), #{inspect(old_attribute.source)}, to: #{inspect(new_attribute.source)}"
     end
 
     def down(%{new_attribute: old_attribute, old_attribute: new_attribute, table: table}) do
-      "rename table(:#{table}), #{inspect(old_attribute.name)}, to: #{inspect(new_attribute.name)}"
+      "rename table(:#{table}), #{inspect(old_attribute.source)}, to: #{inspect(new_attribute.source)}"
     end
   end
 
@@ -549,19 +549,19 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       """
       # Attribute removal has been commented out to avoid data loss. See the migration generator documentation for more
       # If you uncomment this, be sure to also uncomment the corresponding attribute *addition* in the `down` migration
-      # remove #{inspect(attribute.name)}
+      # remove #{inspect(attribute.source)}
       """
     end
 
     def up(%{attribute: attribute}) do
-      "remove #{inspect(attribute.name)}"
+      "remove #{inspect(attribute.source)}"
     end
 
     def down(%{attribute: attribute, multitenancy: multitenancy, commented?: true}) do
       prefix = """
       # This is the `down` migration of the statement:
       #
-      #     remove #{inspect(attribute.name)}
+      #     remove #{inspect(attribute.source)}
       #
       """
 

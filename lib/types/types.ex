@@ -13,7 +13,11 @@ defmodule AshPostgres.Types do
 
   def parameterized_type(type, constraints) do
     if Ash.Type.ash_type?(type) do
-      parameterized_type(Ash.Type.ecto_type(type), constraints)
+      if Ash.Type.cast_in_query?(type) do
+        parameterized_type(Ash.Type.ecto_type(type), constraints)
+      else
+        :any
+      end
     else
       if is_atom(type) && :erlang.function_exported(type, :type, 1) do
         {:parameterized, type, constraints || []}

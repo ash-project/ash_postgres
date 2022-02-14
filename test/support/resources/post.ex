@@ -53,6 +53,7 @@ defmodule AshPostgres.Test.Post do
     attribute(:decimal, :decimal, default: Decimal.new(0))
     attribute(:status, AshPostgres.Test.Types.Status)
     attribute(:status_enum, AshPostgres.Test.Types.StatusEnum)
+    attribute(:status_enum_no_cast, AshPostgres.Test.Types.StatusEnumNoCast, source: :status_enum)
     create_timestamp(:created_at)
   end
 

@@ -419,6 +419,17 @@ defmodule AshPostgres.FilterTest do
                |> Ash.Query.filter(status_enum == ^"open")
                |> Api.read_one!()
     end
+
+    test "it allows simple filtering without casting" do
+      Post
+      |> Ash.Changeset.new(status_enum_no_cast: "open")
+      |> Api.create!()
+
+      assert %{status_enum_no_cast: :open} =
+               Post
+               |> Ash.Query.filter(status_enum_no_cast == ^"open")
+               |> Api.read_one!()
+    end
   end
 
   describe "atom filters" do
