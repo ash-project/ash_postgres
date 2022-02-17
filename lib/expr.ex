@@ -598,7 +598,11 @@ defmodule AshPostgres.Expr do
   end
 
   defp do_dynamic_expr(_query, other, _bindings, true, _type) do
-    other
+    if is_atom(other) do
+      to_string(other)
+    else
+      other
+    end
   end
 
   defp do_dynamic_expr(_query, value, _bindings, false, {:in, type}) when is_list(value) do
