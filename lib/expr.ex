@@ -181,7 +181,7 @@ defmodule AshPostgres.Expr do
           [condition_type, when_true, when_false]
       end
       |> Enum.map(fn type ->
-        if type == :any do
+        if type == :any || type == {:in, :any} do
           nil
         else
           type
@@ -331,7 +331,7 @@ defmodule AshPostgres.Expr do
       mod
       |> AshPostgres.Types.determine_types([left, right])
       |> Enum.map(fn type ->
-        if type == :any do
+        if type == :any || type == {:in, :any} do
           nil
         else
           type
