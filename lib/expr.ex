@@ -598,7 +598,7 @@ defmodule AshPostgres.Expr do
   end
 
   defp do_dynamic_expr(_query, other, _bindings, true, _type) do
-    if is_atom(other) do
+    if is_atom(other) && !is_boolean(other) do
       to_string(other)
     else
       other
@@ -606,6 +606,8 @@ defmodule AshPostgres.Expr do
   end
 
   defp do_dynamic_expr(_query, value, _bindings, false, {:in, type}) when is_list(value) do
+    value = maybe_sanitize_list(value)
+
     Ecto.Query.dynamic(type(^value, ^{:array, type}))
   end
 
@@ -615,11 +617,28 @@ defmodule AshPostgres.Expr do
   end
 
   defp do_dynamic_expr(_query, value, _bindings, false, type) when type == nil or type == :any do
+    value = maybe_sanitize_list(value)
+
     Ecto.Query.dynamic(^value)
   end
 
   defp do_dynamic_expr(_query, value, _bindings, false, type) do
+    value = maybe_sanitize_list(value)
     Ecto.Query.dynamic(type(^value, ^type))
+  end
+
+  defp maybe_sanitize_list(value) do
+    if is_list(value) do
+      Enum.map(value, fn value ->
+        if is_atom(value) && !is_atom(value) do
+          to_string(value)
+        else
+          value
+        end
+      end)
+    else
+      value
+    end
   end
 
   defp ref_binding(
