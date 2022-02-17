@@ -180,9 +180,7 @@ defmodule AshPostgres.Expr do
         [condition_type, when_true, when_false] ->
           [condition_type, when_true, when_false]
       end
-
-    [condition_type, when_true_type, when_false_type] =
-      Enum.map([condition_type, when_true_type, when_false_type], fn type ->
+      |> Enum.map(fn type ->
         if type == :any do
           nil
         else
@@ -329,7 +327,16 @@ defmodule AshPostgres.Expr do
          embedded?,
          type
        ) do
-    [left_type, right_type] = AshPostgres.Types.determine_types(mod, [left, right])
+    [left_type, right_type] =
+      mod
+      |> AshPostgres.Types.determine_types([left, right])
+      |> Enum.map(fn type ->
+        if type == :any do
+          nil
+        else
+          type
+        end
+      end)
 
     left_expr = do_dynamic_expr(query, left, bindings, pred_embedded? || embedded?, left_type)
 
