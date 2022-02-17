@@ -181,6 +181,15 @@ defmodule AshPostgres.Expr do
           [condition_type, when_true, when_false]
       end
 
+    [condition_type, when_true_type, when_false_type] =
+      Enum.map([condition_type, when_true_type, when_false_type], fn type ->
+        if type == :any do
+          nil
+        else
+          type
+        end
+      end)
+
     condition =
       do_dynamic_expr(query, condition, bindings, pred_embedded? || embedded?, condition_type)
 
@@ -458,7 +467,7 @@ defmodule AshPostgres.Expr do
     type = AshPostgres.Types.parameterized_type(aggregate.type, [])
 
     type =
-      if aggregate.kind == :list do
+      if type && aggregate.kind == :list do
         {:array, type}
       else
         type
@@ -466,12 +475,20 @@ defmodule AshPostgres.Expr do
 
     coalesced =
       if aggregate.default_value do
-        Ecto.Query.dynamic(coalesce(^expr, type(^aggregate.default_value, ^type)))
+        if type do
+          Ecto.Query.dynamic(coalesce(^expr, type(^aggregate.default_value, ^type)))
+        else
+          Ecto.Query.dynamic(coalesce(^expr, ^aggregate.default_value))
+        end
       else
         expr
       end
 
-    Ecto.Query.dynamic(type(^coalesced, ^type))
+    if type do
+      Ecto.Query.dynamic(type(^coalesced, ^type))
+    else
+      coalesced
+    end
   end
 
   defp do_dynamic_expr(
@@ -532,7 +549,11 @@ defmodule AshPostgres.Expr do
     arg2 = do_dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?)
     type = AshPostgres.Types.parameterized_type(arg2, [])
 
-    Ecto.Query.dynamic(type(^arg1, ^type))
+    if type do
+      Ecto.Query.dynamic(type(^arg1, ^type))
+    else
+      raise "Attempted to explicitly cast to a type that has `cast_in_query?` configured to `false`, or for which a type could not be determined."
+    end
   end
 
   defp do_dynamic_expr(
@@ -546,7 +567,11 @@ defmodule AshPostgres.Expr do
     arg2 = do_dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?)
     type = AshPostgres.Types.parameterized_type(arg2, constraints)
 
-    Ecto.Query.dynamic(type(^arg1, ^type))
+    if type do
+      Ecto.Query.dynamic(type(^arg1, ^type))
+    else
+      raise "Attempted to explicitly cast to a type that has `cast_in_query?` configured to `false`, or for which a type could not be determined."
+    end
   end
 
   defp do_dynamic_expr(

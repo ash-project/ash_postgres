@@ -4,7 +4,13 @@ defmodule AshPostgres.Types do
   alias Ash.Query.Ref
 
   def parameterized_type({:array, type}, constraints) do
-    {:array, parameterized_type(type, constraints[:items] || [])}
+    case parameterized_type(type, constraints[:items] || []) do
+      nil ->
+        nil
+
+      type ->
+        {:array, type}
+    end
   end
 
   def parameterized_type(Ash.Type.CiString, constraints) do
@@ -16,7 +22,7 @@ defmodule AshPostgres.Types do
       if Ash.Type.cast_in_query?(type) do
         parameterized_type(Ash.Type.ecto_type(type), constraints)
       else
-        :any
+        nil
       end
     else
       if is_atom(type) && :erlang.function_exported(type, :type, 1) do
@@ -115,7 +121,8 @@ defmodule AshPostgres.Types do
        when vague_type in [:any, :same] do
     if Ash.Type.ash_type?(type) do
       type = type |> parameterized_type(constraints) |> array_to_in()
-      {type, ref}
+
+      {type || :any, ref}
     else
       type =
         if is_atom(type) && :erlang.function_exported(type, :type, 1) do
