@@ -630,7 +630,7 @@ defmodule AshPostgres.Expr do
   defp maybe_sanitize_list(value) do
     if is_list(value) do
       Enum.map(value, fn value ->
-        if is_atom(value) && !is_atom(value) do
+        if is_atom(value) && !is_boolean(value) do
           to_string(value)
         else
           value
