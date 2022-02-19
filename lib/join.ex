@@ -501,7 +501,7 @@ defmodule AshPostgres.Join do
                    field(row, ^relationship.source_field) ==
                      field(through, ^relationship.source_field_on_join_table),
                  join: destination in ^relationship_destination,
-                 as: ^initial_ash_bindings.current,
+                 as: ^(initial_ash_bindings.current + 1),
                  on:
                    field(destination, ^relationship.destination_field) ==
                      field(through, ^relationship.destination_field_on_join_table)

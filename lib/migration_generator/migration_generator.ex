@@ -1324,7 +1324,7 @@ defmodule AshPostgres.MigrationGenerator do
       Enum.flat_map(attributes_to_alter, fn {new_attribute, old_attribute} ->
         if has_reference?(old_snapshot.multitenancy, old_attribute) and
              Map.get(old_attribute, :references) != Map.get(new_attribute, :references) do
-          [
+          old_and_alter = [
             %Operation.DropForeignKey{
               attribute: old_attribute,
               table: snapshot.table,
@@ -1335,14 +1335,22 @@ defmodule AshPostgres.MigrationGenerator do
               new_attribute: new_attribute,
               old_attribute: old_attribute,
               table: snapshot.table
-            },
-            %Operation.DropForeignKey{
-              attribute: new_attribute,
-              table: snapshot.table,
-              multitenancy: snapshot.multitenancy,
-              direction: :down
             }
           ]
+
+          if has_reference?(snapshot.multitenancy, new_attribute) do
+            old_and_alter ++
+              [
+                %Operation.DropForeignKey{
+                  attribute: new_attribute,
+                  table: snapshot.table,
+                  multitenancy: snapshot.multitenancy,
+                  direction: :down
+                }
+              ]
+          else
+            old_and_alter
+          end
         else
           [
             %Operation.AlterAttribute{

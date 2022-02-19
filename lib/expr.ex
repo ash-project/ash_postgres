@@ -598,7 +598,7 @@ defmodule AshPostgres.Expr do
   end
 
   defp do_dynamic_expr(_query, other, _bindings, true, _type) do
-    if is_atom(other) && !is_boolean(other) do
+    if other && is_atom(other) && !is_boolean(other) do
       to_string(other)
     else
       other
@@ -612,7 +612,7 @@ defmodule AshPostgres.Expr do
   end
 
   defp do_dynamic_expr(query, value, bindings, false, type)
-       when is_atom(value) and not is_boolean(value) do
+       when not is_nil(value) and is_atom(value) and not is_boolean(value) do
     do_dynamic_expr(query, to_string(value), bindings, false, type)
   end
 
@@ -630,7 +630,7 @@ defmodule AshPostgres.Expr do
   defp maybe_sanitize_list(value) do
     if is_list(value) do
       Enum.map(value, fn value ->
-        if is_atom(value) && !is_boolean(value) do
+        if value && is_atom(value) && !is_boolean(value) do
           to_string(value)
         else
           value
