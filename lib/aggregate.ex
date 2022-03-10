@@ -184,7 +184,7 @@ defmodule AshPostgres.Aggregate do
       Enum.reduce(
         in_aggregates,
         {[], params, count},
-        fn {load, _, dynamic}, {exprs, params, count} ->
+        fn {_, name, dynamic}, {exprs, params, count} ->
           {expr, new_params, count} =
             Ecto.Query.Builder.Dynamic.partially_expand(
               :select,
@@ -194,7 +194,7 @@ defmodule AshPostgres.Aggregate do
               count
             )
 
-          {[{load, expr} | exprs], new_params, count}
+          {[{name, expr} | exprs], new_params, count}
         end
       )
 
