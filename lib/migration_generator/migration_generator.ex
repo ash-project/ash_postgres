@@ -229,14 +229,14 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp add_order_to_operation(%{attribute: attribute} = op, attributes) do
-    order = Enum.find_index(attributes, &(&1.name == attribute.name))
+    order = Enum.find_index(attributes, &(&1.source == attribute.source))
     attribute = Map.put(attribute, :order, order)
 
     %{op | attribute: attribute}
   end
 
   defp add_order_to_operation(%{new_attribute: attribute} = op, attributes) do
-    order = Enum.find_index(attributes, &(&1.name == attribute.name))
+    order = Enum.find_index(attributes, &(&1.source == attribute.source))
     attribute = Map.put(attribute, :order, order)
 
     %{op | new_attribute: attribute}
@@ -330,7 +330,7 @@ defmodule AshPostgres.MigrationGenerator do
           new_snapshot
           | attributes:
               Enum.map(new_snapshot.attributes, fn attribute ->
-                if attribute.name in primary_key do
+                if attribute.source in primary_key do
                   %{attribute | primary_key?: true}
                 else
                   %{attribute | primary_key?: false}
@@ -346,8 +346,8 @@ defmodule AshPostgres.MigrationGenerator do
     attributes
     |> Enum.with_index()
     |> Enum.map(fn {attr, i} -> Map.put(attr, :order, i) end)
-    |> Enum.group_by(& &1.name)
-    |> Enum.map(fn {name, attributes} ->
+    |> Enum.group_by(& &1.source)
+    |> Enum.map(fn {source, attributes} ->
       size =
         attributes
         |> Enum.map(& &1.size)
@@ -361,13 +361,13 @@ defmodule AshPostgres.MigrationGenerator do
         end
 
       %{
-        name: name,
-        type: merge_types(Enum.map(attributes, & &1.type), name, table),
+        source: source,
+        type: merge_types(Enum.map(attributes, & &1.type), source, table),
         size: size,
         default: merge_defaults(Enum.map(attributes, & &1.default)),
         allow_nil?: Enum.any?(attributes, & &1.allow_nil?) || Enum.count(attributes) < count,
         generated?: Enum.any?(attributes, & &1.generated?),
-        references: merge_references(Enum.map(attributes, & &1.references), name, table),
+        references: merge_references(Enum.map(attributes, & &1.references), source, table),
         primary_key?: false,
         order: attributes |> Enum.map(& &1.order) |> Enum.min()
       }
@@ -534,7 +534,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp pkey_names(attributes) do
     attributes
     |> Enum.filter(& &1.primary_key?)
-    |> Enum.map(& &1.name)
+    |> Enum.map(& &1.source)
     |> Enum.sort()
   end
 
@@ -758,7 +758,7 @@ defmodule AshPostgres.MigrationGenerator do
          [
            %Operation.AddAttribute{
              attribute: %{
-               name: name
+               source: name
              },
              table: table
            } = add
@@ -773,8 +773,8 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.with_index()
     |> Enum.find(fn
       {%Operation.AlterAttribute{
-         new_attribute: %{name: ^name, references: references},
-         old_attribute: %{name: ^name}
+         new_attribute: %{source: ^name, references: references},
+         old_attribute: %{source: ^name}
        }, _}
       when not is_nil(references) ->
         true
@@ -916,9 +916,9 @@ defmodule AshPostgres.MigrationGenerator do
            table: table,
            multitenancy: multitenancy
          },
-         %Operation.AddAttribute{table: table, attribute: %{name: name}}
+         %Operation.AddAttribute{table: table, attribute: %{source: source}}
        ) do
-    name in List.wrap(attribute_or_attributes) ||
+    source in List.wrap(attribute_or_attributes) ||
       (multitenancy.attribute && multitenancy.attribute in List.wrap(attribute_or_attributes))
   end
 
@@ -941,9 +941,9 @@ defmodule AshPostgres.MigrationGenerator do
            constraint: %{attribute: attribute_or_attributes},
            table: table
          },
-         %Operation.AlterAttribute{table: table, new_attribute: %{name: name}}
+         %Operation.AlterAttribute{table: table, new_attribute: %{source: source}}
        ) do
-    name in List.wrap(attribute_or_attributes)
+    source in List.wrap(attribute_or_attributes)
   end
 
   defp after?(
@@ -951,9 +951,9 @@ defmodule AshPostgres.MigrationGenerator do
            constraint: %{attribute: attribute_or_attributes},
            table: table
          },
-         %Operation.RenameAttribute{table: table, new_attribute: %{name: name}}
+         %Operation.RenameAttribute{table: table, new_attribute: %{source: source}}
        ) do
-    name in List.wrap(attribute_or_attributes)
+    source in List.wrap(attribute_or_attributes)
   end
 
   defp after?(
@@ -972,16 +972,16 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp after?(
          %Operation.RemoveCheckConstraint{constraint: %{attribute: attributes}, table: table},
-         %Operation.RemoveAttribute{table: table, attribute: %{name: name}}
+         %Operation.RemoveAttribute{table: table, attribute: %{source: source}}
        ) do
-    name in List.wrap(attributes)
+    source in List.wrap(attributes)
   end
 
   defp after?(
          %Operation.RemoveCheckConstraint{constraint: %{attribute: attributes}, table: table},
-         %Operation.RenameAttribute{table: table, old_attribute: %{name: name}}
+         %Operation.RenameAttribute{table: table, old_attribute: %{source: source}}
        ) do
-    name in List.wrap(attributes)
+    source in List.wrap(attributes)
   end
 
   defp after?(%Operation.AlterAttribute{table: table}, %Operation.DropForeignKey{
@@ -1009,7 +1009,7 @@ defmodule AshPostgres.MigrationGenerator do
              references: %{table: table, destination_field: name}
            }
          },
-         %Operation.AddAttribute{table: table, attribute: %{name: name}}
+         %Operation.AddAttribute{table: table, attribute: %{source: name}}
        ),
        do: true
 
@@ -1051,9 +1051,9 @@ defmodule AshPostgres.MigrationGenerator do
        do: true
 
   defp after?(
-         %Operation.RemoveAttribute{attribute: %{name: name}, table: table},
+         %Operation.RemoveAttribute{attribute: %{source: source}, table: table},
          %Operation.AlterAttribute{
-           old_attribute: %{references: %{table: table, destination_field: name}}
+           old_attribute: %{references: %{table: table, destination_field: source}}
          }
        ),
        do: true
@@ -1064,7 +1064,7 @@ defmodule AshPostgres.MigrationGenerator do
              references: %{table: table, destination_field: name}
            }
          },
-         %Operation.AddAttribute{table: table, attribute: %{name: name}}
+         %Operation.AddAttribute{table: table, attribute: %{source: name}}
        ),
        do: true
 
@@ -1263,12 +1263,12 @@ defmodule AshPostgres.MigrationGenerator do
   defp attribute_operations(snapshot, old_snapshot, opts) do
     attributes_to_add =
       Enum.reject(snapshot.attributes, fn attribute ->
-        Enum.find(old_snapshot.attributes, &(&1.name == attribute.name))
+        Enum.find(old_snapshot.attributes, &(&1.source == attribute.source))
       end)
 
     attributes_to_remove =
       Enum.reject(old_snapshot.attributes, fn attribute ->
-        Enum.find(snapshot.attributes, &(&1.name == attribute.name))
+        Enum.find(snapshot.attributes, &(&1.source == attribute.source))
       end)
 
     {attributes_to_add, attributes_to_remove, attributes_to_rename} =
@@ -1278,7 +1278,10 @@ defmodule AshPostgres.MigrationGenerator do
       snapshot.attributes
       |> Enum.map(fn attribute ->
         {attribute,
-         Enum.find(old_snapshot.attributes, &(&1.name == attribute.name && &1 != attribute))}
+         Enum.find(
+           old_snapshot.attributes,
+           &(&1.source == attribute.source && attributes_unequal?(&1, attribute))
+         )}
       end)
       |> Enum.filter(&elem(&1, 1))
 
@@ -1321,7 +1324,7 @@ defmodule AshPostgres.MigrationGenerator do
       Enum.flat_map(attributes_to_alter, fn {new_attribute, old_attribute} ->
         if has_reference?(old_snapshot.multitenancy, old_attribute) and
              Map.get(old_attribute, :references) != Map.get(new_attribute, :references) do
-          [
+          old_and_alter = [
             %Operation.DropForeignKey{
               attribute: old_attribute,
               table: snapshot.table,
@@ -1332,14 +1335,22 @@ defmodule AshPostgres.MigrationGenerator do
               new_attribute: new_attribute,
               old_attribute: old_attribute,
               table: snapshot.table
-            },
-            %Operation.DropForeignKey{
-              attribute: new_attribute,
-              table: snapshot.table,
-              multitenancy: snapshot.multitenancy,
-              direction: :down
             }
           ]
+
+          if has_reference?(snapshot.multitenancy, new_attribute) do
+            old_and_alter ++
+              [
+                %Operation.DropForeignKey{
+                  attribute: new_attribute,
+                  table: snapshot.table,
+                  multitenancy: snapshot.multitenancy,
+                  direction: :down
+                }
+              ]
+          else
+            old_and_alter
+          end
         else
           [
             %Operation.AlterAttribute{
@@ -1362,6 +1373,34 @@ defmodule AshPostgres.MigrationGenerator do
 
     add_attribute_events ++
       alter_attribute_events ++ remove_attribute_events ++ rename_attribute_events
+  end
+
+  # This exists to handle the fact that the remapping of the key name -> source caused attributes
+  # to be considered unequal. We ignore things that only differ in that way using this function.
+  defp attributes_unequal?(left, right) do
+    left = add_source_and_name(left)
+
+    right = add_source_and_name(right)
+
+    left != right
+  end
+
+  defp add_source_and_name(attribute) do
+    cond do
+      attribute[:source] ->
+        Map.put(attribute, :name, attribute[:source])
+        |> Map.update!(:source, &to_string/1)
+        |> Map.update!(:name, &to_string/1)
+
+      attribute[:name] ->
+        attribute
+        |> Map.put(:source, attribute[:name])
+        |> Map.update!(:source, &to_string/1)
+        |> Map.update!(:name, &to_string/1)
+
+      true ->
+        attribute
+    end
   end
 
   def changing_multitenancy_affects_identities?(snapshot, old_snapshot) do
@@ -1439,7 +1478,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp resolve_renames(_table, [], removing, _opts), do: {[], removing, []}
 
   defp resolve_renames(table, [adding], [removing], opts) do
-    if renaming_to?(table, removing.name, adding.name, opts) do
+    if renaming_to?(table, removing.source, adding.source, opts) do
       {[], [], [{adding, removing}]}
     else
       {[adding], [removing], []}
@@ -1476,9 +1515,9 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp renaming?(table, removing, opts) do
     if opts.no_shell? do
-      raise "Unimplemented: cannot determine: Are you renaming #{table}.#{removing.name}? without shell input"
+      raise "Unimplemented: cannot determine: Are you renaming #{table}.#{removing.source}? without shell input"
     else
-      Mix.shell().yes?("Are you renaming #{table}.#{removing.name}?")
+      Mix.shell().yes?("Are you renaming #{table}.#{removing.source}?")
     end
   end
 
@@ -1491,7 +1530,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp get_new_attribute(adding, tries) do
     name =
       Mix.shell().prompt(
-        "What are you renaming it to?: #{Enum.map_join(adding, ", ", & &1.name)}"
+        "What are you renaming it to?: #{Enum.map_join(adding, ", ", & &1.source)}"
       )
 
     name =
@@ -1501,7 +1540,7 @@ defmodule AshPostgres.MigrationGenerator do
         nil
       end
 
-    case Enum.find(adding, &(to_string(&1.name) == name)) do
+    case Enum.find(adding, &(to_string(&1.source) == name)) do
       nil -> get_new_attribute(adding, tries - 1)
       new_attribute -> new_attribute
     end
@@ -1546,12 +1585,17 @@ defmodule AshPostgres.MigrationGenerator do
         end)
         |> Map.update!(:attributes, fn attributes ->
           Enum.map(attributes, fn attribute ->
-            if attribute.name == relationship.destination_field do
+            destination_field_source =
+              relationship.destination
+              |> Ash.Resource.Info.attribute(relationship.destination_field)
+              |> Map.get(:source)
+
+            if attribute.source == destination_field_source do
               source_attribute =
                 Ash.Resource.Info.attribute(relationship.source, relationship.source_field)
 
               Map.put(attribute, :references, %{
-                destination_field: relationship.source_field,
+                destination_field: source_attribute.source,
                 destination_field_default:
                   default(source_attribute, AshPostgres.repo(relationship.destination)),
                 destination_field_generated: source_attribute.generated?,
@@ -1561,7 +1605,7 @@ defmodule AshPostgres.MigrationGenerator do
                 on_update: AshPostgres.polymorphic_on_update(relationship.source),
                 name:
                   AshPostgres.polymorphic_name(relationship.source) ||
-                    "#{relationship.context[:data_layer][:table]}_#{relationship.destination_field}_fkey"
+                    "#{relationship.context[:data_layer][:table]}_#{destination_field_source}_fkey"
               })
             else
               attribute
@@ -1623,9 +1667,18 @@ defmodule AshPostgres.MigrationGenerator do
         constraints
     end
     |> Enum.map(fn constraint ->
+      attributes =
+        constraint.attribute
+        |> List.wrap()
+        |> Enum.map(fn attribute ->
+          resource
+          |> Ash.Resource.Info.attribute(attribute)
+          |> Map.get(:source)
+        end)
+
       %{
         name: constraint.name,
-        attribute: List.wrap(constraint.attribute),
+        attribute: attributes,
         check: constraint.check,
         base_filter: AshPostgres.base_filter_sql(resource)
       }
@@ -1657,7 +1710,9 @@ defmodule AshPostgres.MigrationGenerator do
 
     resource
     |> Ash.Resource.Info.attributes()
-    |> Enum.map(&Map.take(&1, [:name, :type, :default, :allow_nil?, :generated?, :primary_key?]))
+    |> Enum.map(
+      &Map.take(&1, [:name, :source, :type, :default, :allow_nil?, :generated?, :primary_key?])
+    )
     |> Enum.map(fn attribute ->
       default = default(attribute, repo)
 
@@ -1687,6 +1742,7 @@ defmodule AshPostgres.MigrationGenerator do
       |> Map.put(:default, default)
       |> Map.put(:size, size)
       |> Map.put(:type, type)
+      |> Map.delete(:name)
     end)
     |> Enum.map(fn attribute ->
       references = find_reference(resource, table, attribute)
@@ -1697,12 +1753,23 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp find_reference(resource, table, attribute) do
     Enum.find_value(Ash.Resource.Info.relationships(resource), fn relationship ->
-      if attribute.name == relationship.source_field && relationship.type == :belongs_to &&
+      source_field_name =
+        relationship.source
+        |> Ash.Resource.Info.attribute(relationship.source_field)
+        |> Map.get(:source)
+
+      if attribute.source == source_field_name && relationship.type == :belongs_to &&
            foreign_key?(relationship) do
-        configured_reference = configured_reference(resource, table, attribute.name, relationship)
+        configured_reference =
+          configured_reference(resource, table, attribute.source, relationship)
+
+        destination_field_source =
+          relationship.destination
+          |> Ash.Resource.Info.attribute(relationship.destination_field)
+          |> Map.get(:source)
 
         %{
-          destination_field: relationship.destination_field,
+          destination_field: destination_field_source,
           multitenancy: multitenancy(relationship.destination),
           on_delete: configured_reference.on_delete,
           on_update: configured_reference.on_update,
@@ -1917,8 +1984,14 @@ defmodule AshPostgres.MigrationGenerator do
           {other, nil}
       end
 
+    attribute =
+      if Map.has_key?(attribute, :name) do
+        Map.put(attribute, :source, String.to_atom(attribute.name))
+      else
+        Map.update!(attribute, :source, &String.to_atom/1)
+      end
+
     attribute
-    |> Map.update!(:name, &String.to_atom/1)
     |> Map.put(:type, type)
     |> Map.put(:size, size)
     |> Map.put_new(:default, "nil")
@@ -1936,7 +2009,10 @@ defmodule AshPostgres.MigrationGenerator do
         |> Map.put_new(:on_update, nil)
         |> Map.update!(:on_delete, &(&1 && String.to_atom(&1)))
         |> Map.update!(:on_update, &(&1 && String.to_atom(&1)))
-        |> Map.put(:name, Map.get(references, :name) || "#{table}_#{attribute.name}_fkey")
+        |> Map.put(
+          :name,
+          Map.get(references, :name) || "#{table}_#{attribute.source}_fkey"
+        )
         |> Map.put_new(:multitenancy, %{
           attribute: nil,
           strategy: nil,

@@ -535,5 +535,41 @@ defmodule AshPostgres.AggregateTest do
                ])
                |> Api.read_one!()
     end
+
+    test "a count with a filter that references a relationship that also has a filter" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title", category: "foo"})
+        |> Api.create!()
+
+      comment =
+        Comment
+        |> Ash.Changeset.for_create(:create, %{title: "match"})
+        |> Ash.Changeset.replace_relationship(:post, post)
+        |> Api.create!()
+
+      comment2 =
+        Comment
+        |> Ash.Changeset.for_create(:create, %{title: "match"})
+        |> Ash.Changeset.replace_relationship(:post, post)
+        |> Api.create!()
+
+      Rating
+      |> Ash.Changeset.for_create(:create, %{score: 10, resource_id: comment.id})
+      |> Ash.Changeset.set_context(%{data_layer: %{table: "comment_ratings"}})
+      |> Api.create!()
+
+      Rating
+      |> Ash.Changeset.for_create(:create, %{score: 1, resource_id: comment2.id})
+      |> Ash.Changeset.set_context(%{data_layer: %{table: "comment_ratings"}})
+      |> Api.create!()
+
+      assert %Post{count_of_popular_comments: 1} =
+               Post
+               |> Ash.Query.load([
+                 :count_of_popular_comments
+               ])
+               |> Api.read_one!()
+    end
   end
 end

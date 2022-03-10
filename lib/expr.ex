@@ -180,6 +180,13 @@ defmodule AshPostgres.Expr do
         [condition_type, when_true, when_false] ->
           [condition_type, when_true, when_false]
       end
+      |> Enum.map(fn type ->
+        if type == :any || type == {:in, :any} do
+          nil
+        else
+          type
+        end
+      end)
 
     condition =
       do_dynamic_expr(query, condition, bindings, pred_embedded? || embedded?, condition_type)
@@ -320,7 +327,16 @@ defmodule AshPostgres.Expr do
          embedded?,
          type
        ) do
-    [left_type, right_type] = AshPostgres.Types.determine_types(mod, [left, right])
+    [left_type, right_type] =
+      mod
+      |> AshPostgres.Types.determine_types([left, right])
+      |> Enum.map(fn type ->
+        if type == :any || type == {:in, :any} do
+          nil
+        else
+          type
+        end
+      end)
 
     left_expr = do_dynamic_expr(query, left, bindings, pred_embedded? || embedded?, left_type)
 
@@ -458,7 +474,7 @@ defmodule AshPostgres.Expr do
     type = AshPostgres.Types.parameterized_type(aggregate.type, [])
 
     type =
-      if aggregate.kind == :list do
+      if type && aggregate.kind == :list do
         {:array, type}
       else
         type
@@ -466,12 +482,20 @@ defmodule AshPostgres.Expr do
 
     coalesced =
       if aggregate.default_value do
-        Ecto.Query.dynamic(coalesce(^expr, type(^aggregate.default_value, ^type)))
+        if type do
+          Ecto.Query.dynamic(coalesce(^expr, type(^aggregate.default_value, ^type)))
+        else
+          Ecto.Query.dynamic(coalesce(^expr, ^aggregate.default_value))
+        end
       else
         expr
       end
 
-    Ecto.Query.dynamic(type(^coalesced, ^type))
+    if type do
+      Ecto.Query.dynamic(type(^coalesced, ^type))
+    else
+      coalesced
+    end
   end
 
   defp do_dynamic_expr(
@@ -532,7 +556,11 @@ defmodule AshPostgres.Expr do
     arg2 = do_dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?)
     type = AshPostgres.Types.parameterized_type(arg2, [])
 
-    Ecto.Query.dynamic(type(^arg1, ^type))
+    if type do
+      Ecto.Query.dynamic(type(^arg1, ^type))
+    else
+      raise "Attempted to explicitly cast to a type that has `cast_in_query?` configured to `false`, or for which a type could not be determined."
+    end
   end
 
   defp do_dynamic_expr(
@@ -546,7 +574,11 @@ defmodule AshPostgres.Expr do
     arg2 = do_dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?)
     type = AshPostgres.Types.parameterized_type(arg2, constraints)
 
-    Ecto.Query.dynamic(type(^arg1, ^type))
+    if type do
+      Ecto.Query.dynamic(type(^arg1, ^type))
+    else
+      raise "Attempted to explicitly cast to a type that has `cast_in_query?` configured to `false`, or for which a type could not be determined."
+    end
   end
 
   defp do_dynamic_expr(
@@ -566,24 +598,47 @@ defmodule AshPostgres.Expr do
   end
 
   defp do_dynamic_expr(_query, other, _bindings, true, _type) do
-    other
+    if other && is_atom(other) && !is_boolean(other) do
+      to_string(other)
+    else
+      other
+    end
   end
 
   defp do_dynamic_expr(_query, value, _bindings, false, {:in, type}) when is_list(value) do
+    value = maybe_sanitize_list(value)
+
     Ecto.Query.dynamic(type(^value, ^{:array, type}))
   end
 
   defp do_dynamic_expr(query, value, bindings, false, type)
-       when is_atom(value) and not is_boolean(value) do
+       when not is_nil(value) and is_atom(value) and not is_boolean(value) do
     do_dynamic_expr(query, to_string(value), bindings, false, type)
   end
 
   defp do_dynamic_expr(_query, value, _bindings, false, type) when type == nil or type == :any do
+    value = maybe_sanitize_list(value)
+
     Ecto.Query.dynamic(^value)
   end
 
   defp do_dynamic_expr(_query, value, _bindings, false, type) do
+    value = maybe_sanitize_list(value)
     Ecto.Query.dynamic(type(^value, ^type))
+  end
+
+  defp maybe_sanitize_list(value) do
+    if is_list(value) do
+      Enum.map(value, fn value ->
+        if value && is_atom(value) && !is_boolean(value) do
+          to_string(value)
+        else
+          value
+        end
+      end)
+    else
+      value
+    end
   end
 
   defp ref_binding(

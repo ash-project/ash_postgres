@@ -53,6 +53,7 @@ defmodule AshPostgres.Test.Post do
     attribute(:decimal, :decimal, default: Decimal.new(0))
     attribute(:status, AshPostgres.Test.Types.Status)
     attribute(:status_enum, AshPostgres.Test.Types.StatusEnum)
+    attribute(:status_enum_no_cast, AshPostgres.Test.Types.StatusEnumNoCast, source: :status_enum)
     create_timestamp(:created_at)
   end
 
@@ -120,6 +121,10 @@ defmodule AshPostgres.Test.Post do
     # All of them will, but we want to test a related field
     count :count_of_comments_that_have_a_post, :comments do
       filter(expr(not is_nil(post.id)))
+    end
+
+    count :count_of_popular_comments, :comments do
+      filter(expr(not is_nil(popular_ratings.id)))
     end
 
     sum :sum_of_recent_popular_comment_likes, :popular_comments, :likes do

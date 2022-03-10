@@ -236,29 +236,46 @@ defmodule AshPostgres.Aggregate do
     type = AshPostgres.Types.parameterized_type(aggregate.type, [])
 
     field =
-      Ecto.Query.dynamic(
-        type(
-          field(as(^binding), ^aggregate.name),
-          ^type
+      if type do
+        Ecto.Query.dynamic(
+          type(
+            field(as(^binding), ^aggregate.name),
+            ^type
+          )
         )
-      )
+      else
+        Ecto.Query.dynamic(field(as(^binding), ^aggregate.name))
+      end
 
     coalesced =
       if is_nil(aggregate.default_value) do
         field
       else
-        Ecto.Query.dynamic(
-          coalesce(
-            ^field,
-            type(
-              ^aggregate.default_value,
-              ^type
+        if type do
+          Ecto.Query.dynamic(
+            coalesce(
+              ^field,
+              type(
+                ^aggregate.default_value,
+                ^type
+              )
             )
           )
-        )
+        else
+          Ecto.Query.dynamic(
+            coalesce(
+              ^field,
+              ^aggregate.default_value
+            )
+          )
+        end
       end
 
-    Ecto.Query.dynamic(type(^coalesced, ^type))
+    if type do
+      Ecto.Query.dynamic(type(^coalesced, ^type))
+    else
+      coalesced
+    end
   end
 
   defp add_aggregate_to_subquery(query, resource, aggregate, binding) do
@@ -379,12 +396,21 @@ defmodule AshPostgres.Aggregate do
 
     with_default =
       if aggregate.default_value do
-        Ecto.Query.dynamic(coalesce(^value, type(^aggregate.default_value, ^type)))
+        if type do
+          Ecto.Query.dynamic(coalesce(^value, type(^aggregate.default_value, ^type)))
+        else
+          Ecto.Query.dynamic(coalesce(^value, ^aggregate.default_value))
+        end
       else
         value
       end
 
-    casted = Ecto.Query.dynamic(type(^with_default, ^type))
+    casted =
+      if type do
+        Ecto.Query.dynamic(type(^with_default, ^type))
+      else
+        with_default
+      end
 
     select_or_merge(query, aggregate.name, casted)
   end
@@ -430,12 +456,21 @@ defmodule AshPostgres.Aggregate do
 
     with_default =
       if aggregate.default_value do
-        Ecto.Query.dynamic(coalesce(^filtered, type(^aggregate.default_value, ^type)))
+        if type do
+          Ecto.Query.dynamic(coalesce(^filtered, type(^aggregate.default_value, ^type)))
+        else
+          Ecto.Query.dynamic(coalesce(^filtered, ^aggregate.default_value))
+        end
       else
         filtered
       end
 
-    cast = Ecto.Query.dynamic(type(^with_default, ^{:array, type}))
+    cast =
+      if type do
+        Ecto.Query.dynamic(type(^with_default, ^{:array, type}))
+      else
+        with_default
+      end
 
     select_or_merge(query, aggregate.name, cast)
   end
@@ -472,12 +507,21 @@ defmodule AshPostgres.Aggregate do
 
     with_default =
       if aggregate.default_value do
-        Ecto.Query.dynamic(coalesce(^filtered, type(^aggregate.default_value, ^type)))
+        if type do
+          Ecto.Query.dynamic(coalesce(^filtered, type(^aggregate.default_value, ^type)))
+        else
+          Ecto.Query.dynamic(coalesce(^filtered, ^aggregate.default_value))
+        end
       else
         filtered
       end
 
-    cast = Ecto.Query.dynamic(type(^with_default, ^type))
+    cast =
+      if type do
+        Ecto.Query.dynamic(type(^with_default, ^type))
+      else
+        with_default
+      end
 
     select_or_merge(query, aggregate.name, cast)
   end
