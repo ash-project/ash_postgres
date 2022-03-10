@@ -18,7 +18,7 @@ defmodule AshPostgres.AggregateTest do
                |> Api.read_one!()
     end
 
-    test "with data, it returns the count" do
+    test "with data and a custom aggregate, it returns the count" do
       post =
         Post
         |> Ash.Changeset.new(%{title: "title"})
@@ -29,10 +29,17 @@ defmodule AshPostgres.AggregateTest do
       |> Ash.Changeset.replace_relationship(:post, post)
       |> Api.create!()
 
-      assert %{count_of_comments: 1} =
+      import Ash.Query
+
+      assert %{aggregates: %{custom_count_of_comments: 1}} =
                Post
                |> Ash.Query.filter(id == ^post.id)
-               |> Ash.Query.load(:count_of_comments)
+               |> Ash.Query.aggregate(
+                 :custom_count_of_comments,
+                 :count,
+                 :comments,
+                 filter: expr(not is_nil(title))
+               )
                |> Api.read_one!()
 
       Comment
@@ -40,10 +47,15 @@ defmodule AshPostgres.AggregateTest do
       |> Ash.Changeset.replace_relationship(:post, post)
       |> Api.create!()
 
-      assert %{count_of_comments: 2} =
+      assert %{aggregates: %{custom_count_of_comments: 2}} =
                Post
                |> Ash.Query.filter(id == ^post.id)
-               |> Ash.Query.load(:count_of_comments)
+               |> Ash.Query.aggregate(
+                 :custom_count_of_comments,
+                 :count,
+                 :comments,
+                 filter: expr(not is_nil(title))
+               )
                |> Api.read_one!()
     end
 
