@@ -265,6 +265,13 @@ defmodule AshPostgres.DataLayer do
         exist in the database that it didn't create.
         """
       ],
+      exclusion_constraint_names: [
+        type: :any,
+        default: [],
+        doc: """
+        A list of exclusion constraint names that could raise errors. Must be in the format `{:affected_key, "name_of_constraint"}` or `{:affected_key, "name_of_constraint", "custom error message"}`
+        """
+      ],
       identity_index_names: [
         type: :any,
         default: [],
@@ -898,6 +905,7 @@ defmodule AshPostgres.DataLayer do
       |> add_configured_foreign_key_constraints(record.__struct__)
       |> add_unique_indexes(record.__struct__, changeset)
       |> add_check_constraints(record.__struct__)
+      |> add_exclusion_constraints(record.__struct__)
 
     case type do
       :create ->
@@ -941,6 +949,20 @@ defmodule AshPostgres.DataLayer do
           message: constraint.message || "is invalid"
         )
       end)
+    end)
+  end
+
+  defp add_exclusion_constraints(changeset, resource) do
+    resource
+    |> AshPostgres.exclusion_constraint_names()
+    |> Enum.reduce(changeset, fn constraint, changeset ->
+      case constraint do
+        {key, name} ->
+          Ecto.Changeset.exclusion_constraint(changeset, key, name: name)
+
+        {key, name, message} ->
+          Ecto.Changeset.exclusion_constraint(changeset, key, name: name, message: message)
+      end
     end)
   end
 
