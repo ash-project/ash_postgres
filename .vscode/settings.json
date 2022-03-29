@@ -3,5 +3,10 @@
     "activityBar.background": "#113421",
     "titleBar.activeBackground": "#18482E",
     "titleBar.activeForeground": "#F4FBF7"
-  }
+  },
+  "cSpell.words": [
+    "citext",
+    "mapset",
+    "strpos"
+  ]
 }

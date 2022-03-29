@@ -327,12 +327,7 @@ defmodule AshPostgres.DataLayer do
   @sections [@postgres]
 
   @moduledoc """
-  A postgres data layer that levereges Ecto's postgres capabilities.
-
-  # Table of Contents
-  #{Ash.Dsl.Extension.doc_index(@sections)}
-
-  #{Ash.Dsl.Extension.doc(@sections)}
+  A postgres data layer that leverages Ecto's postgres capabilities.
   """
 
   use Ash.Dsl.Extension,
