@@ -1115,7 +1115,7 @@ defmodule AshPostgres.DataLayer do
 
     {:ok,
      from(row in query,
-       select: struct(row, ^select)
+       select: struct(row, ^Enum.uniq(select))
      )}
   end
 
