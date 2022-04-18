@@ -468,22 +468,30 @@ defmodule AshPostgres.DataLayer do
   defp no_table?(%{from: %{source: {"", _}}}), do: true
   defp no_table?(_), do: false
 
-  defp repo_opts(%{tenant: tenant, resource: resource}) when not is_nil(tenant) do
+  defp repo_opts(%{tenant: tenant, resource: resource} = changeset) when not is_nil(tenant) do
     if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
       [prefix: tenant]
     else
       []
     end
+    |> add_timeout(changeset)
   end
 
   defp repo_opts(_), do: []
 
-  defp lateral_join_repo_opts(%{tenant: tenant}, resource) when not is_nil(tenant) do
+  defp add_timeout(opts, %{timeout: timeout}) when not is_nil(timeout) do
+    Keyword.put(opts, :timeout, timeout)
+  end
+
+  defp add_timeout(opts, _), do: opts
+
+  defp lateral_join_repo_opts(%{tenant: tenant} = query, resource) when not is_nil(tenant) do
     if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
       [prefix: tenant]
     else
       []
     end
+    |> add_timeout(query)
   end
 
   defp lateral_join_repo_opts(_, _), do: []
@@ -1262,8 +1270,12 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def transaction(resource, func) do
-    repo(resource).transaction(func)
+  def transaction(resource, func, timeout \\ nil) do
+    if timeout do
+      repo(resource).transaction(func, timeout: timeout)
+    else
+      repo(resource).transaction(func)
+    end
   end
 
   @impl true
