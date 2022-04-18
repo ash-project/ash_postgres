@@ -1,4 +1,7 @@
 defmodule AshPostgres.DocIndex do
+  @moduledoc """
+  Some documentation about AshPostgres.
+  """
   @behaviour Ash.DocIndex
 
   def for_library, do: "ash_postgres"
