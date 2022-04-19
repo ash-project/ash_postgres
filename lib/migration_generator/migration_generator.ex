@@ -6,6 +6,8 @@ defmodule AshPostgres.MigrationGenerator do
   """
   @default_snapshot_path "priv/resource_snapshots"
 
+  require Logger
+
   import Mix.Generator
 
   alias AshPostgres.MigrationGenerator.{Operation, Phase}
@@ -1874,20 +1876,22 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp default(%{default: nil}, _), do: "nil"
 
-  defp default(%{default: value, type: type}, _) do
-    case Ash.Type.dump_to_native(type, value) do
-      {:ok, value} when is_struct(value) ->
-        to_string(value)
+  defp default(%{default: value}, _) do
+    if EctoMigrationDefault.impl_for(value) do
+      EctoMigrationDefault.to_default(value)
+    else
+      Logger.warn("""
+      You have specified a default value that cannot be automatically converted to an Ecto default:
 
-      {:ok, value} ->
-        inspect(value)
+        `#{value}`
 
-      _ ->
-        "nil"
-    end
-  rescue
-    _ ->
+      The default value in the migration will be set to `nil`.
+
+      To resolve this, implement the `EctoMigrationDefault` protocol for the appropriate Elixir type in your Ash project.
+      """)
+
       "nil"
+    end
   end
 
   defp snapshot_to_binary(snapshot) do

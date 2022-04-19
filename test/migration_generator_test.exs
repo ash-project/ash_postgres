@@ -763,4 +763,56 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[references(:post_comments, column: :id, name: "posts_best_comment_id_fkey", type: :uuid)]
     end
   end
+
+  describe "default values" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+    end
+
+    test "when default value is specified that implements EctoMigrationDefault" do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:start_date, :date, default: ~D[2022-04-19])
+          attribute(:start_time, :time, default: ~T[08:30:45])
+          attribute(:timestamp, :utc_datetime, default: ~U[2022-02-02 08:30:30Z])
+          attribute(:timestamp_naive, :naive_datetime, default: ~N[2022-02-02 08:30:30])
+          attribute(:number, :integer, default: 5)
+          attribute(:name, :string, default: "Fred")
+        end
+      end
+
+      defapi([Post])
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [file1] = Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+
+      assert File.read!(file1) =~
+               ~S[add :start_date, :date, default: fragment("'2022-04-19'")]
+
+      assert File.read!(file1) =~
+               ~S[add :start_time, :time, default: fragment("'08:30:45'")]
+
+      assert File.read!(file1) =~
+               ~S[add :timestamp, :utc_datetime, default: fragment("'2022-02-02 08:30:30Z'")]
+
+      assert File.read!(file1) =~
+               ~S[add :timestamp_naive, :naive_datetime, default: fragment("'2022-02-02 08:30:30'")]
+
+      assert File.read!(file1) =~
+               ~S[add :number, :bigint, default: 5]
+
+      assert File.read!(file1) =~
+               ~S[add :name, :text, default: "Fred"]
+    end
+  end
 end
