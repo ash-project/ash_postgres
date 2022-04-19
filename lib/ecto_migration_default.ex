@@ -20,6 +20,12 @@ defimpl EctoMigrationDefault, for: DateTime do
   end
 end
 
+defimpl EctoMigrationDefault, for: NaiveDateTime do
+  def to_default(value) do
+    ~s[fragment("'#{to_string(value)}'")]
+  end
+end
+
 defimpl EctoMigrationDefault, for: Date do
   def to_default(value) do
     ~s[fragment("'#{to_string(value)}'")]
