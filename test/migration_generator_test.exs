@@ -778,6 +778,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
           uuid_primary_key(:id)
           attribute(:start_date, :date, default: ~D[2022-04-19])
           attribute(:timestamp, :utc_datetime, default: ~U[2022-02-02 08:30:30Z])
+          attribute(:number, :integer, default: 5)
+          attribute(:name, :string, default: "Fred")
         end
       end
 
@@ -797,6 +799,12 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert File.read!(file1) =~
                ~S[add :timestamp, :utc_datetime, default: fragment("'2022-02-02 08:30:30Z'")]
+
+      assert File.read!(file1) =~
+               ~S[add :number, :bigint, default: 5]
+
+      assert File.read!(file1) =~
+               ~S[add :name, :text, default: "Fred"]
     end
   end
 end
