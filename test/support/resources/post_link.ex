@@ -8,6 +8,10 @@ defmodule AshPostgres.Test.PostLink do
     repo AshPostgres.TestRepo
   end
 
+  actions do
+    defaults([:create, :read, :update, :destroy])
+  end
+
   relationships do
     belongs_to :source_post, AshPostgres.Test.Post do
       required?(true)

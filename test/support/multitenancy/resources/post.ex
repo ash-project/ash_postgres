@@ -9,10 +9,7 @@ defmodule AshPostgres.MultitenancyTest.Post do
   end
 
   actions do
-    create(:create)
-    read(:read)
-    update(:update)
-    destroy(:destroy)
+    defaults([:create, :read, :update, :destroy])
   end
 
   postgres do

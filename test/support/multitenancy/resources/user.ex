@@ -14,6 +14,10 @@ defmodule AshPostgres.MultitenancyTest.User do
     repo AshPostgres.TestRepo
   end
 
+  actions do
+    defaults([:create, :read, :update, :destroy])
+  end
+
   multitenancy do
     # Tells the resource to use the data layer
     # multitenancy, in this case separate postgres schemas

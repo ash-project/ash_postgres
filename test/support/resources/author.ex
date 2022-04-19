@@ -15,6 +15,10 @@ defmodule AshPostgres.Test.Author do
     attribute(:bio, AshPostgres.Test.Bio)
   end
 
+  actions do
+    defaults([:create, :read, :update, :destroy])
+  end
+
   calculations do
     calculate(:title, :string, expr(bio[:title]))
     calculate(:full_name, :string, expr(first_name <> " " <> last_name))

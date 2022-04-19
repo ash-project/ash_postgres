@@ -13,7 +13,7 @@ defmodule AshPostgres.Test.Comment do
   end
 
   actions do
-    read(:read)
+    defaults([:read, :update, :destroy])
 
     create :create do
       argument(:rating, :map)

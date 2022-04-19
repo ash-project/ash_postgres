@@ -2,7 +2,10 @@ defmodule AshPostgres.DocIndex do
   @moduledoc """
   Some documentation about AshPostgres.
   """
-  @behaviour Ash.DocIndex
+  use Ash.DocIndex,
+    guides_from: [
+      "documentation/**/*.md"
+    ]
 
   def for_library, do: "ash_postgres"
 
@@ -16,4 +19,6 @@ defmodule AshPostgres.DocIndex do
       }
     ]
   end
+
+  def code_modules, do: []
 end

@@ -21,6 +21,8 @@ defmodule AshPostgres.Test.Post do
   end
 
   actions do
+    defaults([:update, :destroy])
+
     read :read do
       primary?(true)
     end

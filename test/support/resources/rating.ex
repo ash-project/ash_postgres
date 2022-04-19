@@ -9,8 +9,7 @@ defmodule AshPostgres.Test.Rating do
   end
 
   actions do
-    read(:read)
-    create(:create)
+    defaults([:create, :read, :update, :destroy])
   end
 
   attributes do
