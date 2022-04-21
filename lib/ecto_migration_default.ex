@@ -37,3 +37,11 @@ defimpl EctoMigrationDefault, for: Time do
     ~s[fragment("'#{to_string(value)}'")]
   end
 end
+
+defimpl EctoMigrationDefault, for: Atom do
+  def to_default(value) when value in [nil, true, false], do: inspect(value)
+
+  def to_default(value) do
+    inspect(to_string(value))
+  end
+end

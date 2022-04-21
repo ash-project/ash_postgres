@@ -779,6 +779,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
           attribute(:timestamp_naive, :naive_datetime, default: ~N[2022-02-02 08:30:30])
           attribute(:number, :integer, default: 5)
           attribute(:name, :string, default: "Fred")
+          attribute(:tag, :atom, default: :value)
+          attribute(:enabled, :boolean, default: false)
         end
       end
 
@@ -793,23 +795,31 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert [file1] = Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
 
-      assert File.read!(file1) =~
+      file = File.read!(file1)
+
+      assert file =~
                ~S[add :start_date, :date, default: fragment("'2022-04-19'")]
 
-      assert File.read!(file1) =~
+      assert file =~
                ~S[add :start_time, :time, default: fragment("'08:30:45'")]
 
-      assert File.read!(file1) =~
+      assert file =~
                ~S[add :timestamp, :utc_datetime, default: fragment("'2022-02-02 08:30:30Z'")]
 
-      assert File.read!(file1) =~
+      assert file =~
                ~S[add :timestamp_naive, :naive_datetime, default: fragment("'2022-02-02 08:30:30'")]
 
-      assert File.read!(file1) =~
+      assert file =~
                ~S[add :number, :bigint, default: 5]
 
-      assert File.read!(file1) =~
+      assert file =~
                ~S[add :name, :text, default: "Fred"]
+
+      assert file =~
+               ~S[add :tag, :text, default: "value"]
+
+      assert file =~
+               ~S[add :enabled, :boolean, default: false]
     end
   end
 end
