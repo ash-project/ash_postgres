@@ -5,13 +5,11 @@
 [![Coverage Status](https://coveralls.io/repos/github/ash-project/ash_postgres/badge.svg?branch=master)](https://coveralls.io/github/ash-project/ash_postgres?branch=master)
 [![Hex version badge](https://img.shields.io/hexpm/v/ash_postgres.svg)](https://hex.pm/packages/ash_postgres)
 
-AshPostgres supports all capabilities of an Ash data layer, and it will
-most likely stay that way, as postgres is the primary target/most maintained
-data layer.
+AshPostgres supports all the capabilities of an Ash data layer. AshPostgres is the primary Ash data layer.
 
 Custom Predicates:
 
-- AshPostgres.Predicates.Trigram
+- `AshPostgres.Predicates.Trigram`
 
 ## DSL
 
@@ -19,7 +17,7 @@ See the DSL documentation in `AshPostgres.DataLayer` for DSL documentation
 
 ## Usage
 
-First, ensure you've added ash_postgres to your `mix.exs` file.
+Add `ash_postgres` to your `mix.exs` file.
 
 ```elixir
 {:ash_postgres, "~> x.y.z"}
