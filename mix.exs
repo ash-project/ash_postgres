@@ -93,8 +93,8 @@ defmodule AshPostgres.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ecto_sql, "~> 3.7.1", override: true},
-      {:ecto, github: "elixir-ecto/ecto", branch: "master", override: true},
+      {:ecto_sql, "~> 3.8"},
+      {:ecto, "~> 3.8"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
       {:ash, ash_version("~> 1.52.0-rc.1")},
