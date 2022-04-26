@@ -5,6 +5,105 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.42.0-rc.0](https://github.com/ash-project/ash_postgres/compare/v0.41.7...v0.42.0-rc.0) (2022-04-26)
+
+
+
+
+### Features:
+
+* support `cast_in_query?/0` and `source`
+
+### Bug Fixes:
+
+* select custom aggregates properly
+
+* don't add reference when renaming column if unnecessary
+
+* don't cast `nil` to `""`
+
+* `!is_atom/1` -> `!is_boolean/1`
+
+* sanitize lists to stringify atoms
+
+* cast embedded atoms to strings first
+
+* don't cast `{:in, :any}` types
+
+* more don't cast any types
+
+* don't cast if there is no type
+
+* properly handle relationship filter bindings
+
+* don't consider fields changed with only source -> name changes
+
+* handle name -> source change in more places
+
+* handle name -> source rename in operation ordering
+
+* fix aggregate/base filters
+
+* don't select more fields than necessary
+
+* don't call `ecto_type` twice when resolving types
+
+* place expressions in the proper order in selects
+
+* match on count in expr
+
+* remove incorrect param count tracking
+
+* properly track param count
+
+* properly reverse parameters before/after expansion
+
+* don't use the base ecto type
+
+* don't sort when joining
+
+* ensure repo is compiled (#80)
+
+* properly construct nested join relationships
+
+* use `CiStringWrapper` type in ash_postgres
+
+* ensure we are returning * on upserts (#79)
+
+* handle new if types
+
+* copy query prefix to newly created query (#74)
+
+### Improvements:
+
+* update ecto
+
+* add atom impl for `EctoMigrationDefault`
+
+* Add EctoMigrationDefault protocol and implement defaults (#87)
+
+* update ecto, fix dialyzer
+
+* support new timeouts
+
+* make select unique before running query
+
+* add doc_index
+
+* add exclusion_constraint_names (#83)
+
+* support referencing aggregates from aggregate filters
+
+* support access syntax
+
+* don't upsert defaults on conflict (#77)
+
+* relax ash version requirement
+
+* add custom migration types, and repo level override
+
+* update to latest version of ash
+
 ## [v0.41.7](https://github.com/ash-project/ash_postgres/compare/v0.41.6...v0.41.7) (2021-12-21)
 
 
