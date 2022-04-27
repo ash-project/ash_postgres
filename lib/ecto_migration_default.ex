@@ -8,6 +8,12 @@ defimpl EctoMigrationDefault, for: Integer do
   end
 end
 
+defimpl EctoMigrationDefault, for: Float do
+  def to_default(value) do
+    to_string(value)
+  end
+end
+
 defimpl EctoMigrationDefault, for: BitString do
   def to_default(value) do
     inspect(value)
