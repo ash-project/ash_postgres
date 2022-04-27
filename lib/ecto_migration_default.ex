@@ -14,6 +14,12 @@ defimpl EctoMigrationDefault, for: Float do
   end
 end
 
+defimpl EctoMigrationDefault, for: Decimal do
+  def to_default(value) do
+    ~s["#{value}"]
+  end
+end
+
 defimpl EctoMigrationDefault, for: BitString do
   def to_default(value) do
     inspect(value)
