@@ -2010,26 +2010,8 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp default(%{default: {_, _, _}}, _), do: "nil"
-
   defp default(%{default: nil}, _), do: "nil"
-
-  defp default(%{default: value}, _) do
-    if EctoMigrationDefault.impl_for(value) do
-      EctoMigrationDefault.to_default(value)
-    else
-      Logger.warn("""
-      You have specified a default value that cannot be automatically converted to an Ecto default:
-
-        `#{inspect(value)}`
-
-      The default value in the migration will be set to `nil`.
-
-      To resolve this, implement the `EctoMigrationDefault` protocol for the appropriate Elixir type in your Ash project.
-      """)
-
-      "nil"
-    end
-  end
+  defp default(%{default: value}, _), do: EctoMigrationDefault.to_default(value)
 
   defp snapshot_to_binary(snapshot) do
     snapshot

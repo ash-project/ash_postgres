@@ -2,6 +2,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
   use AshPostgres.RepoCase, async: false
   @moduletag :migration
 
+  import ExUnit.CaptureLog
+
   defmacrop defposts(mod \\ Post, do: body) do
     quote do
       Code.compiler_options(ignore_module_conflict: true)
@@ -908,6 +910,36 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert file =~
                ~S[add :enabled, :boolean, default: false]
+    end
+
+    test "when default value is specified that does not implement EctoMigrationDefault" do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:product_code, :term, default: {"xyz"})
+        end
+      end
+
+      defapi([Post])
+
+      log =
+        capture_log(fn ->
+          AshPostgres.MigrationGenerator.generate(Api,
+            snapshot_path: "test_snapshots_path",
+            migration_path: "test_migration_path",
+            quiet: true,
+            format: false
+          )
+        end)
+
+      assert log =~ "`{\"xyz\"}`"
+
+      assert [file1] = Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+
+      file = File.read!(file1)
+
+      assert file =~
+               ~S[add :product_code, :text, default: {"xyz"}]
     end
   end
 end
