@@ -104,7 +104,7 @@ defmodule AshPostgres.MixProject do
       {:credo, ">= 0.0.0", only: :dev, runtime: false},
       {:dialyxir, ">= 0.0.0", only: :dev, runtime: false},
       {:sobelow, ">= 0.0.0", only: :dev, runtime: false},
-      {:excoveralls, "~> 0.13.0", only: [:dev, :test]}
+      {:excoveralls, "~> 0.14", only: [:dev, :test]}
     ]
   end
 
