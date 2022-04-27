@@ -2,12 +2,12 @@ name: Elixir CI
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     tags-ignore: ["v*"]
   pull_request:
-    branches: [master]
+    branches: [main]
   create:
-    branches: master
+    branches: main
     tags: ["v*"]
 jobs:
   build:
@@ -18,7 +18,7 @@ jobs:
       matrix:
         otp: ["23"]
         elixir: ["1.13.2"]
-        ash: ["master", "1.52.0-rc.1"]
+        ash: ["main", "1.52.0-rc.1"]
         pg_version: ["9.6", "11"]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -100,7 +100,7 @@ jobs:
             #myelixirstatus
 
             See the changelog for more info:
-            https://github.com/ash-project/ash_postgres/blob/master/CHANGELOG.md
+            https://github.com/ash-project/ash_postgres/blob/main/CHANGELOG.md
           consumer-key: ${{ secrets.TWITTER_CONSUMER_API_KEY }}
           consumer-secret: ${{ secrets.TWITTER_CONSUMER_API_SECRET }}
           access-token: ${{ secrets.TWITTER_ACCESS_TOKEN }}

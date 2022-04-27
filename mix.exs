@@ -112,7 +112,7 @@ defmodule AshPostgres.MixProject do
     case System.get_env("ASH_VERSION") do
       nil -> default_version
       "local" -> [path: "../ash"]
-      "master" -> [git: "https://github.com/ash-project/ash.git"]
+      "main" -> [git: "https://github.com/ash-project/ash.git"]
       version -> "~> #{version}"
     end
   end

@@ -2,7 +2,7 @@
 
 ![Elixir CI](https://github.com/ash-project/ash_postgres/workflows/Elixir%20CI/badge.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Coverage Status](https://coveralls.io/repos/github/ash-project/ash_postgres/badge.svg?branch=master)](https://coveralls.io/github/ash-project/ash_postgres?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/ash-project/ash_postgres/badge.svg?branch=main)](https://coveralls.io/github/ash-project/ash_postgres?branch=main)
 [![Hex version badge](https://img.shields.io/hexpm/v/ash_postgres.svg)](https://hex.pm/packages/ash_postgres)
 
 AshPostgres supports all the capabilities of an Ash data layer. AshPostgres is the primary Ash data layer.
