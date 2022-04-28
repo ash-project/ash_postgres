@@ -779,6 +779,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
           attribute(:timestamp_naive, :naive_datetime, default: ~N[2022-02-02 08:30:30])
           attribute(:number, :integer, default: 5)
           attribute(:fraction, :float, default: 0.25)
+          attribute(:decimal, :decimal, default: Decimal.new("123.4567890987654321987"))
           attribute(:name, :string, default: "Fred")
           attribute(:tag, :atom, default: :value)
           attribute(:enabled, :boolean, default: false)
@@ -815,6 +816,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert file =~
                ~S[add :fraction, :float, default: 0.25]
+
+      assert file =~
+               ~S[add :decimal, :decimal, default: "123.4567890987654321987"]
 
       assert file =~
                ~S[add :name, :text, default: "Fred"]
