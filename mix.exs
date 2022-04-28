@@ -100,11 +100,11 @@ defmodule AshPostgres.MixProject do
       {:ash, ash_version("~> 1.52.0-rc.1")},
       {:git_ops, "~> 2.4.5", only: :dev},
       {:ex_doc, "~> 0.22", only: :dev, runtime: false},
-      {:ex_check, "~> 0.11.0", only: :dev},
+      {:ex_check, "~> 0.14", only: :dev},
       {:credo, ">= 0.0.0", only: :dev, runtime: false},
       {:dialyxir, ">= 0.0.0", only: :dev, runtime: false},
       {:sobelow, ">= 0.0.0", only: :dev, runtime: false},
-      {:excoveralls, "~> 0.13.0", only: [:dev, :test]}
+      {:excoveralls, "~> 0.14", only: [:dev, :test]}
     ]
   end
 
