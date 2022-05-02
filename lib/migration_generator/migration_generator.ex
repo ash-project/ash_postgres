@@ -1883,7 +1883,7 @@ defmodule AshPostgres.MigrationGenerator do
       Logger.warn("""
       You have specified a default value that cannot be automatically converted to an Ecto default:
 
-        `#{value}`
+        `#{inspect(value)}`
 
       The default value in the migration will be set to `nil`.
 
