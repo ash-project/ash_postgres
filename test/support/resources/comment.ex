@@ -16,6 +16,7 @@ defmodule AshPostgres.Test.Comment do
     defaults([:read, :update, :destroy])
 
     create :create do
+      primary?(true)
       argument(:rating, :map)
 
       change(manage_relationship(:rating, :ratings, on_missing: :ignore, on_match: :create))

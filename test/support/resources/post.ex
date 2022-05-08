@@ -32,6 +32,7 @@ defmodule AshPostgres.Test.Post do
     end
 
     create :create do
+      primary?(true)
       argument(:rating, :map)
 
       change(
