@@ -20,7 +20,7 @@ defimpl EctoMigrationDefault, for: Any do
     for the appropriate Elixir type in your Ash project.
     """)
 
-    "nil # #{inspect(value)}"
+    "nil"
   end
 end
 
