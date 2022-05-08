@@ -13,14 +13,14 @@ defimpl EctoMigrationDefault, for: Any do
 
       `#{inspect(value)}`
 
-    The default value in the migration will be set to `#{inspect(value)}`.
-    This may not be correct, depending on the type, so edit your migration accordingly.
+    The default value in the migration will be set to `nil` and you can edit
+    your migration accordingly.
 
     To prevent this warning, implement the `EctoMigrationDefault` protocol
     for the appropriate Elixir type in your Ash project.
     """)
 
-    inspect(value)
+    "nil # #{inspect(value)}"
   end
 end
 

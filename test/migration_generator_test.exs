@@ -939,7 +939,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       file = File.read!(file1)
 
       assert file =~
-               ~S[add :product_code, :text, default: {"xyz"}]
+               ~S[add :product_code, :text, default: nil # {"xyz"}]
     end
   end
 end
