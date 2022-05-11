@@ -94,6 +94,7 @@ defmodule AshPostgres.Sort do
             order_by_expr = %{sort_expr | expr: [order_by: sort_expr.expr]}
             Keyword.put(windows, :order, order_by_expr)
           end)
+          |> Map.update!(:__ash_bindings__, &Map.put(&1, :__order__?, true))
 
         {:ok, new_query}
 
