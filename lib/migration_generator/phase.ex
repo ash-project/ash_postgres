@@ -3,34 +3,48 @@ defmodule AshPostgres.MigrationGenerator.Phase do
 
   defmodule Create do
     @moduledoc false
-    defstruct [:table, :multitenancy, operations: [], commented?: false]
+    defstruct [:table, :schema, :multitenancy, operations: [], commented?: false]
 
-    def up(%{table: table, operations: operations, multitenancy: multitenancy}) do
+    def up(%{schema: schema, table: table, operations: operations, multitenancy: multitenancy}) do
       if multitenancy.strategy == :context do
         "create table(:#{table}, primary_key: false, prefix: prefix()) do\n" <>
           Enum.map_join(operations, "\n", fn operation -> operation.__struct__.up(operation) end) <>
           "\nend"
       else
-        "create table(:#{table}, primary_key: false) do\n" <>
+        opts =
+          if schema do
+            ", prefix: \"#{schema}\""
+          else
+            ""
+          end
+
+        "create table(:#{table}, primary_key: false#{opts}) do\n" <>
           Enum.map_join(operations, "\n", fn operation -> operation.__struct__.up(operation) end) <>
           "\nend"
       end
     end
 
-    def down(%{table: table, multitenancy: multitenancy}) do
+    def down(%{schema: schema, table: table, multitenancy: multitenancy}) do
       if multitenancy.strategy == :context do
         "drop table(:#{inspect(table)}, prefix: prefix())"
       else
-        "drop table(:#{inspect(table)})"
+        opts =
+          if schema do
+            ", prefix: \"#{schema}\""
+          else
+            ""
+          end
+
+        "drop table(:#{inspect(table)}#{opts})"
       end
     end
   end
 
   defmodule Alter do
     @moduledoc false
-    defstruct [:table, :multitenancy, operations: [], commented?: false]
+    defstruct [:schema, :table, :multitenancy, operations: [], commented?: false]
 
-    def up(%{table: table, operations: operations, multitenancy: multitenancy}) do
+    def up(%{table: table, schema: schema, operations: operations, multitenancy: multitenancy}) do
       body =
         Enum.map_join(operations, "\n", fn operation -> operation.__struct__.up(operation) end)
 
@@ -39,13 +53,20 @@ defmodule AshPostgres.MigrationGenerator.Phase do
           body <>
           "\nend"
       else
-        "alter table(:#{table}) do\n" <>
+        opts =
+          if schema do
+            ", prefix: \"#{schema}\""
+          else
+            ""
+          end
+
+        "alter table(:#{table}#{opts}) do\n" <>
           body <>
           "\nend"
       end
     end
 
-    def down(%{table: table, operations: operations, multitenancy: multitenancy}) do
+    def down(%{table: table, schema: schema, operations: operations, multitenancy: multitenancy}) do
       body =
         operations
         |> Enum.reverse()
@@ -56,7 +77,14 @@ defmodule AshPostgres.MigrationGenerator.Phase do
           body <>
           "\nend"
       else
-        "alter table(:#{table}) do\n" <>
+        opts =
+          if schema do
+            ", prefix: \"#{schema}\""
+          else
+            ""
+          end
+
+        "alter table(:#{table}#{opts}) do\n" <>
           body <>
           "\nend"
       end

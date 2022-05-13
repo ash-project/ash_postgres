@@ -27,6 +27,7 @@ locals_without_parens = [
   reference: 1,
   reference: 2,
   repo: 1,
+  schema: 1,
   skip_unique_indexes: 1,
   table: 1,
   template: 1,

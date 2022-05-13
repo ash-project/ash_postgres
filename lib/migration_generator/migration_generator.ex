@@ -276,7 +276,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp deduplicate_snapshots(snapshots, opts, existing_snapshots \\ []) do
     snapshots
     |> Enum.group_by(fn snapshot ->
-      snapshot.table
+      {snapshot.table, snapshot.schema}
     end)
     |> Enum.map(fn {_table, [snapshot | _] = snapshots} ->
       existing_snapshot =
@@ -397,7 +397,8 @@ defmodule AshPostgres.MigrationGenerator do
           on_delete: merge_uniq!(references, table, :on_delete, name),
           on_update: merge_uniq!(references, table, :on_update, name),
           name: merge_uniq!(references, table, :name, name),
-          table: merge_uniq!(references, table, :table, name)
+          table: merge_uniq!(references, table, :table, name),
+          schema: merge_uniq!(references, table, :schema, name)
         }
     end
   end
@@ -762,6 +763,7 @@ defmodule AshPostgres.MigrationGenerator do
              attribute: %{
                source: name
              },
+             schema: schema,
              table: table
            } = add
            | rest
@@ -770,7 +772,7 @@ defmodule AshPostgres.MigrationGenerator do
        ) do
     rest
     |> Enum.take_while(fn op ->
-      op.table == table
+      op.table == table && op.schema == schema
     end)
     |> Enum.with_index()
     |> Enum.find(fn
@@ -808,40 +810,46 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp group_into_phases(
-         [%Operation.CreateTable{table: table, multitenancy: multitenancy} | rest],
+         [
+           %Operation.CreateTable{table: table, schema: schema, multitenancy: multitenancy} | rest
+         ],
          nil,
          acc
        ) do
-    group_into_phases(rest, %Phase.Create{table: table, multitenancy: multitenancy}, acc)
+    group_into_phases(
+      rest,
+      %Phase.Create{table: table, schema: schema, multitenancy: multitenancy},
+      acc
+    )
   end
 
   defp group_into_phases(
-         [%Operation.AddAttribute{table: table} = op | rest],
-         %{table: table} = phase,
+         [%Operation.AddAttribute{table: table, schema: schema} = op | rest],
+         %{table: table, schema: schema} = phase,
          acc
        ) do
     group_into_phases(rest, %{phase | operations: [op | phase.operations]}, acc)
   end
 
   defp group_into_phases(
-         [%Operation.AlterAttribute{table: table} = op | rest],
-         %Phase.Alter{table: table} = phase,
+         [%Operation.AlterAttribute{table: table, schema: schema} = op | rest],
+         %Phase.Alter{table: table, schema: schema} = phase,
          acc
        ) do
     group_into_phases(rest, %{phase | operations: [op | phase.operations]}, acc)
   end
 
   defp group_into_phases(
-         [%Operation.RenameAttribute{table: table} = op | rest],
-         %Phase.Alter{table: table} = phase,
+         [%Operation.RenameAttribute{table: table, schema: schema} = op | rest],
+         %Phase.Alter{table: table, schema: schema} = phase,
          acc
        ) do
     group_into_phases(rest, %{phase | operations: [op | phase.operations]}, acc)
   end
 
   defp group_into_phases(
-         [%Operation.RemoveAttribute{table: table} = op | rest],
-         %{table: table} = phase,
+         [%Operation.RemoveAttribute{table: table, schema: schema} = op | rest],
+         %{table: table, schema: schema} = phase,
          acc
        ) do
     group_into_phases(rest, %{phase | operations: [op | phase.operations]}, acc)
@@ -855,7 +863,8 @@ defmodule AshPostgres.MigrationGenerator do
     phase = %Phase.Alter{
       operations: [operation],
       multitenancy: operation.multitenancy,
-      table: operation.table
+      table: operation.table,
+      schema: operation.schema
     }
 
     group_into_phases(rest, phase, acc)
@@ -889,25 +898,27 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp after?(
-         %Operation.AddAttribute{attribute: %{order: l}, table: table},
-         %Operation.AddAttribute{attribute: %{order: r}, table: table}
+         %Operation.AddAttribute{attribute: %{order: l}, table: table, schema: schema},
+         %Operation.AddAttribute{attribute: %{order: r}, table: table, schema: schema}
        ),
        do: l > r
 
   defp after?(
          %Operation.RenameUniqueIndex{
-           table: table
+           table: table,
+           schema: schema
          },
-         %{table: table}
+         %{table: table, schema: schema}
        ) do
     true
   end
 
   defp after?(
          %Operation.AddUniqueIndex{
-           table: table
+           table: table,
+           schema: schema
          },
-         %{table: table}
+         %{table: table, schema: schema}
        ) do
     true
   end
@@ -916,9 +927,10 @@ defmodule AshPostgres.MigrationGenerator do
          %Operation.AddCheckConstraint{
            constraint: %{attribute: attribute_or_attributes},
            table: table,
-           multitenancy: multitenancy
+           multitenancy: multitenancy,
+           schema: schema
          },
-         %Operation.AddAttribute{table: table, attribute: %{source: source}}
+         %Operation.AddAttribute{table: table, attribute: %{source: source}, schema: schema}
        ) do
     source in List.wrap(attribute_or_attributes) ||
       (multitenancy.attribute && multitenancy.attribute in List.wrap(attribute_or_attributes))
@@ -926,24 +938,30 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp after?(
          %Operation.AddCustomIndex{
-           table: table
+           table: table,
+           schema: schema
          },
-         %Operation.AddAttribute{table: table}
+         %Operation.AddAttribute{table: table, schema: schema}
        ) do
     true
   end
 
-  defp after?(%Operation.AddCheckConstraint{table: table}, %Operation.RemoveCheckConstraint{
-         table: table
-       }),
+  defp after?(
+         %Operation.AddCheckConstraint{table: table, schema: schema},
+         %Operation.RemoveCheckConstraint{
+           table: table,
+           schema: schema
+         }
+       ),
        do: true
 
   defp after?(
          %Operation.AddCheckConstraint{
            constraint: %{attribute: attribute_or_attributes},
-           table: table
+           table: table,
+           schema: schema
          },
-         %Operation.AlterAttribute{table: table, new_attribute: %{source: source}}
+         %Operation.AlterAttribute{table: table, new_attribute: %{source: source}, schema: schema}
        ) do
     source in List.wrap(attribute_or_attributes)
   end
@@ -951,43 +969,61 @@ defmodule AshPostgres.MigrationGenerator do
   defp after?(
          %Operation.AddCheckConstraint{
            constraint: %{attribute: attribute_or_attributes},
-           table: table
+           table: table,
+           schema: schema
          },
-         %Operation.RenameAttribute{table: table, new_attribute: %{source: source}}
+         %Operation.RenameAttribute{
+           table: table,
+           new_attribute: %{source: source},
+           schema: schema
+         }
        ) do
     source in List.wrap(attribute_or_attributes)
   end
 
   defp after?(
-         %Operation.RemoveUniqueIndex{table: table},
-         %Operation.AddUniqueIndex{table: table}
+         %Operation.RemoveUniqueIndex{table: table, schema: schema},
+         %Operation.AddUniqueIndex{table: table, schema: schema}
        ) do
     false
   end
 
   defp after?(
-         %Operation.RemoveUniqueIndex{table: table},
-         %{table: table}
+         %Operation.RemoveUniqueIndex{table: table, schema: schema},
+         %{table: table, schema: schema}
        ) do
     true
   end
 
   defp after?(
-         %Operation.RemoveCheckConstraint{constraint: %{attribute: attributes}, table: table},
-         %Operation.RemoveAttribute{table: table, attribute: %{source: source}}
+         %Operation.RemoveCheckConstraint{
+           constraint: %{attribute: attributes},
+           table: table,
+           schema: schema
+         },
+         %Operation.RemoveAttribute{table: table, attribute: %{source: source}, schema: schema}
        ) do
     source in List.wrap(attributes)
   end
 
   defp after?(
-         %Operation.RemoveCheckConstraint{constraint: %{attribute: attributes}, table: table},
-         %Operation.RenameAttribute{table: table, old_attribute: %{source: source}}
+         %Operation.RemoveCheckConstraint{
+           constraint: %{attribute: attributes},
+           table: table,
+           schema: schema
+         },
+         %Operation.RenameAttribute{
+           table: table,
+           old_attribute: %{source: source},
+           schema: schema
+         }
        ) do
     source in List.wrap(attributes)
   end
 
-  defp after?(%Operation.AlterAttribute{table: table}, %Operation.DropForeignKey{
+  defp after?(%Operation.AlterAttribute{table: table, schema: schema}, %Operation.DropForeignKey{
          table: table,
+         schema: schema,
          direction: :up
        }),
        do: true
@@ -995,56 +1031,68 @@ defmodule AshPostgres.MigrationGenerator do
   defp after?(
          %Operation.DropForeignKey{
            table: table,
+           schema: schema,
            direction: :down
          },
-         %Operation.AlterAttribute{table: table}
+         %Operation.AlterAttribute{table: table, schema: schema}
        ),
        do: true
 
-  defp after?(%Operation.AddAttribute{table: table}, %Operation.CreateTable{table: table}) do
+  defp after?(%Operation.AddAttribute{table: table, schema: schema}, %Operation.CreateTable{
+         table: table,
+         schema: schema
+       }) do
     true
   end
 
   defp after?(
          %Operation.AddAttribute{
            attribute: %{
-             references: %{table: table, destination_field: name}
+             references: %{table: table, destination_field: name, schema: schema}
            }
          },
-         %Operation.AddAttribute{table: table, attribute: %{source: name}}
+         %Operation.AddAttribute{table: table, schema: schema, attribute: %{source: name}}
        ),
        do: true
 
   defp after?(
          %Operation.AddAttribute{
            table: table,
+           schema: schema,
            attribute: %{
              primary_key?: false
            }
          },
-         %Operation.AddAttribute{table: table, attribute: %{primary_key?: true}}
+         %Operation.AddAttribute{schema: schema, table: table, attribute: %{primary_key?: true}}
        ),
        do: true
 
   defp after?(
          %Operation.AddAttribute{
            table: table,
+           schema: schema,
            attribute: %{
              primary_key?: true
            }
          },
-         %Operation.RemoveAttribute{table: table, attribute: %{primary_key?: true}}
+         %Operation.RemoveAttribute{
+           schema: schema,
+           table: table,
+           attribute: %{primary_key?: true}
+         }
        ),
        do: true
 
   defp after?(
          %Operation.AlterAttribute{
            table: table,
+           schema: schema,
            new_attribute: %{primary_key?: false},
            old_attribute: %{primary_key?: true}
          },
          %Operation.AddAttribute{
            table: table,
+           schema: schema,
            attribute: %{
              primary_key?: true
            }
@@ -1053,9 +1101,11 @@ defmodule AshPostgres.MigrationGenerator do
        do: true
 
   defp after?(
-         %Operation.RemoveAttribute{attribute: %{source: source}, table: table},
+         %Operation.RemoveAttribute{attribute: %{source: source}, table: table, schema: schema},
          %Operation.AlterAttribute{
-           old_attribute: %{references: %{table: table, destination_field: source}}
+           old_attribute: %{
+             references: %{table: table, schema: schema, destination_field: source}
+           }
          }
        ),
        do: true
@@ -1063,14 +1113,17 @@ defmodule AshPostgres.MigrationGenerator do
   defp after?(
          %Operation.AlterAttribute{
            new_attribute: %{
-             references: %{table: table, destination_field: name}
+             references: %{table: table, schema: schema, destination_field: name}
            }
          },
-         %Operation.AddAttribute{table: table, attribute: %{source: name}}
+         %Operation.AddAttribute{schema: schema, table: table, attribute: %{source: name}}
        ),
        do: true
 
-  defp after?(%Operation.AddCheckConstraint{table: table}, %Operation.CreateTable{table: table}) do
+  defp after?(%Operation.AddCheckConstraint{table: table, schema: schema}, %Operation.CreateTable{
+         table: table,
+         schema: schema
+       }) do
     true
   end
 
@@ -1098,10 +1151,21 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp do_fetch_operations(snapshot, existing_snapshot, opts, acc \\ [])
 
+  defp do_fetch_operations(
+         %{schema: new_schema} = snapshot,
+         %{schema: old_schema},
+         opts,
+         []
+       )
+       when new_schema != old_schema do
+    do_fetch_operations(snapshot, nil, opts, [])
+  end
+
   defp do_fetch_operations(snapshot, nil, opts, acc) do
     empty_snapshot = %{
       attributes: [],
       identities: [],
+      schema: nil,
       custom_indexes: [],
       check_constraints: [],
       table: snapshot.table,
@@ -1117,6 +1181,7 @@ defmodule AshPostgres.MigrationGenerator do
     do_fetch_operations(snapshot, empty_snapshot, opts, [
       %Operation.CreateTable{
         table: snapshot.table,
+        schema: snapshot.schema,
         multitenancy: snapshot.multitenancy,
         old_multitenancy: empty_snapshot.multitenancy
       }
@@ -1138,9 +1203,10 @@ defmodule AshPostgres.MigrationGenerator do
       |> Enum.map(fn custom_index ->
         %Operation.AddCustomIndex{
           index: custom_index,
-          table: old_snapshot.table,
-          multitenancy: old_snapshot.multitenancy,
-          base_filter: old_snapshot.base_filter
+          table: snapshot.table,
+          schema: snapshot.schema,
+          multitenancy: snapshot.multitenancy,
+          base_filter: snapshot.base_filter
         }
       end)
 
@@ -1154,9 +1220,10 @@ defmodule AshPostgres.MigrationGenerator do
       |> Enum.map(fn custom_index ->
         %Operation.RemoveCustomIndex{
           index: custom_index,
-          table: snapshot.table,
-          multitenancy: snapshot.multitenancy,
-          base_filter: snapshot.base_filter
+          table: old_snapshot.table,
+          schema: old_snapshot.schema,
+          multitenancy: old_snapshot.multitenancy,
+          base_filter: old_snapshot.base_filter
         }
       end)
 
@@ -1173,7 +1240,11 @@ defmodule AshPostgres.MigrationGenerator do
         end)
       end
       |> Enum.map(fn identity ->
-        %Operation.RemoveUniqueIndex{identity: identity, table: snapshot.table}
+        %Operation.RemoveUniqueIndex{
+          identity: identity,
+          table: snapshot.table,
+          schema: snapshot.schema
+        }
       end)
 
     unique_indexes_to_rename =
@@ -1195,6 +1266,7 @@ defmodule AshPostgres.MigrationGenerator do
         %Operation.RenameUniqueIndex{
           old_identity: old_identity,
           new_identity: new_identity,
+          schema: snapshot.schema,
           table: snapshot.table
         }
       end)
@@ -1214,6 +1286,7 @@ defmodule AshPostgres.MigrationGenerator do
       |> Enum.map(fn identity ->
         %Operation.AddUniqueIndex{
           identity: identity,
+          schema: snapshot.schema,
           table: snapshot.table
         }
       end)
@@ -1228,7 +1301,8 @@ defmodule AshPostgres.MigrationGenerator do
       |> Enum.map(fn constraint ->
         %Operation.AddCheckConstraint{
           constraint: constraint,
-          table: snapshot.table
+          table: snapshot.table,
+          schema: snapshot.schema
         }
       end)
 
@@ -1242,7 +1316,8 @@ defmodule AshPostgres.MigrationGenerator do
       |> Enum.map(fn old_constraint ->
         %Operation.RemoveCheckConstraint{
           constraint: old_constraint,
-          table: old_snapshot.table
+          table: old_snapshot.table,
+          schema: old_snapshot.schema
         }
       end)
 
@@ -1289,7 +1364,12 @@ defmodule AshPostgres.MigrationGenerator do
 
     rename_attribute_events =
       Enum.map(attributes_to_rename, fn {new, old} ->
-        %Operation.RenameAttribute{new_attribute: new, old_attribute: old, table: snapshot.table}
+        %Operation.RenameAttribute{
+          new_attribute: new,
+          old_attribute: old,
+          table: snapshot.table,
+          schema: snapshot.schema
+        }
       end)
 
     add_attribute_events =
@@ -1298,16 +1378,19 @@ defmodule AshPostgres.MigrationGenerator do
           [
             %Operation.AddAttribute{
               attribute: Map.delete(attribute, :references),
+              schema: snapshot.schema,
               table: snapshot.table
             },
             %Operation.AlterAttribute{
               old_attribute: Map.delete(attribute, :references),
               new_attribute: attribute,
+              schema: snapshot.schema,
               table: snapshot.table
             },
             %Operation.DropForeignKey{
               attribute: attribute,
               table: snapshot.table,
+              schema: snapshot.schema,
               multitenancy: Map.get(attribute, :multitenancy),
               direction: :down
             }
@@ -1316,7 +1399,8 @@ defmodule AshPostgres.MigrationGenerator do
           [
             %Operation.AddAttribute{
               attribute: attribute,
-              table: snapshot.table
+              table: snapshot.table,
+              schema: snapshot.schema
             }
           ]
         end
@@ -1330,12 +1414,14 @@ defmodule AshPostgres.MigrationGenerator do
             %Operation.DropForeignKey{
               attribute: old_attribute,
               table: snapshot.table,
+              schema: snapshot.schema,
               multitenancy: old_snapshot.multitenancy,
               direction: :up
             },
             %Operation.AlterAttribute{
               new_attribute: new_attribute,
               old_attribute: old_attribute,
+              schema: snapshot.schema,
               table: snapshot.table
             }
           ]
@@ -1346,6 +1432,7 @@ defmodule AshPostgres.MigrationGenerator do
                 %Operation.DropForeignKey{
                   attribute: new_attribute,
                   table: snapshot.table,
+                  schema: snapshot.schema,
                   multitenancy: snapshot.multitenancy,
                   direction: :down
                 }
@@ -1358,6 +1445,7 @@ defmodule AshPostgres.MigrationGenerator do
             %Operation.AlterAttribute{
               new_attribute: Map.delete(new_attribute, :references),
               old_attribute: Map.delete(old_attribute, :references),
+              schema: snapshot.schema,
               table: snapshot.table
             }
           ]
@@ -1369,6 +1457,7 @@ defmodule AshPostgres.MigrationGenerator do
         %Operation.RemoveAttribute{
           attribute: attribute,
           table: snapshot.table,
+          schema: snapshot.schema,
           commented?: !opts.drop_columns
         }
       end)
@@ -1572,7 +1661,10 @@ defmodule AshPostgres.MigrationGenerator do
       |> Enum.uniq()
       |> Enum.map(fn relationship ->
         resource
-        |> do_snapshot(relationship.context[:data_layer][:table])
+        |> do_snapshot(
+          relationship.context[:data_layer][:table],
+          relationship.context[:data_layer][:schema]
+        )
         |> Map.update!(:identities, fn identities ->
           identity_index_names = AshPostgres.identity_index_names(resource)
 
@@ -1603,6 +1695,7 @@ defmodule AshPostgres.MigrationGenerator do
                 destination_field_generated: source_attribute.generated?,
                 multitenancy: multitenancy(relationship.source),
                 table: AshPostgres.table(relationship.source),
+                schema: AshPostgres.table(relationship.source),
                 on_delete: AshPostgres.polymorphic_on_delete(relationship.source),
                 on_update: AshPostgres.polymorphic_on_update(relationship.source),
                 name:
@@ -1620,11 +1713,12 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  defp do_snapshot(resource, table) do
+  defp do_snapshot(resource, table, schema \\ nil) do
     snapshot = %{
       attributes: attributes(resource, table),
       identities: identities(resource),
       table: table || AshPostgres.table(resource),
+      schema: schema || AshPostgres.schema(resource),
       check_constraints: check_constraints(resource),
       custom_indexes: custom_indexes(resource),
       repo: AshPostgres.repo(resource),
@@ -1776,6 +1870,10 @@ defmodule AshPostgres.MigrationGenerator do
           on_delete: configured_reference.on_delete,
           on_update: configured_reference.on_update,
           name: configured_reference.name,
+          schema:
+            relationship.context[:data_layer][:schema] ||
+              AshPostgres.schema(relationship.destination) ||
+              AshPostgres.repo(relationship.destination).config()[:default_prefix],
           table:
             relationship.context[:data_layer][:table] ||
               AshPostgres.table(relationship.destination)
@@ -1792,6 +1890,10 @@ defmodule AshPostgres.MigrationGenerator do
       |> Kernel.||(%{
         on_delete: nil,
         on_update: nil,
+        schema:
+          relationship.context[:data_layer][:schema] ||
+            AshPostgres.schema(relationship.destination) ||
+            AshPostgres.repo(relationship.destination).config()[:default_prefix],
         name: nil
       })
 
@@ -1929,6 +2031,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp sanitize_snapshot(snapshot) do
     snapshot
     |> Map.put_new(:has_create_action, true)
+    |> Map.put_new(:schema, nil)
     |> Map.update!(:identities, fn identities ->
       Enum.map(identities, &load_identity(&1, snapshot.table))
     end)
@@ -2007,6 +2110,7 @@ defmodule AshPostgres.MigrationGenerator do
       references ->
         references
         |> Map.update!(:destination_field, &String.to_atom/1)
+        |> Map.put_new(:schema, nil)
         |> Map.put_new(:destination_field_default, "nil")
         |> Map.put_new(:destination_field_generated, false)
         |> Map.put_new(:on_delete, nil)

@@ -128,6 +128,86 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "creating initial snapshots for resources with a schema" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+
+      defposts do
+        postgres do
+          migration_types second_title: {:varchar, 16}
+          schema("example")
+        end
+
+        identities do
+          identity(:title, [:title])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string)
+          attribute(:second_title, :string)
+        end
+      end
+
+      defapi([Post])
+
+      Mix.shell(Mix.Shell.Process)
+
+      {:ok, _} =
+        Ecto.Adapters.SQL.query(
+          AshPostgres.TestRepo,
+          """
+          CREATE SCHEMA IF NOT EXISTS example;
+          """
+        )
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      :ok
+    end
+
+    test "the migration sets up resources correctly" do
+      # the snapshot exists and contains valid json
+      assert File.read!(Path.wildcard("test_snapshots_path/test_repo/posts/*.json"))
+             |> Jason.decode!(keys: :atoms!)
+
+      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+
+      file_contents = File.read!(file)
+
+      # the migration creates the table
+      assert file_contents =~ "create table(:posts, primary_key: false, prefix: \"example\") do"
+
+      # the migration sets up the custom_indexes
+      assert file_contents =~
+               ~S{create index(:posts, ["id"], name: "test_unique_index", unique: true, prefix: "example")}
+
+      assert file_contents =~ ~S{create index(:posts, ["id"]}
+
+      # the migration adds the id, with its default
+      assert file_contents =~
+               ~S[add :id, :uuid, null: false, default: fragment("uuid_generate_v4()"), primary_key: true]
+
+      # the migration adds other attributes
+      assert file_contents =~ ~S[add :title, :text]
+
+      # the migration adds custom attributes
+      assert file_contents =~ ~S[add :second_title, :varchar, size: 16]
+
+      # the migration creates unique_indexes based on the identities of the resource
+      assert file_contents =~
+               ~S{create unique_index(:posts, [:title], name: "posts_title_index", prefix: "example")}
+    end
+  end
+
   describe "creating follow up migrations" do
     setup do
       on_exit(fn ->
@@ -527,7 +607,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
-               ~S[references(:posts, column: :id, name: "posts_post_id_fkey", type: :uuid)]
+               ~S[references(:posts, column: :id, name: "posts_post_id_fkey", type: :uuid, prefix: "public")]
     end
 
     test "when modified, the foreign key is dropped before modification" do
@@ -590,7 +670,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
                |> Enum.at(1)
 
       assert File.read!(file) =~
-               ~S[references(:posts, column: :id, name: "special_post_fkey", type: :uuid, on_delete: :delete_all, on_update: :update_all)]
+               ~S[references(:posts, column: :id, prefix: "public", name: "special_post_fkey", type: :uuid, on_delete: :delete_all, on_update: :update_all)]
 
       assert File.read!(file) =~ ~S[drop constraint(:posts, "posts_post_id_fkey")]
     end
@@ -757,7 +837,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
-               ~S[references(:post_comments, column: :id, name: "posts_best_comment_id_fkey", type: :uuid)]
+               ~S[references(:post_comments, column: :id, name: "posts_best_comment_id_fkey", type: :uuid, prefix: "public")]
     end
   end
 

@@ -19,6 +19,11 @@ defmodule AshPostgres do
     Extension.get_opt(resource, [:postgres], :table, nil, true)
   end
 
+  @doc "The configured schema for a resource"
+  def schema(resource) do
+    Extension.get_opt(resource, [:postgres], :schema, nil, true)
+  end
+
   @doc "The configured references for a resource"
   def references(resource) do
     Extension.get_entities(resource, [:postgres, :references])

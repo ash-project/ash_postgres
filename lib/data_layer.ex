@@ -290,8 +290,19 @@ defmodule AshPostgres.DataLayer do
       ],
       table: [
         type: :string,
-        doc:
-          "The table to store and read the resource from. Required unless `polymorphic?` is true."
+        doc: """
+        The table to store and read the resource from. Required unless `polymorphic?` is true.
+
+        If this is changed, the migration generator will not remove the old table.
+        """
+      ],
+      schema: [
+        type: :string,
+        doc: """
+        The schema that the table is located in.
+        Multitenancy supersedes this, so this acts as the schema in the cases that `global?: true` is set.
+        If this is changed, the migration generator will not remove the old table in the old schema.
+        """
       ],
       polymorphic?: [
         type: :boolean,
@@ -320,7 +331,7 @@ defmodule AshPostgres.DataLayer do
   alias Ash.Filter
   alias Ash.Query.{BooleanExpression, Not}
 
-  import AshPostgres, only: [repo: 1]
+  import AshPostgres, only: [repo: 1, schema: 1]
 
   @behaviour Ash.DataLayer
 
@@ -439,6 +450,13 @@ defmodule AshPostgres.DataLayer do
       end
 
     data_layer_query =
+      if context[:data_layer][:schema] do
+        Ecto.Query.put_query_prefix(data_layer_query, to_string(context[:data_layer][:schema]))
+      else
+        data_layer_query
+      end
+
+    data_layer_query =
       data_layer_query
       |> default_bindings(resource, context)
 
@@ -474,7 +492,11 @@ defmodule AshPostgres.DataLayer do
     if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
       [prefix: tenant]
     else
-      []
+      if schema = schema(resource) do
+        [prefix: schema]
+      else
+        []
+      end
     end
     |> add_timeout(changeset)
   end
@@ -491,7 +513,11 @@ defmodule AshPostgres.DataLayer do
     if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
       [prefix: tenant]
     else
-      []
+      if schema = schema(resource) do
+        [prefix: schema]
+      else
+        []
+      end
     end
     |> add_timeout(query)
   end
@@ -798,7 +824,7 @@ defmodule AshPostgres.DataLayer do
         data_layer_query
         | prefix:
             to_string(
-              source_query.tenant || config[:default_prefix] ||
+              source_query.tenant || schema(resource) || config[:default_prefix] ||
                 "public"
             )
       }
@@ -807,7 +833,7 @@ defmodule AshPostgres.DataLayer do
         data_layer_query
         | prefix:
             to_string(
-              config[:default_prefix] ||
+              schema(resource) || config[:default_prefix] ||
                 "public"
             )
       }
@@ -932,10 +958,19 @@ defmodule AshPostgres.DataLayer do
     if AshPostgres.polymorphic?(record.__struct__) do
       table = changeset.context[:data_layer][:table] || AshPostgres.table(record.__struct__)
 
-      if table do
-        Ecto.put_meta(record, source: table)
+      record =
+        if table do
+          Ecto.put_meta(record, source: table)
+        else
+          raise_table_error!(changeset.resource, operation)
+        end
+
+      prefix = changeset.context[:data_layer][:schema] || AshPostgres.schema(record.__struct__)
+
+      if prefix do
+        Ecto.put_meta(record, prefix: table)
       else
-        raise_table_error!(changeset.resource, operation)
+        record
       end
     else
       record
