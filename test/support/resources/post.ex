@@ -57,6 +57,7 @@ defmodule AshPostgres.Test.Post do
     attribute(:status, AshPostgres.Test.Types.Status)
     attribute(:status_enum, AshPostgres.Test.Types.StatusEnum)
     attribute(:status_enum_no_cast, AshPostgres.Test.Types.StatusEnumNoCast, source: :status_enum)
+    attribute(:point, AshPostgres.Test.Point)
     create_timestamp(:created_at)
   end
 

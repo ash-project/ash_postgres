@@ -539,7 +539,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
-  describe "--check_migrated option" do
+  describe "--check option" do
     setup do
       defposts do
         attributes do
@@ -558,7 +558,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
                AshPostgres.MigrationGenerator.generate(api,
                  snapshot_path: "test_snapshot_path",
                  migration_path: "test_migration_path",
-                 check_generated: true
+                 check: true
                )
              ) == {:shutdown, 1}
 

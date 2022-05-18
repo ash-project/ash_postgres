@@ -24,6 +24,7 @@ defmodule AshPostgres.MixProject do
         "test.create": :test,
         "test.migrate": :test,
         "test.migrate_tenants": :test,
+        "test.check_migrations": :test,
         "test.drop": :test,
         "test.generate_migrations": :test,
         "test.reset": :test
@@ -124,6 +125,7 @@ defmodule AshPostgres.MixProject do
       credo: "credo --strict",
       "ash.formatter": "ash.formatter --extensions AshPostgres.DataLayer",
       "test.generate_migrations": "ash_postgres.generate_migrations",
+      "test.check_migrations": "ash_postgres.generate_migrations --check",
       "test.migrate_tenants": "ash_postgres.migrate --tenants",
       "test.migrate": "ash_postgres.migrate",
       "test.create": "ash_postgres.create",

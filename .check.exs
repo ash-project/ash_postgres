@@ -11,7 +11,8 @@
     ## ...or adjusted (e.g. use one-line formatter for more compact credo output)
     # {:credo, "mix credo --format oneline"},
 
-    {:check_formatter, command: "mix ash.formatter --check"}
+    {:check_formatter, command: "mix ash.formatter --check"},
+    {:check_migrations, command: "mix test.check_migrations"}
     ## custom new tools may be added (mix tasks or arbitrary commands)
     # {:my_mix_task, command: "mix release", env: %{"MIX_ENV" => "prod"}},
     # {:my_arbitrary_tool, command: "npm test", cd: "assets"},

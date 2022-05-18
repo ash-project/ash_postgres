@@ -22,7 +22,7 @@ defmodule AshPostgres.MigrationGenerator do
             no_shell?: false,
             format: true,
             dry_run: false,
-            check_generated: false,
+            check: false,
             drop_columns: false
 
   def generate(apis, opts \\ []) do
@@ -97,7 +97,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp opts(opts) do
     case struct(__MODULE__, opts) do
-      %{check_generated: true} = opts ->
+      %{check: true} = opts ->
         %{opts | dry_run: true}
 
       opts ->
@@ -214,7 +214,16 @@ defmodule AshPostgres.MigrationGenerator do
           :ok
 
         operations ->
-          if opts.check_generated, do: exit({:shutdown, 1})
+          if opts.check do
+            IO.puts("""
+            Migrations would have been generated, but the --check flag was provided.
+
+            To see what migration would have been generated, run with the `--dry-run`
+            option instead. To generate those migrations, run without either flag.
+            """)
+
+            exit({:shutdown, 1})
+          end
 
           operations
           |> organize_operations
@@ -1695,7 +1704,7 @@ defmodule AshPostgres.MigrationGenerator do
                 destination_field_generated: source_attribute.generated?,
                 multitenancy: multitenancy(relationship.source),
                 table: AshPostgres.table(relationship.source),
-                schema: AshPostgres.table(relationship.source),
+                schema: AshPostgres.schema(relationship.source),
                 on_delete: AshPostgres.polymorphic_on_delete(relationship.source),
                 on_update: AshPostgres.polymorphic_on_update(relationship.source),
                 name:
