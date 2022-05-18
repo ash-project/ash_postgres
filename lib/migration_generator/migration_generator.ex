@@ -1057,10 +1057,10 @@ defmodule AshPostgres.MigrationGenerator do
   defp after?(
          %Operation.AddAttribute{
            attribute: %{
-             references: %{table: table, destination_field: name, schema: schema}
+             references: %{table: table, destination_field: name}
            }
          },
-         %Operation.AddAttribute{table: table, schema: schema, attribute: %{source: name}}
+         %Operation.AddAttribute{table: table, attribute: %{source: name}}
        ),
        do: true
 
@@ -1110,10 +1110,10 @@ defmodule AshPostgres.MigrationGenerator do
        do: true
 
   defp after?(
-         %Operation.RemoveAttribute{attribute: %{source: source}, table: table, schema: schema},
+         %Operation.RemoveAttribute{attribute: %{source: source}, table: table},
          %Operation.AlterAttribute{
            old_attribute: %{
-             references: %{table: table, schema: schema, destination_field: source}
+             references: %{table: table, destination_field: source}
            }
          }
        ),
@@ -1122,10 +1122,10 @@ defmodule AshPostgres.MigrationGenerator do
   defp after?(
          %Operation.AlterAttribute{
            new_attribute: %{
-             references: %{table: table, schema: schema, destination_field: name}
+             references: %{table: table, destination_field: name}
            }
          },
-         %Operation.AddAttribute{schema: schema, table: table, attribute: %{source: name}}
+         %Operation.AddAttribute{table: table, attribute: %{source: name}}
        ),
        do: true
 
