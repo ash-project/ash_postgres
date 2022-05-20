@@ -187,6 +187,19 @@ defmodule AshPostgres.Expr do
           type
         end
       end)
+      |> case do
+        [condition_type, nil, nil] ->
+          [condition_type, type, type]
+
+        [condition_type, when_true, nil] ->
+          [condition_type, when_true, type]
+
+        [condition_type, nil, when_false] ->
+          [condition_type, type, when_false]
+
+        [condition_type, when_true, when_false] ->
+          [condition_type, when_true, when_false]
+      end
 
     condition =
       do_dynamic_expr(query, condition, bindings, pred_embedded? || embedded?, condition_type)

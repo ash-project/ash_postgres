@@ -369,7 +369,13 @@ defmodule AshPostgres.Aggregate do
             ["array_agg(? ORDER BY #{question_marks})", field] ++ sort_expr
           )
 
-        AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__)
+        AshPostgres.Expr.dynamic_expr(
+          query,
+          expr,
+          query.__ash_bindings__,
+          false,
+          AshPostgres.Types.parameterized_type(aggregate.type, [])
+        )
       else
         Ecto.Query.dynamic(
           [row],
@@ -384,7 +390,9 @@ defmodule AshPostgres.Aggregate do
           AshPostgres.Expr.dynamic_expr(
             query,
             aggregate.query.filter,
-            query.__ash_bindings__
+            query.__ash_bindings__,
+            false,
+            AshPostgres.Types.parameterized_type(aggregate.type, [])
           )
 
         Ecto.Query.dynamic(filter(^field, ^expr))
@@ -431,7 +439,13 @@ defmodule AshPostgres.Aggregate do
             ["array_agg(? ORDER BY #{question_marks})", field] ++ sort_expr
           )
 
-        AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__)
+        AshPostgres.Expr.dynamic_expr(
+          query,
+          expr,
+          query.__ash_bindings__,
+          false,
+          AshPostgres.Types.parameterized_type(aggregate.type, [])
+        )
       else
         Ecto.Query.dynamic(
           [row],
@@ -446,7 +460,9 @@ defmodule AshPostgres.Aggregate do
           AshPostgres.Expr.dynamic_expr(
             query,
             aggregate.query.filter,
-            query.__ash_bindings__
+            query.__ash_bindings__,
+            false,
+            AshPostgres.Types.parameterized_type(aggregate.type, [])
           )
 
         Ecto.Query.dynamic(filter(^field, ^expr))
@@ -497,7 +513,9 @@ defmodule AshPostgres.Aggregate do
           AshPostgres.Expr.dynamic_expr(
             query,
             aggregate.query.filter,
-            query.__ash_bindings__
+            query.__ash_bindings__,
+            false,
+            AshPostgres.Types.parameterized_type(aggregate.type, [])
           )
 
         Ecto.Query.dynamic(filter(^field, ^expr))

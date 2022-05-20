@@ -93,6 +93,19 @@ defmodule AshPostgres.Test.Post do
     )
 
     calculate(:has_future_comment, :boolean, expr(latest_comment_created_at > fragment("now()")))
+
+    calculate(
+      :was_created_in_the_last_month,
+      :boolean,
+      expr(
+        # This is written in a silly way on purpose, to test a regression
+        if fragment("(? <= (now() - '1 month'::interval))", created_at) do
+          true
+        else
+          false
+        end
+      )
+    )
   end
 
   aggregates do

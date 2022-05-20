@@ -21,7 +21,9 @@ defmodule AshPostgres.Calculation do
           AshPostgres.Expr.dynamic_expr(
             query,
             expression,
-            query.__ash_bindings__
+            query.__ash_bindings__,
+            false,
+            AshPostgres.Types.parameterized_type(calculation.type, [])
           )
 
         {calculation.load, calculation.name, expr}

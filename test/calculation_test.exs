@@ -245,6 +245,12 @@ defmodule AshPostgres.CalculationTest do
              |> Api.read!()
   end
 
+  test "calculations using if and literal boolean results can run" do
+    Post
+    |> Ash.Query.load(:was_created_in_the_last_month)
+    |> Api.read!()
+  end
+
   test "nested conditional calculations can be loaded" do
     Author
     |> Ash.Changeset.new(%{last_name: "holland"})
