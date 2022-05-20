@@ -99,11 +99,11 @@ defmodule AshPostgres.Test.Post do
       :boolean,
       expr(
         # This is written in a silly way on purpose, to test a regression
-        if fragment("(? <= (now() - '1 month'::interval))", created_at) do
-          true
-        else
+        if(
+          fragment("(? <= (now() - '1 month'::interval))", created_at),
+          true,
           false
-        end
+        )
       )
     )
   end

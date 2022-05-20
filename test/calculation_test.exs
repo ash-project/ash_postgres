@@ -248,6 +248,7 @@ defmodule AshPostgres.CalculationTest do
   test "calculations using if and literal boolean results can run" do
     Post
     |> Ash.Query.load(:was_created_in_the_last_month)
+    |> Ash.Query.filter(was_created_in_the_last_month == true)
     |> Api.read!()
   end
 

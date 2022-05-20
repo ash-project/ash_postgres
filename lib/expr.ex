@@ -442,9 +442,10 @@ defmodule AshPostgres.Expr do
          },
          bindings,
          embedded?,
-         type
+         _type
        ) do
     calculation = %{calculation | load: calculation.name}
+    type = AshPostgres.Types.parameterized_type(calculation.type, [])
 
     case Ash.Filter.hydrate_refs(
            calculation.module.expression(calculation.opts, calculation.context),
@@ -519,7 +520,7 @@ defmodule AshPostgres.Expr do
          } = ref,
          bindings,
          embedded?,
-         type
+         _type
        ) do
     binding_to_replace =
       Enum.find_value(bindings.bindings, fn {i, binding} ->
@@ -532,6 +533,8 @@ defmodule AshPostgres.Expr do
       bindings.bindings
       |> Map.delete(0)
       |> Map.update!(binding_to_replace, &Map.merge(&1, %{path: [], type: :root}))
+
+    type = AshPostgres.Types.parameterized_type(calculation.type, [])
 
     case Ash.Filter.hydrate_refs(
            calculation.module.expression(calculation.opts, calculation.context),
