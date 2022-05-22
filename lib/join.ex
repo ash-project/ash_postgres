@@ -186,13 +186,12 @@ defmodule AshPostgres.Join do
       )
 
     dynamic =
-      if use_root_query_bindings? do
-        filter = Ash.Filter.move_to_relationship_path(filter, path)
-
-        AshPostgres.Expr.dynamic_expr(root_query, filter, root_query.__ash_bindings__, true)
-      else
-        AshPostgres.Expr.dynamic_expr(query, filter, query.__ash_bindings__, true)
-      end
+      AshPostgres.Expr.dynamic_expr(
+        root_query,
+        Ash.Filter.move_to_relationship_path(filter, path),
+        root_query.__ash_bindings__,
+        true
+      )
 
     {:ok, query} = join_all_relationships(query, filter, nil, [], nil, use_root_query_bindings?)
     from(row in query, where: ^dynamic)

@@ -504,5 +504,23 @@ defmodule AshPostgres.FilterTest do
       |> Ash.Query.filter(not is_nil(popular_ratings.id))
       |> Api.read!()
     end
+
+    test "it doesn't raise an error when nested" do
+      Post
+      |> Ash.Query.filter(not is_nil(comments.popular_ratings.id))
+      |> Api.read!()
+    end
+
+    test "aggregates using them don't raise errors" do
+      Comment
+      |> Ash.Query.load(:co_popular_comments)
+      |> Api.read!()
+    end
+
+    test "filtering on aggregates using them doesn't raise errors" do
+      Comment
+      |> Ash.Query.filter(co_popular_comments > 1)
+      |> Api.read!()
+    end
   end
 end

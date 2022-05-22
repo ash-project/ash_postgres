@@ -39,7 +39,10 @@ defmodule AshPostgres.Aggregate do
                               resource,
                               aggregate.relationship_path
                             )}
-                         ]
+                         ],
+                         [],
+                         nil,
+                         true
                        ) do
                     {:ok, new_query} ->
                       {:ok,
@@ -66,7 +69,10 @@ defmodule AshPostgres.Aggregate do
                               resource,
                               aggregate.relationship_path
                             )}
-                         ]
+                         ],
+                         [],
+                         nil,
+                         true
                        ) do
                     {:ok, new_query} ->
                       {:ok,
