@@ -497,4 +497,12 @@ defmodule AshPostgres.FilterTest do
                |> Api.read!()
     end
   end
+
+  describe "filtering on relationships that themselves have filters" do
+    test "it doesn't raise an error" do
+      Comment
+      |> Ash.Query.filter(not is_nil(popular_ratings.id))
+      |> Api.read!()
+    end
+  end
 end
