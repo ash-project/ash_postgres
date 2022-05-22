@@ -8,6 +8,10 @@ defmodule AshPostgres.Test.Author do
     repo(AshPostgres.TestRepo)
   end
 
+  identities do
+    identity(:unique_profile, :profile_id)
+  end
+
   attributes do
     uuid_primary_key(:id, writable?: true)
     attribute(:first_name, :string)
@@ -17,6 +21,14 @@ defmodule AshPostgres.Test.Author do
 
   actions do
     defaults([:create, :read, :update, :destroy])
+  end
+
+  relationships do
+    has_one(:profile, AshPostgres.Test.Profile)
+  end
+
+  aggregates do
+    first(:profile_description, :profile, :description)
   end
 
   calculations do

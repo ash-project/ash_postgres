@@ -227,11 +227,13 @@ defmodule AshPostgres.Join do
 
   def set_join_prefix(join_query, query, resource) do
     if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
-      %{join_query | prefix: query.prefix || "public"}
+      %{join_query | prefix: query.prefix || AshPostgres.schema(resource) || "public"}
     else
       %{
         join_query
-        | prefix: AshPostgres.repo(resource).config()[:default_prefix] || "public"
+        | prefix:
+            AshPostgres.schema(resource) || AshPostgres.repo(resource).config()[:default_prefix] ||
+              "public"
       }
     end
   end

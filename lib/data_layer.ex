@@ -482,14 +482,23 @@ defmodule AshPostgres.DataLayer do
     if AshPostgres.polymorphic?(resource) && no_table?(query) do
       raise_table_error!(resource, :read)
     else
-      {:ok, repo(resource).all(query, repo_opts(query))}
+      {:ok, repo(resource).all(query, repo_opts(nil, nil, resource))}
     end
   end
 
   defp no_table?(%{from: %{source: {"", _}}}), do: true
   defp no_table?(_), do: false
 
-  defp repo_opts(%{tenant: tenant, resource: resource} = changeset) when not is_nil(tenant) do
+  defp repo_opts(timeout, nil, resource) do
+    if schema = schema(resource) do
+      [prefix: schema]
+    else
+      []
+    end
+    |> add_timeout(timeout)
+  end
+
+  defp repo_opts(timeout, tenant, resource) do
     if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
       [prefix: tenant]
     else
@@ -499,31 +508,14 @@ defmodule AshPostgres.DataLayer do
         []
       end
     end
-    |> add_timeout(changeset)
+    |> add_timeout(timeout)
   end
 
-  defp repo_opts(_), do: []
-
-  defp add_timeout(opts, %{timeout: timeout}) when not is_nil(timeout) do
+  defp add_timeout(opts, timeout) when not is_nil(timeout) do
     Keyword.put(opts, :timeout, timeout)
   end
 
   defp add_timeout(opts, _), do: opts
-
-  defp lateral_join_repo_opts(%{tenant: tenant} = query, resource) when not is_nil(tenant) do
-    if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
-      [prefix: tenant]
-    else
-      if schema = schema(resource) do
-        [prefix: schema]
-      else
-        []
-      end
-    end
-    |> add_timeout(query)
-  end
-
-  defp lateral_join_repo_opts(_, _), do: []
 
   @impl true
   def functions(resource) do
@@ -552,7 +544,7 @@ defmodule AshPostgres.DataLayer do
         &AshPostgres.Aggregate.add_subquery_aggregate_select(&2, &1, resource)
       )
 
-    {:ok, repo(resource).one(query, repo_opts(query))}
+    {:ok, repo(resource).one(query, repo_opts(nil, nil, resource))}
   end
 
   @impl true
@@ -589,7 +581,7 @@ defmodule AshPostgres.DataLayer do
             &AshPostgres.Aggregate.add_subquery_aggregate_select(&2, &1, destination_resource)
           )
 
-        {:ok, repo(source_resource).one(query, lateral_join_repo_opts(query, source_resource))}
+        {:ok, repo(source_resource).one(query, repo_opts(nil, nil, source_resource))}
 
       {:error, error} ->
         {:error, error}
@@ -603,11 +595,6 @@ defmodule AshPostgres.DataLayer do
         _destination_resource,
         path
       ) do
-    source_query =
-      path
-      |> Enum.at(0)
-      |> elem(0)
-
     case lateral_join_query(
            query,
            root_data,
@@ -620,8 +607,7 @@ defmodule AshPostgres.DataLayer do
           |> elem(0)
           |> Map.get(:resource)
 
-        {:ok,
-         repo(source_resource).all(query, lateral_join_repo_opts(source_query, source_resource))}
+        {:ok, repo(source_resource).all(query, repo_opts(nil, nil, source_resource))}
 
       {:error, error} ->
         {:error, error}
@@ -859,7 +845,7 @@ defmodule AshPostgres.DataLayer do
     changeset.data
     |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
     |> ecto_changeset(changeset, :create)
-    |> repo(resource).insert(repo_opts(changeset))
+    |> repo(resource).insert(repo_opts(changeset.timeout, changeset.tenant, changeset.resource))
     |> handle_errors()
     |> case do
       {:ok, result} ->
@@ -1102,8 +1088,8 @@ defmodule AshPostgres.DataLayer do
     attributes = Map.keys(changeset.attributes) -- Map.get(changeset, :defaults, []) -- keys
 
     repo_opts =
-      changeset
-      |> repo_opts()
+      changeset.timeout
+      |> repo_opts(changeset.tenant, changeset.resource)
       |> Keyword.put(:on_conflict, {:replace, attributes})
       |> Keyword.put(:conflict_target, keys)
 
@@ -1123,7 +1109,7 @@ defmodule AshPostgres.DataLayer do
     changeset.data
     |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
     |> ecto_changeset(changeset, :update)
-    |> repo(resource).update(repo_opts(changeset))
+    |> repo(resource).update(repo_opts(changeset.timeout, changeset.tenant, changeset.resource))
     |> handle_errors()
     |> case do
       {:ok, result} ->
@@ -1140,7 +1126,7 @@ defmodule AshPostgres.DataLayer do
   def destroy(resource, %{data: record} = changeset) do
     record
     |> ecto_changeset(changeset, :delete)
-    |> repo(resource).delete(repo_opts(changeset))
+    |> repo(resource).delete(repo_opts(changeset.timeout, changeset.tenant, changeset.resource))
     |> case do
       {:ok, _record} ->
         :ok

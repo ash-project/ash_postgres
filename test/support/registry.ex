@@ -9,5 +9,6 @@ defmodule AshPostgres.Test.Registry do
     entry(AshPostgres.Test.Rating)
     entry(AshPostgres.Test.PostLink)
     entry(AshPostgres.Test.Author)
+    entry(AshPostgres.Test.Profile)
   end
 end
