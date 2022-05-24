@@ -1891,8 +1891,6 @@ defmodule AshPostgres.MigrationGenerator do
         configured_reference =
           configured_reference(resource, table, attribute.source, relationship)
 
-        IO.inspect(configured_reference)
-
         unless Map.get(configured_reference, :ignore?) do
           destination_field_source =
             relationship.destination
