@@ -1478,14 +1478,14 @@ defmodule AshPostgres.MigrationGenerator do
   # This exists to handle the fact that the remapping of the key name -> source caused attributes
   # to be considered unequal. We ignore things that only differ in that way using this function.
   defp attributes_unequal?(left, right, repo) do
-    left = add_source_and_name_and_schema(left, repo)
+    left = add_source_and_name_and_schema_and_ignore(left, repo)
 
-    right = add_source_and_name_and_schema(right, repo)
+    right = add_source_and_name_and_schema_and_ignore(right, repo)
 
     left != right
   end
 
-  defp add_source_and_name_and_schema(attribute, repo) do
+  defp add_source_and_name_and_schema_and_ignore(attribute, repo) do
     cond do
       attribute[:source] ->
         Map.put(attribute, :name, attribute[:source])
@@ -1502,6 +1502,15 @@ defmodule AshPostgres.MigrationGenerator do
         attribute
     end
     |> add_schema(repo)
+    |> add_ignore()
+  end
+
+  defp add_ignore(%{references: references} = attribute) when is_map(references) do
+    %{attribute | references: Map.put_new(references, :ignore?, false)}
+  end
+
+  defp add_ignore(attribute) do
+    attribute
   end
 
   defp add_schema(%{references: references} = attribute, repo) when is_map(references) do
@@ -1882,25 +1891,29 @@ defmodule AshPostgres.MigrationGenerator do
         configured_reference =
           configured_reference(resource, table, attribute.source, relationship)
 
-        destination_field_source =
-          relationship.destination
-          |> Ash.Resource.Info.attribute(relationship.destination_field)
-          |> Map.get(:source)
+        IO.inspect(configured_reference)
 
-        %{
-          destination_field: destination_field_source,
-          multitenancy: multitenancy(relationship.destination),
-          on_delete: configured_reference.on_delete,
-          on_update: configured_reference.on_update,
-          name: configured_reference.name,
-          schema:
-            relationship.context[:data_layer][:schema] ||
-              AshPostgres.schema(relationship.destination) ||
-              AshPostgres.repo(relationship.destination).config()[:default_prefix],
-          table:
-            relationship.context[:data_layer][:table] ||
-              AshPostgres.table(relationship.destination)
-        }
+        unless Map.get(configured_reference, :ignore?) do
+          destination_field_source =
+            relationship.destination
+            |> Ash.Resource.Info.attribute(relationship.destination_field)
+            |> Map.get(:source)
+
+          %{
+            destination_field: destination_field_source,
+            multitenancy: multitenancy(relationship.destination),
+            on_delete: configured_reference.on_delete,
+            on_update: configured_reference.on_update,
+            name: configured_reference.name,
+            schema:
+              relationship.context[:data_layer][:schema] ||
+                AshPostgres.schema(relationship.destination) ||
+                AshPostgres.repo(relationship.destination).config()[:default_prefix],
+            table:
+              relationship.context[:data_layer][:table] ||
+                AshPostgres.table(relationship.destination)
+          }
+        end
       end
     end)
   end
@@ -1917,7 +1930,8 @@ defmodule AshPostgres.MigrationGenerator do
           relationship.context[:data_layer][:schema] ||
             AshPostgres.schema(relationship.destination) ||
             AshPostgres.repo(relationship.destination).config()[:default_prefix],
-        name: nil
+        name: nil,
+        ignore?: false
       })
 
     Map.put(ref, :name, ref.name || "#{table}_#{attribute}_fkey")
@@ -2059,7 +2073,18 @@ defmodule AshPostgres.MigrationGenerator do
       Enum.map(identities, &load_identity(&1, snapshot.table))
     end)
     |> Map.update!(:attributes, fn attributes ->
-      Enum.map(attributes, &load_attribute(&1, snapshot.table))
+      Enum.map(attributes, fn attribute ->
+        attribute = load_attribute(attribute, snapshot.table)
+
+        if is_map(Map.get(attribute, :references)) do
+          %{
+            attribute
+            | references: rewrite(attribute.references, :ignore, :ignore?)
+          }
+        else
+          attribute
+        end
+      end)
     end)
     |> Map.put_new(:custom_indexes, [])
     |> Map.update!(:custom_indexes, &load_custom_indexes/1)
@@ -2132,6 +2157,8 @@ defmodule AshPostgres.MigrationGenerator do
 
       references ->
         references
+        |> Map.delete(:ignore)
+        |> rewrite(:ignore?, :ignore)
         |> Map.update!(:destination_field, &String.to_atom/1)
         |> Map.put_new(:schema, nil)
         |> Map.put_new(:destination_field_default, "nil")
@@ -2152,6 +2179,16 @@ defmodule AshPostgres.MigrationGenerator do
         |> Map.update!(:multitenancy, &load_multitenancy/1)
         |> sanitize_name(table)
     end)
+  end
+
+  defp rewrite(map, key, to) do
+    if Map.has_key?(map, key) do
+      map
+      |> Map.put(to, Map.get(map, key))
+      |> Map.delete(key)
+    else
+      map
+    end
   end
 
   defp sanitize_name(reference, table) do

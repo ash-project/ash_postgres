@@ -2,7 +2,7 @@ defmodule AshPostgres.Reference do
   @moduledoc """
   Contains configuration for a database reference
   """
-  defstruct [:relationship, :on_delete, :on_update, :name]
+  defstruct [:relationship, :on_delete, :on_update, :name, ignore?: false]
 
   def schema do
     [
@@ -10,6 +10,11 @@ defmodule AshPostgres.Reference do
         type: :atom,
         required: true,
         doc: "The relationship to be configured"
+      ],
+      ignore?: [
+        type: :boolean,
+        doc:
+          "If set to true, no reference is created for the given relationship. This is useful if you need to define it in some custom way"
       ],
       on_delete: [
         type: {:one_of, [:delete, :nilify, :nothing, :restrict]},
