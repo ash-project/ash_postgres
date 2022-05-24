@@ -1,5 +1,27 @@
+require Logger
+
 defprotocol EctoMigrationDefault do
+  @fallback_to_any true
   def to_default(value)
+end
+
+defimpl EctoMigrationDefault, for: Any do
+  def to_default(value) do
+    Logger.warn("""
+    You have specified a default value for a type that cannot be explicitly
+    converted to an Ecto default:
+
+      `#{inspect(value)}`
+
+    The default value in the migration will be set to `nil` and you can edit
+    your migration accordingly.
+
+    To prevent this warning, implement the `EctoMigrationDefault` protocol
+    for the appropriate Elixir type in your Ash project.
+    """)
+
+    "nil"
+  end
 end
 
 defimpl EctoMigrationDefault, for: Integer do
