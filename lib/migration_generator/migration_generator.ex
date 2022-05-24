@@ -1366,7 +1366,7 @@ defmodule AshPostgres.MigrationGenerator do
         {attribute,
          Enum.find(
            old_snapshot.attributes,
-           &(&1.source == attribute.source && attributes_unequal?(&1, attribute))
+           &(&1.source == attribute.source && attributes_unequal?(&1, attribute, snapshot.repo))
          )}
       end)
       |> Enum.filter(&elem(&1, 1))
@@ -1477,15 +1477,15 @@ defmodule AshPostgres.MigrationGenerator do
 
   # This exists to handle the fact that the remapping of the key name -> source caused attributes
   # to be considered unequal. We ignore things that only differ in that way using this function.
-  defp attributes_unequal?(left, right) do
-    left = add_source_and_name(left)
+  defp attributes_unequal?(left, right, repo) do
+    left = add_source_and_name_and_schema(left, repo)
 
-    right = add_source_and_name(right)
+    right = add_source_and_name_and_schema(right, repo)
 
     left != right
   end
 
-  defp add_source_and_name(attribute) do
+  defp add_source_and_name_and_schema(attribute, repo) do
     cond do
       attribute[:source] ->
         Map.put(attribute, :name, attribute[:source])
@@ -1501,6 +1501,20 @@ defmodule AshPostgres.MigrationGenerator do
       true ->
         attribute
     end
+    |> add_schema(repo)
+  end
+
+  defp add_schema(%{references: references} = attribute, repo) when is_map(references) do
+    schema = Map.get(references, :schema) || repo.config()[:default_prefix] || "public"
+
+    %{
+      attribute
+      | references: Map.put(references, :schema, schema)
+    }
+  end
+
+  defp add_schema(attribute, _) do
+    attribute
   end
 
   def changing_multitenancy_affects_identities?(snapshot, old_snapshot) do
@@ -1554,7 +1568,7 @@ defmodule AshPostgres.MigrationGenerator do
 
           snapshot_file
           |> File.read!()
-          |> load_snapshot(snapshot.repo)
+          |> load_snapshot()
       end
     else
       get_old_snapshot(folder, snapshot)
@@ -1569,7 +1583,7 @@ defmodule AshPostgres.MigrationGenerator do
     if File.exists?(old_snapshot_file) do
       old_snapshot_file
       |> File.read!()
-      |> load_snapshot(snapshot.repo)
+      |> load_snapshot()
     end
   end
 
@@ -2031,13 +2045,13 @@ defmodule AshPostgres.MigrationGenerator do
     type
   end
 
-  defp load_snapshot(json, repo) do
+  defp load_snapshot(json) do
     json
     |> Jason.decode!(keys: :atoms!)
-    |> sanitize_snapshot(repo)
+    |> sanitize_snapshot()
   end
 
-  defp sanitize_snapshot(snapshot, repo \\ nil) do
+  defp sanitize_snapshot(snapshot) do
     snapshot
     |> Map.put_new(:has_create_action, true)
     |> Map.put_new(:schema, nil)
@@ -2045,7 +2059,7 @@ defmodule AshPostgres.MigrationGenerator do
       Enum.map(identities, &load_identity(&1, snapshot.table))
     end)
     |> Map.update!(:attributes, fn attributes ->
-      Enum.map(attributes, &load_attribute(&1, snapshot.table, repo))
+      Enum.map(attributes, &load_attribute(&1, snapshot.table))
     end)
     |> Map.put_new(:custom_indexes, [])
     |> Map.update!(:custom_indexes, &load_custom_indexes/1)
@@ -2085,7 +2099,7 @@ defmodule AshPostgres.MigrationGenerator do
     |> Map.update!(:attribute, fn attribute -> attribute && String.to_atom(attribute) end)
   end
 
-  defp load_attribute(attribute, table, repo) do
+  defp load_attribute(attribute, table) do
     type = load_type(attribute.type)
 
     {type, size} =
@@ -2117,16 +2131,9 @@ defmodule AshPostgres.MigrationGenerator do
         nil
 
       references ->
-        config =
-          if repo do
-            repo.config()
-          else
-            []
-          end
-
         references
         |> Map.update!(:destination_field, &String.to_atom/1)
-        |> Map.put_new(:schema, config[:default_prefix] || nil)
+        |> Map.put_new(:schema, nil)
         |> Map.put_new(:destination_field_default, "nil")
         |> Map.put_new(:destination_field_generated, false)
         |> Map.put_new(:on_delete, nil)
