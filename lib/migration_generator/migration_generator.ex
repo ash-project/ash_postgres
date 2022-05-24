@@ -1554,7 +1554,7 @@ defmodule AshPostgres.MigrationGenerator do
 
           snapshot_file
           |> File.read!()
-          |> load_snapshot()
+          |> load_snapshot(snapshot.repo)
       end
     else
       get_old_snapshot(folder, snapshot)
@@ -1569,7 +1569,7 @@ defmodule AshPostgres.MigrationGenerator do
     if File.exists?(old_snapshot_file) do
       old_snapshot_file
       |> File.read!()
-      |> load_snapshot()
+      |> load_snapshot(snapshot.repo)
     end
   end
 
@@ -2031,13 +2031,13 @@ defmodule AshPostgres.MigrationGenerator do
     type
   end
 
-  defp load_snapshot(json) do
+  defp load_snapshot(json, repo) do
     json
     |> Jason.decode!(keys: :atoms!)
-    |> sanitize_snapshot()
+    |> sanitize_snapshot(repo)
   end
 
-  defp sanitize_snapshot(snapshot) do
+  defp sanitize_snapshot(snapshot, repo \\ nil) do
     snapshot
     |> Map.put_new(:has_create_action, true)
     |> Map.put_new(:schema, nil)
@@ -2045,7 +2045,7 @@ defmodule AshPostgres.MigrationGenerator do
       Enum.map(identities, &load_identity(&1, snapshot.table))
     end)
     |> Map.update!(:attributes, fn attributes ->
-      Enum.map(attributes, &load_attribute(&1, snapshot.table))
+      Enum.map(attributes, &load_attribute(&1, snapshot.table, repo))
     end)
     |> Map.put_new(:custom_indexes, [])
     |> Map.update!(:custom_indexes, &load_custom_indexes/1)
@@ -2085,7 +2085,7 @@ defmodule AshPostgres.MigrationGenerator do
     |> Map.update!(:attribute, fn attribute -> attribute && String.to_atom(attribute) end)
   end
 
-  defp load_attribute(attribute, table) do
+  defp load_attribute(attribute, table, repo) do
     type = load_type(attribute.type)
 
     {type, size} =
@@ -2117,9 +2117,16 @@ defmodule AshPostgres.MigrationGenerator do
         nil
 
       references ->
+        config =
+          if repo do
+            repo.config()
+          else
+            []
+          end
+
         references
         |> Map.update!(:destination_field, &String.to_atom/1)
-        |> Map.put_new(:schema, nil)
+        |> Map.put_new(:schema, config[:default_prefix] || nil)
         |> Map.put_new(:destination_field_default, "nil")
         |> Map.put_new(:destination_field_generated, false)
         |> Map.put_new(:on_delete, nil)
