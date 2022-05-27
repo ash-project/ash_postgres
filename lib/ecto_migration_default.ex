@@ -48,6 +48,12 @@ defimpl EctoMigrationDefault, for: BitString do
   end
 end
 
+defimpl EctoMigrationDefault, for: List do
+  def to_default(value) do
+    inspect(value)
+  end
+end
+
 defimpl EctoMigrationDefault, for: DateTime do
   def to_default(value) do
     ~s[fragment("'#{to_string(value)}'")]

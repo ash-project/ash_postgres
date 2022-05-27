@@ -865,6 +865,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
           attribute(:name, :string, default: "Fred")
           attribute(:tag, :atom, default: :value)
           attribute(:enabled, :boolean, default: false)
+          attribute(:coords, {:array, :float}, default: [0.1, -0.2])
         end
       end
 
@@ -910,6 +911,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert file =~
                ~S[add :enabled, :boolean, default: false]
+
+      assert file =~
+               ~S(add :coords, {:array, :float}, default: [0.1, -0.2])
     end
 
     test "when default value is specified that does not implement EctoMigrationDefault" do
