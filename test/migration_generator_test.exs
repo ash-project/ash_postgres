@@ -378,7 +378,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert [_file1, file2] =
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
 
+      # Up migration
       assert File.read!(file2) =~ ~S[rename table(:posts), :title, to: :subject]
+
+      # Down migration
+      assert File.read!(file2) =~ ~S[rename table(:posts), :subject, to: :title]
     end
 
     test "when renaming a field, it asks which field you are renaming it to, and adds it if you arent" do

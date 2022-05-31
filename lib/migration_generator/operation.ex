@@ -606,8 +606,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def down(
           %{
-            new_attribute: old_attribute,
-            old_attribute: new_attribute
+            old_attribute: old_attribute,
+            new_attribute: new_attribute
           } = data
         ) do
       up(%{data | new_attribute: old_attribute, old_attribute: new_attribute})
