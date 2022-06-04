@@ -1288,40 +1288,7 @@ defmodule AshPostgres.DataLayer do
     %{distinct | expr: distinct.expr ++ expr}
   end
 
-  # defp order_by_distinct(query, resource, distinct_on) do
-  #   query
-  #   |> default_bindings(resource)
-  #   |> Map.update!(:distinct, fn distinct ->
-  #     distinct =
-  #       distinct ||
-  #         %Ecto.Query.QueryExpr{
-  #           expr: []
-  #         }
-
-  #     expr =
-  #       Enum.map(distinct_on, fn distinct_on_field ->
-  #         binding =
-  #           case Map.fetch(query.__ash_bindings__.aggregates, distinct_on_field) do
-  #             {:ok, binding} ->
-  #               binding
-
-  #             :error ->
-  #               0
-  #           end
-
-  #         {:asc, {{:., [], [{:&, [], [binding]}, distinct_on_field]}, [], []}}
-  #       end)
-
-  #     %{distinct | expr: expr ++ distinct.expr}
-  #   end)
-  # end
-
   @impl true
-  def filter(query, %{expression: false}, _resource) do
-    impossible_query = from(row in query, where: false)
-    {:ok, Map.put(impossible_query, :__impossible__, true)}
-  end
-
   def filter(query, filter, resource) do
     query = default_bindings(query, resource)
 

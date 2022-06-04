@@ -16,11 +16,11 @@ defmodule AshPostgres.Expr do
   end
 
   # A nil filter means "everything"
-  def dynamic_expr(_, nil, _, _, _), do: {[], true}
+  def dynamic_expr(_, nil, _, _, _), do: true
   # A true filter means "everything"
-  def dynamic_expr(_, true, _, _, _), do: {[], true}
+  def dynamic_expr(_, true, _, _, _), do: true
   # A false filter means "nothing"
-  def dynamic_expr(_, false, _, _, _), do: {[], false}
+  def dynamic_expr(_, false, _, _, _), do: false
 
   def dynamic_expr(query, expression, bindings, embedded?, type) do
     do_dynamic_expr(query, expression, bindings, embedded?, type)
