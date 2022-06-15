@@ -13,7 +13,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
   * `name` -
       names the generated migrations, prepending with the timestamp. The default is `migrate_resources_<n>`,
       where `<n>` is the count of migrations matching `*migrate_resources*` plus one.
-      For example, `--migration-name add_special_column` would get a name like `20210708181402_add_special_column.exs`
+      For example, `--name add_special_column` would get a name like `20210708181402_add_special_column.exs`
 
   Flags:
 
