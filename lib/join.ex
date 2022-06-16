@@ -364,7 +364,7 @@ defmodule AshPostgres.Join do
         String.to_existing_atom(to_string(relationship.name) <> "_join_assoc") | path
       ])
 
-    full_path = Enum.reverse([relationship.name | path])
+    full_path = path ++ [relationship.name]
 
     initial_ash_bindings = query.__ash_bindings__
 
@@ -445,7 +445,7 @@ defmodule AshPostgres.Join do
 
       current_binding =
         Enum.find_value(initial_ash_bindings.bindings, 0, fn {binding, data} ->
-          if data.type == binding_kind && data.path == Enum.reverse(path) do
+          if data.type == binding_kind && data.path == path do
             binding
           end
         end)
@@ -539,7 +539,7 @@ defmodule AshPostgres.Join do
          filter,
          use_root_query_bindings?
        ) do
-    full_path = Enum.reverse([relationship.name | path])
+    full_path = path ++ [relationship.name]
     initial_ash_bindings = query.__ash_bindings__
 
     binding_data =
@@ -580,7 +580,7 @@ defmodule AshPostgres.Join do
 
         current_binding =
           Enum.find_value(initial_ash_bindings.bindings, 0, fn {binding, data} ->
-            if data.type == binding_kind && data.path == Enum.reverse(path) do
+            if data.type == binding_kind && data.path == path do
               binding
             end
           end)
