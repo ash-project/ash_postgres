@@ -1870,6 +1870,7 @@ defmodule AshPostgres.MigrationGenerator do
       |> Map.put(:default, default)
       |> Map.put(:size, size)
       |> Map.put(:type, type)
+      |> Map.put(:source, attribute.source || attribute.name)
       |> Map.delete(:name)
     end)
     |> Enum.map(fn attribute ->
