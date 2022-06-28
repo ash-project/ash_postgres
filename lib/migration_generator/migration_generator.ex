@@ -1885,7 +1885,9 @@ defmodule AshPostgres.MigrationGenerator do
       source_field_name =
         relationship.source
         |> Ash.Resource.Info.attribute(relationship.source_field)
-        |> Map.get(:source)
+        |> then(fn attribute ->
+          attribute.source || attribute.name
+        end)
 
       if attribute.source == source_field_name && relationship.type == :belongs_to &&
            foreign_key?(relationship) do
@@ -1896,7 +1898,9 @@ defmodule AshPostgres.MigrationGenerator do
           destination_field_source =
             relationship.destination
             |> Ash.Resource.Info.attribute(relationship.destination_field)
-            |> Map.get(:source)
+            |> then(fn attribute ->
+              attribute.source || attribute.name
+            end)
 
           %{
             destination_field: destination_field_source,
