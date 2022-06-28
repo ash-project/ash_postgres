@@ -616,6 +616,41 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[references(:posts, column: :id, name: "posts_post_id_fkey", type: :uuid, prefix: "public")]
     end
 
+    test "references are inferred automatically if the attribute has a different type" do
+      defposts do
+        attributes do
+          attribute(:id, :string, primary_key?: true, allow_nil?: false)
+          attribute(:title, :string)
+          attribute(:foobar, :string)
+        end
+      end
+
+      defposts Post2 do
+        attributes do
+          attribute(:id, :string, primary_key?: true, allow_nil?: false)
+          attribute(:name, :string)
+        end
+
+        relationships do
+          belongs_to(:post, Post, field_type: :string)
+        end
+      end
+
+      defapi([Post, Post2])
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+
+      assert File.read!(file) =~
+               ~S[references(:posts, column: :id, name: "posts_post_id_fkey", type: :text, prefix: "public")]
+    end
+
     test "when modified, the foreign key is dropped before modification" do
       defposts do
         attributes do
