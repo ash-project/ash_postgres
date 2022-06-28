@@ -1892,7 +1892,7 @@ defmodule AshPostgres.MigrationGenerator do
       if attribute.source == source_field_name && relationship.type == :belongs_to &&
            foreign_key?(relationship) do
         configured_reference =
-          configured_reference(resource, table, attribute.source, relationship)
+          configured_reference(resource, table, attribute.source || attribute.name, relationship)
 
         unless Map.get(configured_reference, :ignore?) do
           destination_field_source =
