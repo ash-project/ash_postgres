@@ -25,6 +25,7 @@ defmodule AshPostgres.Test.Author do
 
   relationships do
     has_one(:profile, AshPostgres.Test.Profile)
+    has_many(:posts, AshPostgres.Test.Post)
   end
 
   aggregates do

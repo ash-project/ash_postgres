@@ -39,10 +39,7 @@ defmodule AshPostgres.Aggregate do
                               resource,
                               aggregate.relationship_path
                             )}
-                         ],
-                         [],
-                         nil,
-                         true
+                         ]
                        ) do
                     {:ok, new_query} ->
                       {:ok,
@@ -69,10 +66,7 @@ defmodule AshPostgres.Aggregate do
                               resource,
                               aggregate.relationship_path
                             )}
-                         ],
-                         [],
-                         nil,
-                         true
+                         ]
                        ) do
                     {:ok, new_query} ->
                       {:ok,
@@ -313,11 +307,7 @@ defmodule AshPostgres.Aggregate do
           if aggregate.query && aggregate.query.filter do
             AshPostgres.Join.join_all_relationships(
               aggregate_query,
-              aggregate.query.filter,
-              nil,
-              [],
-              nil,
-              true
+              aggregate.query.filter
             )
           else
             {:ok, aggregate_query}

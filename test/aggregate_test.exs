@@ -564,6 +564,8 @@ defmodule AshPostgres.AggregateTest do
       |> Ash.Changeset.set_context(%{data_layer: %{table: "comment_ratings"}})
       |> Api.create!()
 
+      Logger.configure(level: :debug)
+
       assert %Post{count_of_popular_comments: 1} =
                Post
                |> Ash.Query.load([

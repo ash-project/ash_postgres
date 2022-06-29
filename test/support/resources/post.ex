@@ -62,6 +62,8 @@ defmodule AshPostgres.Test.Post do
   end
 
   relationships do
+    belongs_to(:author, AshPostgres.Test.Author)
+
     has_many(:comments, AshPostgres.Test.Comment, destination_field: :post_id)
 
     has_many :popular_comments, AshPostgres.Test.Comment do

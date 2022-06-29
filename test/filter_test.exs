@@ -73,6 +73,40 @@ defmodule AshPostgres.FilterTest do
       assert [] = results
     end
 
+    test "with related data two steps away that matches" do
+      author =
+        Author
+        |> Ash.Changeset.new(%{first_name: "match"})
+        |> Api.create!()
+
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.replace_relationship(:author, author)
+        |> Api.create!()
+
+      post2 =
+        Post
+        |> Ash.Changeset.new(%{title: "title2"})
+        |> Ash.Changeset.replace_relationship(:linked_posts, [post])
+        |> Ash.Changeset.replace_relationship(:author, author)
+        |> Api.create!()
+
+      comment =
+        Comment
+        |> Ash.Changeset.new(%{title: "not match"})
+        |> Ash.Changeset.replace_relationship(:post, post)
+        |> Ash.Changeset.replace_relationship(:author, author)
+        |> Api.create!()
+
+      results =
+        Comment
+        |> Ash.Query.filter(author.posts.linked_posts.title == "title")
+        |> Api.read!()
+
+      assert [_] = results
+    end
+
     test "with related data that does match" do
       post =
         Post
