@@ -45,6 +45,10 @@ defmodule AshPostgres.Test.Post do
     end
   end
 
+  identities do
+    identity :uniq_one_and_two, [:uniq_one, :uniq_two]
+  end
+
   attributes do
     uuid_primary_key(:id, writable?: true)
     attribute(:title, :string)
@@ -58,6 +62,8 @@ defmodule AshPostgres.Test.Post do
     attribute(:status_enum, AshPostgres.Test.Types.StatusEnum)
     attribute(:status_enum_no_cast, AshPostgres.Test.Types.StatusEnumNoCast, source: :status_enum)
     attribute(:point, AshPostgres.Test.Point)
+    attribute(:uniq_one, :string)
+    attribute(:uniq_two, :string)
     create_timestamp(:created_at)
   end
 

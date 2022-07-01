@@ -85,19 +85,17 @@ defmodule AshPostgres.FilterTest do
         |> Ash.Changeset.replace_relationship(:author, author)
         |> Api.create!()
 
-      post2 =
-        Post
-        |> Ash.Changeset.new(%{title: "title2"})
-        |> Ash.Changeset.replace_relationship(:linked_posts, [post])
-        |> Ash.Changeset.replace_relationship(:author, author)
-        |> Api.create!()
+      Post
+      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.replace_relationship(:linked_posts, [post])
+      |> Ash.Changeset.replace_relationship(:author, author)
+      |> Api.create!()
 
-      comment =
-        Comment
-        |> Ash.Changeset.new(%{title: "not match"})
-        |> Ash.Changeset.replace_relationship(:post, post)
-        |> Ash.Changeset.replace_relationship(:author, author)
-        |> Api.create!()
+      Comment
+      |> Ash.Changeset.new(%{title: "not match"})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.replace_relationship(:author, author)
+      |> Api.create!()
 
       results =
         Comment

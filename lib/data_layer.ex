@@ -1087,11 +1087,24 @@ defmodule AshPostgres.DataLayer do
     keys = keys || Ash.Resource.Info.primary_key(resource)
     attributes = Map.keys(changeset.attributes) -- Map.get(changeset, :defaults, []) -- keys
 
+    conflict_target =
+      if Ash.Resource.Info.base_filter(resource) do
+        base_filter_sql =
+          AshPostgres.base_filter_sql(resource) ||
+            raise """
+            Cannot use upserts with resources that have a base_filter without also adding `base_filter_sql` in the postgres section.
+            """
+
+        {:unsafe_fragment, "(" <> Enum.join(keys, ", ") <> ") WHERE (#{base_filter_sql})"}
+      else
+        keys
+      end
+
     repo_opts =
       changeset.timeout
       |> repo_opts(changeset.tenant, changeset.resource)
       |> Keyword.put(:on_conflict, {:replace, attributes})
-      |> Keyword.put(:conflict_target, keys)
+      |> Keyword.put(:conflict_target, conflict_target)
 
     if AshPostgres.manage_tenant_update?(resource) do
       {:error, "Cannot currently upsert a resource that owns a tenant"}
