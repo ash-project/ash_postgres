@@ -46,7 +46,7 @@ defmodule AshPostgres.Test.Post do
   end
 
   identities do
-    identity :uniq_one_and_two, [:uniq_one, :uniq_two]
+    identity(:uniq_one_and_two, [:uniq_one, :uniq_two])
   end
 
   attributes do
