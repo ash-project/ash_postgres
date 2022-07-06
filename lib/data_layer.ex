@@ -1085,7 +1085,19 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def upsert(resource, changeset, keys \\ nil) do
     keys = keys || Ash.Resource.Info.primary_key(resource)
-    attributes = Map.keys(changeset.attributes) -- Map.get(changeset, :defaults, []) -- keys
+
+    explicitly_changing_attributes =
+      Enum.map(
+        Map.keys(changeset.attributes) -- Map.get(changeset, :defaults, []) -- keys,
+        fn key ->
+          {key, Ash.Changeset.get_attribute(changeset, key)}
+        end
+      )
+
+    on_conflict =
+      changeset
+      |> update_defaults()
+      |> Keyword.merge(explicitly_changing_attributes)
 
     conflict_target =
       if Ash.Resource.Info.base_filter(resource) do
@@ -1103,7 +1115,7 @@ defmodule AshPostgres.DataLayer do
     repo_opts =
       changeset.timeout
       |> repo_opts(changeset.tenant, changeset.resource)
-      |> Keyword.put(:on_conflict, {:replace, attributes})
+      |> Keyword.put(:on_conflict, set: on_conflict)
       |> Keyword.put(:conflict_target, conflict_target)
 
     if AshPostgres.manage_tenant_update?(resource) do
@@ -1114,6 +1126,54 @@ defmodule AshPostgres.DataLayer do
       |> ecto_changeset(changeset, :upsert)
       |> repo(resource).insert(Keyword.put(repo_opts, :returning, true))
       |> handle_errors()
+    end
+  end
+
+  defp update_defaults(changeset) do
+    attributes =
+      changeset.resource
+      |> Ash.Resource.Info.attributes()
+      |> Enum.reject(&is_nil(&1.update_default))
+
+    attributes
+    |> static_defaults()
+    |> Enum.concat(lazy_matching_defaults(attributes))
+    |> Enum.concat(lazy_non_matching_defaults(attributes))
+  end
+
+  defp static_defaults(attributes) do
+    attributes
+    |> Enum.reject(&get_default_fun(&1))
+    |> Enum.map(&{&1.name, &1.update_default})
+  end
+
+  defp lazy_non_matching_defaults(attributes) do
+    attributes
+    |> Enum.filter(&(!&1.match_other_defaults? && get_default_fun(&1)))
+    |> Enum.map(&{&1.name, &1.update_default})
+  end
+
+  defp lazy_matching_defaults(attributes) do
+    attributes
+    |> Enum.filter(&(&1.match_other_defaults? && get_default_fun(&1)))
+    |> Enum.group_by(& &1.update_default)
+    |> Enum.flat_map(fn {default_fun, attributes} ->
+      default_value =
+        case default_fun do
+          function when is_function(function) ->
+            function.()
+
+          {m, f, a} when is_atom(m) and is_atom(f) and is_list(a) ->
+            apply(m, f, a)
+        end
+
+      Enum.map(attributes, &{&1.name, default_value})
+    end)
+  end
+
+  defp get_default_fun(attribute) do
+    if is_function(attribute.update_default) or match?({_, _, _}, attribute.update_default) do
+      attribute.update_default
     end
   end
 

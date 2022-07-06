@@ -65,6 +65,7 @@ defmodule AshPostgres.Test.Post do
     attribute(:uniq_one, :string)
     attribute(:uniq_two, :string)
     create_timestamp(:created_at)
+    update_timestamp(:updated_at)
   end
 
   relationships do
