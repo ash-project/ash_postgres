@@ -116,7 +116,7 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 ### Improvements:
 
-* set `update_defaults` on upsert results
+* set `update_defaults` on upsert results. For most users, this means that where previously `updated_at` would not get set on an upsert that ultimately resulted in an update, it will now.
 
 * handle fallback ecto migration default elegantly (#94)
 
