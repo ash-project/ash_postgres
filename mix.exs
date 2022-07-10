@@ -67,15 +67,15 @@ defmodule AshPostgres.MixProject do
       logo: "logos/small-logo.png",
       extras: [
         "README.md",
-        "documentation/guides/migrations_and_tasks.md",
-        "documentation/guides/multitenancy.md",
-        "documentation/guides/polymorphic_resources.md"
+        "priv/documentation/guides/migrations_and_tasks.md",
+        "priv/documentation/guides/multitenancy.md",
+        "priv/documentation/guides/polymorphic_resources.md"
       ],
       groups_for_extras: [
         guides: [
-          "documentation/guides/multitenancy.md",
-          "documentation/guides/migrations_and_tasks.md",
-          "documentation/guides/polymorphic_resources.md"
+          "priv/documentation/guides/multitenancy.md",
+          "priv/documentation/guides/migrations_and_tasks.md",
+          "priv/documentation/guides/polymorphic_resources.md"
         ]
       ],
       groups_for_modules: [
