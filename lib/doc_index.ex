@@ -20,5 +20,7 @@ defmodule AshPostgres.DocIndex do
     ]
   end
 
+  def default_guide, do: "AshPostgres"
+
   def code_modules, do: []
 end
