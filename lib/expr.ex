@@ -728,7 +728,9 @@ defmodule AshPostgres.Expr do
 
     unless "ash-functions" in installed_extensions do
       raise """
-      Cannot use `||` or `&&` operators without adding the extension `ash-functions`.
+      Cannot use `||` or `&&` operators without adding the extension `ash-functions` to your repo.
+
+      Add it to the list in `installed_extensions/0`
 
       If you are using the migration generator, you will then need to generate migrations.
       If not, you will need to copy the following into a migration:
