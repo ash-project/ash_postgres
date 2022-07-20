@@ -72,6 +72,34 @@ defmodule AshPostgres.CalculationTest do
              |> Api.read_one!()
   end
 
+  test "calculations can use the || operator" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{bio: %{title: "Mr.", bio: "Bones"}})
+      |> Api.create!()
+
+    assert %{first_name_or_bob: "bob"} =
+             Author
+             |> Ash.Query.filter(id == ^author.id)
+             |> Ash.Query.load(:first_name_or_bob)
+             |> Api.read_one!()
+  end
+
+  test "calculations can use the && operator" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{
+        bio: %{first_name: "fred", title: "Mr.", bio: "Bones"}
+      })
+      |> Api.create!()
+
+    assert %{first_name_and_bob: "bob"} =
+             Author
+             |> Ash.Query.filter(id == ^author.id)
+             |> Ash.Query.load(:first_name_and_bob)
+             |> Api.read_one!()
+  end
+
   test "calculations can be used in related filters" do
     post =
       Post

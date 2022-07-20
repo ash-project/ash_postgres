@@ -1,4 +1,5 @@
 [
+  "ash-functions",
   "uuid-ossp",
   "pg_trgm",
   "citext"

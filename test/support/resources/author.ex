@@ -36,6 +36,9 @@ defmodule AshPostgres.Test.Author do
     calculate(:title, :string, expr(bio[:title]))
     calculate(:full_name, :string, expr(first_name <> " " <> last_name))
 
+    calculate(:first_name_or_bob, :string, expr(first_name || "bob"))
+    calculate(:first_name_and_bob, :string, expr(first_name && "bob"))
+
     calculate(
       :conditional_full_name,
       :string,

@@ -405,6 +405,46 @@ defmodule AshPostgres.Expr do
           type
         )
 
+      :|| ->
+        require_ash_functions!(query)
+
+        do_dynamic_expr(
+          query,
+          %Fragment{
+            embedded?: pred_embedded?,
+            arguments: [
+              raw: "ash_elixir_or(",
+              casted_expr: left_expr,
+              raw: ", ",
+              casted_expr: right_expr,
+              raw: ")"
+            ]
+          },
+          bindings,
+          embedded?,
+          type
+        )
+
+      :&& ->
+        require_ash_functions!(query)
+
+        do_dynamic_expr(
+          query,
+          %Fragment{
+            embedded?: pred_embedded?,
+            arguments: [
+              raw: "ash_elixir_or(",
+              casted_expr: left_expr,
+              raw: ", ",
+              casted_expr: right_expr,
+              raw: ")"
+            ]
+          },
+          bindings,
+          embedded?,
+          type
+        )
+
       other ->
         raise "Operator not implemented #{other}"
     end
@@ -680,5 +720,49 @@ defmodule AshPostgres.Expr do
     Enum.find_value(bindings.bindings, fn {binding, data} ->
       data.path == ref.relationship_path && data.type in [:inner, :left, :root] && binding
     end)
+  end
+
+  defp require_ash_functions!(query) do
+    installed_extensions =
+      AshPostgres.repo(query.__ash_bindings__.resource).installed_extensions()
+
+    unless "ash-functions" in installed_extensions do
+      raise """
+      Cannot use `||` or `&&` operators without adding the extension `ash-functions`.
+
+      If you are using the migration generator, you will then need to generate migrations.
+      If not, you will need to copy the following into a migration:
+
+      execute(\"\"\"
+      CREATE OR REPLACE FUNCTION ash_elixir_or(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
+      AS $$ SELECT COALESCE(NULLIF($1, FALSE), $2) $$
+      LANGUAGE SQL;
+      \"\"\")
+
+      execute(\"\"\"
+      CREATE OR REPLACE FUNCTION ash_elixir_or(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
+      AS $$ SELECT COALESCE($1, $2) $$
+      LANGUAGE SQL;
+      \"\"\")
+
+      execute(\"\"\"
+      CREATE OR REPLACE FUNCTION ash_elixir_and(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) AS $$
+        SELECT CASE
+          WHEN $1 IS TRUE THEN $2
+          ELSE $1
+        END $$
+      LANGUAGE SQL;
+      \"\"\")
+
+      execute(\"\"\"
+      CREATE OR REPLACE FUNCTION ash_elixir_and(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) AS $$
+        SELECT CASE
+          WHEN $1 IS NOT NULL THEN $2
+          ELSE $1
+        END $$
+      LANGUAGE SQL;
+      \"\"\")
+      """
+    end
   end
 end

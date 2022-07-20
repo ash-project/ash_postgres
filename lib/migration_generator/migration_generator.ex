@@ -142,13 +142,51 @@ defmodule AshPostgres.MigrationGenerator do
         module_name = Module.concat([repo, Migrations, Macro.camelize(module)])
 
         install =
-          Enum.map_join(to_install, "\n", fn extension ->
-            "execute(\"CREATE EXTENSION IF NOT EXISTS \\\"#{extension}\\\"\")"
+          Enum.map_join(to_install, "\n", fn
+            "ash-functions" ->
+              """
+              execute(\"\"\"
+              CREATE OR REPLACE FUNCTION ash_elixir_or(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
+              AS $$ SELECT COALESCE(NULLIF($1, FALSE), $2) $$
+              LANGUAGE SQL;
+              \"\"\")
+
+              execute(\"\"\"
+              CREATE OR REPLACE FUNCTION ash_elixir_or(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
+              AS $$ SELECT COALESCE($1, $2) $$
+              LANGUAGE SQL;
+              \"\"\")
+
+              execute(\"\"\"
+              CREATE OR REPLACE FUNCTION ash_elixir_and(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) AS $$
+                SELECT CASE
+                  WHEN $1 IS TRUE THEN $2
+                  ELSE $1
+                END $$
+              LANGUAGE SQL;
+              \"\"\")
+
+              execute(\"\"\"
+              CREATE OR REPLACE FUNCTION ash_elixir_and(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) AS $$
+                SELECT CASE
+                  WHEN $1 IS NOT NULL THEN $2
+                  ELSE $1
+                END $$
+              LANGUAGE SQL;
+              \"\"\")
+              """
+
+            extension ->
+              "execute(\"CREATE EXTENSION IF NOT EXISTS \\\"#{extension}\\\"\")"
           end)
 
         uninstall =
-          Enum.map_join(to_install, "\n", fn extension ->
-            "# execute(\"DROP EXTENSION IF EXISTS \\\"#{extension}\\\"\")"
+          Enum.map_join(to_install, "\n", fn
+            "ash-functions" ->
+              "execute(\"DROP FUNCTION IF EXISTS ash_elixir_and(BOOLEAN, ANYCOMPATIBLE), ash_elixir_and(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(BOOLEAN, ANYCOMPATIBLE)\")"
+
+            extension ->
+              "# execute(\"DROP EXTENSION IF EXISTS \\\"#{extension}\\\"\")"
           end)
 
         contents = """

@@ -1379,6 +1379,7 @@ defmodule AshPostgres.DataLayer do
   @doc false
   def default_bindings(query, resource, context \\ %{}) do
     Map.put_new(query, :__ash_bindings__, %{
+      resource: resource,
       current: Enum.count(query.joins) + 1,
       calculations: %{},
       aggregates: %{},
