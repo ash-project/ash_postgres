@@ -713,6 +713,48 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     end
   end
 
+  defmodule AddCustomStatement do
+    @moduledoc false
+    defstruct [:statement, :table, no_phase: true]
+
+    def up(%{statement: %{up: up, code?: false}}) do
+      """
+      execute(\"\"\"
+      #{String.trim(up)}
+      \"\"\")
+      """
+    end
+
+    def up(%{statement: %{up: up, code?: true}}) do
+      up
+    end
+
+    def down(%{statement: %{down: down, code?: false}}) do
+      """
+      execute(\"\"\"
+      #{String.trim(down)}
+      \"\"\")
+      """
+    end
+
+    def down(%{statement: %{down: down, code?: true}}) do
+      down
+    end
+  end
+
+  defmodule RemoveCustomStatement do
+    @moduledoc false
+    defstruct [:statement, :table, no_phase: true]
+
+    def up(%{statement: statement, table: table}) do
+      AddCustomStatement.down(%AddCustomStatement{statement: statement, table: table})
+    end
+
+    def down(%{statement: statement, table: table}) do
+      AddCustomStatement.up(%AddCustomStatement{statement: statement, table: table})
+    end
+  end
+
   defmodule AddCustomIndex do
     @moduledoc false
     defstruct [:table, :schema, :index, :base_filter, :multitenancy, no_phase: true]

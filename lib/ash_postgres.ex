@@ -44,6 +44,11 @@ defmodule AshPostgres do
     Extension.get_entities(resource, [:postgres, :custom_indexes])
   end
 
+  @doc "The configured custom_statements for a resource"
+  def custom_statements(resource) do
+    Extension.get_entities(resource, [:postgres, :custom_statements])
+  end
+
   @doc "The configured polymorphic_reference_on_delete for a resource"
   def polymorphic_on_delete(resource) do
     Extension.get_opt(resource, [:postgres, :references], :polymorphic_on_delete, nil, true)
