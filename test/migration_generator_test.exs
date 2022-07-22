@@ -753,8 +753,46 @@ defmodule AshPostgres.MigrationGeneratorTest do
                |> Path.wildcard()
                |> Enum.sort()
                |> Enum.at(0)
+               |> File.read!()
 
-      assert File.read!(file) =~
+      assert file =~
+               ~S[create constraint(:posts, :price_must_be_positive, check: "price > 0")]
+
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:price, :integer)
+        end
+
+        postgres do
+          check_constraints do
+            check_constraint(:price, "price_must_be_positive", check: "price > 1")
+          end
+        end
+      end
+
+      defapi([Post])
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert file =
+               "test_migration_path/**/*_migrate_resources*.exs"
+               |> Path.wildcard()
+               |> Enum.sort()
+               |> Enum.at(1)
+               |> File.read!()
+
+      assert [_, down] = String.split(file, "def down do")
+
+      assert [_, remaining] =
+               String.split(down, "drop_if_exists constraint(:posts, :price_must_be_positive)")
+
+      assert remaining =~
                ~S[create constraint(:posts, :price_must_be_positive, check: "price > 0")]
     end
 
