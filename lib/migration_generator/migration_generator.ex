@@ -1002,10 +1002,13 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp after?(
-         %Operation.AddCheckConstraint{table: table, schema: schema},
+         %Operation.AddCheckConstraint{table: table, schema: schema, constraint: %{name: name}},
          %Operation.RemoveCheckConstraint{
            table: table,
-           schema: schema
+           schema: schema,
+           constraint: %{
+             name: name
+           }
          }
        ),
        do: true
