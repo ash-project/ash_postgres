@@ -95,7 +95,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         with:
           status: |
-            Beta version "${{ steps.tagName.outputs.tag }}" of AshPostgres released!
+            AshPostgres version "${{ steps.tagName.outputs.tag }}" released!
 
             #myelixirstatus
 
