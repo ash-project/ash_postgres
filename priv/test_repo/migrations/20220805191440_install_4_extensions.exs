@@ -1,4 +1,4 @@
-defmodule :"Elixir.AshPostgres.TestRepo.Migrations.InstallAsh-functions" do
+defmodule AshPostgres.TestRepo.Migrations.Install4Extensions do
   @moduledoc """
   Installs any extensions that are mentioned in the repo's `installed_extensions/0` callback
 
@@ -37,6 +37,40 @@ defmodule :"Elixir.AshPostgres.TestRepo.Migrations.InstallAsh-functions" do
       END $$
     LANGUAGE SQL;
     """)
+
+    execute("""
+    CREATE OR REPLACE FUNCTION ash_elixir_or(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
+    AS $$ SELECT COALESCE(NULLIF($1, FALSE), $2) $$
+    LANGUAGE SQL;
+    """)
+
+    execute("""
+    CREATE OR REPLACE FUNCTION ash_elixir_or(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
+    AS $$ SELECT COALESCE($1, $2) $$
+    LANGUAGE SQL;
+    """)
+
+    execute("""
+    CREATE OR REPLACE FUNCTION ash_elixir_and(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) AS $$
+      SELECT CASE
+        WHEN $1 IS TRUE THEN $2
+        ELSE $1
+      END $$
+    LANGUAGE SQL;
+    """)
+
+    execute("""
+    CREATE OR REPLACE FUNCTION ash_elixir_and(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) AS $$
+      SELECT CASE
+        WHEN $1 IS NOT NULL THEN $2
+        ELSE $1
+      END $$
+    LANGUAGE SQL;
+    """)
+
+    execute("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
+    execute("CREATE EXTENSION IF NOT EXISTS \"pg_trgm\"")
+    execute("CREATE EXTENSION IF NOT EXISTS \"citext\"")
   end
 
   def down do
@@ -45,5 +79,9 @@ defmodule :"Elixir.AshPostgres.TestRepo.Migrations.InstallAsh-functions" do
     execute(
       "DROP FUNCTION IF EXISTS ash_elixir_and(BOOLEAN, ANYCOMPATIBLE), ash_elixir_and(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(BOOLEAN, ANYCOMPATIBLE)"
     )
+
+    # execute("DROP EXTENSION IF EXISTS \"uuid-ossp\"")
+    # execute("DROP EXTENSION IF EXISTS \"pg_trgm\"")
+    # execute("DROP EXTENSION IF EXISTS \"citext\"")
   end
 end

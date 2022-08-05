@@ -8,10 +8,23 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources1 do
   use Ecto.Migration
 
   def up do
+    execute("""
+    CREATE TYPE status AS ENUM ('open', 'closed');
+    """
+    )
+
+    execute "CREATE SCHEMA profiles"
+
     create table(:users, primary_key: false) do
       add :id, :uuid, null: false, default: fragment("uuid_generate_v4()"), primary_key: true
       add :name, :text
       add :org_id, :uuid
+    end
+
+    create table(:profile, primary_key: false, prefix: "profiles") do
+      add :id, :uuid, null: false, default: fragment("uuid_generate_v4()"), primary_key: true
+      add :description, :text
+      add :author_id, :uuid
     end
 
     create table(:posts, primary_key: false) do
@@ -22,9 +35,15 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources1 do
       add :category, :citext
       add :type, :text, default: "sponsored"
       add :price, :bigint
-      add :decimal, :decimal, default: 0
+      add :decimal, :decimal, default: "0"
       add :status, :text
+      add :status_enum, :status
+      add :point, {:array, :float}
+      add :uniq_one, :text
+      add :uniq_two, :text
       add :created_at, :utc_datetime_usec, null: false, default: fragment("now()")
+      add :updated_at, :utc_datetime_usec, null: false, default: fragment("now()")
+      add :author_id, :uuid
     end
 
     create table(:post_ratings, primary_key: false) do
@@ -37,12 +56,22 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources1 do
 
     create table(:post_links, primary_key: false) do
       add :source_post_id,
-          references(:posts, column: :id, name: "post_links_source_post_id_fkey", type: :uuid),
+          references(:posts,
+            column: :id,
+            name: "post_links_source_post_id_fkey",
+            type: :uuid,
+            prefix: "public"
+          ),
           primary_key: true,
           null: false
 
       add :destination_post_id,
-          references(:posts, column: :id, name: "post_links_destination_post_id_fkey", type: :uuid),
+          references(:posts,
+            column: :id,
+            name: "post_links_destination_post_id_fkey",
+            type: :uuid,
+            prefix: "public"
+          ),
           primary_key: true,
           null: false
     end
@@ -53,7 +82,12 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources1 do
 
     alter table(:users) do
       modify :org_id,
-             references(:multitenant_orgs, column: :id, name: "users_org_id_fkey", type: :uuid)
+             references(:multitenant_orgs,
+               column: :id,
+               name: "users_org_id_fkey",
+               type: :uuid,
+               prefix: "public"
+             )
     end
 
     alter table(:multitenant_orgs) do
@@ -81,6 +115,7 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources1 do
             column: :id,
             name: "special_name_fkey",
             type: :uuid,
+            prefix: "public",
             on_delete: :delete_all,
             on_update: :update_all
           )
@@ -100,14 +135,45 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources1 do
       add :id, :uuid, null: false, default: fragment("uuid_generate_v4()"), primary_key: true
     end
 
+    alter table(:profile, prefix: "profiles") do
+      modify :author_id,
+             references(:authors,
+               column: :id,
+               prefix: "public",
+               name: "profile_author_id_fkey",
+               type: :uuid
+             )
+    end
+
+    alter table(:posts) do
+      modify :author_id,
+             references(:authors,
+               column: :id,
+               prefix: "public",
+               name: "posts_author_id_fkey",
+               type: :uuid
+             )
+    end
+
+    create unique_index(:posts, [:uniq_one, :uniq_two],
+             where: "type = 'sponsored'",
+             name: "posts_uniq_one_and_two_index"
+           )
+
     alter table(:comments) do
       modify :author_id,
-             references(:authors, column: :id, name: "comments_author_id_fkey", type: :uuid)
+             references(:authors,
+               column: :id,
+               prefix: "public",
+               name: "comments_author_id_fkey",
+               type: :uuid
+             )
     end
 
     alter table(:authors) do
       add :first_name, :text
       add :last_name, :text
+      add :bio, :map
     end
 
     create constraint(:posts, :price_must_be_positive, check: "type = 'sponsored' AND price > 0")
@@ -117,6 +183,7 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources1 do
     drop_if_exists constraint(:posts, :price_must_be_positive)
 
     alter table(:authors) do
+      remove :bio
       remove :last_name
       remove :first_name
     end
@@ -124,6 +191,22 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources1 do
     drop constraint(:comments, "comments_author_id_fkey")
 
     alter table(:comments) do
+      modify :author_id, :uuid
+    end
+
+    drop_if_exists unique_index(:posts, [:uniq_one, :uniq_two],
+                     name: "posts_uniq_one_and_two_index"
+                   )
+
+    drop constraint(:posts, "posts_author_id_fkey")
+
+    alter table(:posts) do
+      modify :author_id, :uuid
+    end
+
+    drop constraint(:profile, "profile_author_id_fkey", prefix: "profiles")
+
+    alter table(:profile, prefix: "profiles") do
       modify :author_id, :uuid
     end
 
@@ -167,6 +250,13 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources1 do
 
     drop table(:posts)
 
+    drop table(:profile, prefix: "profiles")
+
     drop table(:users)
+    execute("""
+    DROP TYPE status;
+    """)
+
+    execute "DROP SCHEMA profiles"
   end
 end

@@ -4,7 +4,6 @@
       "allow_nil?": false,
       "default": "nil",
       "generated?": false,
-      "name": "source_post_id",
       "primary_key?": true,
       "references": {
         "destination_field": "id",
@@ -18,16 +17,17 @@
         "name": "post_links_source_post_id_fkey",
         "on_delete": null,
         "on_update": null,
+        "schema": "public",
         "table": "posts"
       },
       "size": null,
+      "source": "source_post_id",
       "type": "uuid"
     },
     {
       "allow_nil?": false,
       "default": "nil",
       "generated?": false,
-      "name": "destination_post_id",
       "primary_key?": true,
       "references": {
         "destination_field": "id",
@@ -41,17 +41,20 @@
         "name": "post_links_destination_post_id_fkey",
         "on_delete": null,
         "on_update": null,
+        "schema": "public",
         "table": "posts"
       },
       "size": null,
+      "source": "destination_post_id",
       "type": "uuid"
     }
   ],
   "base_filter": null,
   "check_constraints": [],
   "custom_indexes": [],
+  "custom_statements": [],
   "has_create_action": true,
-  "hash": "0D9FE5CA8E70DB6AD89F7AB5C1904C965D7AC49F466F959EF1A354D298C190EE",
+  "hash": "DDDF49805CB45979E1AD9BD904AA40B17C6EDE490566A1AF50EF2C6E5E7E3447",
   "identities": [],
   "multitenancy": {
     "attribute": null,
@@ -59,5 +62,6 @@
     "strategy": null
   },
   "repo": "Elixir.AshPostgres.TestRepo",
+  "schema": null,
   "table": "post_links"
 }

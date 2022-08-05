@@ -298,7 +298,9 @@ defmodule AshPostgres.FilterTest do
   describe "accessing embeds" do
     setup do
       Author
-      |> Ash.Changeset.for_create(:create, bio: %{title: "Dr.", bio: "Strange"})
+      |> Ash.Changeset.for_create(:create,
+        bio: %{title: "Dr.", bio: "Strange", years_of_experience: 10}
+      )
       |> Api.create!()
 
       Author
@@ -314,6 +316,13 @@ defmodule AshPostgres.FilterTest do
       assert [%{bio: %{title: "Dr."}}] =
                Author
                |> Ash.Query.filter(bio[:title] == "Dr.")
+               |> Api.read!()
+    end
+
+    test "works using simple equality for integers" do
+      assert [%{bio: %{title: "Dr."}}] =
+               Author
+               |> Ash.Query.filter(bio[:years_of_experience] == 10)
                |> Api.read!()
     end
 
@@ -409,6 +418,21 @@ defmodule AshPostgres.FilterTest do
       assert [%{category: %Ash.CiString{string: "match"}}] =
                Post
                |> Ash.Query.filter(contains(category, ^"ATC"))
+               |> Api.read!()
+    end
+
+    test "it works on a case insensitive calculation" do
+      Post
+      |> Ash.Changeset.new(%{category: "match"})
+      |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{category: "bazbuz"})
+      |> Api.create!()
+
+      assert [%{category: %Ash.CiString{string: "match"}}] =
+               Post
+               |> Ash.Query.filter(contains(category_label, ^"ATC"))
                |> Api.read!()
     end
 

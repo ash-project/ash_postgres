@@ -9,5 +9,6 @@ defmodule AshPostgres.Test.Bio do
   attributes do
     attribute(:title, :string)
     attribute(:bio, :string)
+    attribute(:years_of_experience, :integer)
   end
 end

@@ -105,6 +105,46 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
+  @latest_ash_functions_version 0
+
+  @add_ash_functions """
+  execute(\"\"\"
+  CREATE OR REPLACE FUNCTION ash_elixir_or(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
+  AS $$ SELECT COALESCE(NULLIF($1, FALSE), $2) $$
+  LANGUAGE SQL;
+  \"\"\")
+
+  execute(\"\"\"
+  CREATE OR REPLACE FUNCTION ash_elixir_or(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
+  AS $$ SELECT COALESCE($1, $2) $$
+  LANGUAGE SQL;
+  \"\"\")
+
+  execute(\"\"\"
+  CREATE OR REPLACE FUNCTION ash_elixir_and(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) AS $$
+    SELECT CASE
+      WHEN $1 IS TRUE THEN $2
+      ELSE $1
+    END $$
+  LANGUAGE SQL;
+  \"\"\")
+
+  execute(\"\"\"
+  CREATE OR REPLACE FUNCTION ash_elixir_and(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) AS $$
+    SELECT CASE
+      WHEN $1 IS NOT NULL THEN $2
+      ELSE $1
+    END $$
+  LANGUAGE SQL;
+  \"\"\")
+  """
+
+  @drop_ash_functions %{
+    0 => """
+    execute(\"DROP FUNCTION IF EXISTS ash_elixir_and(BOOLEAN, ANYCOMPATIBLE), ash_elixir_and(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(BOOLEAN, ANYCOMPATIBLE)\")
+    """
+  }
+
   defp create_extension_migrations(repos, opts) do
     for repo <- repos do
       snapshot_file = Path.join(opts.snapshot_path, "extensions.json")
@@ -113,14 +153,31 @@ defmodule AshPostgres.MigrationGenerator do
         if File.exists?(snapshot_file) do
           snapshot_file
           |> File.read!()
-          |> Jason.decode!()
+          |> Jason.decode!(keys: :atoms!)
         else
           []
         end
 
+      {extensions_snapshot, installed_extensions} =
+        case installed_extensions do
+          installed when is_list(installed) ->
+            {%{
+               installed: installed
+             }
+             |> add_ash_functions(repo.installed_extensions, @latest_ash_functions_version - 1),
+             installed}
+
+          other ->
+            {other, other.installed}
+        end
+
       to_install = List.wrap(repo.installed_extensions()) -- List.wrap(installed_extensions)
 
-      if Enum.empty?(to_install) do
+      update_ash_functions? =
+        "ash-functions" in repo.installed_extensions() &&
+          extensions_snapshot.ash_functions_version != @latest_ash_functions_version
+
+      if Enum.empty?(to_install) && !update_ash_functions? do
         Mix.shell().info("No extensions to install")
         :ok
       else
@@ -144,41 +201,22 @@ defmodule AshPostgres.MigrationGenerator do
         install =
           Enum.map_join(to_install, "\n", fn
             "ash-functions" ->
-              """
-              execute(\"\"\"
-              CREATE OR REPLACE FUNCTION ash_elixir_or(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
-              AS $$ SELECT COALESCE(NULLIF($1, FALSE), $2) $$
-              LANGUAGE SQL;
-              \"\"\")
-
-              execute(\"\"\"
-              CREATE OR REPLACE FUNCTION ash_elixir_or(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
-              AS $$ SELECT COALESCE($1, $2) $$
-              LANGUAGE SQL;
-              \"\"\")
-
-              execute(\"\"\"
-              CREATE OR REPLACE FUNCTION ash_elixir_and(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) AS $$
-                SELECT CASE
-                  WHEN $1 IS TRUE THEN $2
-                  ELSE $1
-                END $$
-              LANGUAGE SQL;
-              \"\"\")
-
-              execute(\"\"\"
-              CREATE OR REPLACE FUNCTION ash_elixir_and(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) AS $$
-                SELECT CASE
-                  WHEN $1 IS NOT NULL THEN $2
-                  ELSE $1
-                END $$
-              LANGUAGE SQL;
-              \"\"\")
-              """
+              @add_ash_functions
 
             extension ->
               "execute(\"CREATE EXTENSION IF NOT EXISTS \\\"#{extension}\\\"\")"
           end)
+
+        install =
+          if update_ash_functions? do
+            """
+            #{@drop_ash_functions[extensions_snapshot.ash_functions_version]}
+
+            #{@add_ash_functions}
+
+            #{install}
+            """
+          end
 
         uninstall =
           Enum.map_join(to_install, "\n", fn
@@ -211,12 +249,27 @@ defmodule AshPostgres.MigrationGenerator do
         end
         """
 
-        snapshot_contents = Jason.encode!(repo.installed_extensions(), pretty: true)
+        snapshot_contents =
+          Jason.encode!(
+            %{
+              installed: repo.installed_extensions()
+            }
+            |> add_ash_functions(repo.installed_extensions(), @latest_ash_functions_version),
+            pretty: true
+          )
 
         contents = format(contents, opts)
         create_file(snapshot_file, snapshot_contents, force: true)
         create_file(migration_file, contents)
       end
+    end
+  end
+
+  defp add_ash_functions(snapshot, installed_extensions, version) do
+    if "ash-functions" in installed_extensions do
+      Map.put(snapshot, :ash_functions_version, version)
+    else
+      snapshot
     end
   end
 

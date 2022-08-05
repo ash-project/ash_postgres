@@ -4,44 +4,45 @@
       "allow_nil?": false,
       "default": "fragment(\"uuid_generate_v4()\")",
       "generated?": false,
-      "name": "id",
       "primary_key?": true,
       "references": null,
       "size": null,
+      "source": "id",
       "type": "uuid"
     },
     {
       "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "name": "first_name",
       "primary_key?": false,
       "references": null,
       "size": null,
-      "type": "text"
-    },
-    {
-      "allow_nil?": true,
-      "default": "nil",
-      "generated?": false,
-      "name": "last_name",
-      "primary_key?": false,
-      "references": null,
-      "size": null,
+      "source": "name",
       "type": "text"
     }
   ],
   "base_filter": null,
   "check_constraints": [],
   "custom_indexes": [],
+  "custom_statements": [],
   "has_create_action": true,
-  "hash": "84D4024EFA38E0FD0CBC0E756623807C3A2204A952CDCFB4C9BC2A4CF4992204",
-  "identities": [],
+  "hash": "EA53A9A03B960621ED09D98D442136FA2E6FC37C7E67E5C35A451B3440A09EE7",
+  "identities": [
+    {
+      "base_filter": null,
+      "index_name": "multitenant_orgs_unique_by_name_index",
+      "keys": [
+        "name"
+      ],
+      "name": "unique_by_name"
+    }
+  ],
   "multitenancy": {
-    "attribute": null,
-    "global": null,
-    "strategy": null
+    "attribute": "id",
+    "global": true,
+    "strategy": "attribute"
   },
   "repo": "Elixir.AshPostgres.TestRepo",
-  "table": "authors"
+  "schema": null,
+  "table": "multitenant_orgs"
 }

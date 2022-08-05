@@ -2,33 +2,29 @@
   "attributes": [
     {
       "allow_nil?": false,
-      "default": "nil",
+      "default": "fragment(\"uuid_generate_v4()\")",
       "generated?": false,
       "primary_key?": true,
-      "references": {
-        "destination_field": "id",
-        "destination_field_default": null,
-        "destination_field_generated": null,
-        "multitenancy": {
-          "attribute": null,
-          "global": null,
-          "strategy": null
-        },
-        "name": "post_links_source_post_id_fkey",
-        "on_delete": null,
-        "on_update": null,
-        "schema": "public",
-        "table": "posts"
-      },
+      "references": null,
       "size": null,
-      "source": "source_post_id",
+      "source": "id",
       "type": "uuid"
     },
     {
-      "allow_nil?": false,
+      "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "primary_key?": true,
+      "primary_key?": false,
+      "references": null,
+      "size": null,
+      "source": "description",
+      "type": "text"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "primary_key?": false,
       "references": {
         "destination_field": "id",
         "destination_field_default": null,
@@ -38,22 +34,23 @@
           "global": null,
           "strategy": null
         },
-        "name": "post_links_destination_post_id_fkey",
+        "name": "profile_author_id_fkey",
         "on_delete": null,
         "on_update": null,
         "schema": "public",
-        "table": "posts"
+        "table": "authors"
       },
       "size": null,
-      "source": "destination_post_id",
+      "source": "author_id",
       "type": "uuid"
     }
   ],
   "base_filter": null,
   "check_constraints": [],
   "custom_indexes": [],
+  "custom_statements": [],
   "has_create_action": true,
-  "hash": "ABE3281B7C35040EA3BE51CA5475CA5AFD2840307E3541BE9B37D316A1F7898D",
+  "hash": "D1E081227EF911D0FC371D90DF0121E61B149381C9FD2039AE2BABED70B9B50A",
   "identities": [],
   "multitenancy": {
     "attribute": null,
@@ -61,6 +58,6 @@
     "strategy": null
   },
   "repo": "Elixir.AshPostgres.TestRepo",
-  "schema": null,
-  "table": "post_links"
+  "schema": "profiles",
+  "table": "profile"
 }

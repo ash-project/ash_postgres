@@ -44,7 +44,7 @@ defmodule AshPostgres.Expr do
          embedded?,
          type
        ) do
-    arg1 = do_dynamic_expr(query, arg1, bindings, pred_embedded? || embedded?, :string)
+    arg1 = do_dynamic_expr(query, arg1, bindings, pred_embedded? || embedded?)
     arg2 = do_dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?)
 
     do_dynamic_expr(
@@ -90,29 +90,48 @@ defmodule AshPostgres.Expr do
 
   defp do_dynamic_expr(
          query,
-         %GetPath{arguments: [left, right], embedded?: pred_embedded?},
+         %GetPath{
+           arguments: [%Ref{attribute: %{type: type}}, right]
+         } = get_path,
+         bindings,
+         embedded?,
+         nil
+       )
+       when is_atom(type) and is_list(right) do
+    if Ash.Type.embedded_type?(type) do
+      type = determine_type_at_path(type, right)
+      do_get_path(query, get_path, bindings, embedded?, type)
+    else
+      do_get_path(query, get_path, bindings, embedded?)
+    end
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %GetPath{
+           arguments: [%Ref{attribute: %{type: {:array, type}}}, right]
+         } = get_path,
+         bindings,
+         embedded?,
+         nil
+       )
+       when is_atom(type) and is_list(right) do
+    if Ash.Type.embedded_type?(type) do
+      type = determine_type_at_path(type, right)
+      do_get_path(query, get_path, bindings, embedded?, type)
+    else
+      do_get_path(query, get_path, bindings, embedded?)
+    end
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %GetPath{} = get_path,
          bindings,
          embedded?,
          type
        ) do
-    path = Enum.map(right, &to_string/1)
-
-    do_dynamic_expr(
-      query,
-      %Fragment{
-        embedded?: pred_embedded?,
-        arguments: [
-          raw: "(",
-          expr: left,
-          raw: " #> ",
-          expr: path,
-          raw: ")"
-        ]
-      },
-      bindings,
-      embedded?,
-      type
-    )
+    do_get_path(query, get_path, bindings, embedded?, type)
   end
 
   defp do_dynamic_expr(
@@ -395,9 +414,11 @@ defmodule AshPostgres.Expr do
           %Fragment{
             embedded?: pred_embedded?,
             arguments: [
-              casted_expr: Ecto.Query.dynamic(type(^left_expr, :string)),
+              raw: "(",
+              casted_expr: left_expr,
               raw: " || ",
-              casted_expr: Ecto.Query.dynamic(type(^right_expr, :string))
+              casted_expr: right_expr,
+              raw: ")"
             ]
           },
           bindings,
@@ -497,13 +518,16 @@ defmodule AshPostgres.Expr do
            }
          ) do
       {:ok, expression} ->
-        do_dynamic_expr(
-          query,
-          expression,
-          bindings,
-          embedded?,
-          type
-        )
+        expr =
+          do_dynamic_expr(
+            query,
+            expression,
+            bindings,
+            embedded?,
+            type
+          )
+
+        Ecto.Query.dynamic(type(^expr, ^type))
 
       {:error, _error} ->
         raise "Failed to hydrate references in #{inspect(calculation.module.expression(calculation.opts, calculation.context))}"
@@ -586,15 +610,18 @@ defmodule AshPostgres.Expr do
            }
          ) do
       {:ok, hydrated} ->
-        do_dynamic_expr(
-          query,
-          Ash.Filter.update_aggregates(hydrated, fn aggregate, _ ->
-            %{aggregate | relationship_path: []}
-          end),
-          %{bindings | bindings: temp_bindings},
-          embedded?,
-          type
-        )
+        expr =
+          do_dynamic_expr(
+            query,
+            Ash.Filter.update_aggregates(hydrated, fn aggregate, _ ->
+              %{aggregate | relationship_path: []}
+            end),
+            %{bindings | bindings: temp_bindings},
+            embedded?,
+            type
+          )
+
+        Ecto.Query.dynamic(type(^expr, ^type))
 
       _ ->
         raise "Failed to hydrate references in #{inspect(calculation.module.expression(calculation.opts, calculation.context))}"
@@ -722,6 +749,41 @@ defmodule AshPostgres.Expr do
     end)
   end
 
+  defp do_get_path(
+         query,
+         %GetPath{arguments: [left, right], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         type \\ nil
+       ) do
+    path = Enum.map(right, &to_string/1)
+
+    expr =
+      do_dynamic_expr(
+        query,
+        %Fragment{
+          embedded?: pred_embedded?,
+          arguments: [
+            raw: "(",
+            expr: left,
+            raw: " #>> ",
+            expr: path,
+            raw: ")"
+          ]
+        },
+        bindings,
+        embedded?,
+        type
+      )
+
+    if type do
+      # If we know a type here we use it, since we're pulling out text
+      Ecto.Query.dynamic(type(^expr, ^type))
+    else
+      expr
+    end
+  end
+
   defp require_ash_functions!(query) do
     installed_extensions =
       AshPostgres.repo(query.__ash_bindings__.resource).installed_extensions()
@@ -765,6 +827,64 @@ defmodule AshPostgres.Expr do
       LANGUAGE SQL;
       \"\"\")
       """
+    end
+  end
+
+  defp determine_type_at_path(type, path) do
+    path
+    |> Enum.reject(&is_integer/1)
+    |> do_determine_type_at_path(type)
+    |> case do
+      nil ->
+        nil
+
+      {type, constraints} ->
+        AshPostgres.Types.parameterized_type(type, constraints)
+    end
+  end
+
+  defp do_determine_type_at_path([], _), do: nil
+
+  defp do_determine_type_at_path([item], type) do
+    case Ash.Resource.Info.attribute(type, item) do
+      nil ->
+        nil
+
+      %{type: {:array, type}, constraints: constraints} ->
+        constraints = constraints[:items] || []
+
+        {type, constraints}
+
+      %{type: type, constraints: constraints} ->
+        {type, constraints}
+    end
+  end
+
+  defp do_determine_type_at_path([item | rest], type) do
+    case Ash.Resource.Info.attribute(type, item) do
+      nil ->
+        nil
+
+      %{type: {:array, type}} ->
+        if Ash.Type.embedded_type?(type) do
+          type
+        else
+          nil
+        end
+
+      %{type: type} ->
+        if Ash.Type.embedded_type?(type) do
+          type
+        else
+          nil
+        end
+    end
+    |> case do
+      nil ->
+        nil
+
+      type ->
+        do_determine_type_at_path(rest, type)
     end
   end
 end

@@ -114,6 +114,26 @@
       ]
     },
     {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "primary_key?": false,
+      "references": null,
+      "size": null,
+      "source": "uniq_one",
+      "type": "text"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "primary_key?": false,
+      "references": null,
+      "size": null,
+      "source": "uniq_two",
+      "type": "text"
+    },
+    {
       "allow_nil?": false,
       "default": "fragment(\"now()\")",
       "generated?": false,
@@ -122,6 +142,40 @@
       "size": null,
       "source": "created_at",
       "type": "utc_datetime_usec"
+    },
+    {
+      "allow_nil?": false,
+      "default": "fragment(\"now()\")",
+      "generated?": false,
+      "primary_key?": false,
+      "references": null,
+      "size": null,
+      "source": "updated_at",
+      "type": "utc_datetime_usec"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "primary_key?": false,
+      "references": {
+        "destination_field": "id",
+        "destination_field_default": null,
+        "destination_field_generated": null,
+        "multitenancy": {
+          "attribute": null,
+          "global": null,
+          "strategy": null
+        },
+        "name": "posts_author_id_fkey",
+        "on_delete": null,
+        "on_update": null,
+        "schema": "public",
+        "table": "authors"
+      },
+      "size": null,
+      "source": "author_id",
+      "type": "uuid"
     }
   ],
   "base_filter": "type = 'sponsored'",
@@ -136,9 +190,20 @@
     }
   ],
   "custom_indexes": [],
+  "custom_statements": [],
   "has_create_action": true,
-  "hash": "9D6F943BF87E7AA79511EA5102F07D10972DF830089F0C10785C7518BA11943A",
-  "identities": [],
+  "hash": "4B5B1187A639B9AB2617FFB8CC5117EE844C7079B1D6EC54CDE7B527B33DA988",
+  "identities": [
+    {
+      "base_filter": "type = 'sponsored'",
+      "index_name": "posts_uniq_one_and_two_index",
+      "keys": [
+        "uniq_one",
+        "uniq_two"
+      ],
+      "name": "uniq_one_and_two"
+    }
+  ],
   "multitenancy": {
     "attribute": null,
     "global": null,

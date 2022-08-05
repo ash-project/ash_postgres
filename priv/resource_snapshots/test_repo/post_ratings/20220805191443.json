@@ -4,48 +4,53 @@
       "allow_nil?": false,
       "default": "fragment(\"uuid_generate_v4()\")",
       "generated?": false,
-      "name": "id",
       "primary_key?": true,
       "references": null,
       "size": null,
+      "source": "id",
       "type": "uuid"
     },
     {
       "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "name": "first_name",
       "primary_key?": false,
       "references": null,
       "size": null,
-      "type": "text"
+      "source": "score",
+      "type": "bigint"
     },
     {
       "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "name": "last_name",
       "primary_key?": false,
-      "references": null,
+      "references": {
+        "destination_field": "id",
+        "destination_field_default": "fragment(\"uuid_generate_v4()\")",
+        "destination_field_generated": null,
+        "multitenancy": {
+          "attribute": null,
+          "global": null,
+          "strategy": null
+        },
+        "name": "post_ratings_resource_id_fkey",
+        "on_delete": null,
+        "on_update": null,
+        "schema": null,
+        "table": "posts"
+      },
       "size": null,
-      "type": "text"
-    },
-    {
-      "allow_nil?": true,
-      "default": "nil",
-      "generated?": false,
-      "name": "bio",
-      "primary_key?": false,
-      "references": null,
-      "size": null,
-      "type": "map"
+      "source": "resource_id",
+      "type": "uuid"
     }
   ],
   "base_filter": null,
   "check_constraints": [],
   "custom_indexes": [],
+  "custom_statements": [],
   "has_create_action": true,
-  "hash": "19AEE20A027B64FBA25A86974080E72C7B5B4FBB85005325F2F36BA580E32346",
+  "hash": "FA847A9C57743ACB1EC0B6BE82AE67C00E8222DFCF71944C3FA87717C3D0BAC3",
   "identities": [],
   "multitenancy": {
     "attribute": null,
@@ -53,5 +58,6 @@
     "strategy": null
   },
   "repo": "Elixir.AshPostgres.TestRepo",
-  "table": "authors"
+  "schema": null,
+  "table": "post_ratings"
 }

@@ -4,27 +4,26 @@
       "allow_nil?": false,
       "default": "fragment(\"uuid_generate_v4()\")",
       "generated?": false,
-      "name": "id",
       "primary_key?": true,
       "references": null,
       "size": null,
+      "source": "id",
       "type": "uuid"
     },
     {
       "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "name": "name",
       "primary_key?": false,
       "references": null,
       "size": null,
+      "source": "name",
       "type": "text"
     },
     {
       "allow_nil?": true,
       "default": "nil",
       "generated?": false,
-      "name": "org_id",
       "primary_key?": false,
       "references": {
         "destination_field": "id",
@@ -35,49 +34,30 @@
           "global": true,
           "strategy": "attribute"
         },
-        "name": "multitenant_posts_org_id_fkey",
+        "name": "users_org_id_fkey",
         "on_delete": null,
         "on_update": null,
+        "schema": "public",
         "table": "multitenant_orgs"
       },
       "size": null,
-      "type": "uuid"
-    },
-    {
-      "allow_nil?": true,
-      "default": "nil",
-      "generated?": false,
-      "name": "user_id",
-      "primary_key?": false,
-      "references": {
-        "destination_field": "id",
-        "destination_field_default": null,
-        "destination_field_generated": null,
-        "multitenancy": {
-          "attribute": "org_id",
-          "global": true,
-          "strategy": "attribute"
-        },
-        "name": "multitenant_posts_user_id_fkey",
-        "on_delete": null,
-        "on_update": null,
-        "table": "users"
-      },
-      "size": null,
+      "source": "org_id",
       "type": "uuid"
     }
   ],
   "base_filter": null,
   "check_constraints": [],
   "custom_indexes": [],
+  "custom_statements": [],
   "has_create_action": true,
-  "hash": "50DC00709529748CE196605AA58272E506B2DC9B3794C09A9650181768578480",
+  "hash": "12D0F512515F16F3A18A558A56FB5826D10D302F34516F747343638CD92225CD",
   "identities": [],
   "multitenancy": {
-    "attribute": null,
-    "global": false,
-    "strategy": "context"
+    "attribute": "org_id",
+    "global": true,
+    "strategy": "attribute"
   },
   "repo": "Elixir.AshPostgres.TestRepo",
-  "table": "multitenant_posts"
+  "schema": null,
+  "table": "users"
 }

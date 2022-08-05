@@ -17,7 +17,7 @@
       "primary_key?": false,
       "references": null,
       "size": null,
-      "source": "name",
+      "source": "title",
       "type": "text"
     },
     {
@@ -25,23 +25,53 @@
       "default": "nil",
       "generated?": false,
       "primary_key?": false,
+      "references": null,
+      "size": null,
+      "source": "likes",
+      "type": "bigint"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "primary_key?": false,
+      "references": null,
+      "size": null,
+      "source": "arbitrary_timestamp",
+      "type": "utc_datetime_usec"
+    },
+    {
+      "allow_nil?": false,
+      "default": "fragment(\"now()\")",
+      "generated?": false,
+      "primary_key?": false,
+      "references": null,
+      "size": null,
+      "source": "created_at",
+      "type": "utc_datetime_usec"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "primary_key?": false,
       "references": {
         "destination_field": "id",
         "destination_field_default": null,
         "destination_field_generated": null,
         "multitenancy": {
-          "attribute": "id",
-          "global": true,
-          "strategy": "attribute"
+          "attribute": null,
+          "global": null,
+          "strategy": null
         },
-        "name": "multitenant_posts_org_id_fkey",
-        "on_delete": null,
-        "on_update": null,
+        "name": "special_name_fkey",
+        "on_delete": "delete",
+        "on_update": "update",
         "schema": "public",
-        "table": "multitenant_orgs"
+        "table": "posts"
       },
       "size": null,
-      "source": "org_id",
+      "source": "post_id",
       "type": "uuid"
     },
     {
@@ -54,33 +84,34 @@
         "destination_field_default": null,
         "destination_field_generated": null,
         "multitenancy": {
-          "attribute": "org_id",
-          "global": true,
-          "strategy": "attribute"
+          "attribute": null,
+          "global": null,
+          "strategy": null
         },
-        "name": "multitenant_posts_user_id_fkey",
+        "name": "comments_author_id_fkey",
         "on_delete": null,
         "on_update": null,
         "schema": "public",
-        "table": "users"
+        "table": "authors"
       },
       "size": null,
-      "source": "user_id",
+      "source": "author_id",
       "type": "uuid"
     }
   ],
   "base_filter": null,
   "check_constraints": [],
   "custom_indexes": [],
+  "custom_statements": [],
   "has_create_action": true,
-  "hash": "B2BB130AF001CA540847811EDBDCE8E5A5C2B050EB1B951556338882E7B0619A",
+  "hash": "84D2E0ED59D62FAB53ECC53C6B714DBF46A59E7EF027044B0C8C759892798A8B",
   "identities": [],
   "multitenancy": {
     "attribute": null,
-    "global": false,
-    "strategy": "context"
+    "global": null,
+    "strategy": null
   },
   "repo": "Elixir.AshPostgres.TestRepo",
   "schema": null,
-  "table": "multitenant_posts"
+  "table": "comments"
 }

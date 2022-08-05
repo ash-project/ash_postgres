@@ -17,8 +17,8 @@
       "primary_key?": false,
       "references": null,
       "size": null,
-      "source": "description",
-      "type": "text"
+      "source": "score",
+      "type": "bigint"
     },
     {
       "allow_nil?": true,
@@ -27,29 +27,30 @@
       "primary_key?": false,
       "references": {
         "destination_field": "id",
-        "destination_field_default": null,
+        "destination_field_default": "fragment(\"uuid_generate_v4()\")",
         "destination_field_generated": null,
         "multitenancy": {
           "attribute": null,
           "global": null,
           "strategy": null
         },
-        "name": "profile_author_id_fkey",
+        "name": "comment_ratings_resource_id_fkey",
         "on_delete": null,
         "on_update": null,
-        "schema": "public",
-        "table": "authors"
+        "schema": null,
+        "table": "comments"
       },
       "size": null,
-      "source": "author_id",
+      "source": "resource_id",
       "type": "uuid"
     }
   ],
   "base_filter": null,
   "check_constraints": [],
   "custom_indexes": [],
+  "custom_statements": [],
   "has_create_action": true,
-  "hash": "79C8BF2D0FA4418C0B34E5E2E8174F2D3CB44593C1C5F36C1F98F2F341BC2C12",
+  "hash": "1A9429890022D35C78F50A151E68845AD6B609A96CD625ED8406875D64C8C1CB",
   "identities": [],
   "multitenancy": {
     "attribute": null,
@@ -57,6 +58,6 @@
     "strategy": null
   },
   "repo": "Elixir.AshPostgres.TestRepo",
-  "schema": "profiles",
-  "table": "profile"
+  "schema": null,
+  "table": "comment_ratings"
 }
