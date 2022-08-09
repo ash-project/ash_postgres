@@ -601,7 +601,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           schema: schema,
           table: table
         }) do
-      "rename table(:#{table}), #{inspect(old_attribute.source)}, to: #{join([inspect(new_attribute.source), option("prefix", schema)])}"
+      table_statement = join([":#{table}", option("prefix", schema)])
+
+      "rename table(#{table_statement}), #{inspect(old_attribute.source)}, to: #{inspect(new_attribute.source)}"
     end
 
     def down(

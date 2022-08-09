@@ -210,6 +210,68 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "creating follow up migrations with a schema" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+
+      defposts do
+        postgres do
+          schema("example")
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string)
+        end
+      end
+
+      defapi([Post])
+
+      Mix.shell(Mix.Shell.Process)
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      :ok
+    end
+
+    test "when renaming a field, it asks if you are renaming it, and renames it if you are" do
+      defposts do
+        postgres do
+          schema("example")
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string, allow_nil?: false)
+        end
+      end
+
+      defapi([Post])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+
+      assert File.read!(file2) =~ ~S[rename table(:posts, prefix: "example"), :title, to: :name]
+    end
+  end
+
   describe "creating follow up migrations" do
     setup do
       on_exit(fn ->
