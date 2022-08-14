@@ -738,9 +738,11 @@ defmodule AshPostgres.Expr do
 
   defp ref_binding(%{attribute: %Ash.Resource.Attribute{}} = ref, bindings) do
     Enum.find_value(bindings.bindings, fn {binding, data} ->
-      data.path == ref.relationship_path && data.type in [:inner, :left, :root, :aggregate] &&
-        binding
-    end)
+      data.path == ref.relationship_path && data.type in [:inner, :left, :root] && binding
+    end) ||
+      Enum.find_value(bindings.bindings, fn {binding, data} ->
+        data.path == ref.relationship_path && data.type == :aggregate && binding
+      end)
   end
 
   defp ref_binding(%{attribute: %Ash.Query.Aggregate{}} = ref, bindings) do
