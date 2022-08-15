@@ -196,7 +196,12 @@ defmodule AshPostgres.MigrationGenerator do
           |> migration_path(repo)
           |> Path.join(migration_name <> ".exs")
 
-        module_name = Module.concat([repo, Migrations, Macro.camelize(module)])
+        sanitized_module =
+          module
+          |> String.replace("-", "_")
+          |> Macro.camelize()
+
+        module_name = Module.concat([repo, Migrations, sanitized_module])
 
         install =
           Enum.map_join(to_install, "\n", fn
