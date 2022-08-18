@@ -2303,6 +2303,11 @@ defmodule AshPostgres.MigrationGenerator do
 
       references ->
         references
+        |> rewrite(
+          destination_field: :destination_attribute,
+          destination_field_default: :destination_attribute_default,
+          destination_field_generated: :destination_attribute_generated
+        )
         |> Map.delete(:ignore)
         |> rewrite(:ignore?, :ignore)
         |> Map.update!(:destination_attribute, &String.to_atom/1)
@@ -2324,6 +2329,12 @@ defmodule AshPostgres.MigrationGenerator do
         })
         |> Map.update!(:multitenancy, &load_multitenancy/1)
         |> sanitize_name(table)
+    end)
+  end
+
+  defp rewrite(map, keys) do
+    Enum.reduce(map, fn {key, to} ->
+      rewrite(map, key, to)
     end)
   end
 
