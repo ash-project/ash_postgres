@@ -2333,7 +2333,7 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp rewrite(map, keys) do
-    Enum.reduce(map, fn {key, to} ->
+    Enum.reduce(keys, map, fn {key, to}, map ->
       rewrite(map, key, to)
     end)
   end
