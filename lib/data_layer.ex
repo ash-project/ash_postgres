@@ -1,5 +1,5 @@
 defmodule AshPostgres.DataLayer do
-  @manage_tenant %Ash.Dsl.Section{
+  @manage_tenant %Spark.Dsl.Section{
     name: :manage_tenant,
     describe: """
     Configuration for the behavior of a resource that manages a tenant
@@ -42,7 +42,7 @@ defmodule AshPostgres.DataLayer do
     ]
   }
 
-  @index %Ash.Dsl.Entity{
+  @index %Spark.Dsl.Entity{
     name: :index,
     describe: """
     Add an index to be managed by the migration generator.
@@ -55,7 +55,7 @@ defmodule AshPostgres.DataLayer do
     args: [:fields]
   }
 
-  @custom_indexes %Ash.Dsl.Section{
+  @custom_indexes %Spark.Dsl.Section{
     name: :custom_indexes,
     describe: """
     A section for configuring indexes to be created by the migration generator.
@@ -75,7 +75,7 @@ defmodule AshPostgres.DataLayer do
     ]
   }
 
-  @statement %Ash.Dsl.Entity{
+  @statement %Spark.Dsl.Entity{
     name: :statement,
     describe: """
     Add a custom statement for migrations.
@@ -93,7 +93,7 @@ defmodule AshPostgres.DataLayer do
     args: [:name]
   }
 
-  @custom_statements %Ash.Dsl.Section{
+  @custom_statements %Spark.Dsl.Section{
     name: :custom_statements,
     describe: """
     A section for configuring custom statements to be added to migrations.
@@ -124,7 +124,7 @@ defmodule AshPostgres.DataLayer do
     ]
   }
 
-  @reference %Ash.Dsl.Entity{
+  @reference %Spark.Dsl.Entity{
     name: :reference,
     describe: """
     Configures the reference for a relationship in resource migrations.
@@ -143,7 +143,7 @@ defmodule AshPostgres.DataLayer do
     schema: AshPostgres.Reference.schema()
   }
 
-  @references %Ash.Dsl.Section{
+  @references %Spark.Dsl.Section{
     name: :references,
     describe: """
     A section for configuring the references (foreign keys) in resource migrations.
@@ -178,7 +178,7 @@ defmodule AshPostgres.DataLayer do
     ]
   }
 
-  @check_constraint %Ash.Dsl.Entity{
+  @check_constraint %Spark.Dsl.Entity{
     name: :check_constraint,
     describe: """
     Add a check constraint to be validated.
@@ -199,7 +199,7 @@ defmodule AshPostgres.DataLayer do
     schema: AshPostgres.CheckConstraint.schema()
   }
 
-  @check_constraints %Ash.Dsl.Section{
+  @check_constraints %Spark.Dsl.Section{
     name: :check_constraints,
     describe: """
     A section for configuring the check constraints for a given table.
@@ -216,7 +216,7 @@ defmodule AshPostgres.DataLayer do
     entities: [@check_constraint]
   }
 
-  @references %Ash.Dsl.Section{
+  @references %Spark.Dsl.Section{
     name: :references,
     describe: """
     A section for configuring the references (foreign keys) in resource migrations.
@@ -251,7 +251,7 @@ defmodule AshPostgres.DataLayer do
     ]
   }
 
-  @postgres %Ash.Dsl.Section{
+  @postgres %Spark.Dsl.Section{
     name: :postgres,
     describe: """
     Postgres data layer configuration
@@ -391,7 +391,7 @@ defmodule AshPostgres.DataLayer do
   A postgres data layer that leverages Ecto's postgres capabilities.
   """
 
-  use Ash.Dsl.Extension,
+  use Spark.Dsl.Extension,
     sections: @sections,
     transformers: [
       AshPostgres.Transformers.VerifyRepo,
@@ -667,9 +667,9 @@ defmodule AshPostgres.DataLayer do
   defp lateral_join_query(
          query,
          root_data,
-         [{source_query, source_field, destination_field, relationship}]
+         [{source_query, source_attribute, destination_attribute, relationship}]
        ) do
-    source_values = Enum.map(root_data, &Map.get(&1, source_field))
+    source_values = Enum.map(root_data, &Map.get(&1, source_attribute))
     source_query = Ash.Query.new(source_query)
 
     subquery =
@@ -678,8 +678,8 @@ defmodule AshPostgres.DataLayer do
           from(destination in query,
             select_merge: %{__order__: over(row_number(), :order)},
             where:
-              field(destination, ^destination_field) ==
-                field(parent_as(^0), ^source_field)
+              field(destination, ^destination_attribute) ==
+                field(parent_as(^0), ^source_attribute)
           )
           |> set_subquery_prefix(source_query, relationship.destination)
         )
@@ -687,8 +687,8 @@ defmodule AshPostgres.DataLayer do
         subquery(
           from(destination in query,
             where:
-              field(destination, ^destination_field) ==
-                field(parent_as(^0), ^source_field)
+              field(destination, ^destination_attribute) ==
+                field(parent_as(^0), ^source_attribute)
           )
           |> set_subquery_prefix(source_query, relationship.destination)
         )
@@ -710,9 +710,9 @@ defmodule AshPostgres.DataLayer do
         if query.__ash_bindings__[:__order__?] do
           {:ok,
            from(source in data_layer_query,
-             where: field(source, ^source_field) in ^source_values,
+             where: field(source, ^source_attribute) in ^source_values,
              inner_lateral_join: destination in ^subquery,
-             on: field(source, ^source_field) == field(destination, ^destination_field),
+             on: field(source, ^source_attribute) == field(destination, ^destination_attribute),
              order_by: destination.__order__,
              select: destination,
              distinct: true
@@ -720,9 +720,9 @@ defmodule AshPostgres.DataLayer do
         else
           {:ok,
            from(source in data_layer_query,
-             where: field(source, ^source_field) in ^source_values,
+             where: field(source, ^source_attribute) in ^source_values,
              inner_lateral_join: destination in ^subquery,
-             on: field(source, ^source_field) == field(destination, ^destination_field),
+             on: field(source, ^source_attribute) == field(destination, ^destination_attribute),
              select: destination,
              distinct: true
            )}
@@ -737,13 +737,13 @@ defmodule AshPostgres.DataLayer do
          query,
          root_data,
          [
-           {source_query, source_field, source_field_on_join_table, relationship},
-           {through_resource, destination_field_on_join_table, destination_field,
+           {source_query, source_attribute, source_attribute_on_join_resource, relationship},
+           {through_resource, destination_attribute_on_join_resource, destination_attribute,
             through_relationship}
          ]
        ) do
     source_query = Ash.Query.new(source_query)
-    source_values = Enum.map(root_data, &Map.get(&1, source_field))
+    source_values = Enum.map(root_data, &Map.get(&1, source_attribute))
 
     through_resource
     |> Ash.Query.new()
@@ -790,11 +790,11 @@ defmodule AshPostgres.DataLayer do
                       ),
                     as: ^1,
                     on:
-                      field(through, ^destination_field_on_join_table) ==
-                        field(destination, ^destination_field),
+                      field(through, ^destination_attribute_on_join_resource) ==
+                        field(destination, ^destination_attribute),
                     where:
-                      field(through, ^source_field_on_join_table) ==
-                        field(parent_as(^0), ^source_field)
+                      field(through, ^source_attribute_on_join_resource) ==
+                        field(parent_as(^0), ^source_attribute)
                   )
                   |> set_subquery_prefix(
                     source_query,
@@ -804,7 +804,7 @@ defmodule AshPostgres.DataLayer do
 
               {:ok,
                from(source in data_layer_query,
-                 where: field(source, ^source_field) in ^source_values,
+                 where: field(source, ^source_attribute) in ^source_values,
                  inner_lateral_join: destination in ^subquery,
                  select: destination,
                  order_by: destination.__order__,
@@ -823,11 +823,11 @@ defmodule AshPostgres.DataLayer do
                       ),
                     as: ^1,
                     on:
-                      field(through, ^destination_field_on_join_table) ==
-                        field(destination, ^destination_field),
+                      field(through, ^destination_attribute_on_join_resource) ==
+                        field(destination, ^destination_attribute),
                     where:
-                      field(through, ^source_field_on_join_table) ==
-                        field(parent_as(^0), ^source_field)
+                      field(through, ^source_attribute_on_join_resource) ==
+                        field(parent_as(^0), ^source_attribute)
                   )
                   |> set_subquery_prefix(
                     source_query,
@@ -837,7 +837,7 @@ defmodule AshPostgres.DataLayer do
 
               {:ok,
                from(source in data_layer_query,
-                 where: field(source, ^source_field) in ^source_values,
+                 where: field(source, ^source_attribute) in ^source_values,
                  inner_lateral_join: destination in ^subquery,
                  select: destination,
                  distinct: true
@@ -1054,17 +1054,17 @@ defmodule AshPostgres.DataLayer do
       related
       |> Ash.Resource.Info.relationships()
       |> Enum.filter(&(&1.destination == resource))
-      |> Enum.map(&Map.take(&1, [:source, :source_field, :destination_field]))
+      |> Enum.map(&Map.take(&1, [:source, :source_attribute, :destination_attribute]))
     end)
     |> Enum.uniq()
     |> Enum.reduce(changeset, fn %{
                                    source: source,
-                                   source_field: source_field,
-                                   destination_field: destination_field
+                                   source_attribute: source_attribute,
+                                   destination_attribute: destination_attribute
                                  },
                                  changeset ->
-      Ecto.Changeset.foreign_key_constraint(changeset, destination_field,
-        name: "#{AshPostgres.table(source)}_#{source_field}_fkey",
+      Ecto.Changeset.foreign_key_constraint(changeset, destination_attribute,
+        name: "#{AshPostgres.table(source)}_#{source_attribute}_fkey",
         message: "would leave records behind"
       )
     end)
@@ -1073,7 +1073,7 @@ defmodule AshPostgres.DataLayer do
   defp add_my_foreign_key_constraints(changeset, resource) do
     resource
     |> Ash.Resource.Info.relationships()
-    |> Enum.reduce(changeset, &Ecto.Changeset.foreign_key_constraint(&2, &1.source_field))
+    |> Enum.reduce(changeset, &Ecto.Changeset.foreign_key_constraint(&2, &1.source_attribute))
   end
 
   defp add_configured_foreign_key_constraints(changeset, resource) do

@@ -2,7 +2,7 @@ defmodule AshPostgres.DocIndex do
   @moduledoc """
   Some documentation about AshPostgres.
   """
-  use Ash.DocIndex,
+  use Spark.DocIndex,
     guides_from: [
       "documentation/**/*.md"
     ]

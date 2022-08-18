@@ -7,7 +7,7 @@ defmodule AshPostgres do
   The dsl extension exposes the `postgres` section. See: `AshPostgres.DataLayer` for more.
   """
 
-  alias Ash.Dsl.Extension
+  alias Spark.Dsl.Extension
 
   @doc "The configured repo for a resource"
   def repo(resource) do

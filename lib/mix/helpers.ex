@@ -32,7 +32,7 @@ defmodule AshPostgres.MixHelpers do
   def repos(opts, args) do
     opts
     |> apis(args)
-    |> Enum.flat_map(&Ash.Api.resources/1)
+    |> Enum.flat_map(&Ash.Api.Info.resources/1)
     |> Enum.filter(&(Ash.DataLayer.data_layer(&1) == AshPostgres.DataLayer))
     |> Enum.map(&AshPostgres.repo(&1))
     |> Enum.uniq()
@@ -69,7 +69,7 @@ defmodule AshPostgres.MixHelpers do
     case Code.ensure_compiled(api) do
       {:module, _} ->
         api
-        |> Ash.Api.resources()
+        |> Ash.Api.Info.resources()
         |> Enum.each(&Code.ensure_compiled/1)
 
         # TODO: We shouldn't need to make sure that the resources are compiled

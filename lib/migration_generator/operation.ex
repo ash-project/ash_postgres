@@ -54,7 +54,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def reference_type(
           %{type: :integer},
-          %{destination_field_generated: true, destination_field_default: "nil"}
+          %{destination_attribute_generated: true, destination_attribute_default: "nil"}
         ) do
       :bigint
     end
@@ -82,14 +82,14 @@ defmodule AshPostgres.MigrationGenerator.Operation do
               references:
                 %{
                   table: table,
-                  destination_field: destination_field,
+                  destination_attribute: reference_attribute,
                   schema: destination_schema,
                   multitenancy: %{strategy: :attribute, attribute: destination_attribute}
                 } = reference
             } = attribute
         }) do
       with_match =
-        if destination_attribute != destination_field do
+        if destination_attribute != reference_attribute do
           "with: [#{source_attribute}: :#{destination_attribute}], match: :full"
         end
 
@@ -102,7 +102,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "add #{inspect(attribute.source)}",
         "references(:#{table}",
         [
-          "column: #{inspect(destination_field)}",
+          "column: #{inspect(reference_attribute)}",
           with_match,
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
@@ -126,7 +126,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
               references:
                 %{
                   table: table,
-                  destination_field: destination_field,
+                  destination_attribute: destination_attribute,
                   schema: destination_schema,
                   multitenancy: %{strategy: :attribute}
                 } = reference
@@ -141,7 +141,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "add #{inspect(attribute.source)}",
         "references(:#{table}",
         [
-          "column: #{inspect(destination_field)}",
+          "column: #{inspect(destination_attribute)}",
           option("prefix", destination_schema),
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
@@ -190,7 +190,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                 %{
                   multitenancy: %{strategy: :context},
                   table: table,
-                  destination_field: destination_field
+                  destination_attribute: destination_attribute
                 } = reference
             } = attribute
         }) do
@@ -203,7 +203,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "add #{inspect(attribute.source)}",
         "references(:#{table}",
         [
-          "column: #{inspect(destination_field)}",
+          "column: #{inspect(destination_attribute)}",
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
           "prefix: prefix()",
@@ -228,7 +228,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                 %{
                   table: table,
                   schema: destination_schema,
-                  destination_field: destination_field
+                  destination_attribute: destination_attribute
                 } = reference
             } = attribute
         }) do
@@ -246,7 +246,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "add #{inspect(attribute.source)}",
         "references(:#{table}",
         [
-          "column: #{inspect(destination_field)}",
+          "column: #{inspect(destination_attribute)}",
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
           option("prefix", destination_schema),
@@ -266,8 +266,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           attribute:
             %{
               references:
-                %{table: table, schema: destination_schema, destination_field: destination_field} =
-                  reference
+                %{
+                  table: table,
+                  schema: destination_schema,
+                  destination_attribute: destination_attribute
+                } = reference
             } = attribute
         }) do
       size =
@@ -279,7 +282,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "add #{inspect(attribute.source)}",
         "references(:#{table}",
         [
-          "column: #{inspect(destination_field)}",
+          "column: #{inspect(destination_attribute)}",
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
           option("prefix", destination_schema),
@@ -408,7 +411,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                %{
                  multitenancy: %{strategy: :context},
                  table: table,
-                 destination_field: destination_field
+                 destination_attribute: destination_attribute
                } = reference
            } = attribute,
            _schema
@@ -419,7 +422,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       join([
-        "references(:#{table}, column: #{inspect(destination_field)}",
+        "references(:#{table}, column: #{inspect(destination_attribute)}",
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
         size,
@@ -438,7 +441,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                  multitenancy: %{strategy: :attribute, attribute: destination_attribute},
                  table: table,
                  schema: destination_schema,
-                 destination_field: destination_field
+                 destination_attribute: reference_attribute
                } = reference
            } = attribute,
            schema
@@ -449,7 +452,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       with_match =
-        if destination_attribute != destination_field do
+        if destination_attribute != reference_attribute do
           "with: [#{source_attribute}: :#{destination_attribute}], match: :full"
         end
 
@@ -459,7 +462,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       join([
-        "references(:#{table}, column: #{inspect(destination_field)}",
+        "references(:#{table}, column: #{inspect(reference_attribute)}",
         with_match,
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
@@ -477,7 +480,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
              references:
                %{
                  table: table,
-                 destination_field: destination_field,
+                 destination_attribute: destination_attribute,
                  schema: destination_schema
                } = reference
            } = attribute,
@@ -494,7 +497,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       join([
-        "references(:#{table}, column: #{inspect(destination_field)}",
+        "references(:#{table}, column: #{inspect(destination_attribute)}",
         option("prefix", destination_schema),
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
@@ -511,7 +514,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
              references:
                %{
                  table: table,
-                 destination_field: destination_field,
+                 destination_attribute: destination_attribute,
                  schema: destination_schema
                } = reference
            } = attribute,
@@ -528,7 +531,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       join([
-        "references(:#{table}, column: #{inspect(destination_field)}",
+        "references(:#{table}, column: #{inspect(destination_attribute)}",
         option("prefix", destination_schema),
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",

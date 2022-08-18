@@ -26,9 +26,9 @@
       "generated?": false,
       "primary_key?": false,
       "references": {
-        "destination_field": "id",
-        "destination_field_default": "fragment(\"uuid_generate_v4()\")",
-        "destination_field_generated": null,
+        "destination_attribute": "id",
+        "destination_attribute_default": "fragment(\"uuid_generate_v4()\")",
+        "destination_attribute_generated": null,
         "multitenancy": {
           "attribute": null,
           "global": null,

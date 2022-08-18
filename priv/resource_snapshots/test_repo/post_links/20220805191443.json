@@ -6,9 +6,9 @@
       "generated?": false,
       "primary_key?": true,
       "references": {
-        "destination_field": "id",
-        "destination_field_default": null,
-        "destination_field_generated": null,
+        "destination_attribute": "id",
+        "destination_attribute_default": null,
+        "destination_attribute_generated": null,
         "multitenancy": {
           "attribute": null,
           "global": null,
@@ -30,9 +30,9 @@
       "generated?": false,
       "primary_key?": true,
       "references": {
-        "destination_field": "id",
-        "destination_field_default": null,
-        "destination_field_generated": null,
+        "destination_attribute": "id",
+        "destination_attribute_default": null,
+        "destination_attribute_generated": null,
         "multitenancy": {
           "attribute": null,
           "global": null,

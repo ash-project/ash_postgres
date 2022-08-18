@@ -31,7 +31,7 @@ defmodule MyApp.Post do
   relationships do
     has_many :reactions, MyApp.Reaction,
       relationship_context: %{data_layer: %{table: "post_reactions"}},
-      destination_field: :resource_id
+      destination_attribute: :resource_id
   end
 end
 
@@ -44,7 +44,7 @@ defmodule MyApp.Comment do
   relationships do
     has_many :reactions, MyApp.Reaction,
       relationship_context: %{data_layer: %{table: "comment_reactions"}},
-      destination_field: :resource_id
+      destination_attribute: :resource_id
   end
 end
 ```

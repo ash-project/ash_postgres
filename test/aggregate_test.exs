@@ -463,7 +463,7 @@ defmodule AshPostgres.AggregateTest do
       |> Ash.Changeset.for_create(:create, %{title: "match", likes: 50})
       |> Ash.Changeset.force_change_attribute(
         :created_at,
-        Timex.shift(DateTime.utc_now(), days: -20)
+        DateTime.add(DateTime.utc_now(), :timer.hours(24) * -20, :second)
       )
       |> Ash.Changeset.replace_relationship(:post, post)
       |> Api.create!()
@@ -494,7 +494,7 @@ defmodule AshPostgres.AggregateTest do
       |> Ash.Changeset.for_create(:create, %{title: "match", likes: 50})
       |> Ash.Changeset.force_change_attribute(
         :created_at,
-        Timex.shift(DateTime.utc_now(), days: -20)
+        DateTime.add(DateTime.utc_now(), :timer.hours(24) * -20, :second)
       )
       |> Ash.Changeset.replace_relationship(:post, post)
       |> Api.create!()

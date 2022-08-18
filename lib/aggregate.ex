@@ -212,18 +212,22 @@ defmodule AshPostgres.Aggregate do
     {dest_binding, dest_field} =
       case relationship.type do
         :many_to_many ->
-          {1, relationship.source_field_on_join_table}
+          {1, relationship.source_attribute_on_join_resource}
 
         _ ->
-          {0, relationship.destination_field}
+          {0, relationship.destination_attribute}
       end
 
     inner_sub =
-      from(destination in subquery,
-        where:
-          field(as(^dest_binding), ^dest_field) ==
-            field(parent_as(^current_binding), ^relationship.source_field)
-      )
+      if Map.get(relationship, :no_attributes?) do
+        subquery
+      else
+        from(destination in subquery,
+          where:
+            field(as(^dest_binding), ^dest_field) ==
+              field(parent_as(^current_binding), ^relationship.source_attribute)
+        )
+      end
 
     from(sub in subquery(inner_sub), [])
     |> AshPostgres.Join.set_join_prefix(query, relationship.destination)
@@ -602,9 +606,9 @@ defmodule AshPostgres.Aggregate do
         join: through in ^through,
         as: ^1,
         on:
-          field(through, ^relationship.destination_field_on_join_table) ==
-            field(destination, ^relationship.destination_field),
-        group_by: field(through, ^relationship.source_field_on_join_table)
+          field(through, ^relationship.destination_attribute_on_join_resource) ==
+            field(destination, ^relationship.destination_attribute),
+        group_by: field(through, ^relationship.source_attribute_on_join_resource)
       )
 
     query_tenant = aggregate.query && aggregate.query.tenant
@@ -643,7 +647,7 @@ defmodule AshPostgres.Aggregate do
 
     query =
       from(row in destination,
-        group_by: ^relationship.destination_field,
+        group_by: ^relationship.destination_attribute,
         select: %{}
       )
 

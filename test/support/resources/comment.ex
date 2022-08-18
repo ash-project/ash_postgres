@@ -5,7 +5,7 @@ defmodule AshPostgres.Test.Comment do
 
   postgres do
     table "comments"
-    repo AshPostgres.TestRepo
+    repo(AshPostgres.TestRepo)
 
     references do
       reference(:post, on_delete: :delete, on_update: :update, name: "special_name_fkey")
@@ -41,12 +41,12 @@ defmodule AshPostgres.Test.Comment do
     belongs_to(:author, AshPostgres.Test.Author)
 
     has_many(:ratings, AshPostgres.Test.Rating,
-      destination_field: :resource_id,
+      destination_attribute: :resource_id,
       relationship_context: %{data_layer: %{table: "comment_ratings"}}
     )
 
     has_many(:popular_ratings, AshPostgres.Test.Rating,
-      destination_field: :resource_id,
+      destination_attribute: :resource_id,
       relationship_context: %{data_layer: %{table: "comment_ratings"}},
       filter: expr(score > 5)
     )

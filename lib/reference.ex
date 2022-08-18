@@ -38,7 +38,7 @@ defmodule AshPostgres.Reference do
       on_update: [
         type: {:one_of, [:update, :nilify, :nothing, :restrict]},
         doc: """
-        What should happen to records of this resource when the referenced destination_field of the *destination* record is update.
+        What should happen to records of this resource when the referenced destination_attribute of the *destination* record is update.
 
         The difference between `:nothing` and `:restrict` is subtle and, if you are unsure, choose `:nothing` (the default behavior).
         `:restrict` will prevent the deletion from happening *before* the end of the database transaction, whereas `:nothing` allows the
@@ -54,7 +54,7 @@ defmodule AshPostgres.Reference do
       name: [
         type: :string,
         doc:
-          "The name of the foreign key to generate in the database. Defaults to <table>_<source_field>_fkey"
+          "The name of the foreign key to generate in the database. Defaults to <table>_<source_attribute>_fkey"
       ]
     ]
   end

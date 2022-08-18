@@ -43,7 +43,7 @@ defmodule AshPostgres.Sort do
                 Ash.Resource.Info.aggregate(resource, sort) ||
                   raise "No such aggregate for query aggregate #{inspect(sort)}"
 
-              {:ok, field_type} =
+              {:ok, attribute_type} =
                 if aggregate.field do
                   related = Ash.Resource.Info.related(resource, aggregate.relationship_path)
 
@@ -64,9 +64,12 @@ defmodule AshPostgres.Sort do
               if is_nil(default_value) do
                 Ecto.Query.dynamic(field(as(^binding), ^sort))
               else
-                if field_type do
+                if attribute_type do
                   Ecto.Query.dynamic(
-                    coalesce(field(as(^binding), ^sort), type(^default_value, ^field_type))
+                    coalesce(
+                      field(as(^binding), ^sort),
+                      type(^default_value, ^attribute_type)
+                    )
                   )
                 else
                   Ecto.Query.dynamic(coalesce(field(as(^binding), ^sort), ^default_value))

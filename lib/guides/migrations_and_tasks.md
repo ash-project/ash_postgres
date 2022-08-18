@@ -145,7 +145,7 @@ defmodule MyApp.Release do
     apis()
     |> Enum.flat_map(fn api ->
       api
-      |> Ash.Api.resources()
+      |> Ash.Api.Info.resources()
       |> Enum.map(&AshPostgres.repo/1)
     end)
     |> Enum.uniq()

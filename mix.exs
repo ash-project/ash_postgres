@@ -60,24 +60,53 @@ defmodule AshPostgres.MixProject do
     ]
   end
 
+  defp extras() do
+    "priv/documentation/**/*.md"
+    |> Path.wildcard()
+    |> Enum.map(fn path ->
+      title =
+        path
+        |> Path.basename(".md")
+        |> String.split(~r/[-_]/)
+        |> Enum.map(&String.capitalize/1)
+        |> Enum.join(" ")
+        |> case do
+          "F A Q" ->
+            "FAQ"
+
+          other ->
+            other
+        end
+
+      {String.to_atom(path),
+       [
+         title: title
+       ]}
+    end)
+  end
+
+  defp groups_for_extras() do
+    "priv/documentation/*"
+    |> Path.wildcard()
+    |> Enum.map(fn folder ->
+      name =
+        folder
+        |> Path.basename()
+        |> String.split(~r/[-_]/)
+        |> Enum.map(&String.capitalize/1)
+        |> Enum.join(" ")
+
+      {name, folder |> Path.join("**") |> Path.wildcard()}
+    end)
+  end
+
   defp docs do
     [
       main: "readme",
       source_ref: "v#{@version}",
       logo: "logos/small-logo.png",
-      extras: [
-        "README.md",
-        "priv/documentation/guides/migrations_and_tasks.md",
-        "priv/documentation/guides/multitenancy.md",
-        "priv/documentation/guides/polymorphic_resources.md"
-      ],
-      groups_for_extras: [
-        guides: [
-          "priv/documentation/guides/multitenancy.md",
-          "priv/documentation/guides/migrations_and_tasks.md",
-          "priv/documentation/guides/polymorphic_resources.md"
-        ]
-      ],
+      extras: extras(),
+      groups_for_extras: groups_for_extras(),
       groups_for_modules: [
         "entry point": [AshPostgres],
         "data layer and dsl": ~r/AshPostgres.DataLayer/,
@@ -98,7 +127,8 @@ defmodule AshPostgres.MixProject do
       {:ecto, "~> 3.8"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
-      {:ash, ash_version("~> 1.53")},
+      {:ash, github: "ash-project/ash", branch: "2.0"},
+      # {:ash, ash_version("~> 1.53")},
       {:git_ops, "~> 2.4.5", only: :dev},
       {:ex_doc, "~> 0.22", only: :dev, runtime: false},
       {:ex_check, "~> 0.14", only: :dev},

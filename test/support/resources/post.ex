@@ -71,22 +71,22 @@ defmodule AshPostgres.Test.Post do
   relationships do
     belongs_to(:author, AshPostgres.Test.Author)
 
-    has_many(:comments, AshPostgres.Test.Comment, destination_field: :post_id)
+    has_many(:comments, AshPostgres.Test.Comment, destination_attribute: :post_id)
 
     has_many :popular_comments, AshPostgres.Test.Comment do
-      destination_field(:post_id)
+      destination_attribute(:post_id)
       # filter(expr(likes > 10))
     end
 
     has_many(:ratings, AshPostgres.Test.Rating,
-      destination_field: :resource_id,
+      destination_attribute: :resource_id,
       relationship_context: %{data_layer: %{table: "post_ratings"}}
     )
 
     many_to_many(:linked_posts, __MODULE__,
       through: AshPostgres.Test.PostLink,
-      source_field_on_join_table: :source_post_id,
-      destination_field_on_join_table: :destination_post_id
+      source_attribute_on_join_resource: :source_post_id,
+      destination_attribute_on_join_resource: :destination_post_id
     )
   end
 

@@ -14,12 +14,12 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         postgres do
           table "posts"
-          repo AshPostgres.TestRepo
+          repo(AshPostgres.TestRepo)
 
           custom_indexes do
             # need one without any opts
-            index ["id"]
-            index ["id"], unique: true, name: "test_unique_index"
+            index(["id"])
+            index(["id"], unique: true, name: "test_unique_index")
           end
         end
 
@@ -69,7 +69,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defposts do
         postgres do
-          migration_types second_title: {:varchar, 16}
+          migration_types(second_title: {:varchar, 16})
         end
 
         identities do
@@ -139,7 +139,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defposts do
         postgres do
-          migration_types second_title: {:varchar, 16}
+          migration_types(second_title: {:varchar, 16})
           schema("example")
         end
 
@@ -694,7 +694,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
 
         relationships do
-          belongs_to(:post, Post, field_type: :string)
+          belongs_to(:post, Post, attribute_type: :string)
         end
       end
 
@@ -745,7 +745,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts Post2 do
         postgres do
           references do
-            reference :post, name: "special_post_fkey", on_delete: :delete, on_update: :update
+            reference(:post, name: "special_post_fkey", on_delete: :delete, on_update: :update)
           end
         end
 
@@ -918,8 +918,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
           data_layer: AshPostgres.DataLayer
 
         postgres do
-          polymorphic? true
-          repo AshPostgres.TestRepo
+          polymorphic?(true)
+          repo(AshPostgres.TestRepo)
         end
 
         attributes do
@@ -938,7 +938,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         postgres do
           table "posts"
-          repo AshPostgres.TestRepo
+          repo(AshPostgres.TestRepo)
         end
 
         actions do
@@ -951,12 +951,12 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         relationships do
           has_many(:comments, Comment,
-            destination_field: :resource_id,
+            destination_attribute: :resource_id,
             relationship_context: %{data_layer: %{table: "post_comments"}}
           )
 
           belongs_to(:best_comment, Comment,
-            destination_field: :id,
+            destination_attribute: :id,
             relationship_context: %{data_layer: %{table: "post_comments"}}
           )
         end

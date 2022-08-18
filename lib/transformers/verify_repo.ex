@@ -1,9 +1,10 @@
 defmodule AshPostgres.Transformers.VerifyRepo do
   @moduledoc "Verifies that the repo is configured correctly"
-  use Ash.Dsl.Transformer
+  use Spark.Dsl.Transformer
+  alias Spark.Dsl.Transformer
 
-  def transform(resource, dsl) do
-    repo = AshPostgres.repo(resource)
+  def transform(dsl) do
+    repo = Transformer.get_option(dsl, [:postgres], :repo)
 
     cond do
       match?({:error, _}, Code.ensure_compiled(repo)) ->

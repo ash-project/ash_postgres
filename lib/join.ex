@@ -494,13 +494,13 @@ defmodule AshPostgres.Join do
                  join: through in ^relationship_through,
                  as: ^initial_ash_bindings.current,
                  on:
-                   field(row, ^relationship.source_field) ==
-                     field(through, ^relationship.source_field_on_join_table),
+                   field(row, ^relationship.source_attribute) ==
+                     field(through, ^relationship.source_attribute_on_join_resource),
                  join: destination in ^relationship_destination,
                  as: ^(initial_ash_bindings.current + 1),
                  on:
-                   field(destination, ^relationship.destination_field) ==
-                     field(through, ^relationship.destination_field_on_join_table)
+                   field(destination, ^relationship.destination_attribute) ==
+                     field(through, ^relationship.destination_attribute_on_join_resource)
                )}
 
             _ ->
@@ -509,13 +509,13 @@ defmodule AshPostgres.Join do
                  left_join: through in ^relationship_through,
                  as: ^initial_ash_bindings.current,
                  on:
-                   field(row, ^relationship.source_field) ==
-                     field(through, ^relationship.source_field_on_join_table),
+                   field(row, ^relationship.source_attribute) ==
+                     field(through, ^relationship.source_attribute_on_join_resource),
                  left_join: destination in ^relationship_destination,
                  as: ^(initial_ash_bindings.current + 1),
                  on:
-                   field(destination, ^relationship.destination_field) ==
-                     field(through, ^relationship.destination_field_on_join_table)
+                   field(destination, ^relationship.destination_attribute) ==
+                     field(through, ^relationship.destination_attribute_on_join_resource)
                )}
           end
 
@@ -608,8 +608,8 @@ defmodule AshPostgres.Join do
                   subquery(relationship_destination)
               end
 
-            case kind do
-              {:aggregate, _, subquery} ->
+            case {kind, Map.get(relationship, :no_attributes?)} do
+              {{:aggregate, _, subquery}, _} ->
                 subquery =
                   AshPostgres.Aggregate.agg_subquery_for_lateral_join(
                     current_binding,
@@ -624,14 +624,20 @@ defmodule AshPostgres.Join do
                    as: ^initial_ash_bindings.current
                  )}
 
-              :inner ->
+              {_, true} ->
+                from([{row, current_binding}] in query,
+                  join: destination in ^relationship_destination,
+                  as: ^initial_ash_bindings.current
+                )
+
+              {:inner, _} ->
                 {:ok,
                  from([{row, current_binding}] in query,
                    join: destination in ^relationship_destination,
                    as: ^initial_ash_bindings.current,
                    on:
-                     field(row, ^relationship.source_field) ==
-                       field(destination, ^relationship.destination_field)
+                     field(row, ^relationship.source_attribute) ==
+                       field(destination, ^relationship.destination_attribute)
                  )}
 
               _ ->
@@ -640,8 +646,8 @@ defmodule AshPostgres.Join do
                    left_join: destination in ^relationship_destination,
                    as: ^initial_ash_bindings.current,
                    on:
-                     field(row, ^relationship.source_field) ==
-                       field(destination, ^relationship.destination_field)
+                     field(row, ^relationship.source_attribute) ==
+                       field(destination, ^relationship.destination_attribute)
                  )}
             end
 

@@ -1,9 +1,11 @@
 defmodule AshPostgres.Transformers.EnsureTableOrPolymorphic do
   @moduledoc "Ensures that there is a table configured or the resource is polymorphic"
-  use Ash.Dsl.Transformer
+  use Spark.Dsl.Transformer
+  alias Spark.Dsl.Transformer
 
-  def transform(resource, dsl) do
-    if AshPostgres.polymorphic?(resource) || AshPostgres.table(resource) do
+  def transform(dsl) do
+    if Transformer.get_option(dsl, [:postgres], :polymorphic?) ||
+         Transformer.get_option(dsl, [:postgres], :table) do
       {:ok, dsl}
     else
       {:error, "Non-polymorphic resources must have a postgres table configured."}

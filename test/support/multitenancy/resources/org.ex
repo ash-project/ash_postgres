@@ -20,10 +20,10 @@ defmodule AshPostgres.MultitenancyTest.Org do
 
   postgres do
     table "multitenant_orgs"
-    repo AshPostgres.TestRepo
+    repo(AshPostgres.TestRepo)
 
     manage_tenant do
-      template ["org_", :id]
+      template(["org_", :id])
     end
   end
 
@@ -35,8 +35,8 @@ defmodule AshPostgres.MultitenancyTest.Org do
   end
 
   relationships do
-    has_many(:posts, AshPostgres.MultitenancyTest.Post, destination_field: :org_id)
-    has_many(:users, AshPostgres.MultitenancyTest.User, destination_field: :org_id)
+    has_many(:posts, AshPostgres.MultitenancyTest.Post, destination_attribute: :org_id)
+    has_many(:users, AshPostgres.MultitenancyTest.User, destination_attribute: :org_id)
   end
 
   def tenant("org_" <> tenant) do

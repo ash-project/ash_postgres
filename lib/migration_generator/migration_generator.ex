@@ -29,7 +29,7 @@ defmodule AshPostgres.MigrationGenerator do
     apis = List.wrap(apis)
     opts = opts(opts)
 
-    all_resources = Enum.uniq(Enum.flat_map(apis, &Ash.Api.resources/1))
+    all_resources = Enum.uniq(Enum.flat_map(apis, &Ash.Api.Info.resources/1))
 
     {tenant_snapshots, snapshots} =
       all_resources
@@ -66,7 +66,7 @@ defmodule AshPostgres.MigrationGenerator do
   Does not support everything supported by the migration generator.
   """
   def take_snapshots(api, repo, only_resources \\ nil) do
-    all_resources = api |> Ash.Api.resources() |> Enum.uniq()
+    all_resources = api |> Ash.Api.Info.resources() |> Enum.uniq()
 
     all_resources
     |> Enum.filter(fn resource ->
@@ -491,11 +491,11 @@ defmodule AshPostgres.MigrationGenerator do
 
       references ->
         %{
-          destination_field: merge_uniq!(references, table, :destination_field, name),
-          destination_field_default:
-            merge_uniq!(references, table, :destination_field_default, name),
-          destination_field_generated:
-            merge_uniq!(references, table, :destination_field_generated, name),
+          destination_attribute: merge_uniq!(references, table, :destination_attribute, name),
+          destination_attribute_default:
+            merge_uniq!(references, table, :destination_attribute_default, name),
+          destination_attribute_generated:
+            merge_uniq!(references, table, :destination_attribute_generated, name),
           multitenancy: merge_uniq!(references, table, :multitenancy, name),
           on_delete: merge_uniq!(references, table, :on_delete, name),
           on_update: merge_uniq!(references, table, :on_update, name),
@@ -1166,7 +1166,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp after?(
          %Operation.AddAttribute{
            attribute: %{
-             references: %{table: table, destination_field: name}
+             references: %{table: table, destination_attribute: name}
            }
          },
          %Operation.AddAttribute{table: table, attribute: %{source: name}}
@@ -1222,7 +1222,7 @@ defmodule AshPostgres.MigrationGenerator do
          %Operation.RemoveAttribute{attribute: %{source: source}, table: table},
          %Operation.AlterAttribute{
            old_attribute: %{
-             references: %{table: table, destination_field: source}
+             references: %{table: table, destination_attribute: source}
            }
          }
        ),
@@ -1231,7 +1231,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp after?(
          %Operation.AlterAttribute{
            new_attribute: %{
-             references: %{table: table, destination_field: name}
+             references: %{table: table, destination_attribute: name}
            }
          },
          %Operation.AddAttribute{table: table, attribute: %{source: name}}
@@ -1855,20 +1855,20 @@ defmodule AshPostgres.MigrationGenerator do
         end)
         |> Map.update!(:attributes, fn attributes ->
           Enum.map(attributes, fn attribute ->
-            destination_field_source =
+            destination_attribute_source =
               relationship.destination
-              |> Ash.Resource.Info.attribute(relationship.destination_field)
+              |> Ash.Resource.Info.attribute(relationship.destination_attribute)
               |> Map.get(:source)
 
-            if attribute.source == destination_field_source do
+            if attribute.source == destination_attribute_source do
               source_attribute =
-                Ash.Resource.Info.attribute(relationship.source, relationship.source_field)
+                Ash.Resource.Info.attribute(relationship.source, relationship.source_attribute)
 
               Map.put(attribute, :references, %{
-                destination_field: source_attribute.source,
-                destination_field_default:
+                destination_attribute: source_attribute.source,
+                destination_attribute_default:
                   default(source_attribute, AshPostgres.repo(relationship.destination)),
-                destination_field_generated: source_attribute.generated?,
+                destination_attribute_generated: source_attribute.generated?,
                 multitenancy: multitenancy(relationship.source),
                 table: AshPostgres.table(relationship.source),
                 schema: AshPostgres.schema(relationship.source),
@@ -1876,7 +1876,7 @@ defmodule AshPostgres.MigrationGenerator do
                 on_update: AshPostgres.polymorphic_on_update(relationship.source),
                 name:
                   AshPostgres.polymorphic_name(relationship.source) ||
-                    "#{relationship.context[:data_layer][:table]}_#{destination_field_source}_fkey"
+                    "#{relationship.context[:data_layer][:table]}_#{destination_attribute_source}_fkey"
               })
             else
               attribute
@@ -2035,28 +2035,28 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp find_reference(resource, table, attribute) do
     Enum.find_value(Ash.Resource.Info.relationships(resource), fn relationship ->
-      source_field_name =
+      source_attribute_name =
         relationship.source
-        |> Ash.Resource.Info.attribute(relationship.source_field)
+        |> Ash.Resource.Info.attribute(relationship.source_attribute)
         |> then(fn attribute ->
           attribute.source || attribute.name
         end)
 
-      if attribute.source == source_field_name && relationship.type == :belongs_to &&
+      if attribute.source == source_attribute_name && relationship.type == :belongs_to &&
            foreign_key?(relationship) do
         configured_reference =
           configured_reference(resource, table, attribute.source || attribute.name, relationship)
 
         unless Map.get(configured_reference, :ignore?) do
-          destination_field_source =
+          destination_attribute_source =
             relationship.destination
-            |> Ash.Resource.Info.attribute(relationship.destination_field)
+            |> Ash.Resource.Info.attribute(relationship.destination_attribute)
             |> then(fn attribute ->
               attribute.source || attribute.name
             end)
 
           %{
-            destination_field: destination_field_source,
+            destination_attribute: destination_attribute_source,
             multitenancy: multitenancy(relationship.destination),
             on_delete: configured_reference.on_delete,
             on_update: configured_reference.on_update,
@@ -2305,10 +2305,10 @@ defmodule AshPostgres.MigrationGenerator do
         references
         |> Map.delete(:ignore)
         |> rewrite(:ignore?, :ignore)
-        |> Map.update!(:destination_field, &String.to_atom/1)
+        |> Map.update!(:destination_attribute, &String.to_atom/1)
         |> Map.put_new(:schema, nil)
-        |> Map.put_new(:destination_field_default, "nil")
-        |> Map.put_new(:destination_field_generated, false)
+        |> Map.put_new(:destination_attribute_default, "nil")
+        |> Map.put_new(:destination_attribute_generated, false)
         |> Map.put_new(:on_delete, nil)
         |> Map.put_new(:on_update, nil)
         |> Map.update!(:on_delete, &(&1 && String.to_atom(&1)))
