@@ -141,22 +141,41 @@ defmodule AshPostgres.Expr do
          embedded?,
          type
        ) do
-    do_dynamic_expr(
-      query,
-      %Fragment{
-        embedded?: pred_embedded?,
-        arguments: [
-          raw: "strpos(",
-          expr: left,
-          raw: "::citext, ",
-          expr: right,
-          raw: ") > 0"
-        ]
-      },
-      bindings,
-      embedded?,
-      type
-    )
+    if "citext" in AshPostgres.repo(query.__ash_bindings__.resource).installed_extensions() do
+      do_dynamic_expr(
+        query,
+        %Fragment{
+          embedded?: pred_embedded?,
+          arguments: [
+            raw: "strpos((",
+            expr: left,
+            raw: "::citext), (",
+            expr: right,
+            raw: ")) > 0"
+          ]
+        },
+        bindings,
+        embedded?,
+        type
+      )
+    else
+      do_dynamic_expr(
+        query,
+        %Fragment{
+          embedded?: pred_embedded?,
+          arguments: [
+            raw: "strpos(lower(",
+            expr: left,
+            raw: "), lower(",
+            expr: right,
+            raw: ")) > 0"
+          ]
+        },
+        bindings,
+        embedded?,
+        type
+      )
+    end
   end
 
   defp do_dynamic_expr(
@@ -173,9 +192,9 @@ defmodule AshPostgres.Expr do
         arguments: [
           raw: "strpos((",
           expr: left,
-          raw: "), ",
+          raw: "), (",
           expr: right,
-          raw: ") > 0"
+          raw: ")) > 0"
         ]
       },
       bindings,
@@ -403,7 +422,11 @@ defmodule AshPostgres.Expr do
         Ecto.Query.dynamic(^left_expr - ^right_expr)
 
       :/ ->
-        Ecto.Query.dynamic(^left_expr / ^right_expr)
+        if float_type?(type) do
+          Ecto.Query.dynamic(type(^left_expr, ^type) / type(^right_expr, ^type))
+        else
+          Ecto.Query.dynamic(^left_expr / ^right_expr)
+        end
 
       :* ->
         Ecto.Query.dynamic(^left_expr * ^right_expr)
@@ -830,6 +853,14 @@ defmodule AshPostgres.Expr do
       \"\"\")
       """
     end
+  end
+
+  defp float_type?({:parameterized, type, params}) when is_atom(type) do
+    type.type(params) in [:float, :decimal]
+  end
+
+  defp float_type?(_) do
+    false
   end
 
   defp determine_type_at_path(type, path) do
