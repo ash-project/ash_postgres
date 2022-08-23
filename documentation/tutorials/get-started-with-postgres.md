@@ -145,7 +145,7 @@ And finally, add the repo to your application
 
 ### Add AshPostgres to our resources
 
-Now we can add the data layer to our resources. The basic configuration for a resource requires the {{link:ash_postgres:dsl:postgres.table}} and the {{link:ash_postgres:dsl:repo}}.
+Now we can add the data layer to our resources. The basic configuration for a resource requires the {{link:ash_postgres:option:ashpostgres/postgres/table}} and the {{link:ash_postgres:dsl:ash_postgres/postgres/repo}}.
 
 ```elixir
 # in lib/helpdesk/tickets/resources/ticket.ex
