@@ -381,14 +381,25 @@ defmodule AshPostgres.DataLayer do
   alias Ash.Filter
   alias Ash.Query.{BooleanExpression, Not}
 
-  import AshPostgres, only: [repo: 1, schema: 1]
-
   @behaviour Ash.DataLayer
 
   @sections [@postgres]
 
   @moduledoc """
   A postgres data layer that leverages Ecto's postgres capabilities.
+
+  <!--- ash-hq-hide-start --> <!--- -->
+
+  ## DSL Documentation
+
+  ### Index
+
+  #{Spark.Dsl.Extension.doc_index(@sections)}
+
+  ### Docs
+
+  #{Spark.Dsl.Extension.doc(@sections)}
+  <!--- ash-hq-hide-stop --> <!--- -->
   """
 
   use Spark.Dsl.Extension,
@@ -431,16 +442,19 @@ defmodule AshPostgres.DataLayer do
   def can?(resource, {:join, other_resource}) do
     data_layer = Ash.DataLayer.data_layer(resource)
     other_data_layer = Ash.DataLayer.data_layer(other_resource)
-    data_layer == other_data_layer and repo(resource) == repo(other_resource)
+
+    data_layer == other_data_layer and
+      AshPostgres.DataLayer.Info.repo(resource) == AshPostgres.DataLayer.Info.repo(other_resource)
   end
 
   def can?(resource, {:lateral_join, resources}) do
-    repo = repo(resource)
+    repo = AshPostgres.DataLayer.Info.repo(resource)
     data_layer = Ash.DataLayer.data_layer(resource)
 
     data_layer == __MODULE__ &&
       Enum.all?(resources, fn resource ->
-        Ash.DataLayer.data_layer(resource) == data_layer && repo(resource) == repo
+        Ash.DataLayer.data_layer(resource) == data_layer &&
+          AshPostgres.DataLayer.Info.repo(resource) == repo
       end)
   end
 
@@ -473,7 +487,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def in_transaction?(resource) do
-    repo(resource).in_transaction?()
+    AshPostgres.DataLayer.Info.repo(resource).in_transaction?()
   end
 
   @impl true
@@ -485,7 +499,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def source(resource) do
-    AshPostgres.table(resource) || ""
+    AshPostgres.DataLayer.Info.table(resource) || ""
   end
 
   @impl true
@@ -529,10 +543,10 @@ defmodule AshPostgres.DataLayer do
   def run_query(query, resource) do
     query = %{query | windows: Keyword.delete(query.windows, :order)}
 
-    if AshPostgres.polymorphic?(resource) && no_table?(query) do
+    if AshPostgres.DataLayer.Info.polymorphic?(resource) && no_table?(query) do
       raise_table_error!(resource, :read)
     else
-      {:ok, repo(resource).all(query, repo_opts(nil, nil, resource))}
+      {:ok, AshPostgres.DataLayer.Info.repo(resource).all(query, repo_opts(nil, nil, resource))}
     end
   end
 
@@ -540,7 +554,7 @@ defmodule AshPostgres.DataLayer do
   defp no_table?(_), do: false
 
   defp repo_opts(timeout, nil, resource) do
-    if schema = schema(resource) do
+    if schema = AshPostgres.DataLayer.Info.schema(resource) do
       [prefix: schema]
     else
       []
@@ -552,7 +566,7 @@ defmodule AshPostgres.DataLayer do
     if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
       [prefix: tenant]
     else
-      if schema = schema(resource) do
+      if schema = AshPostgres.DataLayer.Info.schema(resource) do
         [prefix: schema]
       else
         []
@@ -569,7 +583,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def functions(resource) do
-    config = repo(resource).config()
+    config = AshPostgres.DataLayer.Info.repo(resource).config()
 
     functions = [AshPostgres.Functions.Type, AshPostgres.Functions.Fragment]
 
@@ -594,7 +608,7 @@ defmodule AshPostgres.DataLayer do
         &AshPostgres.Aggregate.add_subquery_aggregate_select(&2, &1, resource)
       )
 
-    {:ok, repo(resource).one(query, repo_opts(nil, nil, resource))}
+    {:ok, AshPostgres.DataLayer.Info.repo(resource).one(query, repo_opts(nil, nil, resource))}
   end
 
   @impl true
@@ -631,7 +645,11 @@ defmodule AshPostgres.DataLayer do
             &AshPostgres.Aggregate.add_subquery_aggregate_select(&2, &1, destination_resource)
           )
 
-        {:ok, repo(source_resource).one(query, repo_opts(nil, nil, source_resource))}
+        {:ok,
+         AshPostgres.DataLayer.Info.repo(source_resource).one(
+           query,
+           repo_opts(nil, nil, source_resource)
+         )}
 
       {:error, error} ->
         {:error, error}
@@ -657,7 +675,11 @@ defmodule AshPostgres.DataLayer do
           |> elem(0)
           |> Map.get(:resource)
 
-        {:ok, repo(source_resource).all(query, repo_opts(nil, nil, source_resource))}
+        {:ok,
+         AshPostgres.DataLayer.Info.repo(source_resource).all(
+           query,
+           repo_opts(nil, nil, source_resource)
+         )}
 
       {:error, error} ->
         {:error, error}
@@ -854,14 +876,15 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp set_subquery_prefix(data_layer_query, source_query, resource) do
-    config = repo(resource).config()
+    config = AshPostgres.DataLayer.Info.repo(resource).config()
 
     if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
       %{
         data_layer_query
         | prefix:
             to_string(
-              source_query.tenant || schema(resource) || config[:default_prefix] ||
+              source_query.tenant || AshPostgres.DataLayer.Info.schema(resource) ||
+                config[:default_prefix] ||
                 "public"
             )
       }
@@ -870,7 +893,7 @@ defmodule AshPostgres.DataLayer do
         data_layer_query
         | prefix:
             to_string(
-              schema(resource) || config[:default_prefix] ||
+              AshPostgres.DataLayer.Info.schema(resource) || config[:default_prefix] ||
                 "public"
             )
       }
@@ -887,7 +910,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def resource_to_query(resource, _) do
-    from(row in {AshPostgres.table(resource) || "", resource}, as: ^0)
+    from(row in {AshPostgres.DataLayer.Info.table(resource) || "", resource}, as: ^0)
   end
 
   @impl true
@@ -895,7 +918,9 @@ defmodule AshPostgres.DataLayer do
     changeset.data
     |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
     |> ecto_changeset(changeset, :create)
-    |> repo(resource).insert(repo_opts(changeset.timeout, changeset.tenant, changeset.resource))
+    |> AshPostgres.DataLayer.Info.repo(resource).insert(
+      repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
+    )
     |> handle_errors()
     |> case do
       {:ok, result} ->
@@ -909,20 +934,23 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp maybe_create_tenant!(resource, result) do
-    if AshPostgres.manage_tenant_create?(resource) do
+    if AshPostgres.DataLayer.Info.manage_tenant_create?(resource) do
       tenant_name = tenant_name(resource, result)
 
-      AshPostgres.MultiTenancy.create_tenant!(tenant_name, repo(resource))
+      AshPostgres.MultiTenancy.create_tenant!(
+        tenant_name,
+        AshPostgres.DataLayer.Info.repo(resource)
+      )
     else
       :ok
     end
   end
 
   defp maybe_update_tenant(resource, changeset, result) do
-    if AshPostgres.manage_tenant_update?(resource) do
+    if AshPostgres.DataLayer.Info.manage_tenant_update?(resource) do
       changing_tenant_name? =
         resource
-        |> AshPostgres.manage_tenant_template()
+        |> AshPostgres.DataLayer.Info.manage_tenant_template()
         |> Enum.filter(&is_atom/1)
         |> Enum.any?(&Ash.Changeset.changing_attribute?(changeset, &1))
 
@@ -930,7 +958,12 @@ defmodule AshPostgres.DataLayer do
         old_tenant_name = tenant_name(resource, changeset.data)
 
         new_tenant_name = tenant_name(resource, result)
-        AshPostgres.MultiTenancy.rename_tenant(repo(resource), old_tenant_name, new_tenant_name)
+
+        AshPostgres.MultiTenancy.rename_tenant(
+          AshPostgres.DataLayer.Info.repo(resource),
+          old_tenant_name,
+          new_tenant_name
+        )
       end
     end
 
@@ -939,7 +972,7 @@ defmodule AshPostgres.DataLayer do
 
   defp tenant_name(resource, result) do
     resource
-    |> AshPostgres.manage_tenant_template()
+    |> AshPostgres.DataLayer.Info.manage_tenant_template()
     |> Enum.map_join(fn item ->
       if is_binary(item) do
         item
@@ -992,8 +1025,10 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp set_table(record, changeset, operation) do
-    if AshPostgres.polymorphic?(record.__struct__) do
-      table = changeset.context[:data_layer][:table] || AshPostgres.table(record.__struct__)
+    if AshPostgres.DataLayer.Info.polymorphic?(record.__struct__) do
+      table =
+        changeset.context[:data_layer][:table] ||
+          AshPostgres.DataLayer.Info.table(record.__struct__)
 
       record =
         if table do
@@ -1002,7 +1037,9 @@ defmodule AshPostgres.DataLayer do
           raise_table_error!(changeset.resource, operation)
         end
 
-      prefix = changeset.context[:data_layer][:schema] || AshPostgres.schema(record.__struct__)
+      prefix =
+        changeset.context[:data_layer][:schema] ||
+          AshPostgres.DataLayer.Info.schema(record.__struct__)
 
       if prefix do
         Ecto.put_meta(record, prefix: table)
@@ -1016,7 +1053,7 @@ defmodule AshPostgres.DataLayer do
 
   defp add_check_constraints(changeset, resource) do
     resource
-    |> AshPostgres.check_constraints()
+    |> AshPostgres.DataLayer.Info.check_constraints()
     |> Enum.reduce(changeset, fn constraint, changeset ->
       constraint.attribute
       |> List.wrap()
@@ -1031,7 +1068,7 @@ defmodule AshPostgres.DataLayer do
 
   defp add_exclusion_constraints(changeset, resource) do
     resource
-    |> AshPostgres.exclusion_constraint_names()
+    |> AshPostgres.DataLayer.Info.exclusion_constraint_names()
     |> Enum.reduce(changeset, fn constraint, changeset ->
       case constraint do
         {key, name} ->
@@ -1064,7 +1101,7 @@ defmodule AshPostgres.DataLayer do
                                  },
                                  changeset ->
       Ecto.Changeset.foreign_key_constraint(changeset, destination_attribute,
-        name: "#{AshPostgres.table(source)}_#{source_attribute}_fkey",
+        name: "#{AshPostgres.DataLayer.Info.table(source)}_#{source_attribute}_fkey",
         message: "would leave records behind"
       )
     end)
@@ -1078,7 +1115,7 @@ defmodule AshPostgres.DataLayer do
 
   defp add_configured_foreign_key_constraints(changeset, resource) do
     resource
-    |> AshPostgres.foreign_key_names()
+    |> AshPostgres.DataLayer.Info.foreign_key_names()
     |> case do
       {m, f, a} -> List.wrap(apply(m, f, [changeset | a]))
       value -> List.wrap(value)
@@ -1098,7 +1135,7 @@ defmodule AshPostgres.DataLayer do
       |> Ash.Resource.Info.identities()
       |> Enum.reduce(changeset, fn identity, changeset ->
         name =
-          AshPostgres.identity_index_names(resource)[identity.name] ||
+          AshPostgres.DataLayer.Info.identity_index_names(resource)[identity.name] ||
             "#{table(resource, ash_changeset)}_#{identity.name}_index"
 
         opts =
@@ -1113,7 +1150,7 @@ defmodule AshPostgres.DataLayer do
 
     names =
       resource
-      |> AshPostgres.unique_index_names()
+      |> AshPostgres.DataLayer.Info.unique_index_names()
       |> case do
         {m, f, a} -> List.wrap(apply(m, f, [changeset | a]))
         value -> List.wrap(value)
@@ -1152,7 +1189,7 @@ defmodule AshPostgres.DataLayer do
     conflict_target =
       if Ash.Resource.Info.base_filter(resource) do
         base_filter_sql =
-          AshPostgres.base_filter_sql(resource) ||
+          AshPostgres.DataLayer.Info.base_filter_sql(resource) ||
             raise """
             Cannot use upserts with resources that have a base_filter without also adding `base_filter_sql` in the postgres section.
             """
@@ -1168,13 +1205,15 @@ defmodule AshPostgres.DataLayer do
       |> Keyword.put(:on_conflict, set: on_conflict)
       |> Keyword.put(:conflict_target, conflict_target)
 
-    if AshPostgres.manage_tenant_update?(resource) do
+    if AshPostgres.DataLayer.Info.manage_tenant_update?(resource) do
       {:error, "Cannot currently upsert a resource that owns a tenant"}
     else
       changeset.data
       |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
       |> ecto_changeset(changeset, :upsert)
-      |> repo(resource).insert(Keyword.put(repo_opts, :returning, true))
+      |> AshPostgres.DataLayer.Info.repo(resource).insert(
+        Keyword.put(repo_opts, :returning, true)
+      )
       |> handle_errors()
     end
   end
@@ -1232,7 +1271,9 @@ defmodule AshPostgres.DataLayer do
     changeset.data
     |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
     |> ecto_changeset(changeset, :update)
-    |> repo(resource).update(repo_opts(changeset.timeout, changeset.tenant, changeset.resource))
+    |> AshPostgres.DataLayer.Info.repo(resource).update(
+      repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
+    )
     |> handle_errors()
     |> case do
       {:ok, result} ->
@@ -1249,7 +1290,9 @@ defmodule AshPostgres.DataLayer do
   def destroy(resource, %{data: record} = changeset) do
     record
     |> ecto_changeset(changeset, :delete)
-    |> repo(resource).delete(repo_opts(changeset.timeout, changeset.tenant, changeset.resource))
+    |> AshPostgres.DataLayer.Info.repo(resource).delete(
+      repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
+    )
     |> case do
       {:ok, _record} ->
         :ok
@@ -1518,23 +1561,23 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def transaction(resource, func, timeout \\ nil) do
     if timeout do
-      repo(resource).transaction(func, timeout: timeout)
+      AshPostgres.DataLayer.Info.repo(resource).transaction(func, timeout: timeout)
     else
-      repo(resource).transaction(func)
+      AshPostgres.DataLayer.Info.repo(resource).transaction(func)
     end
   end
 
   @impl true
   def rollback(resource, term) do
-    repo(resource).rollback(term)
+    AshPostgres.DataLayer.Info.repo(resource).rollback(term)
   end
 
   defp table(resource, changeset) do
-    changeset.context[:data_layer][:table] || AshPostgres.table(resource)
+    changeset.context[:data_layer][:table] || AshPostgres.DataLayer.Info.table(resource)
   end
 
   defp raise_table_error!(resource, operation) do
-    if AshPostgres.polymorphic?(resource) do
+    if AshPostgres.DataLayer.Info.polymorphic?(resource) do
       raise """
       Could not determine table for #{operation} on #{inspect(resource)}.
 

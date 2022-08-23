@@ -1,7 +1,5 @@
 defmodule AshPostgres.DocIndex do
-  @moduledoc """
-  Some documentation about AshPostgres.
-  """
+  @moduledoc false
   use Spark.DocIndex,
     guides_from: [
       "documentation/**/*.md"
@@ -12,6 +10,7 @@ defmodule AshPostgres.DocIndex do
   def extensions do
     [
       %{
+        ipe
         module: AshPostgres.DataLayer,
         name: "AshPostgres",
         target: "Ash.Resource",
@@ -20,5 +19,27 @@ defmodule AshPostgres.DocIndex do
     ]
   end
 
-  def code_modules, do: []
+  def code_modules do
+    [
+      {"AshPostgres",
+       [
+         AshPostgres.Repo
+       ]},
+      {"Postgres Expressions",
+       [
+         AshPostgres.Functions.Fragment,
+         AshPostgres.Functions.TrigramSimilarity,
+         AshPostgres.Functions.Type
+       ]},
+      {"Postgres Migrations",
+       [
+         AshPostgres.Migration,
+         EctoMigrationDefault
+       ]},
+      {"Introspection",
+       [
+         AshPostgres.DataLayer.Info
+       ]}
+    ]
+  end
 end

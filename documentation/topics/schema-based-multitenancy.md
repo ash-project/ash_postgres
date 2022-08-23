@@ -1,4 +1,4 @@
-# Multitenancy
+# Schema Based Multitenancy
 
 Multitenancy in AshPostgres is implemented via postgres schemas. For more information on schemas, see postgres' [schema documentation](https://www.postgresql.org/docs/current/ddl-schemas.html)
 

@@ -63,7 +63,7 @@ defmodule AshPostgres.MixProject do
   end
 
   defp extras() do
-    "priv/documentation/**/*.md"
+    "documentation/**/*.md"
     |> Path.wildcard()
     |> Enum.map(fn path ->
       title =
@@ -88,7 +88,7 @@ defmodule AshPostgres.MixProject do
   end
 
   defp groups_for_extras() do
-    "priv/documentation/*"
+    "documentation/*"
     |> Path.wildcard()
     |> Enum.map(fn folder ->
       name =
@@ -104,20 +104,29 @@ defmodule AshPostgres.MixProject do
 
   defp docs do
     [
-      main: "readme",
+      main: "get-started-with-postgres",
       source_ref: "v#{@version}",
       logo: "logos/small-logo.png",
       extras: extras(),
       groups_for_extras: groups_for_extras(),
       groups_for_modules: [
-        "entry point": [AshPostgres],
-        "data layer and dsl": ~r/AshPostgres.DataLayer/,
-        functions: [AshPostgres.Functions.TrigramSimilarity],
-        repo: [AshPostgres.Repo],
-        migrations: [AshPostgres.MigrationGenerator],
-        utilities: [AsPostgres.MultiTenancy],
-        "filter predicates": ~r/AshPostgres.Predicates/,
-        "DSL Transformers": ~r/AshPostgres.Transformers/
+        AshPostgres: [
+          AshPostgres.Repo,
+          AshPostgres.DataLayer
+        ],
+        Introspection: [
+          AshPostgres.DataLayer.Info
+        ],
+        "Postgres Expressions": [
+          AshPostgres.Functions.Fragment,
+          AshPostgres.Functions.TrigramSimilarity,
+          AshPostgres.Functions.Type
+        ],
+        "Postgres Migrations": [
+          AshPostgres.Migration,
+          EctoMigrationDefault
+        ],
+        Transformers: ~r/AshPostgres\.Transformers\..*/
       ]
     ]
   end

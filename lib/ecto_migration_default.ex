@@ -1,11 +1,17 @@
-require Logger
-
 defprotocol EctoMigrationDefault do
+  @moduledoc """
+  Allows configuring how values are translated to default values in migrations.
+
+  Still a work in progress, but covers most standard values aside from maps.
+  """
   @fallback_to_any true
+  @doc "Returns the text (elixir code) that will be placed into a migration as the default value"
   def to_default(value)
 end
 
 defimpl EctoMigrationDefault, for: Any do
+  require Logger
+
   def to_default(value) do
     Logger.warn("""
     You have specified a default value for a type that cannot be explicitly

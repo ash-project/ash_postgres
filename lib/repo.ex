@@ -1,8 +1,8 @@
 defmodule AshPostgres.Repo do
   @moduledoc """
-  Resources that use the `AshPostgres` data layer use a `Repo` to access the database.
+  Resources that use `AshPostgres.DataLayer` use a `Repo` to access the database.
 
-  This repo is a slightly modified version of an `Ecto.Repo`.
+  This repo is a thin wrapper around an `Ecto.Repo`.
 
   You can use `Ecto.Repo`'s `init/2` to configure your repo like normal, but
   instead of returning `{:ok, config}`, use `super(config)` to pass the

@@ -1,13 +1,10 @@
 defmodule AshPostgres.MultiTenancy do
-  @moduledoc "Helpers used to manage multitenancy"
+  @moduledoc false
 
   @dialyzer {:nowarn_function, load_migration!: 1}
 
   @tenant_name_regex ~r/^[a-zA-Z0-9_-]+$/
   def create_tenant!(tenant_name, repo) do
-    # This is done in a task, and manually cleaned up, because the
-    # ecto migrator runs its migrations in async tasks, so we can't
-    # be in a transaction while we do it
     Ecto.Adapters.SQL.query!(repo, "CREATE SCHEMA IF NOT EXISTS \"#{tenant_name}\"", [])
 
     migrate_tenant(tenant_name, repo)

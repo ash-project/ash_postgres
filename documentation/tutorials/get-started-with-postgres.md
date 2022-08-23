@@ -331,7 +331,7 @@ Take a look at the DSL documentation for more information on what you can config
 
 #### See what is available in the DSL
 
-{{link:ash_postgres:dsl:ash_postgres}}
+{{link:ash_postgres:dsl:ashpostgres:postgres}}
 
 #### Learn more about the underlying tools
 

@@ -1,9 +1,5 @@
 defmodule AshPostgres.MigrationGenerator do
-  @moduledoc """
-  Generates migrations based on resource snapshots
-
-  See `Mix.Tasks.AshPostgres.GenerateMigrations` for more information.
-  """
+  @moduledoc false
   @default_snapshot_path "priv/resource_snapshots"
 
   require Logger
@@ -35,7 +31,7 @@ defmodule AshPostgres.MigrationGenerator do
       all_resources
       |> Enum.filter(fn resource ->
         Ash.DataLayer.data_layer(resource) == AshPostgres.DataLayer &&
-          AshPostgres.migrate?(resource)
+          AshPostgres.DataLayer.Info.migrate?(resource)
       end)
       |> Enum.flat_map(&get_snapshots(&1, all_resources))
       |> Enum.split_with(&(&1.multitenancy.strategy == :context))
@@ -71,7 +67,7 @@ defmodule AshPostgres.MigrationGenerator do
     all_resources
     |> Enum.filter(fn resource ->
       Ash.DataLayer.data_layer(resource) == AshPostgres.DataLayer &&
-        AshPostgres.repo(resource) == repo &&
+        AshPostgres.DataLayer.Info.repo(resource) == repo &&
         (is_nil(only_resources) || resource in only_resources)
     end)
     |> Enum.flat_map(&get_snapshots(&1, all_resources))
@@ -1826,9 +1822,9 @@ defmodule AshPostgres.MigrationGenerator do
   defp pad(i), do: to_string(i)
 
   def get_snapshots(resource, all_resources) do
-    Code.ensure_compiled!(AshPostgres.repo(resource))
+    Code.ensure_compiled!(AshPostgres.DataLayer.Info.repo(resource))
 
-    if AshPostgres.polymorphic?(resource) do
+    if AshPostgres.DataLayer.Info.polymorphic?(resource) do
       all_resources
       |> Enum.flat_map(&Ash.Resource.Info.relationships/1)
       |> Enum.filter(&(&1.destination == resource))
@@ -1842,7 +1838,7 @@ defmodule AshPostgres.MigrationGenerator do
           relationship.context[:data_layer][:schema]
         )
         |> Map.update!(:identities, fn identities ->
-          identity_index_names = AshPostgres.identity_index_names(resource)
+          identity_index_names = AshPostgres.DataLayer.Info.identity_index_names(resource)
 
           Enum.map(identities, fn identity ->
             Map.put(
@@ -1867,15 +1863,18 @@ defmodule AshPostgres.MigrationGenerator do
               Map.put(attribute, :references, %{
                 destination_attribute: source_attribute.source,
                 destination_attribute_default:
-                  default(source_attribute, AshPostgres.repo(relationship.destination)),
+                  default(
+                    source_attribute,
+                    AshPostgres.DataLayer.Info.repo(relationship.destination)
+                  ),
                 destination_attribute_generated: source_attribute.generated?,
                 multitenancy: multitenancy(relationship.source),
-                table: AshPostgres.table(relationship.source),
-                schema: AshPostgres.schema(relationship.source),
-                on_delete: AshPostgres.polymorphic_on_delete(relationship.source),
-                on_update: AshPostgres.polymorphic_on_update(relationship.source),
+                table: AshPostgres.DataLayer.Info.table(relationship.source),
+                schema: AshPostgres.DataLayer.Info.schema(relationship.source),
+                on_delete: AshPostgres.DataLayer.Info.polymorphic_on_delete(relationship.source),
+                on_update: AshPostgres.DataLayer.Info.polymorphic_on_update(relationship.source),
                 name:
-                  AshPostgres.polymorphic_name(relationship.source) ||
+                  AshPostgres.DataLayer.Info.polymorphic_name(relationship.source) ||
                     "#{relationship.context[:data_layer][:table]}_#{destination_attribute_source}_fkey"
               })
             else
@@ -1885,7 +1884,7 @@ defmodule AshPostgres.MigrationGenerator do
         end)
       end)
     else
-      [do_snapshot(resource, AshPostgres.table(resource))]
+      [do_snapshot(resource, AshPostgres.DataLayer.Info.table(resource))]
     end
   end
 
@@ -1893,14 +1892,14 @@ defmodule AshPostgres.MigrationGenerator do
     snapshot = %{
       attributes: attributes(resource, table),
       identities: identities(resource),
-      table: table || AshPostgres.table(resource),
-      schema: schema || AshPostgres.schema(resource),
+      table: table || AshPostgres.DataLayer.Info.table(resource),
+      schema: schema || AshPostgres.DataLayer.Info.schema(resource),
       check_constraints: check_constraints(resource),
       custom_indexes: custom_indexes(resource),
       custom_statements: custom_statements(resource),
-      repo: AshPostgres.repo(resource),
+      repo: AshPostgres.DataLayer.Info.repo(resource),
       multitenancy: multitenancy(resource),
-      base_filter: AshPostgres.base_filter_sql(resource),
+      base_filter: AshPostgres.DataLayer.Info.base_filter_sql(resource),
       has_create_action: has_create_action?(resource)
     }
 
@@ -1920,7 +1919,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp check_constraints(resource) do
     resource
-    |> AshPostgres.check_constraints()
+    |> AshPostgres.DataLayer.Info.check_constraints()
     |> Enum.filter(& &1.check)
     |> case do
       [] ->
@@ -1929,7 +1928,7 @@ defmodule AshPostgres.MigrationGenerator do
       constraints ->
         base_filter = Ash.Resource.Info.base_filter(resource)
 
-        if base_filter && !AshPostgres.base_filter_sql(resource) do
+        if base_filter && !AshPostgres.DataLayer.Info.base_filter_sql(resource) do
           raise """
           Cannot create a check constraint for a resource with a base filter without also configuring `base_filter_sql`.
 
@@ -1953,14 +1952,14 @@ defmodule AshPostgres.MigrationGenerator do
         name: constraint.name,
         attribute: attributes,
         check: constraint.check,
-        base_filter: AshPostgres.base_filter_sql(resource)
+        base_filter: AshPostgres.DataLayer.Info.base_filter_sql(resource)
       }
     end)
   end
 
   defp custom_indexes(resource) do
     resource
-    |> AshPostgres.custom_indexes()
+    |> AshPostgres.DataLayer.Info.custom_indexes()
     |> Enum.map(fn custom_index ->
       Map.from_struct(custom_index)
     end)
@@ -1968,7 +1967,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp custom_statements(resource) do
     resource
-    |> AshPostgres.custom_statements()
+    |> AshPostgres.DataLayer.Info.custom_statements()
     |> Enum.map(fn custom_statement ->
       Map.from_struct(custom_statement)
     end)
@@ -1987,7 +1986,7 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp attributes(resource, table) do
-    repo = AshPostgres.repo(resource)
+    repo = AshPostgres.DataLayer.Info.repo(resource)
 
     resource
     |> Ash.Resource.Info.attributes()
@@ -1998,7 +1997,8 @@ defmodule AshPostgres.MigrationGenerator do
       default = default(attribute, repo)
 
       type =
-        AshPostgres.migration_types(resource)[attribute.name] || migration_type(attribute.type)
+        AshPostgres.DataLayer.Info.migration_types(resource)[attribute.name] ||
+          migration_type(attribute.type)
 
       type =
         if :erlang.function_exported(repo, :override_migration_type, 1) do
@@ -2063,11 +2063,13 @@ defmodule AshPostgres.MigrationGenerator do
             name: configured_reference.name,
             schema:
               relationship.context[:data_layer][:schema] ||
-                AshPostgres.schema(relationship.destination) ||
-                AshPostgres.repo(relationship.destination).config()[:default_prefix],
+                AshPostgres.DataLayer.Info.schema(relationship.destination) ||
+                AshPostgres.DataLayer.Info.repo(relationship.destination).config()[
+                  :default_prefix
+                ],
             table:
               relationship.context[:data_layer][:table] ||
-                AshPostgres.table(relationship.destination)
+                AshPostgres.DataLayer.Info.table(relationship.destination)
           }
         end
       end
@@ -2077,15 +2079,15 @@ defmodule AshPostgres.MigrationGenerator do
   defp configured_reference(resource, table, attribute, relationship) do
     ref =
       resource
-      |> AshPostgres.references()
+      |> AshPostgres.DataLayer.Info.references()
       |> Enum.find(&(&1.relationship == relationship.name))
       |> Kernel.||(%{
         on_delete: nil,
         on_update: nil,
         schema:
           relationship.context[:data_layer][:schema] ||
-            AshPostgres.schema(relationship.destination) ||
-            AshPostgres.repo(relationship.destination).config()[:default_prefix],
+            AshPostgres.DataLayer.Info.schema(relationship.destination) ||
+            AshPostgres.DataLayer.Info.repo(relationship.destination).config()[:default_prefix],
         name: nil,
         ignore?: false
       })
@@ -2103,11 +2105,12 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp foreign_key?(relationship) do
     Ash.DataLayer.data_layer(relationship.source) == AshPostgres.DataLayer &&
-      AshPostgres.repo(relationship.source) == AshPostgres.repo(relationship.destination)
+      AshPostgres.DataLayer.Info.repo(relationship.source) ==
+        AshPostgres.DataLayer.Info.repo(relationship.destination)
   end
 
   defp identities(resource) do
-    identity_index_names = AshPostgres.identity_index_names(resource)
+    identity_index_names = AshPostgres.DataLayer.Info.identity_index_names(resource)
 
     resource
     |> Ash.Resource.Info.identities()
@@ -2118,7 +2121,7 @@ defmodule AshPostgres.MigrationGenerator do
       identities ->
         base_filter = Ash.Resource.Info.base_filter(resource)
 
-        if base_filter && !AshPostgres.base_filter_sql(resource) do
+        if base_filter && !AshPostgres.DataLayer.Info.base_filter_sql(resource) do
           raise """
           Cannot create a unique index for a resource with a base filter without also configuring `base_filter_sql`.
 
@@ -2129,7 +2132,7 @@ defmodule AshPostgres.MigrationGenerator do
         identities
     end
     |> Enum.reject(fn identity ->
-      identity.name in AshPostgres.skip_unique_indexes?(resource)
+      identity.name in AshPostgres.DataLayer.Info.skip_unique_indexes?(resource)
     end)
     |> Enum.filter(fn identity ->
       Enum.all?(identity.keys, fn key ->
@@ -2146,10 +2149,10 @@ defmodule AshPostgres.MigrationGenerator do
         identity,
         :index_name,
         identity_index_names[identity.name] ||
-          "#{AshPostgres.table(resource)}_#{identity.name}_index"
+          "#{AshPostgres.DataLayer.Info.table(resource)}_#{identity.name}_index"
       )
     end)
-    |> Enum.map(&Map.put(&1, :base_filter, AshPostgres.base_filter_sql(resource)))
+    |> Enum.map(&Map.put(&1, :base_filter, AshPostgres.DataLayer.Info.base_filter_sql(resource)))
   end
 
   @uuid_functions [&Ash.UUID.generate/0, &Ecto.UUID.generate/0]

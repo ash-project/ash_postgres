@@ -1,7 +1,6 @@
 defmodule AshPostgres.CheckConstraint do
-  @moduledoc """
-  Contains configuration for database check constraints
-  """
+  @moduledoc false
+
   defstruct [:attribute, :name, :message, :check]
 
   def schema do

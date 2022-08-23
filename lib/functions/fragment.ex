@@ -3,8 +3,6 @@ defmodule AshPostgres.Functions.Fragment do
   A function that maps to ecto's `fragment` function
 
   https://hexdocs.pm/ecto/Ecto.Query.API.html#fragment/1
-
-  This function is highly based off of that implementation.
   """
 
   use Ash.Query.Function, name: :fragment

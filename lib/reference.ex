@@ -1,7 +1,5 @@
 defmodule AshPostgres.Reference do
-  @moduledoc """
-  Contains configuration for a database reference
-  """
+  @moduledoc false
   defstruct [:relationship, :on_delete, :on_update, :name, ignore?: false]
 
   def schema do

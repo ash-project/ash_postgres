@@ -619,14 +619,15 @@ defmodule AshPostgres.Aggregate do
             query_tenant) do
       Ecto.Query.put_query_prefix(
         query,
-        query_tenant || root_tenant || AshPostgres.schema(relationship.destination)
+        query_tenant || root_tenant || AshPostgres.DataLayer.Info.schema(relationship.destination)
       )
     else
       %{
         query
         | prefix:
-            AshPostgres.schema(relationship.destination) ||
-              AshPostgres.repo(relationship.destination).config()[:default_prefix] || "public"
+            AshPostgres.DataLayer.Info.schema(relationship.destination) ||
+              AshPostgres.DataLayer.Info.repo(relationship.destination).config()[:default_prefix] ||
+              "public"
       }
     end
   end
@@ -659,14 +660,15 @@ defmodule AshPostgres.Aggregate do
             query_tenant) do
       Ecto.Query.put_query_prefix(
         query,
-        query_tenant || root_tenant || AshPostgres.schema(relationship.destination)
+        query_tenant || root_tenant || AshPostgres.DataLayer.Info.schema(relationship.destination)
       )
     else
       %{
         query
         | prefix:
-            AshPostgres.schema(relationship.destination) ||
-              AshPostgres.repo(relationship.destination).config()[:default_prefix] || "public"
+            AshPostgres.DataLayer.Info.schema(relationship.destination) ||
+              AshPostgres.DataLayer.Info.repo(relationship.destination).config()[:default_prefix] ||
+              "public"
       }
     end
   end

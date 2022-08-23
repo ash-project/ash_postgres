@@ -1,6 +1,8 @@
 defmodule AshPostgres.Functions.TrigramSimilarity do
   @moduledoc """
-  See the postgres docs on [https://www.postgresql.org/docs/9.6/pgtrgm.html](trigram) for more information.
+  Maps to the builtin postgres trigram similarity function. Requires `pgtrgm` extension to be installed.
+
+  See the postgres docs on [trigram](https://www.postgresql.org/docs/9.6/pgtrgm.html]) for more information.
 
   Requires the pg_trgm extension. Configure which extensions you have installed in your `AshPostgres.Repo`
 

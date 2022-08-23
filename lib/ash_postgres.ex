@@ -1,121 +1,69 @@
 defmodule AshPostgres do
-  @moduledoc """
-  A postgres extension library for `Ash`.
+  @moduledoc false
 
-  `AshPostgres.DataLayer` provides a DataLayer, and a DSL extension to configure that data layer.
+  @deprecated "use AshPostgres.DataLayer.Info.repo/1"
+  defdelegate repo(resource), to: AshPostgres.DataLayer.Info
 
-  The dsl extension exposes the `postgres` section. See: `AshPostgres.DataLayer` for more.
-  """
+  @deprecated "use AshPostgres.DataLayer.Info.table/1"
+  defdelegate table(resource), to: AshPostgres.DataLayer.Info
 
-  alias Spark.Dsl.Extension
+  @deprecated "use AshPostgres.DataLayer.Info.schema/1"
+  defdelegate schema(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "The configured repo for a resource"
-  def repo(resource) do
-    Extension.get_opt(resource, [:postgres], :repo, nil, true)
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.references/1"
+  defdelegate references(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "The configured table for a resource"
-  def table(resource) do
-    Extension.get_opt(resource, [:postgres], :table, nil, true)
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.migration_types/1"
+  defdelegate migration_types(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "The configured schema for a resource"
-  def schema(resource) do
-    Extension.get_opt(resource, [:postgres], :schema, nil, true)
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.check_constraints/1"
+  defdelegate check_constraints(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "The configured references for a resource"
-  def references(resource) do
-    Extension.get_entities(resource, [:postgres, :references])
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.custom_indexes/1"
+  defdelegate custom_indexes(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "A keyword list of customized migration types"
-  def migration_types(resource) do
-    Extension.get_opt(resource, [:postgres], :migration_types, nil, true)
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.custom_statements/1"
+  defdelegate custom_statements(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "The configured check_constraints for a resource"
-  def check_constraints(resource) do
-    Extension.get_entities(resource, [:postgres, :check_constraints])
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.polymorphic_on_delete/1"
+  defdelegate polymorphic_on_delete(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "The configured custom_indexes for a resource"
-  def custom_indexes(resource) do
-    Extension.get_entities(resource, [:postgres, :custom_indexes])
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.polymorphic_on_update/1"
+  defdelegate polymorphic_on_update(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "The configured custom_statements for a resource"
-  def custom_statements(resource) do
-    Extension.get_entities(resource, [:postgres, :custom_statements])
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.polymorphic_name/1"
+  defdelegate polymorphic_name(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "The configured polymorphic_reference_on_delete for a resource"
-  def polymorphic_on_delete(resource) do
-    Extension.get_opt(resource, [:postgres, :references], :polymorphic_on_delete, nil, true)
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.polymorphic?/1"
+  defdelegate polymorphic?(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "The configured polymorphic_reference_on_update for a resource"
-  def polymorphic_on_update(resource) do
-    Extension.get_opt(resource, [:postgres, :references], :polymorphic_on_update, nil, true)
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.unique_index_names/1"
+  defdelegate unique_index_names(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "The configured polymorphic_reference_name for a resource"
-  def polymorphic_name(resource) do
-    Extension.get_opt(resource, [:postgres, :references], :polymorphic_on_delete, nil, true)
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.exclusion_constraint_names/1"
+  defdelegate exclusion_constraint_names(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "The configured polymorphic? for a resource"
-  def polymorphic?(resource) do
-    Extension.get_opt(resource, [:postgres], :polymorphic?, nil, true)
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.identity_index_names/1"
+  defdelegate identity_index_names(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "The configured unique_index_names"
-  def unique_index_names(resource) do
-    Extension.get_opt(resource, [:postgres], :unique_index_names, [], true)
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.foreign_key_names/1"
+  defdelegate foreign_key_names(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "The configured exclusion_constraint_names"
-  def exclusion_constraint_names(resource) do
-    Extension.get_opt(resource, [:postgres], :exclusion_constraint_names, [], true)
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.migrate?/1"
+  defdelegate migrate?(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "The configured identity_index_names"
-  def identity_index_names(resource) do
-    Extension.get_opt(resource, [:postgres], :identity_index_names, [], true)
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.base_filter_sql/1"
+  defdelegate base_filter_sql(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "The configured foreign_key_names"
-  def foreign_key_names(resource) do
-    Extension.get_opt(resource, [:postgres], :foreign_key_names, [], true)
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.skip_unique_indexes?/1"
+  defdelegate skip_unique_indexes?(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "Whether or not the resource should be included when generating migrations"
-  def migrate?(resource) do
-    Extension.get_opt(resource, [:postgres], :migrate?, nil, true)
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.manage_tenant_template/1"
+  defdelegate manage_tenant_template(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "A stringified version of the base_filter, to be used in a where clause when generating unique indexes"
-  def base_filter_sql(resource) do
-    Extension.get_opt(resource, [:postgres], :base_filter_sql, nil)
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.manage_tenant_create?/1"
+  defdelegate manage_tenant_create?(resource), to: AshPostgres.DataLayer.Info
 
-  @doc "Skip generating unique indexes when generating migrations"
-  def skip_unique_indexes?(resource) do
-    Extension.get_opt(resource, [:postgres], :skip_unique_indexes?, [])
-  end
-
-  @doc "The template for a managed tenant"
-  def manage_tenant_template(resource) do
-    Extension.get_opt(resource, [:postgres, :manage_tenant], :template, nil)
-  end
-
-  @doc "Whether or not to create a tenant for a given resource"
-  def manage_tenant_create?(resource) do
-    Extension.get_opt(resource, [:postgres, :manage_tenant], :create?, false)
-  end
-
-  @doc "Whether or not to update a tenant for a given resource"
-  def manage_tenant_update?(resource) do
-    Extension.get_opt(resource, [:postgres, :manage_tenant], :update?, false)
-  end
+  @deprecated "use AshPostgres.DataLayer.Info.manage_tenant_update?/1"
+  defdelegate manage_tenant_update?(resource), to: AshPostgres.DataLayer.Info
 end
