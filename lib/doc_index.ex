@@ -10,7 +10,6 @@ defmodule AshPostgres.DocIndex do
   def extensions do
     [
       %{
-        ipe
         module: AshPostgres.DataLayer,
         name: "AshPostgres",
         target: "Ash.Resource",
