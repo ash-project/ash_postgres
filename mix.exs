@@ -54,6 +54,8 @@ defmodule AshPostgres.MixProject do
     [
       name: :ash_postgres,
       licenses: ["MIT"],
+      files: ~w(lib .formatter.exs mix.exs README* LICENSE*
+      CHANGELOG* documentation),
       links: %{
         GitHub: "https://github.com/ash-project/ash_postgres"
       }
