@@ -240,7 +240,7 @@ require Ash.Query
 
 # Show the tickets that are closed and their subject does not contain "4"
 Helpdesk.Tickets.Ticket
-|> Ash.Query.filter(closed and not(contains(subject, "4")))
+|> Ash.Query.filter(status == :closed and not(contains(subject, "4")))
 |> Helpdesk.Tickets.read!()
 ```
 
