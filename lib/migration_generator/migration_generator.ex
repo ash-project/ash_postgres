@@ -221,6 +221,8 @@ defmodule AshPostgres.MigrationGenerator do
 
             #{install}
             """
+          else
+            install
           end
 
         uninstall =
