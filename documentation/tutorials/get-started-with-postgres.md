@@ -133,6 +133,8 @@ config :helpdesk, Helpdesk.Repo,
 And finally, add the repo to your application
 
 ```elixir
+  # in lib/helpdesk/application.ex
+
   def start(_type, _args) do
     children = [
       # Starts a worker by calling: Helpdesk.Worker.start_link(arg)
@@ -230,18 +232,18 @@ And now we can read that data. You should see some debug logs that show the sql 
 require Ash.Query
 
 # Show the tickets where the subject contains "2"
-Helpdesk.Tickets.Ticket
+(Helpdesk.Tickets.Ticket
 |> Ash.Query.filter(contains(subject, "2"))
-|> Helpdesk.Tickets.read!()
+|> Helpdesk.Tickets.read!())
 ```
 
 ```elixir
 require Ash.Query
 
 # Show the tickets that are closed and their subject does not contain "4"
-Helpdesk.Tickets.Ticket
+(Helpdesk.Tickets.Ticket
 |> Ash.Query.filter(status == :closed and not(contains(subject, "4")))
-|> Helpdesk.Tickets.read!()
+|> Helpdesk.Tickets.read!())
 ```
 
 And, naturally, now that we are storing this in postgres, this database is persisted even if we stop/start our application. The nice thing, however, is that this was the *exact* same code that we ran against our resources when they were backed by ETS.
@@ -249,6 +251,8 @@ And, naturally, now that we are storing this in postgres, this database is persi
 ### Aggregates
 
 Lets add some aggregates to our representatives resource. Aggregates are a tool to include grouped up data about relationships. You can read more about them in the {{link:ash:guide:Aggregates}} guide.
+
+Here we will add an aggregate to easily query how many tickets are assigned to a representative, and how many of those tickets are open/closed.
 
 ```elixir
 # in lib/helpdesk/tickets/resources/representative.ex
@@ -272,26 +276,30 @@ Lets add some aggregates to our representatives resource. Aggregates are a tool 
 Aggregates are powerful because they will be translated to SQL, and can be used in filters and sorts. For example:
 
 ```elixir
+# in iex
+
 require Ash.Query
 
-Helpdesk.Tickets.Representative
+# Show the representatives with less than 4 closed tickets
+# in descending order by number of closed tickets 
+(Helpdesk.Tickets.Representative
 |> Ash.Query.filter(closed_tickets < 4)
 |> Ash.Query.sort(closed_tickets: :desc)
-|> Helpdesk.Tickets.read!()
+|> Helpdesk.Tickets.read!())
 ```
 
 You can also load individual aggregates on demand after queries have already been run, and minimal SQL will be issued to run the aggregate.
 
 ```elixir
+# in iex
+
 require Ash.Query
 
-Helpdesk.Tickets.Representative
+(Helpdesk.Tickets.Representative
 |> Ash.Query.filter(closed_tickets < 4)
 |> Ash.Query.sort(closed_tickets: :desc)
-|> Helpdesk.Tickets.read!()
-```
+|> Helpdesk.Tickets.read!())
 
-```elixir
 tickets = Helpdesk.Tickets.read!(Helpdesk.Tickets.Representative)
 
 Helpdesk.Tickets.load!(tickets, :open_tickets)
@@ -314,13 +322,17 @@ For example, we can determine the percentage of tickets that are open:
 Calculations can be loaded and used in the same way as aggregates.
 
 ```elixir
+# in iex
+
 require Ash.Query
 
-Helpdesk.Tickets.Representative
+# Show representatives that have greater than 25% of their tickets open 
+# and sort them by percentage open
+(Helpdesk.Tickets.Representative
 |> Ash.Query.filter(percent_open > 0.25)
 |> Ash.Query.sort(:percent_open)
 |> Ash.Query.load(:percent_open)
-|> Helpdesk.Tickets.read!()
+|> Helpdesk.Tickets.read!())
 ```
 
 ### Rich Configuration Options
@@ -340,3 +352,4 @@ Take a look at the DSL documentation for more information on what you can config
 - [Postgres' documentation](https://www.postgresql.org/docs/). Although AshPostgres makes things a lot easier, you generally can't get away with not understanding the basics of postgres and SQL.
 
 - [Ecto's Migration documentation](https://hexdocs.pm/ecto_sql/Ecto.Migration.html) read more about migrations. Even with the ash_postgres migration generator, you will very likely need to modify your own migrations some day.
+
