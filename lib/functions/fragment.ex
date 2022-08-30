@@ -7,6 +7,8 @@ defmodule AshPostgres.Functions.Fragment do
 
   use Ash.Query.Function, name: :fragment
 
+  def private?, do: true
+
   # Varargs is special, and should only be used in rare circumstances (like this one)
   # no type casting or help can be provided for these functions.
   def args, do: :var_args
