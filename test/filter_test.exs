@@ -464,6 +464,120 @@ defmodule AshPostgres.FilterTest do
     end
   end
 
+  describe "exists/2" do
+    test "it works with single relationships" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "match"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "abba"})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      post2 =
+        Post
+        |> Ash.Changeset.new(%{title: "no_match"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "acca"})
+      |> Ash.Changeset.replace_relationship(:post, post2)
+      |> Api.create!()
+
+      assert [%{title: "match"}] =
+               Post
+               |> Ash.Query.filter(exists(comments, title == ^"abba"))
+               |> Api.read!()
+    end
+
+    test "it works with many to many relationships" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "a"})
+        |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{title: "b"})
+      |> Ash.Changeset.replace_relationship(:linked_posts, [post])
+      |> Api.create!()
+
+      assert [%{title: "b"}] =
+               Post
+               |> Ash.Query.filter(exists(linked_posts, title == ^"a"))
+               |> Api.read!()
+    end
+
+    test "it works with nested relationships as the path" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "a"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "comment"})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{title: "b"})
+      |> Ash.Changeset.replace_relationship(:linked_posts, [post])
+      |> Api.create!()
+
+      assert [%{title: "b"}] =
+               Post
+               |> Ash.Query.filter(exists(linked_posts.comments, title == ^"comment"))
+               |> Api.read!()
+    end
+
+    test "it works with nested relationships inside of exists" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "a"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "comment"})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{title: "b"})
+      |> Ash.Changeset.replace_relationship(:linked_posts, [post])
+      |> Api.create!()
+
+      assert [%{title: "b"}] =
+               Post
+               |> Ash.Query.filter(exists(linked_posts, comments.title == ^"comment"))
+               |> Api.read!()
+    end
+
+    test "it works with aggregates inside of exists" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "a", category: "foo"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "comment"})
+      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{title: "b"})
+      |> Ash.Changeset.replace_relationship(:linked_posts, [post])
+      |> Api.create!()
+
+      assert [%{title: "b"}] =
+               Post
+               |> Ash.Query.filter(
+                 exists(linked_posts.comments, title == ^"comment" and post_category == "foo")
+               )
+               |> Api.read!()
+    end
+  end
+
   describe "filtering on enum types" do
     test "it allows simple filtering" do
       Post

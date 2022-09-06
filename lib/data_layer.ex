@@ -613,7 +613,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def set_tenant(_resource, query, tenant) do
-    {:ok, Ecto.Query.put_query_prefix(query, to_string(tenant))}
+    {:ok, Map.put(Ecto.Query.put_query_prefix(query, to_string(tenant)), :__tenant__, tenant)}
   end
 
   @impl true

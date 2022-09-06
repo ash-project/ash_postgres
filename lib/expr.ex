@@ -2,7 +2,7 @@ defmodule AshPostgres.Expr do
   @moduledoc false
 
   alias Ash.Filter
-  alias Ash.Query.{BooleanExpression, Not, Ref}
+  alias Ash.Query.{BooleanExpression, Exists, Not, Ref}
   alias Ash.Query.Operator.IsNil
   alias Ash.Query.Function.{Ago, Contains, GetPath, If}
   alias AshPostgres.Functions.{Fragment, TrigramSimilarity, Type}
@@ -685,6 +685,78 @@ defmodule AshPostgres.Expr do
     else
       raise "Attempted to explicitly cast to a type that has `cast_in_query?` configured to `false`, or for which a type could not be determined."
     end
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %Exists{path: [first | rest], expr: expr},
+         bindings,
+         _embedded?,
+         _type
+       ) do
+    resource = query.__ash_bindings__.resource
+    first_relationship = Ash.Resource.Info.relationship(resource, first)
+
+    filter = %Ash.Filter{expression: expr, resource: first_relationship.destination}
+
+    {:ok, source} =
+      AshPostgres.Join.maybe_get_resource_query(
+        first_relationship.destination,
+        first_relationship,
+        query
+      )
+
+    {:ok, filtered} =
+      AshPostgres.DataLayer.filter(
+        source,
+        Ash.Filter.move_to_relationship_path(filter, rest),
+        first_relationship.destination
+      )
+
+    source_ref =
+      ref_binding(
+        %Ref{
+          attribute: Ash.Resource.Info.attribute(resource, first_relationship.source_attribute),
+          relationship_path: [],
+          resource: resource
+        },
+        bindings
+      )
+
+    exists_query =
+      if first_relationship.type == :many_to_many do
+        through_relationship =
+          Ash.Resource.Info.relationship(resource, first_relationship.join_relationship)
+
+        {:ok, through} =
+          AshPostgres.Join.maybe_get_resource_query(
+            first_relationship.through,
+            through_relationship,
+            query
+          )
+
+        Ecto.Query.from(destination in filtered,
+          join: through in ^through,
+          on:
+            field(through, ^first_relationship.destination_attribute_on_join_resource) ==
+              field(destination, ^first_relationship.destination_attribute),
+          on:
+            field(parent_as(^source_ref), ^first_relationship.source_attribute) ==
+              field(through, ^first_relationship.source_attribute_on_join_resource),
+          select: 1
+        )
+
+        # )
+      else
+        Ecto.Query.from(destination in filtered,
+          select: [1],
+          where:
+            field(parent_as(^source_ref), ^first_relationship.source_attribute) ==
+              field(destination, ^first_relationship.destination_attribute)
+        )
+      end
+
+    Ecto.Query.dynamic(exists(exists_query))
   end
 
   defp do_dynamic_expr(
