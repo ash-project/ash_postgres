@@ -163,7 +163,7 @@ defmodule AshPostgres.MixProject do
       sobelow:
         "sobelow --skip -i Config.Secrets --ignore-files lib/migration_generator/migration_generator.ex",
       credo: "credo --strict",
-      "ash.formatter": "ash.formatter --extensions AshPostgres.DataLayer",
+      "spark.formatter": "spark.formatter --extensions AshPostgres.DataLayer",
       "test.generate_migrations": "ash_postgres.generate_migrations",
       "test.check_migrations": "ash_postgres.generate_migrations --check",
       "test.migrate_tenants": "ash_postgres.migrate --tenants",
