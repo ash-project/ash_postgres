@@ -2139,9 +2139,6 @@ defmodule AshPostgres.MigrationGenerator do
         Ash.Resource.Info.attribute(resource, key)
       end)
     end)
-    |> Enum.map(fn identity ->
-      %{identity | keys: Enum.sort(identity.keys)}
-    end)
     |> Enum.sort_by(& &1.name)
     |> Enum.map(&Map.take(&1, [:name, :keys]))
     |> Enum.map(fn identity ->
