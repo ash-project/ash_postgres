@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.0.0-rc.3](https://github.com/ash-project/ash_postgres/compare/v1.0.0-rc.2...v1.0.0-rc.3) (2022-09-12)
+
+
+
+
+### Bug Fixes:
+
+* keep unique index keys in order in migrations
+
 ## [v1.0.0-rc.2](https://github.com/ash-project/ash_postgres/compare/v1.0.0-rc.1...v1.0.0-rc.2) (2022-09-06)
 
 
