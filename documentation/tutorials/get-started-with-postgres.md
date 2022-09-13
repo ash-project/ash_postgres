@@ -66,7 +66,7 @@ Place the following contents in those files, ensuring that the credentials match
 import Config
 
 config :helpdesk,
-  ash_apis: [Helpdesk.Tickets]
+  ash_apis: [Helpdesk.Support]
 
 config :helpdesk,
   ecto_repos: [Helpdesk.Repo]
@@ -148,7 +148,7 @@ And finally, add the repo to your application
 Now we can add the data layer to our resources. The basic configuration for a resource requires the {{link:ash_postgres:option:ashpostgres/postgres/table}} and the {{link:ash_postgres:dsl:ash_postgres/postgres/repo}}.
 
 ```elixir
-# in lib/helpdesk/tickets/resources/ticket.ex
+# in lib/helpdesk/support/resources/ticket.ex
 
   use Ash.Resource,
     data_layer: AshPostgres.DataLayer
@@ -160,7 +160,7 @@ Now we can add the data layer to our resources. The basic configuration for a re
 ```
 
 ```elixir
-# in lib/helpdesk/tickets/resources/representative.ex
+# in lib/helpdesk/support/resources/representative.ex
 
   use Ash.Resource,
     data_layer: AshPostgres.DataLayer
@@ -203,23 +203,23 @@ Lets create some data. We'll make a representative and give them some open and s
 require Ash.Query
 
 representative = (
-  Helpdesk.Tickets.Representative
+  Helpdesk.Support.Representative
   |> Ash.Changeset.for_create(:create, %{name: "Joe Armstrong"})
-  |> Helpdesk.Tickets.create!()
+  |> Helpdesk.Support.create!()
 )
 
 for i <- 0..5 do
-  ticket = 
-    Helpdesk.Tickets.Ticket
+  ticket =
+    Helpdesk.Support.Ticket
     |> Ash.Changeset.for_create(:open, %{subject: "Issue #{i}"})
-    |> Helpdesk.Tickets.create!()
+    |> Helpdesk.Support.create!()
     |> Ash.Changeset.for_update(:assign, %{representative_id: representative.id})
-    |> Helpdesk.Tickets.update!()
-  
+    |> Helpdesk.Support.update!()
+
   if rem(i, 2) == 0 do
     ticket
     |> Ash.Changeset.for_update(:close)
-    |> Helpdesk.Tickets.update!()
+    |> Helpdesk.Support.update!()
   end
 end
 ```
@@ -230,28 +230,30 @@ And now we can read that data. You should see some debug logs that show the sql 
 require Ash.Query
 
 # Show the tickets where the subject contains "2"
-Helpdesk.Tickets.Ticket
+Helpdesk.Support.Ticket
 |> Ash.Query.filter(contains(subject, "2"))
-|> Helpdesk.Tickets.read!()
+|> Helpdesk.Support.read!()
 ```
 
 ```elixir
 require Ash.Query
 
 # Show the tickets that are closed and their subject does not contain "4"
-Helpdesk.Tickets.Ticket
+Helpdesk.Support.Ticket
 |> Ash.Query.filter(status == :closed and not(contains(subject, "4")))
-|> Helpdesk.Tickets.read!()
+|> Helpdesk.Support.read!()
 ```
 
-And, naturally, now that we are storing this in postgres, this database is persisted even if we stop/start our application. The nice thing, however, is that this was the *exact* same code that we ran against our resources when they were backed by ETS.
+And, naturally, now that we are storing this in postgres, this database is persisted even if we stop/start our application. The nice thing, however, is that this was the _exact_ same code that we ran against our resources when they were backed by ETS.
 
 ### Aggregates
 
 Lets add some aggregates to our representatives resource. Aggregates are a tool to include grouped up data about relationships. You can read more about them in the {{link:ash:guide:Aggregates}} guide.
 
+Here we will add an aggregate to easily query how many tickets are assigned to a representative, and how many of those tickets are open/closed.
+
 ```elixir
-# in lib/helpdesk/tickets/resources/representative.ex
+# in lib/helpdesk/support/resources/representative.ex
 
   aggregates do
     # The first argument here is the name of the aggregate
@@ -272,29 +274,31 @@ Lets add some aggregates to our representatives resource. Aggregates are a tool 
 Aggregates are powerful because they will be translated to SQL, and can be used in filters and sorts. For example:
 
 ```elixir
+# in iex
+
 require Ash.Query
 
-Helpdesk.Tickets.Representative
+Helpdesk.Support.Representative
 |> Ash.Query.filter(closed_tickets < 4)
 |> Ash.Query.sort(closed_tickets: :desc)
-|> Helpdesk.Tickets.read!()
+|> Helpdesk.Support.read!()
 ```
 
 You can also load individual aggregates on demand after queries have already been run, and minimal SQL will be issued to run the aggregate.
 
 ```elixir
+# in iex
+
 require Ash.Query
 
-Helpdesk.Tickets.Representative
+Helpdesk.Support.Representative
 |> Ash.Query.filter(closed_tickets < 4)
 |> Ash.Query.sort(closed_tickets: :desc)
-|> Helpdesk.Tickets.read!()
-```
+|> Helpdesk.Support.read!()
 
-```elixir
-tickets = Helpdesk.Tickets.read!(Helpdesk.Tickets.Representative)
+tickets = Helpdesk.Support.read!(Helpdesk.Support.Representative)
 
-Helpdesk.Tickets.load!(tickets, :open_tickets)
+Helpdesk.Support.load!(tickets, :open_tickets)
 ```
 
 ### Calculations
@@ -304,10 +308,10 @@ Calculations can be pushed down into SQL in the same way. Calculations are simil
 For example, we can determine the percentage of tickets that are open:
 
 ```elixir
-# in lib/helpdesk/tickets/resources/representative.ex
+# in lib/helpdesk/support/resources/representative.ex
 
   calculations do
-    calculate :percent_open, :float, expr(open_tickets / total_tickets ) 
+    calculate :percent_open, :float, expr(open_tickets / total_tickets )
   end
 ```
 
@@ -316,11 +320,11 @@ Calculations can be loaded and used in the same way as aggregates.
 ```elixir
 require Ash.Query
 
-Helpdesk.Tickets.Representative
+Helpdesk.Support.Representative
 |> Ash.Query.filter(percent_open > 0.25)
 |> Ash.Query.sort(:percent_open)
 |> Ash.Query.load(:percent_open)
-|> Helpdesk.Tickets.read!()
+|> Helpdesk.Support.read!()
 ```
 
 ### Rich Configuration Options
