@@ -476,6 +476,19 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :limit), do: true
   def can?(_, :offset), do: true
   def can?(_, :multitenancy), do: true
+
+  def can?(_, {:filter_relationship, %{manual: {module, _}}}) do
+    Spark.implements_behaviour?(module, AshPostgres.ManualRelationship)
+  end
+
+  def can?(_, {:filter_relationship, _}), do: true
+
+  def can?(_, {:aggregate_relationship, %{manual: {module, _}}}) do
+    Spark.implements_behaviour?(module, AshPostgres.ManualRelationship)
+  end
+
+  def can?(_, {:aggregate_relationship, _}), do: true
+
   def can?(_, :timeout), do: true
   def can?(_, {:filter_expr, _}), do: true
   def can?(_, :nested_expressions), do: true

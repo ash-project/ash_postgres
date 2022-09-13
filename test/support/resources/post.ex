@@ -75,7 +75,11 @@ defmodule AshPostgres.Test.Post do
 
     has_many :popular_comments, AshPostgres.Test.Comment do
       destination_attribute(:post_id)
-      # filter(expr(likes > 10))
+      filter(expr(likes > 10))
+    end
+
+    has_many :comments_containing_title, AshPostgres.Test.Comment do
+      manual(AshPostgres.Test.Post.CommentsContainingTitle)
     end
 
     has_many(:ratings, AshPostgres.Test.Rating,
@@ -126,6 +130,8 @@ defmodule AshPostgres.Test.Post do
     count :count_of_comments_called_match, :comments do
       filter(title: "match")
     end
+
+    count(:count_of_comments_containing_title, :comments_containing_title)
 
     first :first_comment, :comments, :title do
       sort(title: :asc_nils_last)

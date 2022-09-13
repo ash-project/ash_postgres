@@ -34,6 +34,8 @@ defmodule AshPostgres.Test.Comment do
   aggregates do
     first(:post_category, :post, :category)
     count(:co_popular_comments, [:post, :popular_comments])
+    count(:count_of_comments_containing_title, [:post, :comments_containing_title])
+    list(:posts_for_comments_containing_title, [:post, :comments_containing_title, :post], :title)
   end
 
   relationships do

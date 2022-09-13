@@ -346,6 +346,135 @@ defmodule AshPostgres.Join do
 
   defp do_join_relationship(
          query,
+         %{manual: {module, opts}} = relationship,
+         path,
+         kind,
+         source,
+         filter
+       ) do
+    full_path = path ++ [relationship.name]
+    initial_ash_bindings = query.__ash_bindings__
+
+    binding_data =
+      case kind do
+        {:aggregate, name, _agg} ->
+          %{type: :aggregate, name: name, path: full_path, source: source}
+
+        _ ->
+          %{type: kind, path: full_path, source: source}
+      end
+
+    query = AshPostgres.DataLayer.add_binding(query, binding_data)
+
+    used_calculations =
+      Ash.Filter.used_calculations(
+        filter,
+        relationship.destination,
+        full_path
+      )
+
+    used_aggregates =
+      filter
+      |> AshPostgres.Aggregate.used_aggregates(relationship, used_calculations, full_path)
+      |> Enum.map(fn aggregate ->
+        %{aggregate | load: aggregate.name}
+      end)
+
+    use_root_query_bindings? = Enum.empty?(used_aggregates)
+
+    case maybe_get_resource_query(
+           relationship.destination,
+           relationship,
+           query,
+           full_path,
+           use_root_query_bindings?
+         ) do
+      {:error, error} ->
+        {:error, error}
+
+      {:ok, relationship_destination} ->
+        relationship_destination =
+          relationship_destination
+          |> Ecto.Queryable.to_query()
+          |> set_join_prefix(query, relationship.destination)
+
+        binding_kind =
+          case kind do
+            {:aggregate, _, _} ->
+              :left
+
+            other ->
+              other
+          end
+
+        current_binding =
+          Enum.find_value(initial_ash_bindings.bindings, 0, fn {binding, data} ->
+            if data.type == binding_kind && data.path == path do
+              binding
+            end
+          end)
+
+        relationship_destination
+        |> AshPostgres.Aggregate.add_aggregates(used_aggregates, relationship.destination)
+        |> case do
+          {:ok, relationship_destination} ->
+            relationship_destination =
+              case used_aggregates do
+                [] ->
+                  relationship_destination
+
+                _ ->
+                  subquery(relationship_destination)
+              end
+
+            case kind do
+              {:aggregate, _, subquery} ->
+                case AshPostgres.Aggregate.agg_subquery_for_lateral_join(
+                       current_binding,
+                       query,
+                       subquery,
+                       relationship
+                     ) do
+                  {:ok, subquery} ->
+                    {:ok,
+                     from([{row, current_binding}] in query,
+                       left_lateral_join: destination in ^subquery,
+                       as: ^initial_ash_bindings.current
+                     )}
+
+                  other ->
+                    other
+                end
+
+              kind ->
+                module.ash_postgres_join(
+                  query,
+                  opts,
+                  current_binding,
+                  initial_ash_bindings.current,
+                  kind,
+                  relationship_destination
+                )
+            end
+
+          {:error, error} ->
+            {:error, error}
+        end
+    end
+  rescue
+    e in UndefinedFunctionError ->
+      if e.function == :ash_postgres_join do
+        reraise """
+                Cannot join to a manual relationship #{inspect(module)} that does not implement the `AshPostgres.ManualRelationship` behaviour.
+                """,
+                __STACKTRACE__
+      else
+        reraise e, __STACKTRACE__
+      end
+  end
+
+  defp do_join_relationship(
+         query,
          %{type: :many_to_many} = relationship,
          path,
          kind,
@@ -478,19 +607,22 @@ defmodule AshPostgres.Join do
 
           case kind do
             {:aggregate, _, subquery} ->
-              subquery =
-                AshPostgres.Aggregate.agg_subquery_for_lateral_join(
-                  current_binding,
-                  query,
-                  subquery,
-                  relationship
-                )
+              case AshPostgres.Aggregate.agg_subquery_for_lateral_join(
+                     current_binding,
+                     query,
+                     subquery,
+                     relationship
+                   ) do
+                {:ok, subquery} ->
+                  {:ok,
+                   from([{row, current_binding}] in query,
+                     left_lateral_join: through in ^subquery,
+                     as: ^initial_ash_bindings.current
+                   )}
 
-              {:ok,
-               from([{row, current_binding}] in query,
-                 left_lateral_join: through in ^subquery,
-                 as: ^initial_ash_bindings.current
-               )}
+                other ->
+                  other
+              end
 
             :inner ->
               {:ok,
@@ -614,19 +746,22 @@ defmodule AshPostgres.Join do
 
             case {kind, Map.get(relationship, :no_attributes?)} do
               {{:aggregate, _, subquery}, _} ->
-                subquery =
-                  AshPostgres.Aggregate.agg_subquery_for_lateral_join(
-                    current_binding,
-                    query,
-                    subquery,
-                    relationship
-                  )
+                case AshPostgres.Aggregate.agg_subquery_for_lateral_join(
+                       current_binding,
+                       query,
+                       subquery,
+                       relationship
+                     ) do
+                  {:ok, subquery} ->
+                    {:ok,
+                     from([{row, current_binding}] in query,
+                       left_lateral_join: destination in ^subquery,
+                       as: ^initial_ash_bindings.current
+                     )}
 
-                {:ok,
-                 from([{row, current_binding}] in query,
-                   left_lateral_join: destination in ^subquery,
-                   as: ^initial_ash_bindings.current
-                 )}
+                  other ->
+                    other
+                end
 
               {_, true} ->
                 from([{row, current_binding}] in query,

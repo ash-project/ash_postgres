@@ -208,6 +208,40 @@ defmodule AshPostgres.Aggregate do
     }
   end
 
+  def agg_subquery_for_lateral_join(
+        current_binding,
+        query,
+        subquery,
+        %{
+          manual: {module, opts}
+        } = relationship
+      ) do
+    case module.ash_postgres_subquery(
+           opts,
+           current_binding,
+           0,
+           subquery
+         ) do
+      {:ok, inner_sub} ->
+        {:ok,
+         from(sub in subquery(inner_sub), [])
+         |> AshPostgres.Join.set_join_prefix(query, relationship.destination)}
+
+      other ->
+        other
+    end
+  rescue
+    e in UndefinedFunctionError ->
+      if e.function == :ash_postgres_subquery do
+        reraise """
+                Cannot join to a manual relationship #{inspect(module)} that does not implement the `AshPostgres.ManualRelationship` behaviour.
+                """,
+                __STACKTRACE__
+      else
+        reraise e, __STACKTRACE__
+      end
+  end
+
   def agg_subquery_for_lateral_join(current_binding, query, subquery, relationship) do
     {dest_binding, dest_field} =
       case relationship.type do
@@ -229,8 +263,9 @@ defmodule AshPostgres.Aggregate do
         )
       end
 
-    from(sub in subquery(inner_sub), [])
-    |> AshPostgres.Join.set_join_prefix(query, relationship.destination)
+    {:ok,
+     from(sub in subquery(inner_sub), [])
+     |> AshPostgres.Join.set_join_prefix(query, relationship.destination)}
   end
 
   defp select_dynamic(resource, query, aggregate) do
