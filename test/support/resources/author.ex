@@ -17,6 +17,7 @@ defmodule AshPostgres.Test.Author do
     attribute(:first_name, :string)
     attribute(:last_name, :string)
     attribute(:bio, AshPostgres.Test.Bio)
+    attribute(:badges, {:array, :atom})
   end
 
   actions do

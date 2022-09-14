@@ -464,6 +464,46 @@ defmodule AshPostgres.FilterTest do
     end
   end
 
+  describe "length/1" do
+    test "it works with a list" do
+      author1 =
+        Author
+        |> Ash.Changeset.new(%{badges: [:author_of_the_year]})
+        |> Api.create!()
+
+      _author2 =
+        Author
+        |> Ash.Changeset.new(%{badges: []})
+        |> Api.create!()
+
+      author1_id = author1.id
+
+      assert [%{id: ^author1_id}] =
+               Author
+               |> Ash.Query.filter(length(badges) > 0)
+               |> Api.read!()
+    end
+
+    test "it works with nil" do
+      author1 =
+        Author
+        |> Ash.Changeset.new(%{badges: [:author_of_the_year]})
+        |> Api.create!()
+
+      _author2 =
+        Author
+        |> Ash.Changeset.new()
+        |> Api.create!()
+
+      author1_id = author1.id
+
+      assert [%{id: ^author1_id}] =
+               Author
+               |> Ash.Query.filter(length(badges || []) > 0)
+               |> Api.read!()
+    end
+  end
+
   describe "exists/2" do
     test "it works with single relationships" do
       post =
