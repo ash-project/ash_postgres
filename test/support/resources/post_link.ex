@@ -14,12 +14,12 @@ defmodule AshPostgres.Test.PostLink do
 
   relationships do
     belongs_to :source_post, AshPostgres.Test.Post do
-      required?(true)
+      allow_nil?(false)
       primary_key?(true)
     end
 
     belongs_to :destination_post, AshPostgres.Test.Post do
-      required?(true)
+      allow_nil?(false)
       primary_key?(true)
     end
   end
