@@ -217,7 +217,7 @@ defmodule AshPostgres.Expr do
         arguments: [
           raw: "array_length((",
           expr: list,
-          raw: "))"
+          raw: "), 1)"
         ]
       },
       bindings,
