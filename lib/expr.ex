@@ -4,7 +4,7 @@ defmodule AshPostgres.Expr do
   alias Ash.Filter
   alias Ash.Query.{BooleanExpression, Exists, Not, Ref}
   alias Ash.Query.Operator.IsNil
-  alias Ash.Query.Function.{Ago, Contains, GetPath, If}
+  alias Ash.Query.Function.{Ago, Contains, GetPath, If, Length}
   alias AshPostgres.Functions.{Fragment, TrigramSimilarity, Type}
 
   require Ecto.Query
@@ -195,6 +195,29 @@ defmodule AshPostgres.Expr do
           raw: "), (",
           expr: right,
           raw: ")) > 0"
+        ]
+      },
+      bindings,
+      embedded?,
+      type
+    )
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %Length{arguments: [list], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         type
+       ) do
+    do_dynamic_expr(
+      query,
+      %Fragment{
+        embedded?: pred_embedded?,
+        arguments: [
+          raw: "array_length((",
+          expr: list,
+          raw: "), 1)"
         ]
       },
       bindings,
