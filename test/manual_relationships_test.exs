@@ -27,12 +27,12 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "title2"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Comment
       |> Ash.Changeset.new(%{title: "no match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %{count_of_comments_containing_title: 1} =
@@ -68,12 +68,12 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "title2"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Comment
       |> Ash.Changeset.new(%{title: "no match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert [_] =
@@ -92,12 +92,12 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "title2"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Comment
       |> Ash.Changeset.new(%{title: "no match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert [_] =
@@ -117,7 +117,7 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
       comment =
         Comment
         |> Ash.Changeset.new(%{title: "no match"})
-        |> Ash.Changeset.replace_relationship(:post, post)
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
         |> Api.create!()
 
       assert %{count_of_comments_containing_title: 0} =
@@ -137,12 +137,12 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
       comment =
         Comment
         |> Ash.Changeset.new(%{title: "title2"})
-        |> Ash.Changeset.replace_relationship(:post, post)
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
         |> Api.create!()
 
       Comment
       |> Ash.Changeset.new(%{title: "no match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %{count_of_comments_containing_title: 1} =
@@ -157,7 +157,7 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "no match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert [] =
@@ -174,7 +174,7 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "no match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert [] =
@@ -195,12 +195,12 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "title2"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Comment
       |> Ash.Changeset.new(%{title: "no match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert [_, _] =
@@ -221,12 +221,12 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "title2"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Comment
       |> Ash.Changeset.new(%{title: "no match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert [_, _] =
@@ -246,7 +246,7 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
       comment =
         Comment
         |> Ash.Changeset.new(%{title: "no match"})
-        |> Ash.Changeset.replace_relationship(:post, post)
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
         |> Api.create!()
 
       assert %{posts_for_comments_containing_title: []} =
@@ -266,12 +266,12 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
       comment =
         Comment
         |> Ash.Changeset.new(%{title: "title2"})
-        |> Ash.Changeset.replace_relationship(:post, post)
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
         |> Api.create!()
 
       Comment
       |> Ash.Changeset.new(%{title: "no match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %{posts_for_comments_containing_title: ["title"]} =
@@ -286,7 +286,7 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "no match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert [] =
@@ -303,7 +303,7 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "no match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert [] =
@@ -324,12 +324,12 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "title2"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Comment
       |> Ash.Changeset.new(%{title: "no match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert [_, _] =
@@ -350,12 +350,12 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "title2"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Comment
       |> Ash.Changeset.new(%{title: "no match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert [_, _] =

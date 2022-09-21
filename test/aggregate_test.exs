@@ -26,7 +26,7 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       import Ash.Query
@@ -44,7 +44,7 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %{aggregates: %{custom_count_of_comments: 2}} =
@@ -77,12 +77,12 @@ defmodule AshPostgres.AggregateTest do
 
       post
       |> Ash.Changeset.new()
-      |> Ash.Changeset.replace_relationship(:linked_posts, [post2, post3])
+      |> Ash.Changeset.manage_relationship(:linked_posts, [post2, post3], type: :append_and_remove)
       |> Api.update!()
 
       post2
       |> Ash.Changeset.new()
-      |> Ash.Changeset.replace_relationship(:linked_posts, [post3])
+      |> Ash.Changeset.manage_relationship(:linked_posts, [post3], type: :append_and_remove)
       |> Api.update!()
 
       assert [
@@ -104,7 +104,7 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %{count_of_comments_called_match: 1} =
@@ -115,7 +115,7 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "not_match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %{count_of_comments_called_match: 1} =
@@ -148,12 +148,12 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "bbb"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Comment
       |> Ash.Changeset.new(%{title: "ccc"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %{comment_titles: ["bbb", "ccc"]} =
@@ -164,7 +164,7 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "aaa"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %{comment_titles: ["aaa", "bbb", "ccc"]} =
@@ -197,7 +197,7 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %{first_comment: "match"} =
@@ -208,7 +208,7 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "early match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %{first_comment: "early match"} =
@@ -226,7 +226,7 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %{first_comment: "match"} =
@@ -251,17 +251,17 @@ defmodule AshPostgres.AggregateTest do
 
     Comment
     |> Ash.Changeset.new(%{title: "match"})
-    |> Ash.Changeset.replace_relationship(:post, post)
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Api.create!()
 
     Comment
     |> Ash.Changeset.new(%{title: "non_match"})
-    |> Ash.Changeset.replace_relationship(:post, post2)
+    |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
     |> Api.create!()
 
     Comment
     |> Ash.Changeset.new(%{title: "non_match2"})
-    |> Ash.Changeset.replace_relationship(:post, post2)
+    |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
     |> Api.create!()
 
     assert %{title: "match"} =
@@ -305,7 +305,7 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "match", likes: 2})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %{sum_of_comment_likes: 2} =
@@ -316,7 +316,7 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "match", likes: 3})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %{sum_of_comment_likes: 5} =
@@ -334,7 +334,7 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "match", likes: 2})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %{sum_of_comment_likes_called_match: 2} =
@@ -345,7 +345,7 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "not_match", likes: 3})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %{sum_of_comment_likes_called_match: 2} =
@@ -370,7 +370,7 @@ defmodule AshPostgres.AggregateTest do
       comment =
         Comment
         |> Ash.Changeset.new(%{title: "title", likes: 2})
-        |> Ash.Changeset.replace_relationship(:post, post)
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
         |> Api.create!()
 
       Rating
@@ -395,7 +395,7 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "title", likes: 2})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Post
@@ -414,7 +414,7 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "match", likes: 2})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %{sum_of_comment_likes_called_match: 2} =
@@ -425,7 +425,7 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "not_match", likes: 3})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %Ash.Page.Offset{results: [%{sum_of_comment_likes_called_match: 2}]} =
@@ -451,12 +451,12 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.for_create(:create, %{title: "match", likes: 20})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Comment
       |> Ash.Changeset.for_create(:create, %{title: "match", likes: 17})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Comment
@@ -465,7 +465,7 @@ defmodule AshPostgres.AggregateTest do
         :created_at,
         DateTime.add(DateTime.utc_now(), :timer.hours(24) * -20, :second)
       )
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %Post{sum_of_recent_popular_comment_likes: 37} =
@@ -482,12 +482,12 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.for_create(:create, %{title: "match", likes: 20})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Comment
       |> Ash.Changeset.for_create(:create, %{title: "match", likes: 17})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Comment
@@ -496,7 +496,7 @@ defmodule AshPostgres.AggregateTest do
         :created_at,
         DateTime.add(DateTime.utc_now(), :timer.hours(24) * -20, :second)
       )
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %Post{count_of_recent_popular_comments: 2} =
@@ -515,17 +515,17 @@ defmodule AshPostgres.AggregateTest do
 
       Comment
       |> Ash.Changeset.for_create(:create, %{title: "match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Comment
       |> Ash.Changeset.for_create(:create, %{title: "match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Comment
       |> Ash.Changeset.for_create(:create, %{title: "match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       assert %Post{count_of_comments_that_have_a_post: 3} =
@@ -545,13 +545,13 @@ defmodule AshPostgres.AggregateTest do
       comment =
         Comment
         |> Ash.Changeset.for_create(:create, %{title: "match"})
-        |> Ash.Changeset.replace_relationship(:post, post)
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
         |> Api.create!()
 
       comment2 =
         Comment
         |> Ash.Changeset.for_create(:create, %{title: "match"})
-        |> Ash.Changeset.replace_relationship(:post, post)
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
         |> Api.create!()
 
       Rating

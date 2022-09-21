@@ -86,7 +86,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
     user =
       User
       |> Ash.Changeset.new()
-      |> Ash.Changeset.replace_relationship(:org, org)
+      |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
       |> Api.create!()
 
     assert Api.load!(user, :org).org.id == org.id
@@ -101,13 +101,13 @@ defmodule AshPostgres.Test.MultitenancyTest do
     user1 =
       User
       |> Ash.Changeset.new(%{name: "a"})
-      |> Ash.Changeset.replace_relationship(:org, org)
+      |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
       |> Api.create!()
 
     user2 =
       User
       |> Ash.Changeset.new(%{name: "b"})
-      |> Ash.Changeset.replace_relationship(:org, org)
+      |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
       |> Api.create!()
 
     user1_id = user1.id
@@ -123,7 +123,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
 
     Post
     |> Ash.Changeset.for_create(:create, %{}, tenant: tenant(org))
-    |> Ash.Changeset.replace_relationship(:user, user)
+    |> Ash.Changeset.manage_relationship(:user, user, type: :append_and_remove)
     |> Api.create!()
   end
 
@@ -136,7 +136,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
     user =
       User
       |> Ash.Changeset.new()
-      |> Ash.Changeset.replace_relationship(:org, org)
+      |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
       |> Api.create!()
 
     assert Api.load!(user, :org).org.id == org.id
@@ -151,13 +151,13 @@ defmodule AshPostgres.Test.MultitenancyTest do
     user1 =
       User
       |> Ash.Changeset.new(%{name: "a"})
-      |> Ash.Changeset.replace_relationship(:org, org)
+      |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
       |> Api.create!()
 
     user2 =
       User
       |> Ash.Changeset.new(%{name: "b"})
-      |> Ash.Changeset.replace_relationship(:org, org)
+      |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
       |> Api.create!()
 
     user1_id = user1.id

@@ -409,7 +409,7 @@ defmodule AshPostgres.Aggregate do
           expr,
           query.__ash_bindings__,
           false,
-          AshPostgres.Types.parameterized_type(aggregate.type, [])
+          AshPostgres.Types.parameterized_type({:array, aggregate.type}, [])
         )
       else
         Ecto.Query.dynamic(

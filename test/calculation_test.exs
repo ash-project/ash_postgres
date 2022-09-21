@@ -22,27 +22,27 @@ defmodule AshPostgres.CalculationTest do
 
     Comment
     |> Ash.Changeset.new(%{title: "_"})
-    |> Ash.Changeset.replace_relationship(:post, post)
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Api.create!()
 
     Comment
     |> Ash.Changeset.new(%{title: "_"})
-    |> Ash.Changeset.replace_relationship(:post, post)
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Api.create!()
 
     Comment
     |> Ash.Changeset.new(%{title: "_"})
-    |> Ash.Changeset.replace_relationship(:post, post)
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Api.create!()
 
     post
     |> Ash.Changeset.new()
-    |> Ash.Changeset.replace_relationship(:linked_posts, [post2, post3])
+    |> Ash.Changeset.manage_relationship(:linked_posts, [post2, post3], type: :append_and_remove)
     |> Api.update!()
 
     post2
     |> Ash.Changeset.new()
-    |> Ash.Changeset.replace_relationship(:linked_posts, [post3])
+    |> Ash.Changeset.manage_relationship(:linked_posts, [post3], type: :append_and_remove)
     |> Api.update!()
 
     assert [%{c_times_p: 6, title: "match"}] =
@@ -118,32 +118,32 @@ defmodule AshPostgres.CalculationTest do
 
     Comment
     |> Ash.Changeset.new(%{title: "match"})
-    |> Ash.Changeset.replace_relationship(:post, post)
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Api.create!()
 
     Comment
     |> Ash.Changeset.new(%{title: "match"})
-    |> Ash.Changeset.replace_relationship(:post, post)
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Api.create!()
 
     Comment
     |> Ash.Changeset.new(%{title: "match"})
-    |> Ash.Changeset.replace_relationship(:post, post)
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Api.create!()
 
     Comment
     |> Ash.Changeset.new(%{title: "no_match"})
-    |> Ash.Changeset.replace_relationship(:post, post2)
+    |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
     |> Api.create!()
 
     post
     |> Ash.Changeset.new()
-    |> Ash.Changeset.replace_relationship(:linked_posts, [post2, post3])
+    |> Ash.Changeset.manage_relationship(:linked_posts, [post2, post3], type: :append_and_remove)
     |> Api.update!()
 
     post2
     |> Ash.Changeset.new()
-    |> Ash.Changeset.replace_relationship(:linked_posts, [post3])
+    |> Ash.Changeset.manage_relationship(:linked_posts, [post3], type: :append_and_remove)
     |> Api.update!()
 
     posts_query =
@@ -241,7 +241,7 @@ defmodule AshPostgres.CalculationTest do
 
     Comment
     |> Ash.Changeset.new(%{title: "match"})
-    |> Ash.Changeset.replace_relationship(:author, author)
+    |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
     |> Api.create!()
 
     assert %{title: "match"} =
@@ -312,17 +312,17 @@ defmodule AshPostgres.CalculationTest do
 
     Comment
     |> Ash.Changeset.new(%{title: "aaa", likes: 1, arbitrary_timestamp: DateTime.now!("Etc/UTC")})
-    |> Ash.Changeset.replace_relationship(:post, post)
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Api.create!()
 
     Comment
     |> Ash.Changeset.new(%{title: "bbb", likes: 1})
-    |> Ash.Changeset.replace_relationship(:post, post)
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Api.create!()
 
     Comment
     |> Ash.Changeset.new(%{title: "aaa", likes: 2})
-    |> Ash.Changeset.replace_relationship(:post, post)
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Api.create!()
 
     Post

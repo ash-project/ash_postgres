@@ -304,7 +304,7 @@ defmodule AshPostgres.Expr do
          %Fragment{arguments: arguments, embedded?: pred_embedded?},
          bindings,
          embedded?,
-         _type
+         type
        ) do
     arguments =
       case arguments do
@@ -359,7 +359,7 @@ defmodule AshPostgres.Expr do
           {new_params, fragment_data ++ [{:expr, expr}], new_count}
       end)
 
-    %Ecto.Query.DynamicExpr{
+    frag_dynamic = %Ecto.Query.DynamicExpr{
       fun: fn _query ->
         {{:fragment, [], fragment_data}, Enum.reverse(params), []}
       end,
@@ -367,6 +367,12 @@ defmodule AshPostgres.Expr do
       file: __ENV__.file,
       line: __ENV__.line
     }
+
+    if type do
+      Ecto.Query.dynamic(type(^frag_dynamic, ^type))
+    else
+      frag_dynamic
+    end
   end
 
   defp do_dynamic_expr(

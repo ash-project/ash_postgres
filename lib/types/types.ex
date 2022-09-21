@@ -3,6 +3,10 @@ defmodule AshPostgres.Types do
 
   alias Ash.Query.Ref
 
+  def parameterized_type({:parameterized, _, _} = type, _) do
+    type
+  end
+
   def parameterized_type({:array, type}, constraints) do
     case parameterized_type(type, constraints[:items] || []) do
       nil ->

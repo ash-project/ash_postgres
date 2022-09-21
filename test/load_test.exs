@@ -13,7 +13,7 @@ defmodule AshPostgres.Test.LoadTest do
 
     Comment
     |> Ash.Changeset.new(%{title: "match"})
-    |> Ash.Changeset.replace_relationship(:post, post)
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Api.create!()
 
     results =
@@ -33,7 +33,7 @@ defmodule AshPostgres.Test.LoadTest do
 
     Post
     |> Ash.Changeset.new(%{title: "match"})
-    |> Ash.Changeset.replace_relationship(:comments, [comment])
+    |> Ash.Changeset.manage_relationship(:comments, [comment], type: :append_and_remove)
     |> Api.create!()
 
     results =
@@ -62,7 +62,9 @@ defmodule AshPostgres.Test.LoadTest do
 
     source_post
     |> Ash.Changeset.new()
-    |> Ash.Changeset.replace_relationship(:linked_posts, [destination_post, destination_post2])
+    |> Ash.Changeset.manage_relationship(:linked_posts, [destination_post, destination_post2],
+      type: :append_and_remove
+    )
     |> Api.update!()
 
     results =
@@ -82,12 +84,12 @@ defmodule AshPostgres.Test.LoadTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "abc"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Comment
       |> Ash.Changeset.new(%{title: "def"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       comments_query =
@@ -145,7 +147,9 @@ defmodule AshPostgres.Test.LoadTest do
 
       source_post
       |> Ash.Changeset.new()
-      |> Ash.Changeset.replace_relationship(:linked_posts, [destination_post, destination_post2])
+      |> Ash.Changeset.manage_relationship(:linked_posts, [destination_post, destination_post2],
+        type: :append_and_remove
+      )
       |> Api.update!()
 
       linked_posts_query =

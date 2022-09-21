@@ -102,6 +102,16 @@ defmodule AshPostgres.Test.Post do
     )
 
     calculate(
+      :calc_returning_json,
+      AshPostgres.Test.Money,
+      expr(
+        fragment("""
+        '{"amount":100, "currency": "usd"}'::json
+        """)
+      )
+    )
+
+    calculate(
       :has_future_arbitrary_timestamp,
       :boolean,
       expr(latest_arbitrary_timestamp > fragment("now()"))

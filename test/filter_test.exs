@@ -80,7 +80,7 @@ defmodule AshPostgres.FilterTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "not match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       results =
@@ -100,19 +100,19 @@ defmodule AshPostgres.FilterTest do
       post =
         Post
         |> Ash.Changeset.new(%{title: "title"})
-        |> Ash.Changeset.replace_relationship(:author, author)
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
         |> Api.create!()
 
       Post
       |> Ash.Changeset.new(%{title: "title2"})
-      |> Ash.Changeset.replace_relationship(:linked_posts, [post])
-      |> Ash.Changeset.replace_relationship(:author, author)
+      |> Ash.Changeset.manage_relationship(:linked_posts, [post], type: :append_and_remove)
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
       |> Api.create!()
 
       Comment
       |> Ash.Changeset.new(%{title: "not match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
-      |> Ash.Changeset.replace_relationship(:author, author)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
       |> Api.create!()
 
       results =
@@ -131,7 +131,7 @@ defmodule AshPostgres.FilterTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       results =
@@ -150,12 +150,12 @@ defmodule AshPostgres.FilterTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Comment
       |> Ash.Changeset.new(%{title: "not match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       results =
@@ -256,7 +256,7 @@ defmodule AshPostgres.FilterTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       results =
@@ -275,7 +275,7 @@ defmodule AshPostgres.FilterTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "doesn't match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       results =
@@ -294,7 +294,7 @@ defmodule AshPostgres.FilterTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "match"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       results =
@@ -462,7 +462,7 @@ defmodule AshPostgres.FilterTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "abba"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       post2 =
@@ -472,7 +472,7 @@ defmodule AshPostgres.FilterTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "acca"})
-      |> Ash.Changeset.replace_relationship(:post, post2)
+      |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
       |> Api.create!()
 
       assert [%{title: "match"}] =
@@ -564,7 +564,7 @@ defmodule AshPostgres.FilterTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "abba"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       post2 =
@@ -574,7 +574,7 @@ defmodule AshPostgres.FilterTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "acca"})
-      |> Ash.Changeset.replace_relationship(:post, post2)
+      |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
       |> Api.create!()
 
       assert [%{title: "match"}] =
@@ -591,7 +591,7 @@ defmodule AshPostgres.FilterTest do
 
       Post
       |> Ash.Changeset.new(%{title: "b"})
-      |> Ash.Changeset.replace_relationship(:linked_posts, [post])
+      |> Ash.Changeset.manage_relationship(:linked_posts, [post], type: :append_and_remove)
       |> Api.create!()
 
       assert [%{title: "b"}] =
@@ -608,12 +608,12 @@ defmodule AshPostgres.FilterTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "comment"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Post
       |> Ash.Changeset.new(%{title: "b"})
-      |> Ash.Changeset.replace_relationship(:linked_posts, [post])
+      |> Ash.Changeset.manage_relationship(:linked_posts, [post], type: :append_and_remove)
       |> Api.create!()
 
       assert [%{title: "b"}] =
@@ -630,12 +630,12 @@ defmodule AshPostgres.FilterTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "comment"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Post
       |> Ash.Changeset.new(%{title: "b"})
-      |> Ash.Changeset.replace_relationship(:linked_posts, [post])
+      |> Ash.Changeset.manage_relationship(:linked_posts, [post], type: :append_and_remove)
       |> Api.create!()
 
       assert [%{title: "b"}] =
@@ -652,12 +652,12 @@ defmodule AshPostgres.FilterTest do
 
       Comment
       |> Ash.Changeset.new(%{title: "comment"})
-      |> Ash.Changeset.replace_relationship(:post, post)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
       Post
       |> Ash.Changeset.new(%{title: "b"})
-      |> Ash.Changeset.replace_relationship(:linked_posts, [post])
+      |> Ash.Changeset.manage_relationship(:linked_posts, [post], type: :append_and_remove)
       |> Api.create!()
 
       assert [%{title: "b"}] =

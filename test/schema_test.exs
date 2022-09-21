@@ -13,14 +13,14 @@ defmodule AshPostgres.SchemaTest do
     assert %{description: "foo"} =
              Profile
              |> Ash.Changeset.for_create(:create, %{description: "foo"})
-             |> Ash.Changeset.replace_relationship(:author, author)
+             |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
              |> Api.create!()
   end
 
   test "data can be read", %{author: author} do
     Profile
     |> Ash.Changeset.for_create(:create, %{description: "foo"})
-    |> Ash.Changeset.replace_relationship(:author, author)
+    |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
     |> Api.create!()
 
     assert [%{description: "foo"}] = Profile |> Api.read!()
@@ -30,7 +30,7 @@ defmodule AshPostgres.SchemaTest do
     profile =
       Profile
       |> Ash.Changeset.for_create(:create, %{description: "foo"})
-      |> Ash.Changeset.replace_relationship(:author, author)
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
       |> Api.create!()
 
     Api.create!(Ash.Changeset.for_create(Author, :create, %{}))
@@ -49,7 +49,7 @@ defmodule AshPostgres.SchemaTest do
   test "aggregates work across schemas", %{author: author} do
     Profile
     |> Ash.Changeset.for_create(:create, %{description: "foo"})
-    |> Ash.Changeset.replace_relationship(:author, author)
+    |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
     |> Api.create!()
 
     assert [%{profile_description: "foo"}] =

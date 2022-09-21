@@ -46,17 +46,17 @@ defmodule AshPostgres.SortTest do
 
     Comment
     |> Ash.Changeset.new(%{title: "aaa", likes: 1})
-    |> Ash.Changeset.replace_relationship(:post, post)
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Api.create!()
 
     Comment
     |> Ash.Changeset.new(%{title: "bbb", likes: 1})
-    |> Ash.Changeset.replace_relationship(:post, post)
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Api.create!()
 
     Comment
     |> Ash.Changeset.new(%{title: "aaa", likes: 2})
-    |> Ash.Changeset.replace_relationship(:post, post)
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Api.create!()
 
     posts =
