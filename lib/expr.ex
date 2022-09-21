@@ -521,8 +521,16 @@ defmodule AshPostgres.Expr do
     do_dynamic_expr(query, Enum.to_list(mapset), bindings, embedded?, type)
   end
 
-  defp do_dynamic_expr(query, %Ash.CiString{string: string}, bindings, embedded?, type) do
+  defp do_dynamic_expr(
+         query,
+         %Ash.CiString{string: string} = expression,
+         bindings,
+         embedded?,
+         type
+       ) do
     string = do_dynamic_expr(query, string, bindings, embedded?)
+
+    require_extension!(query, "citext", expression)
 
     do_dynamic_expr(
       query,
@@ -546,13 +554,14 @@ defmodule AshPostgres.Expr do
            attribute: %Ash.Query.Calculation{} = calculation,
            relationship_path: [],
            resource: resource
-         },
+         } = type_expr,
          bindings,
          embedded?,
          _type
        ) do
     calculation = %{calculation | load: calculation.name}
     type = AshPostgres.Types.parameterized_type(calculation.type, [])
+    validate_type!(query, type, type_expr)
 
     case Ash.Filter.hydrate_refs(
            calculation.module.expression(calculation.opts, calculation.context),
@@ -581,7 +590,7 @@ defmodule AshPostgres.Expr do
   end
 
   defp do_dynamic_expr(
-         _query,
+         query,
          %Ref{attribute: %Ash.Query.Aggregate{} = aggregate} = ref,
          bindings,
          _embedded?,
@@ -596,6 +605,7 @@ defmodule AshPostgres.Expr do
     expr = Ecto.Query.dynamic(field(as(^ref_binding), ^aggregate.name))
 
     type = AshPostgres.Types.parameterized_type(aggregate.type, [])
+    validate_type!(query, type, ref)
 
     type =
       if type && aggregate.kind == :list do
@@ -646,6 +656,8 @@ defmodule AshPostgres.Expr do
 
     type = AshPostgres.Types.parameterized_type(calculation.type, [])
 
+    validate_type!(query, type, ref)
+
     case Ash.Filter.hydrate_refs(
            calculation.module.expression(calculation.opts, calculation.context),
            %{
@@ -676,7 +688,7 @@ defmodule AshPostgres.Expr do
 
   defp do_dynamic_expr(
          query,
-         %Type{arguments: [arg1, arg2], embedded?: pred_embedded?},
+         %Type{arguments: [arg1, arg2], embedded?: pred_embedded?} = type_expr,
          bindings,
          embedded?,
          _type
@@ -684,6 +696,7 @@ defmodule AshPostgres.Expr do
     arg1 = do_dynamic_expr(query, arg1, bindings, false)
     arg2 = do_dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?)
     type = AshPostgres.Types.parameterized_type(arg2, [])
+    validate_type!(query, type, type_expr)
 
     if type do
       Ecto.Query.dynamic(type(^arg1, ^type))
@@ -694,7 +707,7 @@ defmodule AshPostgres.Expr do
 
   defp do_dynamic_expr(
          query,
-         %Type{arguments: [arg1, arg2, constraints], embedded?: pred_embedded?},
+         %Type{arguments: [arg1, arg2, constraints], embedded?: pred_embedded?} = type_expr,
          bindings,
          embedded?,
          _type
@@ -702,6 +715,7 @@ defmodule AshPostgres.Expr do
     arg1 = do_dynamic_expr(query, arg1, bindings, false)
     arg2 = do_dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?)
     type = AshPostgres.Types.parameterized_type(arg2, constraints)
+    validate_type!(query, type, type_expr)
 
     if type do
       Ecto.Query.dynamic(type(^arg1, ^type))
@@ -783,11 +797,11 @@ defmodule AshPostgres.Expr do
   end
 
   defp do_dynamic_expr(
-         _query,
-         %Ref{attribute: %Ash.Resource.Attribute{name: name}} = ref,
+         query,
+         %Ref{attribute: %Ash.Resource.Attribute{name: name, type: attr_type}} = ref,
          bindings,
          _embedded?,
-         _type
+         expr_type
        ) do
     ref_binding = ref_binding(ref, bindings)
 
@@ -795,7 +809,14 @@ defmodule AshPostgres.Expr do
       raise "Error while building reference: #{inspect(ref)}"
     end
 
-    Ecto.Query.dynamic(field(as(^ref_binding), ^name))
+    case AshPostgres.Types.parameterized_type(attr_type || expr_type, []) do
+      nil ->
+        Ecto.Query.dynamic(field(as(^ref_binding), ^name))
+
+      type ->
+        validate_type!(query, type, ref)
+        Ecto.Query.dynamic(type(field(as(^ref_binding), ^name), ^type))
+    end
   end
 
   defp do_dynamic_expr(_query, other, _bindings, true, _type) do
@@ -806,9 +827,10 @@ defmodule AshPostgres.Expr do
     end
   end
 
-  defp do_dynamic_expr(_query, value, _bindings, false, {:in, type}) when is_list(value) do
+  defp do_dynamic_expr(query, value, _bindings, false, {:in, type}) when is_list(value) do
     value = maybe_sanitize_list(value)
 
+    validate_type!(query, type, value)
     Ecto.Query.dynamic(type(^value, ^{:array, type}))
   end
 
@@ -823,9 +845,26 @@ defmodule AshPostgres.Expr do
     Ecto.Query.dynamic(^value)
   end
 
-  defp do_dynamic_expr(_query, value, _bindings, false, type) do
+  defp do_dynamic_expr(query, value, _bindings, false, type) do
     value = maybe_sanitize_list(value)
+    validate_type!(query, type, value)
     Ecto.Query.dynamic(type(^value, ^type))
+  end
+
+  defp validate_type!(query, type, context) do
+    case type do
+      {:parameterized, Ash.Type.CiStringWrapper.EctoType, _} ->
+        require_extension!(query, "citext", context)
+
+      :ci_string ->
+        require_extension!(query, "citext", context)
+
+      :citext ->
+        require_extension!(query, "citext", context)
+
+      _ ->
+        :ok
+    end
   end
 
   defp maybe_sanitize_list(value) do
@@ -871,7 +910,7 @@ defmodule AshPostgres.Expr do
 
   defp do_get_path(
          query,
-         %GetPath{arguments: [left, right], embedded?: pred_embedded?},
+         %GetPath{arguments: [left, right], embedded?: pred_embedded?} = get_expr,
          bindings,
          embedded?,
          type \\ nil
@@ -898,6 +937,7 @@ defmodule AshPostgres.Expr do
 
     if type do
       # If we know a type here we use it, since we're pulling out text
+      validate_type!(query, type, get_expr)
       Ecto.Query.dynamic(type(^expr, ^type))
     else
       expr
@@ -947,6 +987,17 @@ defmodule AshPostgres.Expr do
       LANGUAGE SQL;
       \"\"\")
       """
+    end
+  end
+
+  defp require_extension!(query, extension, context) do
+    repo = AshPostgres.DataLayer.Info.repo(query.__ash_bindings__.resource)
+
+    unless extension in repo.installed_extensions() do
+      raise Ash.Error.Query.InvalidExpression,
+        expression: context,
+        message:
+          "The #{extension} extension needs to be installed before #{inspect(context)} can be used. Please add \"#{extension}\" to the list of installed_extensions in #{inspect(repo)}."
     end
   end
 

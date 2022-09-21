@@ -4,7 +4,8 @@ defmodule AshPostgres.TestRepo do
     otp_app: :ash_postgres
 
   def installed_extensions do
-    ["ash-functions", "uuid-ossp", "pg_trgm", "citext"]
+    ["ash-functions", "uuid-ossp", "pg_trgm", "citext"] --
+      Application.get_env(:ash_postgres, :no_extensions, [])
   end
 
   def all_tenants do

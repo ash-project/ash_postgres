@@ -18,6 +18,24 @@ defmodule AshPostgres.FilterTest do
     end
   end
 
+  describe "citext validation" do
+    setup do
+      on_exit(fn ->
+        Application.delete_env(:ash_postgres, :no_extensions)
+      end)
+    end
+
+    test "it raises if you try to use ci_string while ci_text is not installed" do
+      Application.put_env(:ash_postgres, :no_extensions, ["citext"])
+
+      assert_raise Ash.Error.Query.InvalidExpression, fn ->
+        Post
+        |> Ash.Query.filter(category == "blah")
+        |> Api.read!()
+      end
+    end
+  end
+
   describe "with a simple filter applied" do
     test "with no data" do
       results =
