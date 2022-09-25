@@ -732,12 +732,12 @@ defmodule AshPostgres.Expr do
 
   defp do_dynamic_expr(
          query,
-         %Exists{path: [first | rest], expr: expr},
+         %Exists{at_path: at_path, path: [first | rest], expr: expr},
          bindings,
          _embedded?,
          _type
        ) do
-    resource = query.__ash_bindings__.resource
+    resource = Ash.Resource.Info.related(query.__ash_bindings__.resource, at_path)
     first_relationship = Ash.Resource.Info.relationship(resource, first)
 
     filter = %Ash.Filter{expression: expr, resource: first_relationship.destination}
@@ -760,7 +760,7 @@ defmodule AshPostgres.Expr do
       ref_binding(
         %Ref{
           attribute: Ash.Resource.Info.attribute(resource, first_relationship.source_attribute),
-          relationship_path: [],
+          relationship_path: at_path,
           resource: resource
         },
         bindings
@@ -788,8 +788,6 @@ defmodule AshPostgres.Expr do
               field(through, ^first_relationship.source_attribute_on_join_resource),
           select: 1
         )
-
-        # )
       else
         Ecto.Query.from(destination in filtered,
           select: [1],

@@ -1,4 +1,5 @@
 defmodule AshPostgres.Test.Money do
+  @moduledoc false
   use Ash.Resource,
     data_layer: :embedded
 

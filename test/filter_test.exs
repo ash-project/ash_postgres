@@ -622,6 +622,54 @@ defmodule AshPostgres.FilterTest do
                |> Api.read!()
     end
 
+    test "it works with an `at_path`" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "a"})
+        |> Api.create!()
+
+      other_post =
+        Post
+        |> Ash.Changeset.new(%{title: "other_a"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "comment"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "comment"})
+      |> Ash.Changeset.manage_relationship(:post, other_post, type: :append_and_remove)
+      |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{title: "b"})
+      |> Ash.Changeset.manage_relationship(:linked_posts, [post], type: :append_and_remove)
+      |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{title: "b"})
+      |> Ash.Changeset.manage_relationship(:linked_posts, [other_post], type: :append_and_remove)
+      |> Api.create!()
+
+      assert [%{title: "b"}] =
+               Post
+               |> Ash.Query.filter(
+                 linked_posts.title == "a" and
+                   linked_posts.exists(comments, title == ^"comment")
+               )
+               |> Api.read!()
+
+      assert [%{title: "b"}] =
+               Post
+               |> Ash.Query.filter(
+                 linked_posts.title == "a" and
+                   linked_posts.exists(comments, title == ^"comment")
+               )
+               |> Api.read!()
+    end
+
     test "it works with nested relationships inside of exists" do
       post =
         Post
