@@ -282,13 +282,13 @@ defmodule AshPostgres.Expr do
       %Fragment{
         embedded?: pred_embedded?,
         arguments: [
-          raw: "CASE WHEN ",
+          raw: "(CASE WHEN ",
           casted_expr: condition,
           raw: " THEN ",
           casted_expr: when_true,
           raw: " ELSE ",
           casted_expr: when_false,
-          raw: " END"
+          raw: " END)"
         ]
       },
       bindings,
