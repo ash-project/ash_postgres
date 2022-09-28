@@ -5,6 +5,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.0.0-rc.7](https://github.com/ash-project/ash_postgres/compare/v1.0.0-rc.6...v1.0.0-rc.7) (2022-09-28)
+
+
+
+
+### Bug Fixes:
+
+* properly type cast top level fragments
+
+### Improvements:
+
+* update to the latest ash
+
+* upgrade to new `exists` usage
+
 ## [v1.0.0-rc.6](https://github.com/ash-project/ash_postgres/compare/v1.0.0-rc.5...v1.0.0-rc.6) (2022-09-21)
 
 
