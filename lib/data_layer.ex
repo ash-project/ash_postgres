@@ -618,7 +618,20 @@ defmodule AshPostgres.DataLayer do
       Enum.reduce(
         aggregates,
         subquery,
-        &AshPostgres.Aggregate.add_subquery_aggregate_select(&2, &1, resource)
+        fn agg, subquery ->
+          has_exists? =
+            Ash.Filter.find(agg.query && agg.query.filter, fn
+              %Ash.Query.Exists{} -> true
+              _ -> false
+            end)
+
+          AshPostgres.Aggregate.add_subquery_aggregate_select(
+            subquery,
+            agg,
+            resource,
+            has_exists?
+          )
+        end
       )
 
     {:ok, AshPostgres.DataLayer.Info.repo(resource).one(query, repo_opts(nil, nil, resource))}
@@ -655,7 +668,20 @@ defmodule AshPostgres.DataLayer do
           Enum.reduce(
             aggregates,
             subquery,
-            &AshPostgres.Aggregate.add_subquery_aggregate_select(&2, &1, destination_resource)
+            fn agg, subquery ->
+              has_exists? =
+                Ash.Filter.find(agg.query && agg.query.filter, fn
+                  %Ash.Query.Exists{} -> true
+                  _ -> false
+                end)
+
+              AshPostgres.Aggregate.add_subquery_aggregate_select(
+                subquery,
+                agg,
+                destination_resource,
+                has_exists?
+              )
+            end
           )
 
         {:ok,
@@ -1506,11 +1532,19 @@ defmodule AshPostgres.DataLayer do
   end
 
   @doc false
-  def get_binding(resource, path, %{__ash_bindings__: _} = query, type) do
+  def get_binding(resource, path, %{__ash_bindings__: _} = query, type, name_match) do
     paths =
       Enum.flat_map(query.__ash_bindings__.bindings, fn
-        {binding, %{path: path, type: ^type}} ->
-          [{binding, path}]
+        {binding, %{path: path, type: ^type, name: name}} ->
+          if name_match do
+            if name == name_match do
+              [{binding, path}]
+            else
+              []
+            end
+          else
+            [{binding, path}]
+          end
 
         _ ->
           []
@@ -1521,7 +1555,7 @@ defmodule AshPostgres.DataLayer do
     end)
   end
 
-  def get_binding(_, _, _, _), do: nil
+  def get_binding(_, _, _, _, _), do: nil
 
   defp add_filter_expression(query, filter) do
     filter

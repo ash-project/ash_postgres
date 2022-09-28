@@ -536,6 +536,35 @@ defmodule AshPostgres.AggregateTest do
                |> Api.read_one!()
     end
 
+    test "a count aggregate with a related filter that uses `exists` returns the proper value" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title", category: "foo"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Api.create!()
+
+      assert %Post{count_of_comments_that_have_a_post_with_exists: 3} =
+               Post
+               |> Ash.Query.load([
+                 :count_of_comments_that_have_a_post_with_exists
+               ])
+               |> Api.read_one!()
+    end
+
     test "a count with a filter that references a relationship that also has a filter" do
       post =
         Post

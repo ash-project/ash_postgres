@@ -16,25 +16,37 @@ defmodule AshPostgres.Aggregate do
         if aggregate.query && !aggregate.query.valid? do
           {:halt, {:error, aggregate.query.errors}}
         else
+          has_exists? =
+            Ash.Filter.find(aggregate.query && aggregate.query.filter, fn
+              %Ash.Query.Exists{} -> true
+              _ -> false
+            end)
+
+          name_match =
+            if has_exists? do
+              aggregate.name
+            end
+
           query_and_binding =
             case AshPostgres.DataLayer.get_binding(
                    resource,
                    aggregate.relationship_path,
                    query,
-                   :aggregate
+                   :aggregate,
+                   name_match
                  ) do
               nil ->
                 relationship =
                   Ash.Resource.Info.relationship(resource, aggregate.relationship_path)
 
                 if relationship.type == :many_to_many do
-                  subquery = aggregate_subquery(relationship, aggregate, query)
+                  subquery = aggregate_subquery(relationship, aggregate, query, has_exists?)
 
                   case AshPostgres.Join.join_all_relationships(
                          query,
                          nil,
                          [
-                           {{:aggregate, aggregate.name, subquery},
+                           {{:aggregate, aggregate.name, subquery, has_exists?},
                             AshPostgres.Join.relationship_path_to_relationships(
                               resource,
                               aggregate.relationship_path
@@ -48,20 +60,21 @@ defmodule AshPostgres.Aggregate do
                           resource,
                           aggregate.relationship_path,
                           new_query,
-                          :aggregate
+                          :aggregate,
+                          name_match
                         )}}
 
                     {:error, error} ->
                       {:error, error}
                   end
                 else
-                  subquery = aggregate_subquery(relationship, aggregate, query)
+                  subquery = aggregate_subquery(relationship, aggregate, query, has_exists?)
 
                   case AshPostgres.Join.join_all_relationships(
                          query,
                          nil,
                          [
-                           {{:aggregate, aggregate.name, subquery},
+                           {{:aggregate, aggregate.name, subquery, has_exists?},
                             AshPostgres.Join.relationship_path_to_relationships(
                               resource,
                               aggregate.relationship_path
@@ -75,7 +88,8 @@ defmodule AshPostgres.Aggregate do
                           resource,
                           aggregate.relationship_path,
                           new_query,
-                          :aggregate
+                          :aggregate,
+                          name_match
                         )}}
 
                     {:error, error} ->
@@ -107,10 +121,10 @@ defmodule AshPostgres.Aggregate do
 
               new_query =
                 query_with_aggregate_defs
-                |> add_aggregate_to_subquery(resource, aggregate, binding)
+                |> add_aggregate_to_subquery(resource, aggregate, binding, has_exists?)
 
               if select? do
-                dynamic = select_dynamic(resource, query, aggregate)
+                dynamic = select_dynamic(resource, query, aggregate, name_match)
                 {:cont, {:ok, new_query, [{aggregate.load, aggregate.name, dynamic} | dynamics]}}
               else
                 {:cont, {:ok, new_query, dynamics}}
@@ -268,9 +282,15 @@ defmodule AshPostgres.Aggregate do
      |> AshPostgres.Join.set_join_prefix(query, relationship.destination)}
   end
 
-  defp select_dynamic(resource, query, aggregate) do
+  defp select_dynamic(resource, query, aggregate, name_match) do
     binding =
-      AshPostgres.DataLayer.get_binding(resource, aggregate.relationship_path, query, :aggregate)
+      AshPostgres.DataLayer.get_binding(
+        resource,
+        aggregate.relationship_path,
+        query,
+        :aggregate,
+        name_match
+      )
 
     type = AshPostgres.Types.parameterized_type(aggregate.type, [])
 
@@ -317,7 +337,7 @@ defmodule AshPostgres.Aggregate do
     end
   end
 
-  defp add_aggregate_to_subquery(query, resource, aggregate, binding) do
+  defp add_aggregate_to_subquery(query, resource, aggregate, binding, has_exists?) do
     new_joins =
       List.update_at(query.joins, binding - 1, fn join ->
         aggregate_query =
@@ -352,7 +372,8 @@ defmodule AshPostgres.Aggregate do
             {:ok, aggregate_query}
           end
 
-        new_aggregate_query = add_subquery_aggregate_select(aggregate_query, aggregate, resource)
+        new_aggregate_query =
+          add_subquery_aggregate_select(aggregate_query, aggregate, resource, has_exists?)
 
         put_in(join.source.from.source.query, new_aggregate_query)
       end)
@@ -387,7 +408,7 @@ defmodule AshPostgres.Aggregate do
       )
   end
 
-  def add_subquery_aggregate_select(query, %{kind: :first} = aggregate, _resource) do
+  def add_subquery_aggregate_select(query, %{kind: :first} = aggregate, _resource, has_exists?) do
     query = AshPostgres.DataLayer.default_bindings(query, aggregate.resource)
     key = aggregate.field
 
@@ -419,7 +440,7 @@ defmodule AshPostgres.Aggregate do
       end
 
     filtered =
-      if aggregate.query && aggregate.query.filter &&
+      if !has_exists? && aggregate.query && aggregate.query.filter &&
            not match?(%Ash.Filter{expression: nil}, aggregate.query.filter) do
         expr =
           AshPostgres.Expr.dynamic_expr(
@@ -458,7 +479,7 @@ defmodule AshPostgres.Aggregate do
     select_or_merge(query, aggregate.name, casted)
   end
 
-  def add_subquery_aggregate_select(query, %{kind: :list} = aggregate, _resource) do
+  def add_subquery_aggregate_select(query, %{kind: :list} = aggregate, _resource, has_exists?) do
     query = AshPostgres.DataLayer.default_bindings(query, aggregate.resource)
     key = aggregate.field
     type = AshPostgres.Types.parameterized_type(aggregate.type, [])
@@ -489,7 +510,7 @@ defmodule AshPostgres.Aggregate do
       end
 
     filtered =
-      if aggregate.query && aggregate.query.filter &&
+      if !has_exists? && aggregate.query && aggregate.query.filter &&
            not match?(%Ash.Filter{expression: nil}, aggregate.query.filter) do
         expr =
           AshPostgres.Expr.dynamic_expr(
@@ -526,7 +547,7 @@ defmodule AshPostgres.Aggregate do
     select_or_merge(query, aggregate.name, cast)
   end
 
-  def add_subquery_aggregate_select(query, %{kind: kind} = aggregate, resource)
+  def add_subquery_aggregate_select(query, %{kind: kind} = aggregate, resource, has_exists?)
       when kind in [:count, :sum] do
     query = AshPostgres.DataLayer.default_bindings(query, aggregate.resource)
     key = aggregate.field || List.first(Ash.Resource.Info.primary_key(resource))
@@ -542,7 +563,7 @@ defmodule AshPostgres.Aggregate do
       end
 
     filtered =
-      if aggregate.query && aggregate.query.filter &&
+      if !has_exists? && aggregate.query && aggregate.query.filter &&
            not match?(%Ash.Filter{expression: nil}, aggregate.query.filter) do
         expr =
           AshPostgres.Expr.dynamic_expr(
@@ -606,7 +627,12 @@ defmodule AshPostgres.Aggregate do
     }
   end
 
-  defp aggregate_subquery(%{type: :many_to_many} = relationship, aggregate, root_query) do
+  defp aggregate_subquery(
+         %{type: :many_to_many} = relationship,
+         aggregate,
+         root_query,
+         has_exists?
+       ) do
     destination =
       case AshPostgres.Join.maybe_get_resource_query(
              relationship.destination,
@@ -634,6 +660,23 @@ defmodule AshPostgres.Aggregate do
 
         _ ->
           relationship.through
+      end
+
+    destination =
+      if has_exists? && aggregate.query && aggregate.query.filter &&
+           not match?(%Ash.Filter{expression: nil}, aggregate.query.filter) do
+        expr =
+          AshPostgres.Expr.dynamic_expr(
+            destination,
+            aggregate.query.filter,
+            destination.__ash_bindings__,
+            false,
+            AshPostgres.Types.parameterized_type(aggregate.type, [])
+          )
+
+        Ecto.Query.where(destination, ^expr)
+      else
+        destination
       end
 
     query =
@@ -667,7 +710,7 @@ defmodule AshPostgres.Aggregate do
     end
   end
 
-  defp aggregate_subquery(relationship, aggregate, root_query) do
+  defp aggregate_subquery(relationship, aggregate, root_query, has_exists?) do
     destination =
       case AshPostgres.Join.maybe_get_resource_query(
              relationship.destination,
@@ -679,6 +722,23 @@ defmodule AshPostgres.Aggregate do
 
         _ ->
           relationship.destination
+      end
+
+    destination =
+      if has_exists? && aggregate.query && aggregate.query.filter &&
+           not match?(%Ash.Filter{expression: nil}, aggregate.query.filter) do
+        expr =
+          AshPostgres.Expr.dynamic_expr(
+            destination,
+            aggregate.query.filter,
+            destination.__ash_bindings__,
+            false,
+            AshPostgres.Types.parameterized_type(aggregate.type, [])
+          )
+
+        Ecto.Query.where(destination, ^expr)
+      else
+        destination
       end
 
     query =

@@ -53,7 +53,7 @@ defmodule AshPostgres.Join do
 
         current_join_type =
           case join_type do
-            {:aggregate, _name, _agg} when rest_rels != [] ->
+            {:aggregate, _name, _agg, _} when rest_rels != [] ->
               :left
 
             other ->
@@ -288,7 +288,10 @@ defmodule AshPostgres.Join do
 
   defp can_inner_join?(_, _, _), do: false
 
-  defp has_binding?(resource, path, query, {:aggregate, _, _}),
+  defp has_binding?(_resource, _path, _query, {:aggregate, _, _, true}),
+    do: false
+
+  defp has_binding?(resource, path, query, {:aggregate, _, _, _}),
     do: has_binding?(resource, path, query, :aggregate)
 
   defp has_binding?(resource, candidate_path, %{__ash_bindings__: _} = query, type) do
@@ -357,8 +360,14 @@ defmodule AshPostgres.Join do
 
     binding_data =
       case kind do
-        {:aggregate, name, _agg} ->
-          %{type: :aggregate, name: name, path: full_path, source: source}
+        {:aggregate, name, _agg, has_exists?} ->
+          %{
+            type: :aggregate,
+            name: name,
+            has_exists?: has_exists?,
+            path: full_path,
+            source: source
+          }
 
         _ ->
           %{type: kind, path: full_path, source: source}
@@ -400,7 +409,7 @@ defmodule AshPostgres.Join do
 
         binding_kind =
           case kind do
-            {:aggregate, _, _} ->
+            {:aggregate, _, _, _} ->
               :left
 
             other ->
@@ -428,7 +437,7 @@ defmodule AshPostgres.Join do
               end
 
             case kind do
-              {:aggregate, _, subquery} ->
+              {:aggregate, _, subquery, _} ->
                 case AshPostgres.Aggregate.agg_subquery_for_lateral_join(
                        current_binding,
                        query,
@@ -495,7 +504,7 @@ defmodule AshPostgres.Join do
 
     binding_data =
       case kind do
-        {:aggregate, name, _agg} ->
+        {:aggregate, name, _agg, _} ->
           %{type: :aggregate, name: name, path: full_path, source: source}
 
         _ ->
@@ -504,7 +513,7 @@ defmodule AshPostgres.Join do
 
     additional_binding? =
       case kind do
-        {:aggregate, _, _subquery} ->
+        {:aggregate, _, _subquery, _} ->
           false
 
         _ ->
@@ -513,7 +522,7 @@ defmodule AshPostgres.Join do
 
     query =
       case kind do
-        {:aggregate, _, _subquery} ->
+        {:aggregate, _, _subquery, _} ->
           additional_bindings =
             if additional_binding? do
               1
@@ -578,7 +587,7 @@ defmodule AshPostgres.Join do
 
       binding_kind =
         case kind do
-          {:aggregate, _, _} ->
+          {:aggregate, _, _, _} ->
             :left
 
           other ->
@@ -606,7 +615,7 @@ defmodule AshPostgres.Join do
             end
 
           case kind do
-            {:aggregate, _, subquery} ->
+            {:aggregate, _, subquery, _} ->
               case AshPostgres.Aggregate.agg_subquery_for_lateral_join(
                      current_binding,
                      query,
@@ -674,7 +683,7 @@ defmodule AshPostgres.Join do
 
     binding_data =
       case kind do
-        {:aggregate, name, _agg} ->
+        {:aggregate, name, _agg, _} ->
           %{type: :aggregate, name: name, path: full_path, source: source}
 
         _ ->
@@ -717,7 +726,7 @@ defmodule AshPostgres.Join do
 
         binding_kind =
           case kind do
-            {:aggregate, _, _} ->
+            {:aggregate, _, _, _} ->
               :left
 
             other ->
@@ -745,7 +754,7 @@ defmodule AshPostgres.Join do
               end
 
             case {kind, Map.get(relationship, :no_attributes?)} do
-              {{:aggregate, _, subquery}, _} ->
+              {{:aggregate, _, subquery, _}, _} ->
                 case AshPostgres.Aggregate.agg_subquery_for_lateral_join(
                        current_binding,
                        query,

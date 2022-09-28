@@ -167,6 +167,11 @@ defmodule AshPostgres.Test.Post do
       filter(expr(not is_nil(post.id)))
     end
 
+    # All of them will, but we want to test a related field
+    count :count_of_comments_that_have_a_post_with_exists, :comments do
+      filter(expr(exists(post, not is_nil(id))))
+    end
+
     count :count_of_popular_comments, :comments do
       filter(expr(not is_nil(popular_ratings.id)))
     end
