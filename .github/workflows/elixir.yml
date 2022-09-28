@@ -16,8 +16,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        otp: ["23"]
-        elixir: ["1.13.2"]
+        otp: ["24"]
+        elixir: ["1.14.0"]
         ash: ["2.0.0-rc.10"]
         pg_version: ["13"]
     env:
