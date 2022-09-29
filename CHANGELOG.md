@@ -5,6 +5,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.0.0-rc.8](https://github.com/ash-project/ash_postgres/compare/v1.0.0-rc.7...v1.0.0-rc.8) (2022-09-29)
+
+
+
+
+### Bug Fixes:
+
+* never attempt to group custom operations
+
+* wrap case statement in parens
+
+### Improvements:
+
+* `exists` filters necessitate multiple aggregate joins (for now)
+
 ## [v1.0.0-rc.7](https://github.com/ash-project/ash_postgres/compare/v1.0.0-rc.6...v1.0.0-rc.7) (2022-09-28)
 
 
