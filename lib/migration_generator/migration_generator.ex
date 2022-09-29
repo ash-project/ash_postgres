@@ -870,8 +870,12 @@ defmodule AshPostgres.MigrationGenerator do
          acc
        ) do
     rest
-    |> Enum.take_while(fn op ->
-      op.table == table && op.schema == schema
+    |> Enum.take_while(fn
+      %custom{} when custom in [Operation.AddCustomStatement, Operation.RemoveCustomStatement] ->
+        false
+
+      op ->
+        op.table == table && op.schema == schema
     end)
     |> Enum.with_index()
     |> Enum.find(fn
