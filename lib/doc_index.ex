@@ -18,6 +18,19 @@ defmodule AshPostgres.DocIndex do
     ]
   end
 
+  def mix_tasks do
+    [
+      {"Postgres",
+       [
+         Mix.Tasks.AshPostgres.GenerateMigrations,
+         Mix.Tasks.AshPostgres.Create,
+         Mix.Tasks.AshPostgres.Drop,
+         Mix.Tasks.AshPostgres.Migrate,
+         Mix.Tasks.AshPostgres.Rollback
+       ]}
+    ]
+  end
+
   def code_modules do
     [
       {"AshPostgres",
