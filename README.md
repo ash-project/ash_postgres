@@ -47,3 +47,14 @@ end
 
 See the documentation for `Mix.Tasks.AshPostgres.GenerateMigrations` for how to generate
 migrations from your resources
+
+
+# Contributors
+
+Ash is made possible by its excellent community!
+
+<a href="https://github.com/ash-project/ash_postgres/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=ash-project/ash_postgres" />
+</a>
+
+[Become a contributor](https://github.com/ash-project/ash/blob/main/.github/CONTRIBUTING.md)
