@@ -75,12 +75,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
         identities do
           identity(:title, [:title])
           identity(:thing, [:title, :second_title])
+          identity(:thing_with_source, [:title, :title_with_source])
         end
 
         attributes do
           uuid_primary_key(:id)
           attribute(:title, :string)
           attribute(:second_title, :string)
+          attribute(:title_with_source, :string, source: :t_w_s)
         end
       end
 
@@ -132,6 +134,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
       # the migration creates unique_indexes based on the identities of the resource
       assert file_contents =~
                ~S{create unique_index(:posts, [:title, :second_title], name: "posts_thing_index")}
+
+      # the migration creates unique_indexes using the `source` on the attributes of the identity on the resource
+      assert file_contents =~
+               ~S{create unique_index(:posts, [:title, :t_w_s], name: "posts_thing_with_source_index")}
     end
   end
 
