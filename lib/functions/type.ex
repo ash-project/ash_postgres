@@ -24,6 +24,14 @@ defmodule AshPostgres.Functions.Type do
      }}
   end
 
+  def new([left, :binary_id]) when is_binary(left) do
+    {:ok, %__MODULE__{arguments: [Ecto.UUID.dump!(left), {:embed, :binary_id}]}}
+  end
+
+  def new([left, Ash.Type.UUID]) when is_binary(left) do
+    {:ok, %__MODULE__{arguments: [Ecto.UUID.dump!(left), {:embed, Ash.Type.UUID}]}}
+  end
+
   def new([left, right]) do
     right =
       if is_atom(right) || match?({:array, type} when is_atom(type), right) do

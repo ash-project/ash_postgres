@@ -33,7 +33,7 @@ defmodule AshPostgres.Calculation do
   end
 
   defp add_calculation_selects(query, dynamics) do
-    {in_aggregates, in_body} =
+    {in_calculations, in_body} =
       Enum.split_with(dynamics, fn {load, _name, _dynamic} -> is_nil(load) end)
 
     query =
@@ -70,7 +70,7 @@ defmodule AshPostgres.Calculation do
         }
     }
 
-    add_calculations_in_calculations(query, in_aggregates)
+    add_calculations_in_calculations(query, in_calculations)
   end
 
   defp add_calculations_in_calculations(query, []), do: query
@@ -83,7 +83,7 @@ defmodule AshPostgres.Calculation do
       Enum.reduce(
         in_calculations,
         {[], Enum.reverse(query.select.params), Enum.count(query.select.params)},
-        fn {load, _, dynamic}, {exprs, params, count} ->
+        fn {_, name, dynamic}, {exprs, params, count} ->
           {expr, new_params, count} =
             Ecto.Query.Builder.Dynamic.partially_expand(
               :select,
@@ -93,7 +93,7 @@ defmodule AshPostgres.Calculation do
               count
             )
 
-          {[{load, expr} | exprs], new_params, count}
+          {[{name, expr} | exprs], new_params, count}
         end
       )
 
