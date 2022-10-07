@@ -4,8 +4,8 @@ defmodule AshPostgres.Expr do
   alias Ash.Filter
   alias Ash.Query.{BooleanExpression, Exists, Not, Ref}
   alias Ash.Query.Operator.IsNil
-  alias Ash.Query.Function.{Ago, Contains, GetPath, If, Length}
-  alias AshPostgres.Functions.{Fragment, TrigramSimilarity, Type}
+  alias Ash.Query.Function.{Ago, Contains, GetPath, If, Length, Type}
+  alias AshPostgres.Functions.{Fragment, TrigramSimilarity}
 
   require Ecto.Query
 
@@ -47,22 +47,8 @@ defmodule AshPostgres.Expr do
     arg1 = do_dynamic_expr(query, arg1, bindings, pred_embedded? || embedded?)
     arg2 = do_dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?)
 
-    do_dynamic_expr(
-      query,
-      %Fragment{
-        embedded?: pred_embedded?,
-        arguments: [
-          raw: "similarity(",
-          expr: arg1,
-          raw: ", ",
-          expr: arg2,
-          raw: ")"
-        ]
-      },
-      bindings,
-      embedded?,
-      type
-    )
+    Ecto.Query.dynamic(fragment("similarity(?, ?)", ^arg1, ^arg2))
+    |> maybe_type(type, query)
   end
 
   defp do_dynamic_expr(
@@ -330,38 +316,20 @@ defmodule AshPostgres.Expr do
     {params, fragment_data, _} =
       Enum.reduce(arguments, {[], [], 0}, fn
         {:raw, str}, {params, fragment_data, count} ->
-          {params, fragment_data ++ [{:raw, str}], count}
+          {params, [{:raw, str} | fragment_data], count}
 
         {:casted_expr, dynamic}, {params, fragment_data, count} ->
-          {expr, new_params, new_count} =
-            Ecto.Query.Builder.Dynamic.partially_expand(
-              :select,
-              query,
-              dynamic,
-              params,
-              count
-            )
-
-          {new_params, fragment_data ++ [{:expr, expr}], new_count}
+          {[{dynamic, :any} | params], [{:expr, {:^, [], [count]}} | fragment_data], count + 1}
 
         {:expr, expr}, {params, fragment_data, count} ->
           dynamic = do_dynamic_expr(query, expr, bindings, pred_embedded? || embedded?)
 
-          {expr, new_params, new_count} =
-            Ecto.Query.Builder.Dynamic.partially_expand(
-              :select,
-              query,
-              dynamic,
-              params,
-              count
-            )
-
-          {new_params, fragment_data ++ [{:expr, expr}], new_count}
+          {[{dynamic, :any} | params], [{:expr, {:^, [], [count]}} | fragment_data], count + 1}
       end)
 
     frag_dynamic = %Ecto.Query.DynamicExpr{
       fun: fn _query ->
-        {{:fragment, [], fragment_data}, Enum.reverse(params), []}
+        {{:fragment, [], Enum.reverse(fragment_data)}, Enum.reverse(params), [], %{}}
       end,
       binding: [],
       file: __ENV__.file,
@@ -694,40 +662,16 @@ defmodule AshPostgres.Expr do
 
   defp do_dynamic_expr(
          query,
-         %Type{arguments: [arg1, arg2], embedded?: pred_embedded?} = type_expr,
+         %Type{arguments: [arg1, arg2, constraints]} = type_expr,
          bindings,
-         embedded?,
+         _embedded?,
          _type
        ) do
     arg1 = do_dynamic_expr(query, arg1, bindings, false)
-    arg2 = do_dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?)
-    type = AshPostgres.Types.parameterized_type(arg2, [])
-    validate_type!(query, type, type_expr)
-
-    if type do
-      Ecto.Query.dynamic(type(^arg1, ^type))
-    else
-      raise "Attempted to explicitly cast to a type that has `cast_in_query?` configured to `false`, or for which a type could not be determined."
-    end
-  end
-
-  defp do_dynamic_expr(
-         query,
-         %Type{arguments: [arg1, arg2, constraints], embedded?: pred_embedded?} = type_expr,
-         bindings,
-         embedded?,
-         _type
-       ) do
-    arg1 = do_dynamic_expr(query, arg1, bindings, false)
-    arg2 = do_dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?)
     type = AshPostgres.Types.parameterized_type(arg2, constraints)
     validate_type!(query, type, type_expr)
 
-    if type do
-      Ecto.Query.dynamic(type(^arg1, ^type))
-    else
-      raise "Attempted to explicitly cast to a type that has `cast_in_query?` configured to `false`, or for which a type could not be determined."
-    end
+    Ecto.Query.dynamic(type(^arg1, ^type))
   end
 
   defp do_dynamic_expr(
@@ -869,6 +813,15 @@ defmodule AshPostgres.Expr do
       _ ->
         :ok
     end
+  end
+
+  defp maybe_type(dynamic, nil, _query), do: dynamic
+
+  defp maybe_type(dynamic, type, query) do
+    type = AshPostgres.Types.parameterized_type(type, [])
+    validate_type!(query, type, type)
+
+    Ecto.Query.dynamic(type(^dynamic, ^type))
   end
 
   defp maybe_sanitize_list(value) do

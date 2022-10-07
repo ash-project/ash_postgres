@@ -1947,9 +1947,11 @@ defmodule AshPostgres.MigrationGenerator do
         constraint.attribute
         |> List.wrap()
         |> Enum.map(fn attribute ->
-          resource
-          |> Ash.Resource.Info.attribute(attribute)
-          |> Map.get(:source)
+          attr =
+            resource
+            |> Ash.Resource.Info.attribute(attribute)
+
+          attr.source || attr.name
         end)
 
       %{

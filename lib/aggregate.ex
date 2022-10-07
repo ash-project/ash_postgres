@@ -149,77 +149,26 @@ defmodule AshPostgres.Aggregate do
     {in_aggregates, in_body} =
       Enum.split_with(dynamics, fn {load, _name, _dynamic} -> is_nil(load) end)
 
-    query =
-      if query.select do
-        query
+    aggs =
+      in_body
+      |> Map.new(fn {load, _, dynamic} ->
+        {load, dynamic}
+      end)
+
+    aggs =
+      if Enum.empty?(in_aggregates) do
+        aggs
       else
-        Ecto.Query.select_merge(query, %{})
+        Map.put(
+          aggs,
+          :aggregates,
+          Map.new(in_aggregates, fn {_, name, dynamic} ->
+            {name, dynamic}
+          end)
+        )
       end
 
-    {exprs, new_params, count} =
-      Enum.reduce(
-        in_body,
-        {[], Enum.reverse(query.select.params), Enum.count(query.select.params)},
-        fn {load, _, dynamic}, {exprs, params, count} ->
-          {expr, new_params, count} =
-            Ecto.Query.Builder.Dynamic.partially_expand(
-              :select,
-              query,
-              dynamic,
-              params,
-              count
-            )
-
-          {[{load, expr} | exprs], new_params, count}
-        end
-      )
-
-    query = %{
-      query
-      | select: %{
-          query.select
-          | expr: {:merge, [], [query.select.expr, {:%{}, [], Enum.reverse(exprs)}]}
-        }
-    }
-
-    add_aggregates_in_aggregates(query, in_aggregates, new_params, count)
-  end
-
-  defp add_aggregates_in_aggregates(query, [], params, _count),
-    do: %{query | select: %{query.select | params: Enum.reverse(params)}}
-
-  defp add_aggregates_in_aggregates(
-         %{select: %{expr: expr} = select} = query,
-         in_aggregates,
-         params,
-         count
-       ) do
-    {exprs, new_params, _} =
-      Enum.reduce(
-        in_aggregates,
-        {[], params, count},
-        fn {_, name, dynamic}, {exprs, params, count} ->
-          {expr, new_params, count} =
-            Ecto.Query.Builder.Dynamic.partially_expand(
-              :select,
-              query,
-              dynamic,
-              params,
-              count
-            )
-
-          {[{name, expr} | exprs], new_params, count}
-        end
-      )
-
-    %{
-      query
-      | select: %{
-          select
-          | expr: {:merge, [], [expr, {:%{}, [], [aggregates: {:%{}, [], Enum.reverse(exprs)}]}]},
-            params: Enum.reverse(new_params)
-        }
-    }
+    Ecto.Query.select_merge(query, ^aggs)
   end
 
   def agg_subquery_for_lateral_join(
@@ -608,23 +557,7 @@ defmodule AshPostgres.Aggregate do
         Ecto.Query.select(query, %{})
       end
 
-    {expr, new_params, _} =
-      Ecto.Query.Builder.Dynamic.partially_expand(
-        :select,
-        query,
-        casted,
-        Enum.reverse(query.select.params),
-        Enum.count(query.select.params)
-      )
-
-    %{
-      query
-      | select: %{
-          query.select
-          | expr: {:merge, [], [query.select.expr, {:%{}, [], [{aggregate_name, expr}]}]},
-            params: Enum.reverse(new_params)
-        }
-    }
+    Ecto.Query.select_merge(query, ^%{aggregate_name => casted})
   end
 
   defp aggregate_subquery(

@@ -2,7 +2,7 @@
   ## all available options with default values (see `mix check` docs for description)
   # parallel: true,
   # skipped: true,
-
+  retry: false,
   ## list of tools (see `mix check` docs for defaults)
   tools: [
     ## curated tools may be disabled (e.g. the check for compilation warnings)

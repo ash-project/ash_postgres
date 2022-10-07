@@ -36,75 +36,25 @@ defmodule AshPostgres.Calculation do
     {in_calculations, in_body} =
       Enum.split_with(dynamics, fn {load, _name, _dynamic} -> is_nil(load) end)
 
-    query =
-      if query.select do
-        query
+    calcs =
+      in_body
+      |> Map.new(fn {load, _, dynamic} ->
+        {load, dynamic}
+      end)
+
+    calcs =
+      if Enum.empty?(in_calculations) do
+        calcs
       else
-        Ecto.Query.select(query, %{})
+        Map.put(
+          calcs,
+          :calculations,
+          Map.new(in_calculations, fn {_, name, dynamic} ->
+            {name, dynamic}
+          end)
+        )
       end
 
-    {exprs, new_params, _} =
-      Enum.reduce(
-        in_body,
-        {[], Enum.reverse(query.select.params), Enum.count(query.select.params)},
-        fn {load, _, dynamic}, {exprs, params, count} ->
-          {expr, new_params, count} =
-            Ecto.Query.Builder.Dynamic.partially_expand(
-              :select,
-              query,
-              dynamic,
-              params,
-              count
-            )
-
-          {[{load, expr} | exprs], new_params, count}
-        end
-      )
-
-    query = %{
-      query
-      | select: %{
-          query.select
-          | expr: {:merge, [], [query.select.expr, {:%{}, [], Enum.reverse(exprs)}]},
-            params: Enum.reverse(new_params)
-        }
-    }
-
-    add_calculations_in_calculations(query, in_calculations)
-  end
-
-  defp add_calculations_in_calculations(query, []), do: query
-
-  defp add_calculations_in_calculations(
-         %{select: %{expr: expr} = select} = query,
-         in_calculations
-       ) do
-    {exprs, new_params, _} =
-      Enum.reduce(
-        in_calculations,
-        {[], Enum.reverse(query.select.params), Enum.count(query.select.params)},
-        fn {_, name, dynamic}, {exprs, params, count} ->
-          {expr, new_params, count} =
-            Ecto.Query.Builder.Dynamic.partially_expand(
-              :select,
-              query,
-              dynamic,
-              params,
-              count
-            )
-
-          {[{name, expr} | exprs], new_params, count}
-        end
-      )
-
-    %{
-      query
-      | select: %{
-          select
-          | expr:
-              {:merge, [], [expr, {:%{}, [], [calculations: {:%{}, [], Enum.reverse(exprs)}]}]},
-            params: Enum.reverse(new_params)
-        }
-    }
+    Ecto.Query.select_merge(query, ^calcs)
   end
 end
