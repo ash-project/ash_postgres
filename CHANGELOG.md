@@ -5,6 +5,27 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.0.0-rc.9](https://github.com/ash-project/ash_postgres/compare/v1.0.0-rc.8...v1.0.0-rc.9) (2022-10-07)
+
+
+
+
+### Bug Fixes:
+
+* handle custom calculation selects properly
+
+* use attribute source for identity fields
+
+### Improvements:
+
+* update to the latest ash
+
+* remove the need to dynamically expand fragments
+
+* when casting string to uuid, dump to binary
+
+* update to latest ash
+
 ## [v1.0.0-rc.8](https://github.com/ash-project/ash_postgres/compare/v1.0.0-rc.7...v1.0.0-rc.8) (2022-09-29)
 
 
