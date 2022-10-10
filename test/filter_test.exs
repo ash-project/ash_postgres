@@ -841,6 +841,40 @@ defmodule AshPostgres.FilterTest do
              |> Api.read!()
   end
 
+  test "filtering allows filtering on count aggregates with filters" do
+    post =
+      Post
+      |> Ash.Changeset.new(%{title: "match"})
+      |> Api.create!()
+
+    post_id = post.id
+
+    Comment
+    |> Ash.Changeset.new(%{title: "title"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Api.create!()
+
+    Comment
+    |> Ash.Changeset.new(%{title: "title"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Api.create!()
+
+    post2 =
+      Post
+      |> Ash.Changeset.new(%{title: "non_match"})
+      |> Api.create!()
+
+    Comment
+    |> Ash.Changeset.new(%{title: "title"})
+    |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
+    |> Api.create!()
+
+    assert [%{id: ^post_id}] =
+             Post
+             |> Ash.Query.filter(count_of_comments_that_have_a_post == 2)
+             |> Api.read!()
+  end
+
   describe "filtering on relationships that themselves have filters" do
     test "it doesn't raise an error" do
       Comment

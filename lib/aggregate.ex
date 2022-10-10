@@ -515,9 +515,7 @@ defmodule AshPostgres.Aggregate do
           AshPostgres.Expr.dynamic_expr(
             query,
             aggregate.query.filter,
-            query.__ash_bindings__,
-            false,
-            AshPostgres.Types.parameterized_type(aggregate.type, [])
+            query.__ash_bindings__
           )
 
         Ecto.Query.dynamic(filter(^field, ^expr))
