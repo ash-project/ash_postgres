@@ -367,7 +367,7 @@ defmodule AshPostgres.Aggregate do
       if aggregate.query && aggregate.query.sort && aggregate.query.sort != [] do
         sort_expr = AshPostgres.Sort.order_to_ecto(aggregate.query.sort)
         question_marks = Enum.map(sort_expr, fn _ -> " ? " end)
-        field = Ecto.Query.dynamic([{^0, row}], field(row, ^key))
+        field = Ecto.Query.dynamic([{^0, row}], type(field(row, ^key), ^type))
 
         {:ok, expr} =
           AshPostgres.Functions.Fragment.casted_new(
@@ -378,8 +378,7 @@ defmodule AshPostgres.Aggregate do
           query,
           expr,
           query.__ash_bindings__,
-          false,
-          AshPostgres.Types.parameterized_type({:array, aggregate.type}, [])
+          false
         )
       else
         Ecto.Query.dynamic(
@@ -395,9 +394,7 @@ defmodule AshPostgres.Aggregate do
           AshPostgres.Expr.dynamic_expr(
             query,
             aggregate.query.filter,
-            query.__ash_bindings__,
-            false,
-            AshPostgres.Types.parameterized_type(aggregate.type, [])
+            query.__ash_bindings__
           )
 
         Ecto.Query.dynamic(filter(^field, ^expr))
@@ -437,7 +434,9 @@ defmodule AshPostgres.Aggregate do
       if aggregate.query && aggregate.query.sort && aggregate.query.sort != [] do
         sort_expr = AshPostgres.Sort.order_to_ecto(aggregate.query.sort)
         question_marks = Enum.map(sort_expr, fn _ -> " ? " end)
-        field = Ecto.Query.dynamic([row], field(row, ^key))
+        {:array, item_type} = aggregate.type
+        item_type = AshPostgres.Types.parameterized_type(item_type, [])
+        field = Ecto.Query.dynamic([row], type(field(row, ^key), ^item_type))
 
         {:ok, expr} =
           AshPostgres.Functions.Fragment.casted_new(
@@ -447,9 +446,7 @@ defmodule AshPostgres.Aggregate do
         AshPostgres.Expr.dynamic_expr(
           query,
           expr,
-          query.__ash_bindings__,
-          false,
-          AshPostgres.Types.parameterized_type(aggregate.type, [])
+          query.__ash_bindings__
         )
       else
         Ecto.Query.dynamic(

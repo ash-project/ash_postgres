@@ -40,8 +40,7 @@ defmodule AshPostgres.DocIndex do
       {"Postgres Expressions",
        [
          AshPostgres.Functions.Fragment,
-         AshPostgres.Functions.TrigramSimilarity,
-         AshPostgres.Functions.Type
+         AshPostgres.Functions.TrigramSimilarity
        ]},
       {"Postgres Migrations",
        [

@@ -807,6 +807,40 @@ defmodule AshPostgres.FilterTest do
     end
   end
 
+  test "filtering allows filtering on list aggregates with filters" do
+    post =
+      Post
+      |> Ash.Changeset.new(%{title: "match"})
+      |> Api.create!()
+
+    post_id = post.id
+
+    Comment
+    |> Ash.Changeset.new(%{title: "match", likes: 5})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Api.create!()
+
+    Comment
+    |> Ash.Changeset.new(%{title: "non_match", likes: 5})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Api.create!()
+
+    post2 =
+      Post
+      |> Ash.Changeset.new(%{title: "non_match"})
+      |> Api.create!()
+
+    Comment
+    |> Ash.Changeset.new(%{title: "non_match", likes: 5})
+    |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
+    |> Api.create!()
+
+    assert [%{id: ^post_id}] =
+             Post
+             |> Ash.Query.filter("match" in comment_titles_with_5_likes)
+             |> Api.read!()
+  end
+
   describe "filtering on relationships that themselves have filters" do
     test "it doesn't raise an error" do
       Comment

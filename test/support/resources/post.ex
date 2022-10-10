@@ -155,6 +155,11 @@ defmodule AshPostgres.Test.Post do
       sort(title: :asc_nils_last)
     end
 
+    list :comment_titles_with_5_likes, :comments, :title do
+      sort(title: :asc_nils_last)
+      filter(expr(likes >= 5))
+    end
+
     sum(:sum_of_comment_likes, :comments, :likes)
     sum(:sum_of_comment_likes_with_default, :comments, :likes, default: 0)
 

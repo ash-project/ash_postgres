@@ -598,7 +598,7 @@ defmodule AshPostgres.DataLayer do
   def functions(resource) do
     config = AshPostgres.DataLayer.Info.repo(resource).config()
 
-    functions = [AshPostgres.Functions.Type, AshPostgres.Functions.Fragment]
+    functions = [AshPostgres.Functions.Fragment]
 
     if "pg_trgm" in (config[:installed_extensions] || []) do
       functions ++
