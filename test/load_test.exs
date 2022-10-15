@@ -174,5 +174,52 @@ defmodule AshPostgres.Test.LoadTest do
 
       assert %{linked_posts: [%{title: "abc"}, %{title: "def"}]} = results
     end
+
+    test "lateral join loads with many to many relationships are supported with aggregates" do
+      source_post =
+        Post
+        |> Ash.Changeset.new(%{title: "source"})
+        |> Api.create!()
+
+      destination_post =
+        Post
+        |> Ash.Changeset.new(%{title: "abc"})
+        |> Api.create!()
+
+      destination_post2 =
+        Post
+        |> Ash.Changeset.new(%{title: "def"})
+        |> Api.create!()
+
+      source_post
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.manage_relationship(:linked_posts, [destination_post, destination_post2],
+        type: :append_and_remove
+      )
+      |> Api.update!()
+
+      linked_posts_query =
+        Post
+        |> Ash.Query.limit(1)
+        |> Ash.Query.sort(title: :asc)
+
+      results =
+        source_post
+        |> Api.load!(linked_posts: linked_posts_query)
+
+      assert %{linked_posts: [%{title: "abc"}]} = results
+
+      linked_posts_query =
+        Post
+        |> Ash.Query.limit(2)
+        |> Ash.Query.sort(title: :asc)
+        |> Ash.Query.filter(count_of_comments_called_match == 0)
+
+      results =
+        source_post
+        |> Api.load!(linked_posts: linked_posts_query)
+
+      assert %{linked_posts: [%{title: "abc"}, %{title: "def"}]} = results
+    end
   end
 end

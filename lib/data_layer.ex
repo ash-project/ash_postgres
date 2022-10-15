@@ -810,7 +810,7 @@ defmodule AshPostgres.DataLayer do
     |> Ash.Query.new()
     |> Ash.Query.set_context(through_relationship.context)
     |> Ash.Query.do_filter(through_relationship.filter)
-    |> Ash.Query.sort(through_relationship.sort)
+    |> Ash.Query.sort(through_relationship.sort, prepend?: true)
     |> Ash.Query.set_tenant(source_query.tenant)
     |> set_lateral_join_prefix(query)
     |> case do
@@ -849,13 +849,15 @@ defmodule AshPostgres.DataLayer do
                         source_query,
                         relationship.through
                       ),
-                    as: ^1,
                     on:
                       field(through, ^destination_attribute_on_join_resource) ==
                         field(destination, ^destination_attribute),
                     where:
                       field(through, ^source_attribute_on_join_resource) ==
-                        field(parent_as(^0), ^source_attribute)
+                        field(parent_as(^0), ^source_attribute),
+                    select_merge: %{
+                      __lateral_join_source__: field(through, ^source_attribute_on_join_resource)
+                    }
                   )
                   |> set_subquery_prefix(
                     source_query,
@@ -882,13 +884,15 @@ defmodule AshPostgres.DataLayer do
                         source_query,
                         relationship.through
                       ),
-                    as: ^1,
                     on:
                       field(through, ^destination_attribute_on_join_resource) ==
                         field(destination, ^destination_attribute),
                     where:
                       field(through, ^source_attribute_on_join_resource) ==
-                        field(parent_as(^0), ^source_attribute)
+                        field(parent_as(^0), ^source_attribute),
+                    select_merge: %{
+                      __lateral_join_source__: field(through, ^source_attribute_on_join_resource)
+                    }
                   )
                   |> set_subquery_prefix(
                     source_query,
