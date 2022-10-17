@@ -662,16 +662,15 @@ defmodule AshPostgres.Expr do
 
   defp do_dynamic_expr(
          query,
-         %Type{arguments: [arg1, arg2, constraints]} = type_expr,
+         %Type{arguments: [arg1, arg2, constraints]},
          bindings,
-         _embedded?,
+         embedded?,
          _type
        ) do
-    arg1 = do_dynamic_expr(query, arg1, bindings, false)
+    arg2 = Ash.Type.get_type(arg2)
+    arg1 = maybe_uuid_to_binary(arg2, arg1, arg1)
     type = AshPostgres.Types.parameterized_type(arg2, constraints)
-    validate_type!(query, type, type_expr)
-
-    Ecto.Query.dynamic(type(^arg1, ^type))
+    do_dynamic_expr(query, arg1, bindings, embedded?, type)
   end
 
   defp do_dynamic_expr(
@@ -795,9 +794,28 @@ defmodule AshPostgres.Expr do
 
   defp do_dynamic_expr(query, value, _bindings, false, type) do
     value = maybe_sanitize_list(value)
+    type = AshPostgres.Types.parameterized_type(type, [])
     validate_type!(query, type, value)
+
     Ecto.Query.dynamic(type(^value, ^type))
   end
+
+  defp maybe_uuid_to_binary({:array, type}, value, _original_value) when is_list(value) do
+    Enum.map(value, &maybe_uuid_to_binary(type, &1, &1))
+  end
+
+  defp maybe_uuid_to_binary(type, value, original_value)
+       when type in [
+              Ash.Type.UUID.EctoType,
+              :uuid
+            ] and is_binary(value) do
+    case Ecto.UUID.dump(value) do
+      {:ok, encoded} -> encoded
+      _ -> original_value
+    end
+  end
+
+  defp maybe_uuid_to_binary(_type, _value, original_value), do: original_value
 
   defp validate_type!(query, type, context) do
     case type do

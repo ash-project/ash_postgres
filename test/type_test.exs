@@ -27,4 +27,12 @@ defmodule AshPostgres.Test.TypeTest do
              |> Ash.Query.filter(fragment("(?)[1] > (?)[2]", point, point))
              |> Api.read!()
   end
+
+  test "uuids can be used as strings in fragments" do
+    uuid = Ash.UUID.generate()
+
+    Post
+    |> Ash.Query.filter(fragment("? = ?", id, type(^uuid, :uuid)))
+    |> Api.read!()
+  end
 end
