@@ -20,7 +20,7 @@ See the DSL documentation in `AshPostgres.DataLayer` for DSL documentation
 Add `ash_postgres` to your `mix.exs` file.
 
 ```elixir
-{:ash_postgres, "~> x.y.z"}
+{:ash_postgres, "~> 1.0"}
 ```
 
 To use this data layer, you need to chage your Ecto Repo's from `use Ecto.Repo`,
