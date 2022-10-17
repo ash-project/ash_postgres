@@ -5,6 +5,25 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.0.0](https://github.com/ash-project/ash_postgres/compare/v0.43.0...v1.0.0) (2022-10-17)
+
+
+### Bug Fixes:
+
+* no unnecessary type cast on count/sum aggregates
+
+* don't apply `filter` to `array_agg`
+
+### Improvements:
+
+* update to Ash 2.0
+
+* handle UUID types better
+
+* set lateral join source for latest ash
+
+* use `prepend?: true` option when applying relationship sorts
+
 ## [v1.0.0-rc.9](https://github.com/ash-project/ash_postgres/compare/v1.0.0-rc.8...v1.0.0-rc.9) (2022-10-07)
 
 
