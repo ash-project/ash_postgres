@@ -9,6 +9,8 @@ defmodule AshPostgres.Expr do
 
   require Ecto.Query
 
+  import Ash.Filter.TemplateHelpers, only: [is_expr: 1]
+
   def dynamic_expr(query, expr, bindings, embedded? \\ false, type \\ nil)
 
   def dynamic_expr(query, %Filter{expression: expression}, bindings, embedded?, type) do
@@ -785,6 +787,10 @@ defmodule AshPostgres.Expr do
         validate_type!(query, type, ref)
         Ecto.Query.dynamic(type(field(as(^ref_binding), ^name), ^type))
     end
+  end
+
+  defp do_dynamic_expr(_, other, _, _, _) when is_expr(other) do
+    raise "Unsupported expression in AshPostgres query: #{inspect(other)}"
   end
 
   defp do_dynamic_expr(_query, other, _bindings, true, _type) do
