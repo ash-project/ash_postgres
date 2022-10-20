@@ -125,7 +125,7 @@ defmodule AshPostgres.Test.Post do
       expr(
         # This is written in a silly way on purpose, to test a regression
         if(
-          fragment("(? <= (now() - '1 month'::interval))", created_at),
+          fragment("(? <= (? - '1 month'::interval))", now(), created_at),
           true,
           false
         )

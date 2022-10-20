@@ -4,7 +4,7 @@ defmodule AshPostgres.Expr do
   alias Ash.Filter
   alias Ash.Query.{BooleanExpression, Exists, Not, Ref}
   alias Ash.Query.Operator.IsNil
-  alias Ash.Query.Function.{Ago, Contains, GetPath, If, Length, Type}
+  alias Ash.Query.Function.{Ago, Contains, GetPath, If, Length, Now, Type}
   alias AshPostgres.Functions.{Fragment, TrigramSimilarity}
 
   require Ecto.Query
@@ -671,6 +671,27 @@ defmodule AshPostgres.Expr do
     arg1 = maybe_uuid_to_binary(arg2, arg1, arg1)
     type = AshPostgres.Types.parameterized_type(arg2, constraints)
     do_dynamic_expr(query, arg1, bindings, embedded?, type)
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %Now{embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         type
+       ) do
+    do_dynamic_expr(
+      query,
+      %Fragment{
+        embedded?: pred_embedded?,
+        arguments: [
+          raw: "now()"
+        ]
+      },
+      bindings,
+      embedded?,
+      type
+    )
   end
 
   defp do_dynamic_expr(
