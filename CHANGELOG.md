@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.1.0](https://github.com/ash-project/ash_postgres/compare/v1.0.0...v1.1.0) (2022-10-20)
+
+
+
+
+### Features:
+
+* support `now()` in latest Ash
+
 ## [v1.0.0](https://github.com/ash-project/ash_postgres/compare/v0.43.0...v1.0.0) (2022-10-17)
 
 
