@@ -476,7 +476,7 @@ defmodule AshPostgres.Expr do
           %Fragment{
             embedded?: pred_embedded?,
             arguments: [
-              raw: "ash_elixir_or(",
+              raw: "ash_elixir_and(",
               casted_expr: left_expr,
               raw: ", ",
               casted_expr: right_expr,

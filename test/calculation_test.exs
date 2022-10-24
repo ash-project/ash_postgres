@@ -93,7 +93,7 @@ defmodule AshPostgres.CalculationTest do
       })
       |> Api.create!()
 
-    assert %{first_name_and_bob: "bob"} =
+    assert %{first_name_and_bob: "fred"} =
              Author
              |> Ash.Query.filter(id == ^author.id)
              |> Ash.Query.load(:first_name_and_bob)
