@@ -88,9 +88,7 @@ defmodule AshPostgres.CalculationTest do
   test "calculations can use the && operator" do
     author =
       Author
-      |> Ash.Changeset.for_create(:create, %{
-        bio: %{first_name: "fred", title: "Mr.", bio: "Bones"}
-      })
+      |> Ash.Changeset.for_create(:create, %{first_name: "fred", bio: %{title: "Mr.", bio: "Bones"}})
       |> Api.create!()
 
     assert %{first_name_and_bob: "bob"} =
