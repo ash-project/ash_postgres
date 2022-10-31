@@ -68,6 +68,11 @@ defmodule AshPostgres.Test.Post do
     update_timestamp(:updated_at)
   end
 
+  code_interface do
+    define_for(AshPostgres.Test.Api)
+    define(:get_by_id, action: :read, get_by: [:id])
+  end
+
   relationships do
     belongs_to(:author, AshPostgres.Test.Author)
 

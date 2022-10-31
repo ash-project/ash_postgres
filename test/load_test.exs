@@ -129,6 +129,32 @@ defmodule AshPostgres.Test.LoadTest do
       assert [%Post{comments: [%{title: "def"}, %{title: "abc"}]}] = results
     end
 
+    test "loading many to many relationships on records works without loading its join relationship when using code interface" do
+      source_post =
+        Post
+        |> Ash.Changeset.new(%{title: "source"})
+        |> Api.create!()
+
+      destination_post =
+        Post
+        |> Ash.Changeset.new(%{title: "abc"})
+        |> Api.create!()
+
+      destination_post2 =
+        Post
+        |> Ash.Changeset.new(%{title: "def"})
+        |> Api.create!()
+
+      source_post
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.manage_relationship(:linked_posts, [destination_post, destination_post2],
+        type: :append_and_remove
+      )
+      |> Api.update!()
+
+      assert %{linked_posts: [_, _]} = Post.get_by_id!(source_post.id, load: [:linked_posts])
+    end
+
     test "lateral join loads with many to many relationships are supported" do
       source_post =
         Post
