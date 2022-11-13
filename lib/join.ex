@@ -494,9 +494,7 @@ defmodule AshPostgres.Join do
       Ash.Resource.Info.relationship(relationship.source, relationship.join_relationship)
 
     join_path =
-      Enum.reverse([
-        String.to_existing_atom(to_string(relationship.name) <> "_join_assoc") | path
-      ])
+      Enum.reverse([join_relationship.name | path])
 
     full_path = path ++ [relationship.name]
 
