@@ -2172,6 +2172,9 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp default(%{default: default}, repo) when is_function(default) do
     cond do
+      default in @uuid_functions && pg_version_at_least?(repo, 13) ->
+        ~S[fragment("gen_random_uuid()")]
+
       default in @uuid_functions && "uuid-ossp" in (repo.config()[:installed_extensions] || []) ->
         ~S[fragment("uuid_generate_v4()")]
 
@@ -2186,6 +2189,12 @@ defmodule AshPostgres.MigrationGenerator do
   defp default(%{default: {_, _, _}}, _), do: "nil"
   defp default(%{default: nil}, _), do: "nil"
   defp default(%{default: value}, _), do: EctoMigrationDefault.to_default(value)
+
+  defp pg_version_at_least?(repo, requirement) do
+    pg_version = repo.min_pg_version()
+    if pg_version < 13, do: raise("Minimum acceptable pg version is 13")
+    pg_version >= requirement
+  end
 
   defp snapshot_to_binary(snapshot) do
     snapshot
