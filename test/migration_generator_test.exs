@@ -70,6 +70,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         postgres do
           migration_types(second_title: {:varchar, 16})
+          migration_defaults(title_with_default: "\"fred\"")
         end
 
         identities do
@@ -83,6 +84,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
           attribute(:title, :string)
           attribute(:second_title, :string)
           attribute(:title_with_source, :string, source: :t_w_s)
+          attribute(:title_with_default, :string)
         end
       end
 
@@ -121,6 +123,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
       # the migration adds the id, with its default
       assert file_contents =~
                ~S[add :id, :uuid, null: false, default: fragment("uuid_generate_v4()"), primary_key: true]
+
+      # the migration adds the id, with its default
+      assert file_contents =~
+               ~S[add :title_with_default, :string, null: false, default: "fred", primary_key: true]
 
       # the migration adds other attributes
       assert file_contents =~ ~S[add :title, :text]

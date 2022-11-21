@@ -23,7 +23,9 @@ defimpl EctoMigrationDefault, for: Any do
     your migration accordingly.
 
     To prevent this warning, implement the `EctoMigrationDefault` protocol
-    for the appropriate Elixir type in your Ash project.
+    for the appropriate Elixir type in your Ash project, or configure its
+    default value in `migration_defaults` in the postgres section. Use `\\\"nil\\\"`
+    for no default.
     """)
 
     "nil"
