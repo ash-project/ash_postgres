@@ -126,7 +126,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       # the migration adds the id, with its default
       assert file_contents =~
-               ~S[add :title_with_default, :string, null: false, default: "fred", primary_key: true]
+               ~S[add :title_with_default, :text, default: "fred"]
 
       # the migration adds other attributes
       assert file_contents =~ ~S[add :title, :text]
