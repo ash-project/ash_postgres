@@ -1909,6 +1909,7 @@ defmodule AshPostgres.MigrationGenerator do
                 destination_attribute_default:
                   default(
                     source_attribute,
+                    relationship.destination,
                     AshPostgres.DataLayer.Info.repo(relationship.destination)
                   ),
                 destination_attribute_generated: source_attribute.generated?,
@@ -2040,7 +2041,7 @@ defmodule AshPostgres.MigrationGenerator do
       &Map.take(&1, [:name, :source, :type, :default, :allow_nil?, :generated?, :primary_key?])
     )
     |> Enum.map(fn attribute ->
-      default = default(attribute, repo)
+      default = default(attribute, resource, repo)
 
       type =
         AshPostgres.DataLayer.Info.migration_types(resource)[attribute.name] ||
@@ -2210,22 +2211,32 @@ defmodule AshPostgres.MigrationGenerator do
 
   @uuid_functions [&Ash.UUID.generate/0, &Ecto.UUID.generate/0]
 
-  defp default(%{default: default}, _repo) when is_function(default) do
-    cond do
-      default in @uuid_functions ->
-        ~S[fragment("gen_random_uuid()")]
+  defp default(%{name: name, default: default}, resource, _repo) when is_function(default) do
+    configured_default(resource, name) ||
+      cond do
+        default in @uuid_functions ->
+          ~S[fragment("gen_random_uuid()")]
 
-      default == (&DateTime.utc_now/0) ->
-        ~S[fragment("now()")]
+        default == (&DateTime.utc_now/0) ->
+          ~S[fragment("now()")]
 
-      true ->
-        "nil"
-    end
+        true ->
+          "nil"
+      end
   end
 
-  defp default(%{default: {_, _, _}}, _), do: "nil"
-  defp default(%{default: nil}, _), do: "nil"
-  defp default(%{default: value}, _), do: EctoMigrationDefault.to_default(value)
+  defp default(%{name: name, default: {_, _, _}}, resource, _),
+    do: configured_default(resource, name) || "nil"
+
+  defp default(%{name: name, default: nil}, resource, _),
+    do: configured_default(resource, name) || "nil"
+
+  defp default(%{name: name, default: value}, resource, _),
+    do: configured_default(resource, name) || EctoMigrationDefault.to_default(value)
+
+  defp configured_default(resource, attribute) do
+    AshPostgres.DataLayer.Info.migration_defaults(resource)[attribute]
+  end
 
   defp snapshot_to_binary(snapshot) do
     snapshot

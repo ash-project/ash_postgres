@@ -293,6 +293,15 @@ defmodule AshPostgres.DataLayer do
         doc:
           "A keyword list of attribute names to the ecto migration type that should be used for that attribute. Only necessary if you need to override the defaults."
       ],
+      migration_defaults: [
+        type: :keyword_list,
+        default: [],
+        doc: """
+        A keyword list of attribute names to the ecto migration default that should be used for that attribute. Only necessary if you need to override the defaults.
+
+        The string you use will be placed verbatim in the migration. Use fragments like `fragment(\\\\"now()\\\\")`, or for `nil`, use `\\\\"nil\\\\"`.
+        """
+      ],
       base_filter_sql: [
         type: :string,
         doc:

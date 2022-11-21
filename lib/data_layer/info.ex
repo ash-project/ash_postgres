@@ -25,7 +25,12 @@ defmodule AshPostgres.DataLayer.Info do
 
   @doc "A keyword list of customized migration types"
   def migration_types(resource) do
-    Extension.get_opt(resource, [:postgres], :migration_types, nil, true)
+    Extension.get_opt(resource, [:postgres], :migration_types, [])
+  end
+
+  @doc "A keyword list of customized migration defaults"
+  def migration_defaults(resource) do
+    Extension.get_opt(resource, [:postgres], :migration_defaults, [])
   end
 
   @doc "The configured check_constraints for a resource"
