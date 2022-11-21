@@ -12,13 +12,11 @@ defmodule AshPostgres.Repo do
 
   To configure your list of installed extensions, define `installed_extensions/0`
 
-  All extensions present will be automatically added by the migration generator. Some extensions
-  being present in the list can change how AshPostgres behaves.
-
   Extensions that are relevant to ash_postgres:
 
   * "ash-functions" - This isn't really an extension, but it expresses that certain functions
     should be added when generating migrations, to support the `||` and `&&` operators in expressions.
+  * `"uuid-ossp"` - Sets UUID primary keys defaults in the migration generator
   * `"pg_trgm"` - Makes the `AshPostgres.Predicates.Trigram` custom predicate available
   * "citext" - Allows case insensitive fields to be used
 

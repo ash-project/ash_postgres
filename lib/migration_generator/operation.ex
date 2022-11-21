@@ -370,22 +370,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           ", primary_key: true"
         end
 
-      defaults_different? =
-        cond do
-          attribute.default == "fragment(\"uuid_generate_v4()\")" &&
-              old_attribute.default == "fragment(\"gen_random_uuid()\")" ->
-            false
-
-          old_attribute.default == "fragment(\"uuid_generate_v4()\")" &&
-              attribute.default == "fragment(\"gen_random_uuid()\")" ->
-            false
-
-          true ->
-            attribute.default != old_attribute.default
-        end
-
       default =
-        if defaults_different? do
+        if attribute.default != old_attribute.default do
           if is_nil(attribute.default) do
             ", default: nil"
           else

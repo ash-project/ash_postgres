@@ -1626,47 +1626,7 @@ defmodule AshPostgres.MigrationGenerator do
 
     right = add_source_and_name_and_schema_and_ignore(right, repo)
 
-    {left, right} =
-      case {left.default, right.default} do
-        {"fragment(\"uuid_generate_v4()\")", "fragment(\"gen_random_uuid()\")"} ->
-          {Map.put(left, :default, "fragment(\"gen_random_uuid()\")"), right}
-
-        {"fragment(\"gen_random_uuid()\")", "fragment(\"uuid_generate_v4()\")"} ->
-          {Map.put(left, :default, "fragment(\"uuid_generate_v4()\")"), right}
-
-        _ ->
-          {left, right}
-      end
-
-    {left, right} =
-      case {left[:references][:destination_attribute_default],
-            right[:references][:destination_attribute_default]} do
-        {"fragment(\"uuid_generate_v4()\")", "fragment(\"gen_random_uuid()\")"} ->
-          {put_in(
-             left,
-             [:references, :destination_attribute_default],
-             "fragment(\"gen_random_uuid()\")"
-           ), right}
-
-        {"fragment(\"gen_random_uuid()\")", "fragment(\"uuid_generate_v4()\")"} ->
-          {left,
-           put_in(
-             right,
-             [:references, :destination_attribute_default],
-             "fragment(\"gen_random_uuid()\")"
-           )}
-
-        _ ->
-          {left, right}
-      end
-
-    if left != right do
-      IO.inspect(left)
-      IO.inspect(right)
-      true
-    else
-      false
-    end
+    left != right
   end
 
   defp add_source_and_name_and_schema_and_ignore(attribute, repo) do
@@ -2211,11 +2171,11 @@ defmodule AshPostgres.MigrationGenerator do
 
   @uuid_functions [&Ash.UUID.generate/0, &Ecto.UUID.generate/0]
 
-  defp default(%{name: name, default: default}, resource, _repo) when is_function(default) do
+  defp default(%{name: name, default: default}, resource, repo) when is_function(default) do
     configured_default(resource, name) ||
       cond do
-        default in @uuid_functions ->
-          ~S[fragment("gen_random_uuid()")]
+        default in @uuid_functions && "uuid-ossp" in (repo.config()[:installed_extensions] || []) ->
+          ~S[fragment("uuid_generate_v4()")]
 
         default == (&DateTime.utc_now/0) ->
           ~S[fragment("now()")]
