@@ -29,6 +29,14 @@ defmodule AshPostgres.Repo do
 
   @doc "Use this to inform the data layer about what extensions are installed"
   @callback installed_extensions() :: [String.t()]
+
+  @doc """
+  Use this to inform the data layer about the oldest potential postgres version it will be run on.
+
+  Must be an integer greater than or equal to 13.
+  """
+  @callback min_pg_version() :: integer()
+
   @doc "Return a list of all schema names (only relevant for a multitenant implementation)"
   @callback all_tenants() :: [String.t()]
   @doc "The path where your tenant migrations are stored (only relevant for a multitenant implementation)"
@@ -53,6 +61,7 @@ defmodule AshPostgres.Repo do
       def migrations_path, do: nil
       def default_prefix, do: "public"
       def override_migration_type(type), do: type
+      def min_pg_version(), do: 10
 
       def all_tenants do
         raise """
@@ -83,7 +92,8 @@ defmodule AshPostgres.Repo do
                      all_tenants: 0,
                      tenant_migrations_path: 0,
                      default_prefix: 0,
-                     override_migration_type: 1
+                     override_migration_type: 1,
+                     min_pg_version: 0
     end
   end
 end
