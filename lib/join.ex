@@ -493,8 +493,7 @@ defmodule AshPostgres.Join do
     join_relationship =
       Ash.Resource.Info.relationship(relationship.source, relationship.join_relationship)
 
-    join_path =
-      Enum.reverse([join_relationship.name | path])
+    join_path = Enum.reverse([join_relationship.name | path])
 
     full_path = path ++ [relationship.name]
 

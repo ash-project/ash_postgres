@@ -16,6 +16,7 @@ spark_locals_without_parens = [
   index: 2,
   message: 1,
   migrate?: 1,
+  migration_defaults: 1,
   migration_types: 1,
   name: 1,
   on_delete: 1,

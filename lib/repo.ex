@@ -61,7 +61,7 @@ defmodule AshPostgres.Repo do
       def migrations_path, do: nil
       def default_prefix, do: "public"
       def override_migration_type(type), do: type
-      def min_pg_version(), do: 10
+      def min_pg_version, do: 10
 
       def all_tenants do
         raise """
