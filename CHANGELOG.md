@@ -5,6 +5,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.1.2](https://github.com/ash-project/ash_postgres/compare/v1.1.1...v1.1.2) (2022-11-21)
+
+
+
+
+### Bug Fixes:
+
+* don't use hard-coded join assoc name (#118)
+
+### Improvements:
+
+* add `migration_defaults` for customizing default values
+
 ## [v1.1.1](https://github.com/ash-project/ash_postgres/compare/v1.1.0...v1.1.1) (2022-10-25)
 
 
