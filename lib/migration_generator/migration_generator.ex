@@ -1626,7 +1626,47 @@ defmodule AshPostgres.MigrationGenerator do
 
     right = add_source_and_name_and_schema_and_ignore(right, repo)
 
-    left != right
+    {left, right} =
+      case {left.default, right.default} do
+        {"fragment(\"uuid_generate_v4()\")", "fragment(\"gen_random_uuid()\")"} ->
+          {Map.put(left, :default, "fragment(\"gen_random_uuid()\")"), right}
+
+        {"fragment(\"gen_random_uuid()\")", "fragment(\"uuid_generate_v4()\")"} ->
+          {Map.put(left, :default, "fragment(\"uuid_generate_v4()\")"), right}
+
+        _ ->
+          {left, right}
+      end
+
+    {left, right} =
+      case {left[:references][:destination_attribute_default],
+            right[:references][:destination_attribute_default]} do
+        {"fragment(\"uuid_generate_v4()\")", "fragment(\"gen_random_uuid()\")"} ->
+          {put_in(
+             left,
+             [:references, :destination_attribute_default],
+             "fragment(\"gen_random_uuid()\")"
+           ), right}
+
+        {"fragment(\"gen_random_uuid()\")", "fragment(\"uuid_generate_v4()\")"} ->
+          {left,
+           put_in(
+             right,
+             [:references, :destination_attribute_default],
+             "fragment(\"gen_random_uuid()\")"
+           )}
+
+        _ ->
+          {left, right}
+      end
+
+    if left != right do
+      IO.inspect(left)
+      IO.inspect(right)
+      true
+    else
+      false
+    end
   end
 
   defp add_source_and_name_and_schema_and_ignore(attribute, repo) do
@@ -2170,13 +2210,10 @@ defmodule AshPostgres.MigrationGenerator do
 
   @uuid_functions [&Ash.UUID.generate/0, &Ecto.UUID.generate/0]
 
-  defp default(%{default: default}, repo) when is_function(default) do
+  defp default(%{default: default}, _repo) when is_function(default) do
     cond do
-      default in @uuid_functions && pg_version_at_least?(repo, 13) ->
+      default in @uuid_functions ->
         ~S[fragment("gen_random_uuid()")]
-
-      default in @uuid_functions && "uuid-ossp" in (repo.config()[:installed_extensions] || []) ->
-        ~S[fragment("uuid_generate_v4()")]
 
       default == (&DateTime.utc_now/0) ->
         ~S[fragment("now()")]
@@ -2189,12 +2226,6 @@ defmodule AshPostgres.MigrationGenerator do
   defp default(%{default: {_, _, _}}, _), do: "nil"
   defp default(%{default: nil}, _), do: "nil"
   defp default(%{default: value}, _), do: EctoMigrationDefault.to_default(value)
-
-  defp pg_version_at_least?(repo, requirement) do
-    pg_version = repo.min_pg_version()
-    if pg_version < 13, do: raise("Minimum acceptable pg version is 13")
-    pg_version >= requirement
-  end
 
   defp snapshot_to_binary(snapshot) do
     snapshot
