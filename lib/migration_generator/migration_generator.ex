@@ -320,11 +320,44 @@ defmodule AshPostgres.MigrationGenerator do
           end
 
           operations
-          |> organize_operations
-          |> build_up_and_down()
-          |> write_migration!(snapshots, repo, opts, tenant?)
+          |> split_into_migrations()
+          |> Enum.each(fn operations ->
+            run_without_transaction? =
+              Enum.any?(operations, fn
+                %Operation.AddCustomIndex{index: %{concurrently: true}} ->
+                  true
+
+                _ ->
+                  false
+              end)
+
+            operations
+            |> organize_operations
+            |> build_up_and_down()
+            |> write_migration!(repo, opts, tenant?, run_without_transaction?)
+          end)
+
+          create_new_snapshot(snapshots, repo_name(repo), opts, tenant?)
       end
     end)
+  end
+
+  defp split_into_migrations(operations) do
+    operations
+    |> Enum.split_with(fn
+      %Operation.AddCustomIndex{index: %{concurrently: true}} ->
+        true
+
+      _ ->
+        false
+    end)
+    |> case do
+      {[], ops} ->
+        [ops]
+
+      {concurrent_indexes, ops} ->
+        [ops, concurrent_indexes]
+    end
   end
 
   defp add_order_to_operations({snapshot, operations}) do
@@ -666,9 +699,7 @@ defmodule AshPostgres.MigrationGenerator do
     repo |> Module.split() |> List.last() |> Macro.underscore()
   end
 
-  defp write_migration!({up, down}, snapshots, repo, opts, tenant?) do
-    repo_name = repo_name(repo)
-
+  defp write_migration!({up, down}, repo, opts, tenant?, run_without_transaction?) do
     migration_path = migration_path(opts, repo, tenant?)
 
     {migration_name, last_part} =
@@ -696,6 +727,14 @@ defmodule AshPostgres.MigrationGenerator do
         Module.concat([repo, Migrations, Macro.camelize(last_part)])
       end
 
+    module_attributes =
+      if run_without_transaction? do
+        """
+        @disable_ddl_transaction true
+        @disable_migration_lock true
+        """
+      end
+
     contents = """
     defmodule #{inspect(module_name)} do
       @moduledoc \"\"\"
@@ -705,6 +744,8 @@ defmodule AshPostgres.MigrationGenerator do
       \"\"\"
 
       use Ecto.Migration
+
+      #{module_attributes}
 
       def up do
         #{up}
@@ -718,8 +759,6 @@ defmodule AshPostgres.MigrationGenerator do
 
     try do
       contents = format(contents, opts)
-
-      create_new_snapshot(snapshots, repo_name, opts, tenant?)
 
       if opts.dry_run do
         Mix.shell().info(contents)
@@ -1062,6 +1101,25 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp after?(
+         %Operation.AddCustomIndex{
+           table: table,
+           schema: schema,
+           index: %{
+             concurrently: true
+           }
+         },
+         %Operation.AddCustomIndex{
+           table: table,
+           schema: schema,
+           index: %{
+             concurrently: false
+           }
+         }
+       ) do
+    true
+  end
+
+  defp after?(
          %Operation.AddCheckConstraint{table: table, schema: schema, constraint: %{name: name}},
          %Operation.RemoveCheckConstraint{
            table: table,
@@ -1347,7 +1405,7 @@ defmodule AshPostgres.MigrationGenerator do
     custom_indexes_to_add =
       Enum.filter(snapshot.custom_indexes, fn index ->
         !Enum.find(old_snapshot.custom_indexes, fn old_custom_index ->
-          old_custom_index == index
+          indexes_match?(old_custom_index, index)
         end)
       end)
       |> Enum.map(fn custom_index ->
@@ -1364,7 +1422,7 @@ defmodule AshPostgres.MigrationGenerator do
       Enum.filter(old_snapshot.custom_indexes, fn old_custom_index ->
         rewrite_all_identities? ||
           !Enum.find(snapshot.custom_indexes, fn index ->
-            old_custom_index == index
+            indexes_match?(old_custom_index, index)
           end)
       end)
       |> Enum.map(fn custom_index ->
@@ -1488,6 +1546,20 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.concat()
     |> Enum.map(&Map.put(&1, :multitenancy, snapshot.multitenancy))
     |> Enum.map(&Map.put(&1, :old_multitenancy, old_snapshot.multitenancy))
+  end
+
+  defp indexes_match?(left, right) do
+    left =
+      Map.update!(left, :fields, fn fields ->
+        Enum.map(fields, &to_string/1)
+      end)
+
+    right =
+      Map.update!(right, :fields, fn fields ->
+        Enum.map(fields, &to_string/1)
+      end)
+
+    left == right
   end
 
   defp attribute_operations(snapshot, old_snapshot, opts) do

@@ -775,10 +775,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       keys =
         case multitenancy.strategy do
           :attribute ->
-            [to_string(multitenancy.attribute) | index.fields]
+            [to_string(multitenancy.attribute) | Enum.map(index.fields, &to_string/1)]
 
           _ ->
-            index.fields
+            Enum.map(index.fields, &to_string/1)
         end
 
       index =
@@ -811,10 +811,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       keys =
         case multitenancy.strategy do
           :attribute ->
-            [to_string(multitenancy.attribute) | index.fields]
+            [to_string(multitenancy.attribute) | Enum.map(index.fields, &to_string/1)]
 
           _ ->
-            index.fields
+            Enum.map(index.fields, &to_string/1)
         end
 
       "drop_if_exists index(:#{table}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
@@ -832,10 +832,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       keys =
         case multitenancy.strategy do
           :attribute ->
-            [to_string(multitenancy.attribute) | index.fields]
+            [to_string(multitenancy.attribute) | Enum.map(index.fields, &to_string/1)]
 
           _ ->
-            index.fields
+            Enum.map(index.fields, &to_string/1)
         end
 
       "drop_if_exists index(:#{table}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
@@ -851,10 +851,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       keys =
         case multitenancy.strategy do
           :attribute ->
-            [to_string(multitenancy.attribute) | index.fields]
+            [to_string(multitenancy.attribute) | Enum.map(index.fields, &to_string/1)]
 
           _ ->
-            index.fields
+            Enum.map(index.fields, &to_string/1)
         end
 
       index =

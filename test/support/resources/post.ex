@@ -14,6 +14,13 @@ defmodule AshPostgres.Test.Post do
         check: "price > 0"
       )
     end
+
+    custom_indexes do
+      index [:uniq_custom_one, :uniq_custom_two],
+        unique: true,
+        concurrently: true,
+        message: "dude what the heck"
+    end
   end
 
   resource do
@@ -64,6 +71,8 @@ defmodule AshPostgres.Test.Post do
     attribute(:point, AshPostgres.Test.Point)
     attribute(:uniq_one, :string)
     attribute(:uniq_two, :string)
+    attribute(:uniq_custom_one, :string)
+    attribute(:uniq_custom_two, :string)
     create_timestamp(:created_at)
     update_timestamp(:updated_at)
   end

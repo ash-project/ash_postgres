@@ -1200,6 +1200,20 @@ defmodule AshPostgres.DataLayer do
         Ecto.Changeset.unique_constraint(changeset, identity.keys, opts)
       end)
 
+    changeset =
+      resource
+      |> AshPostgres.DataLayer.Info.custom_indexes()
+      |> Enum.reduce(changeset, fn index, changeset ->
+        opts =
+          if index.message do
+            [name: index.name, message: index.message]
+          else
+            [name: index.name]
+          end
+
+        Ecto.Changeset.unique_constraint(changeset, index.fields, opts)
+      end)
+
     names =
       resource
       |> AshPostgres.DataLayer.Info.unique_index_names()

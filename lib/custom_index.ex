@@ -9,12 +9,13 @@ defmodule AshPostgres.CustomIndex do
     :using,
     :prefix,
     :where,
-    :include
+    :include,
+    :message
   ]
 
   @schema [
     fields: [
-      type: {:list, :string},
+      type: {:list, {:or, [:atom, :string]}},
       doc: "The fields to include in the index."
     ],
     name: [
@@ -43,6 +44,10 @@ defmodule AshPostgres.CustomIndex do
       type: :string,
       doc: "specify conditions for a partial index."
     ],
+    message: [
+      type: :string,
+      doc: "A custom message to use for unique indexes that have been violated"
+    ],
     include: [
       type: {:list, :string},
       doc:
@@ -51,6 +56,21 @@ defmodule AshPostgres.CustomIndex do
   ]
 
   def schema, do: @schema
+
+  # sobelow_skip ["DOS.StringToAtom"]
+  def transform(%__MODULE__{fields: fields} = index) do
+    %{
+      index
+      | fields:
+          Enum.map(fields, fn field ->
+            if is_atom(field) do
+              field
+            else
+              String.to_atom(field)
+            end
+          end)
+    }
+  end
 
   def name(_resource, %{name: name}) when is_binary(name) do
     name
