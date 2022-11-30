@@ -1,6 +1,6 @@
 defmodule AshPostgres.AggregateTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Comment, Post, Rating}
+  alias AshPostgres.Test.{Api, Comment, Post, Rating, Author, Profile}
 
   require Ash.Query
 
@@ -234,6 +234,44 @@ defmodule AshPostgres.AggregateTest do
                |> Ash.Query.filter(id == ^post.id)
                |> Ash.Query.load(:first_comment)
                |> Ash.Query.sort(:first_comment)
+               |> Api.read_one!()
+    end
+
+    test "on an array composite type" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{badges: [:author_of_the_year]})
+        |> Api.create!()
+
+      profile =
+        Profile
+        |> Ash.Changeset.for_create(:create)
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Api.create!()
+
+      assert %{author_badges: [:author_of_the_year]} =
+               Profile
+               |> Ash.Query.filter(id == ^profile.id)
+               |> Ash.Query.load([:author_badges])
+               |> Api.read_one!()
+    end
+
+    test "on an empty array composite type" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{badges: []})
+        |> Api.create!()
+
+      profile =
+        Profile
+        |> Ash.Changeset.for_create(:create)
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Api.create!()
+
+      assert %{author_badges: []} =
+               Profile
+               |> Ash.Query.filter(id == ^profile.id)
+               |> Ash.Query.load([:author_badges])
                |> Api.read_one!()
     end
   end
