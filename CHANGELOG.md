@@ -5,6 +5,25 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.1.3](https://github.com/ash-project/ash_postgres/compare/v1.1.2...v1.1.3) (2022-12-01)
+
+
+
+
+### Bug Fixes:
+
+* properly turn custom index keys into atoms
+
+### Improvements:
+
+* update ash, add test for transaction hooks
+
+* support new transaction info with hooks
+
+* add unique constraints to changeset for custom unique indexes
+
+* separate out concurrent index creations and do them in a separate transaction
+
 ## [v1.1.2](https://github.com/ash-project/ash_postgres/compare/v1.1.1...v1.1.2) (2022-11-21)
 
 
