@@ -1,5 +1,5 @@
 defmodule AshPostgresTest do
-  use ExUnit.Case
+  use AshPostgres.RepoCase, async: false
 
   test "transaction metadata is given to on_transaction_begin" do
     AshPostgres.Test.Post
