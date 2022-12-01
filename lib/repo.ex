@@ -25,6 +25,16 @@ defmodule AshPostgres.Repo do
     ["pg_trgm", "uuid-ossp"]
   end
   ```
+
+  ## Transaction Hooks
+
+  You can define `on_transaction_begin/1`, which will be invoked whenever a transaction is started for Ash.
+
+  This will be invoked with a map containing a `type` key and metadata.
+
+  ```elixir
+  %{type: :create, %{resource: YourApp.YourResource, action: :action}}
+  ```
   """
 
   @doc "Use this to inform the data layer about what extensions are installed"
