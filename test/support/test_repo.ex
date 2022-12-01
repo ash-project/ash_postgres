@@ -3,6 +3,10 @@ defmodule AshPostgres.TestRepo do
   use AshPostgres.Repo,
     otp_app: :ash_postgres
 
+  def on_transaction_begin(data) do
+    send(self(), data)
+  end
+
   def installed_extensions do
     ["ash-functions", "uuid-ossp", "pg_trgm", "citext"] --
       Application.get_env(:ash_postgres, :no_extensions, [])
