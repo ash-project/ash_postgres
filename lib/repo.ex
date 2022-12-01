@@ -37,6 +37,8 @@ defmodule AshPostgres.Repo do
   """
   @callback min_pg_version() :: integer()
 
+  @callback on_transaction_begin(reason :: Ash.DataLayer.transaction_reason()) :: term
+
   @doc "Return a list of all schema names (only relevant for a multitenant implementation)"
   @callback all_tenants() :: [String.t()]
   @doc "The path where your tenant migrations are stored (only relevant for a multitenant implementation)"
@@ -87,7 +89,10 @@ defmodule AshPostgres.Repo do
         {:ok, new_config}
       end
 
+      def on_transaction_begin(_reason), do: :ok
+
       defoverridable init: 2,
+                     on_transaction_begin: 1,
                      installed_extensions: 0,
                      all_tenants: 0,
                      tenant_migrations_path: 0,

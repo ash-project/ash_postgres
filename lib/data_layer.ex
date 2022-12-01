@@ -52,6 +52,7 @@ defmodule AshPostgres.DataLayer do
     ],
     target: AshPostgres.CustomIndex,
     schema: AshPostgres.CustomIndex.schema(),
+    transform: {AshPostgres.CustomIndex, :transform, []},
     args: [:fields]
   }
 
@@ -1633,7 +1634,12 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def transaction(resource, func, timeout \\ nil) do
+  def transaction(resource, func, timeout \\ nil, reason \\ %{type: :custom, metadata: %{}}) do
+    func = fn ->
+      AshPostgres.DataLayer.Info.repo(resource).on_transaction_begin(reason)
+      func.()
+    end
+
     if timeout do
       AshPostgres.DataLayer.Info.repo(resource).transaction(func, timeout: timeout)
     else

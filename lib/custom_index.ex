@@ -59,17 +59,18 @@ defmodule AshPostgres.CustomIndex do
 
   # sobelow_skip ["DOS.StringToAtom"]
   def transform(%__MODULE__{fields: fields} = index) do
-    %{
-      index
-      | fields:
-          Enum.map(fields, fn field ->
-            if is_atom(field) do
-              field
-            else
-              String.to_atom(field)
-            end
-          end)
-    }
+    {:ok,
+     %{
+       index
+       | fields:
+           Enum.map(fields, fn field ->
+             if is_atom(field) do
+               field
+             else
+               String.to_atom(field)
+             end
+           end)
+     }}
   end
 
   def name(_resource, %{name: name}) when is_binary(name) do
