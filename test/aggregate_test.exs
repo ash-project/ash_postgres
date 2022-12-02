@@ -1,6 +1,6 @@
 defmodule AshPostgres.AggregateTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Comment, Post, Rating, Author, Profile}
+  alias AshPostgres.Test.{Api, Comment, Post, Rating}
 
   require Ash.Query
 
@@ -236,43 +236,36 @@ defmodule AshPostgres.AggregateTest do
                |> Ash.Query.sort(:first_comment)
                |> Api.read_one!()
     end
+  end
 
-    test "on an array composite type" do
-      author =
-        Author
-        |> Ash.Changeset.for_create(:create, %{badges: [:author_of_the_year]})
-        |> Api.create!()
+  test "can't define multidimensional array aggregate types" do
+    assert_raise Spark.Error.DslError, ~r/Aggregate not supported/, fn ->
+      defmodule Foo do
+        @moduledoc false
+        use Ash.Resource,
+          data_layer: AshPostgres.DataLayer
 
-      profile =
-        Profile
-        |> Ash.Changeset.for_create(:create)
-        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
-        |> Api.create!()
+        postgres do
+          table("profile")
+          repo(AshPostgres.TestRepo)
+        end
 
-      assert %{author_badges: [:author_of_the_year]} =
-               Profile
-               |> Ash.Query.filter(id == ^profile.id)
-               |> Ash.Query.load([:author_badges])
-               |> Api.read_one!()
-    end
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+        end
 
-    test "on an empty array composite type" do
-      author =
-        Author
-        |> Ash.Changeset.for_create(:create, %{badges: []})
-        |> Api.create!()
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
 
-      profile =
-        Profile
-        |> Ash.Changeset.for_create(:create)
-        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
-        |> Api.create!()
+        relationships do
+          belongs_to(:author, AshPostgres.Test.Author)
+        end
 
-      assert %{author_badges: []} =
-               Profile
-               |> Ash.Query.filter(id == ^profile.id)
-               |> Ash.Query.load([:author_badges])
-               |> Api.read_one!()
+        aggregates do
+          first(:author_badges, :author, :badges)
+        end
+      end
     end
   end
 

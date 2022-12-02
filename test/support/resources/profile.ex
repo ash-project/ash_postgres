@@ -21,8 +21,4 @@ defmodule AshPostgres.Test.Profile do
   relationships do
     belongs_to(:author, AshPostgres.Test.Author)
   end
-
-  aggregates do
-    first(:author_badges, :author, :badges)
-  end
 end

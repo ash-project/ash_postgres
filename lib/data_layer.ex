@@ -416,7 +416,8 @@ defmodule AshPostgres.DataLayer do
     sections: @sections,
     transformers: [
       AshPostgres.Transformers.VerifyRepo,
-      AshPostgres.Transformers.EnsureTableOrPolymorphic
+      AshPostgres.Transformers.EnsureTableOrPolymorphic,
+      AshPostgres.Transformers.PreventMultidimensionalArrayAggregates
     ]
 
   @doc false

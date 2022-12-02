@@ -3,6 +3,8 @@ defmodule AshPostgres.Transformers.VerifyRepo do
   use Spark.Dsl.Transformer
   alias Spark.Dsl.Transformer
 
+  def after_compile?, do: true
+
   def transform(dsl) do
     repo = Transformer.get_option(dsl, [:postgres], :repo)
 
