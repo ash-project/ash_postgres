@@ -101,8 +101,14 @@ defmodule AshPostgres.Test.Post do
       relationship_context: %{data_layer: %{table: "post_ratings"}}
     )
 
+    has_many(:post_links, AshPostgres.Test.PostLink,
+      destination_attribute: :source_post_id,
+      filter: [state: :active]
+    )
+
     many_to_many(:linked_posts, __MODULE__,
       through: AshPostgres.Test.PostLink,
+      join_relationship: :post_links,
       source_attribute_on_join_resource: :source_post_id,
       destination_attribute_on_join_resource: :destination_post_id
     )

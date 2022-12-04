@@ -16,6 +16,13 @@ defmodule AshPostgres.Test.PostLink do
     identity(:unique_link, [:source_post_id, :destination_post_id])
   end
 
+  attributes do
+    attribute :state, :atom do
+      constraints(one_of: [:active, :archived])
+      default(:active)
+    end
+  end
+
   relationships do
     belongs_to :source_post, AshPostgres.Test.Post do
       allow_nil?(false)
