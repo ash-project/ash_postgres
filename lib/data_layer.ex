@@ -528,6 +528,9 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def set_context(resource, data_layer_query, context) do
+    start_bindings = context[:data_layer][:start_bindings_at] || 0
+    data_layer_query = from(row in data_layer_query, as: ^start_bindings)
+
     data_layer_query =
       if context[:data_layer][:table] do
         %{
@@ -823,10 +826,14 @@ defmodule AshPostgres.DataLayer do
     |> Ash.Query.do_filter(through_relationship.filter)
     |> Ash.Query.sort(through_relationship.sort, prepend?: true)
     |> Ash.Query.set_tenant(source_query.tenant)
+    |> Ash.Query.put_context(:data_layer, %{
+      start_bindings_at: query.__ash_bindings__.current
+    })
     |> set_lateral_join_prefix(query)
     |> case do
-      %{valid?: true} = query ->
-        Ash.Query.data_layer_query(query)
+      %{valid?: true} = through_query ->
+        through_query
+        |> Ash.Query.data_layer_query()
 
       query ->
         {:error, query}
@@ -837,11 +844,15 @@ defmodule AshPostgres.DataLayer do
         |> Ash.Query.new()
         |> Ash.Query.set_context(relationship.context)
         |> Ash.Query.set_context(%{:data_layer => source_query.context[:data_layer]})
+        |> Ash.Query.put_context(:data_layer, %{
+          start_bindings_at: through_query.__ash_bindings__.current
+        })
         |> set_lateral_join_prefix(query)
         |> Ash.Query.do_filter(relationship.filter)
         |> case do
           %{valid?: true} = query ->
-            Ash.Query.data_layer_query(query)
+            query
+            |> Ash.Query.data_layer_query()
 
           query ->
             {:error, query}
@@ -860,12 +871,16 @@ defmodule AshPostgres.DataLayer do
                         source_query,
                         relationship.through
                       ),
+                    as: ^query.__ash_bindings__.current,
                     on:
                       field(through, ^destination_attribute_on_join_resource) ==
                         field(destination, ^destination_attribute),
                     where:
                       field(through, ^source_attribute_on_join_resource) ==
-                        field(parent_as(^0), ^source_attribute),
+                        field(
+                          parent_as(^through_query.__ash_bindings__.current),
+                          ^source_attribute
+                        ),
                     select_merge: %{
                       __lateral_join_source__: field(through, ^source_attribute_on_join_resource)
                     }
@@ -895,12 +910,16 @@ defmodule AshPostgres.DataLayer do
                         source_query,
                         relationship.through
                       ),
+                    as: ^query.__ash_bindings__.current,
                     on:
                       field(through, ^destination_attribute_on_join_resource) ==
                         field(destination, ^destination_attribute),
                     where:
                       field(through, ^source_attribute_on_join_resource) ==
-                        field(parent_as(^0), ^source_attribute),
+                        field(
+                          parent_as(^through_query.__ash_bindings__.current),
+                          ^source_attribute
+                        ),
                     select_merge: %{
                       __lateral_join_source__: field(through, ^source_attribute_on_join_resource)
                     }
@@ -964,7 +983,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def resource_to_query(resource, _) do
-    from(row in {AshPostgres.DataLayer.Info.table(resource) || "", resource}, as: ^0)
+    from(row in {AshPostgres.DataLayer.Info.table(resource) || "", resource}, [])
   end
 
   @impl true
@@ -1539,14 +1558,16 @@ defmodule AshPostgres.DataLayer do
 
   @doc false
   def default_bindings(query, resource, context \\ %{}) do
+    start_bindings = context[:data_layer][:start_bindings_at] || 0
+
     Map.put_new(query, :__ash_bindings__, %{
       resource: resource,
-      current: Enum.count(query.joins) + 1,
+      current: Enum.count(query.joins) + 1 + start_bindings,
       calculations: %{},
       aggregates: %{},
       aggregate_defs: %{},
       context: context,
-      bindings: %{0 => %{path: [], type: :root, source: resource}}
+      bindings: %{start_bindings => %{path: [], type: :root, source: resource}}
     })
   end
 
