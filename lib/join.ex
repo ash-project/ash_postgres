@@ -109,7 +109,7 @@ defmodule AshPostgres.Join do
         relationship,
         root_query,
         path \\ [],
-        use_root_query_bindings? \\ false
+        bindings \\ nil
       ) do
     resource
     |> Ash.Query.new(nil, base_filter?: false)
@@ -135,14 +135,15 @@ defmodule AshPostgres.Join do
                 ash_query,
                 resource,
                 path,
-                use_root_query_bindings?
+                bindings
               )
               |> do_relationship_filter(
                 relationship.filter,
                 root_query,
                 ash_query,
                 resource,
-                path
+                path,
+                bindings
               )
 
             {:ok, query}
@@ -156,7 +157,7 @@ defmodule AshPostgres.Join do
     end
   end
 
-  defp do_relationship_filter(query, nil, _, _, _, _), do: query
+  defp do_relationship_filter(query, nil, _, _, _, _, _), do: query
 
   defp do_relationship_filter(
          query,
@@ -164,7 +165,8 @@ defmodule AshPostgres.Join do
          root_query,
          ash_query,
          resource,
-         path
+         path,
+         bindings
        ) do
     filter =
       resource
@@ -176,18 +178,19 @@ defmodule AshPostgres.Join do
       )
 
     dynamic =
-      AshPostgres.Expr.dynamic_expr(
-        root_query,
-        Ash.Filter.move_to_relationship_path(filter, path),
-        root_query.__ash_bindings__,
-        true
-      )
+      if bindings do
+        filter = Ash.Filter.move_to_relationship_path(filter, path)
+
+        AshPostgres.Expr.dynamic_expr(root_query, filter, bindings, true)
+      else
+        AshPostgres.Expr.dynamic_expr(query, filter, query.__ash_bindings__, true)
+      end
 
     {:ok, query} = join_all_relationships(query, filter)
     from(row in query, where: ^dynamic)
   end
 
-  defp do_base_filter(query, root_query, ash_query, resource, path, use_root_query_bindings?) do
+  defp do_base_filter(query, root_query, ash_query, resource, path, bindings) do
     case Ash.Resource.Info.base_filter(resource) do
       nil ->
         query
@@ -203,10 +206,10 @@ defmodule AshPostgres.Join do
           )
 
         dynamic =
-          if use_root_query_bindings? do
+          if bindings do
             filter = Ash.Filter.move_to_relationship_path(filter, path)
 
-            AshPostgres.Expr.dynamic_expr(root_query, filter, root_query.__ash_bindings__, true)
+            AshPostgres.Expr.dynamic_expr(root_query, filter, bindings, true)
           else
             AshPostgres.Expr.dynamic_expr(query, filter, query.__ash_bindings__, true)
           end
@@ -389,14 +392,20 @@ defmodule AshPostgres.Join do
         %{aggregate | load: aggregate.name}
       end)
 
-    use_root_query_bindings? = Enum.empty?(used_aggregates)
+    use_root_query_bindings? =
+      Enum.empty?(used_aggregates) && !match?({:aggregate, _, _, _}, kind)
+
+    root_bindings =
+      if use_root_query_bindings? do
+        query.__ash_bindings__
+      end
 
     case maybe_get_resource_query(
            relationship.destination,
            relationship,
            query,
            full_path,
-           use_root_query_bindings?
+           root_bindings
          ) do
       {:error, error} ->
         {:error, error}
@@ -554,7 +563,13 @@ defmodule AshPostgres.Join do
         %{aggregate | load: aggregate.name}
       end)
 
-    use_root_query_bindings? = Enum.empty?(used_aggregates)
+    use_root_query_bindings? =
+      Enum.empty?(used_aggregates) && !match?({:aggregate, _, _, _}, kind)
+
+    root_bindings =
+      if use_root_query_bindings? do
+        query.__ash_bindings__
+      end
 
     with {:ok, relationship_through} <-
            maybe_get_resource_query(
@@ -562,7 +577,7 @@ defmodule AshPostgres.Join do
              join_relationship,
              query,
              join_path,
-             use_root_query_bindings?
+             root_bindings
            ),
          {:ok, relationship_destination} <-
            maybe_get_resource_query(
@@ -570,7 +585,7 @@ defmodule AshPostgres.Join do
              relationship,
              query,
              path,
-             use_root_query_bindings?
+             root_bindings
            ) do
       relationship_through =
         relationship_through
@@ -703,14 +718,20 @@ defmodule AshPostgres.Join do
         %{aggregate | load: aggregate.name}
       end)
 
-    use_root_query_bindings? = Enum.empty?(used_aggregates)
+    use_root_query_bindings? =
+      Enum.empty?(used_aggregates) && !match?({:aggregate, _, _, _}, kind)
+
+    root_bindings =
+      if use_root_query_bindings? do
+        query.__ash_bindings__
+      end
 
     case maybe_get_resource_query(
            relationship.destination,
            relationship,
            query,
            full_path,
-           use_root_query_bindings?
+           root_bindings
          ) do
       {:error, error} ->
         {:error, error}

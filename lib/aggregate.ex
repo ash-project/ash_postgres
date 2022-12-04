@@ -577,11 +577,23 @@ defmodule AshPostgres.Aggregate do
     join_relationship =
       Ash.Resource.Info.relationship(relationship.source, relationship.join_relationship)
 
+    through_bindings =
+      root_query
+      |> Map.delete(:__ash_bindings__)
+      |> AshPostgres.DataLayer.default_bindings(
+        root_query.__ash_bindings__.resource,
+        root_query.__ash_bindings__.context
+      )
+      |> Map.get(:__ash_bindings__)
+      |> Map.put(:bindings, %{1 => %{path: [], source: relationship.through, type: :left}})
+
     through =
       case AshPostgres.Join.maybe_get_resource_query(
              relationship.through,
              join_relationship,
-             root_query
+             root_query,
+             [],
+             through_bindings
            ) do
         {:ok, query} ->
           query

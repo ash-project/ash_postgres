@@ -732,20 +732,37 @@ defmodule AshPostgres.Expr do
         bindings
       )
 
+    free_binding = filtered.__ash_bindings__.current
+
     exists_query =
       if first_relationship.type == :many_to_many do
         through_relationship =
           Ash.Resource.Info.relationship(resource, first_relationship.join_relationship)
 
+        through_bindings =
+          query
+          |> Map.delete(:__ash_bindings__)
+          |> AshPostgres.DataLayer.default_bindings(
+            query.__ash_bindings__.resource,
+            query.__ash_bindings__.context
+          )
+          |> Map.get(:__ash_bindings__)
+          |> Map.put(:bindings, %{
+            free_binding => %{path: [], source: first_relationship.through, type: :left}
+          })
+
         {:ok, through} =
           AshPostgres.Join.maybe_get_resource_query(
             first_relationship.through,
             through_relationship,
-            query
+            query,
+            [],
+            through_bindings
           )
 
         Ecto.Query.from(destination in filtered,
           join: through in ^through,
+          as: ^free_binding,
           on:
             field(through, ^first_relationship.destination_attribute_on_join_resource) ==
               field(destination, ^first_relationship.destination_attribute),
@@ -763,7 +780,7 @@ defmodule AshPostgres.Expr do
         )
       end
 
-    Ecto.Query.dynamic(exists(exists_query))
+    Ecto.Query.dynamic(exists(Ecto.Query.subquery(exists_query)))
   end
 
   defp do_dynamic_expr(
