@@ -310,15 +310,21 @@ defmodule AshPostgres.Join do
   defp has_binding?(_, _, _, _), do: false
 
   defp add_distinct(relationship, join_type, joined_query) do
-    if relationship.cardinality == :many and join_type == :left && !joined_query.distinct do
-      if joined_query.group_bys && joined_query.group_bys != [] do
+    if IO.inspect(relationship.cardinality) == :many and IO.inspect(join_type) == :left &&
+         !IO.inspect(joined_query.distinct) do
+      if IO.inspect(joined_query.group_bys) && joined_query.group_bys != [] do
+        IO.inspect("not doing it")
         joined_query
       else
+        IO.inspect("doing it ")
+
         from(row in joined_query,
           distinct: ^Ash.Resource.Info.primary_key(relationship.destination)
         )
       end
     else
+      IO.inspect("not doing it")
+
       joined_query
     end
   end
