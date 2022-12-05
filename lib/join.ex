@@ -313,10 +313,13 @@ defmodule AshPostgres.Join do
     should_distinct? =
       case join_type do
         :left ->
-          :left
+          true
 
         {:aggregate, _, _, _} ->
-          :left
+          true
+
+        _ ->
+          false
       end
 
     if IO.inspect(relationship.cardinality) == :many and IO.inspect(should_distinct?) &&
