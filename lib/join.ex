@@ -331,7 +331,7 @@ defmodule AshPostgres.Join do
         IO.inspect("doing it ")
 
         from(row in joined_query,
-          distinct: ^Ash.Resource.Info.primary_key(relationship.destination)
+          distinct: ^Ash.Resource.Info.primary_key(relationship.source)
         )
       end
     else
