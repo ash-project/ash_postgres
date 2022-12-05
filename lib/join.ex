@@ -311,7 +311,7 @@ defmodule AshPostgres.Join do
 
   defp add_distinct(relationship, join_type, joined_query) do
     should_distinct? =
-      case should_distinct? do
+      case join_type do
         :left ->
           :left
 
