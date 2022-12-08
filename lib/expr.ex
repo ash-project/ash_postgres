@@ -580,7 +580,7 @@ defmodule AshPostgres.Expr do
 
     expr = Ecto.Query.dynamic(field(as(^ref_binding), ^aggregate.name))
 
-    type = AshPostgres.Types.parameterized_type(aggregate.type, constraints)
+    type = AshPostgres.Types.parameterized_type(aggregate.type, aggregate.constraints)
     validate_type!(query, type, ref)
 
     type =
