@@ -580,7 +580,7 @@ defmodule AshPostgres.Expr do
 
     expr = Ecto.Query.dynamic(field(as(^ref_binding), ^aggregate.name))
 
-    type = AshPostgres.Types.parameterized_type(aggregate.type, [])
+    type = AshPostgres.Types.parameterized_type(aggregate.type, constraints)
     validate_type!(query, type, ref)
 
     type =
@@ -768,17 +768,17 @@ defmodule AshPostgres.Expr do
               field(destination, ^first_relationship.destination_attribute),
           on:
             field(parent_as(^source_ref), ^first_relationship.source_attribute) ==
-              field(through, ^first_relationship.source_attribute_on_join_resource),
-          select: 1
+              field(through, ^first_relationship.source_attribute_on_join_resource)
         )
       else
         Ecto.Query.from(destination in filtered,
-          select: [1],
           where:
             field(parent_as(^source_ref), ^first_relationship.source_attribute) ==
               field(destination, ^first_relationship.destination_attribute)
         )
       end
+
+    exists_query = exists_query |> Ecto.Query.exclude(:select) |> Ecto.Query.select(1)
 
     Ecto.Query.dynamic(exists(Ecto.Query.subquery(exists_query)))
   end
@@ -901,30 +901,29 @@ defmodule AshPostgres.Expr do
   end
 
   defp ref_binding(
-         %{attribute: %Ash.Query.Aggregate{} = aggregate, relationship_path: []},
+         %{attribute: %Ash.Query.Aggregate{name: name}, relationship_path: []},
          bindings
        ) do
     Enum.find_value(bindings.bindings, fn {binding, data} ->
-      data.path == aggregate.relationship_path && data.type == :aggregate && binding
-    end) ||
-      Enum.find_value(bindings.bindings, fn {binding, data} ->
-        data.path == aggregate.relationship_path && data.type in [:inner, :left, :root] && binding
-      end)
+      data.type == :aggregate &&
+        Enum.any?(data.aggregates, &(&1.name == name)) && binding
+    end)
   end
 
   defp ref_binding(%{attribute: %Ash.Resource.Attribute{}} = ref, bindings) do
     Enum.find_value(bindings.bindings, fn {binding, data} ->
       data.path == ref.relationship_path && data.type in [:inner, :left, :root] && binding
-    end) ||
-      Enum.find_value(bindings.bindings, fn {binding, data} ->
-        data.path == ref.relationship_path && data.type == :aggregate && binding
-      end)
+    end)
   end
 
   defp ref_binding(%{attribute: %Ash.Query.Aggregate{}} = ref, bindings) do
     Enum.find_value(bindings.bindings, fn {binding, data} ->
       data.path == ref.relationship_path && data.type in [:inner, :left, :root] && binding
     end)
+    |> case do
+      nil -> nil
+      binding -> binding + 1
+    end
   end
 
   defp do_get_path(

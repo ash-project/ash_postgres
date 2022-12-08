@@ -42,6 +42,10 @@ defmodule AshPostgres.DocIndex do
          AshPostgres.Functions.Fragment,
          AshPostgres.Functions.TrigramSimilarity
        ]},
+      {"Custom Aggregates",
+       [
+         AshPostgres.CustomAggregate
+       ]},
       {"Postgres Migrations",
        [
          AshPostgres.Migration,

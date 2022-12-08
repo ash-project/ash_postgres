@@ -392,6 +392,136 @@ defmodule AshPostgres.AggregateTest do
       |> Api.read!()
     end
 
+    test "nested aggregates show the proper values" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      author =
+        AshPostgres.Test.Author
+        |> Ash.Changeset.new(%{"first_name" => "ted"})
+        |> Api.create!()
+
+      comment1 =
+        Comment
+        |> Ash.Changeset.new(%{title: "match", likes: 2})
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Api.create!()
+
+      comment2 =
+        Comment
+        |> Ash.Changeset.new(%{title: "match", likes: 2})
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Api.create!()
+
+      Rating
+      |> Ash.Changeset.new(%{score: 5, resource_id: comment1.id})
+      |> Ash.Changeset.set_context(%{data_layer: %{table: "comment_ratings"}})
+      |> Api.create!()
+
+      Rating
+      |> Ash.Changeset.new(%{score: 10, resource_id: comment2.id})
+      |> Ash.Changeset.set_context(%{data_layer: %{table: "comment_ratings"}})
+      |> Api.create!()
+
+      assert [%{count_of_comment_ratings: 2}] =
+               Post |> Ash.Query.load(:count_of_comment_ratings) |> Api.read!()
+
+      assert [%{highest_comment_rating: 10}] =
+               Post |> Ash.Query.load(:highest_comment_rating) |> Api.read!()
+
+      assert [%{lowest_comment_rating: 5}] =
+               Post |> Ash.Query.load(:lowest_comment_rating) |> Api.read!()
+
+      assert [%{avg_comment_rating: 7.5}] =
+               Post |> Ash.Query.load(:avg_comment_rating) |> Api.read!()
+
+      # TODO: want to add an option for `unique` here at some point
+      assert [%{comment_authors: "ted,ted"}] =
+               Post |> Ash.Query.load(:comment_authors) |> Api.read!()
+    end
+
+    test "nested filtered aggregates show the proper values" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      comment1 =
+        Comment
+        |> Ash.Changeset.new(%{title: "match", likes: 2})
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Api.create!()
+
+      comment2 =
+        Comment
+        |> Ash.Changeset.new(%{title: "match", likes: 2})
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Api.create!()
+
+      Rating
+      |> Ash.Changeset.new(%{score: 20, resource_id: comment1.id})
+      |> Ash.Changeset.set_context(%{data_layer: %{table: "comment_ratings"}})
+      |> Api.create!()
+
+      Rating
+      |> Ash.Changeset.new(%{score: 1, resource_id: comment2.id})
+      |> Ash.Changeset.set_context(%{data_layer: %{table: "comment_ratings"}})
+      |> Api.create!()
+
+      assert [%{count_of_comment_ratings: 2, count_of_popular_comment_ratings: 1}] =
+               Post
+               |> Ash.Query.load([:count_of_comment_ratings, :count_of_popular_comment_ratings])
+               |> Api.read!()
+
+      assert [%{count_of_comment_ratings: 2}] =
+               Post
+               |> Ash.Query.load([:count_of_comment_ratings])
+               |> Api.read!()
+
+      assert [%{count_of_popular_comment_ratings: 1}] =
+               Post
+               |> Ash.Query.load([:count_of_popular_comment_ratings])
+               |> Api.read!()
+    end
+
+    test "nested filtered and sorted aggregates show the proper values" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      comment1 =
+        Comment
+        |> Ash.Changeset.new(%{title: "match", likes: 2})
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Api.create!()
+
+      comment2 =
+        Comment
+        |> Ash.Changeset.new(%{title: "match", likes: 2})
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Api.create!()
+
+      Rating
+      |> Ash.Changeset.new(%{score: 20, resource_id: comment1.id})
+      |> Ash.Changeset.set_context(%{data_layer: %{table: "comment_ratings"}})
+      |> Api.create!()
+
+      Rating
+      |> Ash.Changeset.new(%{score: 1, resource_id: comment2.id})
+      |> Ash.Changeset.set_context(%{data_layer: %{table: "comment_ratings"}})
+      |> Api.create!()
+
+      assert [%{count_of_comment_ratings: 2, count_of_popular_comment_ratings: 1}] =
+               Post
+               |> Ash.Query.load([:count_of_comment_ratings, :count_of_popular_comment_ratings])
+               |> Api.read!()
+    end
+
     test "nested first aggregate works" do
       post =
         Post

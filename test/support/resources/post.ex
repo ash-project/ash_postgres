@@ -167,6 +167,14 @@ defmodule AshPostgres.Test.Post do
       sort(title: :asc_nils_last)
     end
 
+    max(:highest_comment_rating, [:comments, :ratings], :score)
+    min(:lowest_comment_rating, [:comments, :ratings], :score)
+    avg(:avg_comment_rating, [:comments, :ratings], :score)
+
+    custom(:comment_authors, [:comments, :author], :string) do
+      implementation({AshPostgres.Test.StringAgg, field: :first_name, delimiter: ","})
+    end
+
     first :latest_comment_created_at, :comments, :created_at do
       sort(created_at: :desc)
     end
@@ -212,6 +220,15 @@ defmodule AshPostgres.Test.Post do
     end
 
     count(:count_of_comment_ratings, [:comments, :ratings])
+
+    count :count_of_popular_comment_ratings, [:comments, :ratings] do
+      filter(expr(score > 10))
+    end
+
+    list :ten_most_popular_comments, [:comments, :ratings], :id do
+      filter(expr(score > 10))
+      sort(score: :desc)
+    end
 
     first :highest_rating, [:comments, :ratings], :score do
       sort(score: :desc)

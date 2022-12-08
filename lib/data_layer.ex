@@ -470,10 +470,11 @@ defmodule AshPostgres.DataLayer do
   end
 
   def can?(_, :boolean_filter), do: true
-  def can?(_, {:aggregate, :count}), do: true
-  def can?(_, {:aggregate, :sum}), do: true
-  def can?(_, {:aggregate, :first}), do: true
-  def can?(_, {:aggregate, :list}), do: true
+
+  def can?(_, {:aggregate, type})
+      when type in [:count, :sum, :first, :list, :avg, :max, :min, :custom],
+      do: true
+
   def can?(_, :aggregate_filter), do: true
   def can?(_, :aggregate_sort), do: true
   def can?(_, :expression_calculation), do: true
@@ -626,24 +627,19 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def run_aggregate_query(query, aggregates, resource) do
-    subquery = from(row in subquery(query), select: %{})
+    subquery = from(row in subquery(query), as: ^0, select: %{})
 
     query =
       Enum.reduce(
         aggregates,
         subquery,
         fn agg, subquery ->
-          has_exists? =
-            Ash.Filter.find(agg.query && agg.query.filter, fn
-              %Ash.Query.Exists{} -> true
-              _ -> false
-            end)
-
           AshPostgres.Aggregate.add_subquery_aggregate_select(
             subquery,
+            agg.relationship_path |> Enum.drop(1),
             agg,
             resource,
-            has_exists?
+            true
           )
         end
       )
@@ -664,6 +660,8 @@ defmodule AshPostgres.DataLayer do
         destination_resource,
         path
       ) do
+    raise "what"
+
     case lateral_join_query(
            query,
            root_data,
@@ -676,7 +674,7 @@ defmodule AshPostgres.DataLayer do
           |> elem(0)
           |> Map.get(:resource)
 
-        subquery = from(row in subquery(lateral_join_query), select: %{})
+        subquery = from(row in subquery(lateral_join_query), as: ^0, select: %{})
 
         query =
           Enum.reduce(
@@ -691,6 +689,7 @@ defmodule AshPostgres.DataLayer do
 
               AshPostgres.Aggregate.add_subquery_aggregate_select(
                 subquery,
+                agg.relationship_path |> Enum.drop(1),
                 agg,
                 destination_resource,
                 has_exists?
@@ -1563,6 +1562,7 @@ defmodule AshPostgres.DataLayer do
     Map.put_new(query, :__ash_bindings__, %{
       resource: resource,
       current: Enum.count(query.joins) + 1 + start_bindings,
+      in_group?: false,
       calculations: %{},
       aggregates: %{},
       aggregate_defs: %{},
@@ -1582,26 +1582,29 @@ defmodule AshPostgres.DataLayer do
   end
 
   @doc false
+  def get_binding(resource, path, query, type, name_match \\ nil)
+
   def get_binding(resource, path, %{__ash_bindings__: _} = query, type, name_match) do
-    paths =
-      Enum.flat_map(query.__ash_bindings__.bindings, fn
-        {binding, %{path: path, type: ^type, name: name}} ->
+    types = List.wrap(type)
+
+    Enum.find_value(query.__ash_bindings__.bindings, fn
+      {binding, %{path: candidate_path, type: binding_type} = data} ->
+        if binding_type in types do
           if name_match do
-            if name == name_match do
-              [{binding, path}]
-            else
-              []
+            if data[:name] == name_match do
+              if Ash.SatSolver.synonymous_relationship_paths?(resource, candidate_path, path) do
+                binding
+              end
             end
           else
-            [{binding, path}]
+            if Ash.SatSolver.synonymous_relationship_paths?(resource, candidate_path, path) do
+              binding
+            end
           end
+        end
 
-        _ ->
-          []
-      end)
-
-    Enum.find_value(paths, fn {binding, candidate_path} ->
-      Ash.SatSolver.synonymous_relationship_paths?(resource, candidate_path, path) && binding
+      _ ->
+        nil
     end)
   end
 
