@@ -70,8 +70,6 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
   """
   use Mix.Task
 
-  @recursive true
-
   @shortdoc "Generates migrations, and stores a snapshot of your resources"
   def run(args) do
     {opts, _} =
