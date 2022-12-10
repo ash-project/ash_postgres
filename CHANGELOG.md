@@ -5,6 +5,23 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.2.0-rc.1](https://github.com/ash-project/ash_postgres/compare/v1.2.0-rc.0...v1.2.0-rc.1) (2022-12-10)
+
+
+
+
+### Bug Fixes:
+
+* don't make migration generation recursive
+
+* nevermind, can't make migrate recursive
+
+### Improvements:
+
+* make migrate task recursive as well
+
+* mark generate_migrations as recursive for umbrellas
+
 ## [v1.2.0-rc.0](https://github.com/ash-project/ash_postgres/compare/v1.1.3...v1.2.0-rc.0) (2022-12-10)
 
 
