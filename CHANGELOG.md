@@ -5,6 +5,39 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.2.0-rc.0](https://github.com/ash-project/ash_postgres/compare/v1.1.3...v1.2.0-rc.0) (2022-12-10)
+
+
+
+
+### Features:
+
+* avg/min/max/custom aggregate support
+
+### Bug Fixes:
+
+* various broken behavior from new aggregate work
+
+* forgot a
+
+* fix various problems with the model behind aggregates
+
+* properly set binding names for many to many join filters
+
+### Improvements:
+
+* better error messages from mix tasks
+
+* validate that references refer to relationships
+
+* avg/min/max/custom aggregate support
+
+* upgrade and depend on ash version
+
+* fix lateral many to many joins
+
+* inform users about postgres incompatibility with multidimensional arrays
+
 ## [v1.1.3](https://github.com/ash-project/ash_postgres/compare/v1.1.2...v1.1.3) (2022-12-01)
 
 
