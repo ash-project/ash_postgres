@@ -1,6 +1,6 @@
 defmodule AshPostgres.MixHelpers do
   @moduledoc false
-  def apis(opts, args) do
+  def apis!(opts, args) do
     apps =
       if apps_paths = Mix.Project.apps_paths() do
         apps_paths |> Map.keys() |> Enum.sort()
@@ -26,16 +26,54 @@ defmodule AshPostgres.MixHelpers do
         configured_apis
       end
 
-    Enum.map(apis, &ensure_compiled(&1, args))
+    apis
+    |> Enum.map(&ensure_compiled(&1, args))
+    |> case do
+      [] ->
+        raise "must supply the --apis argument, or set `config :my_app, ash_apis: [...]` in config"
+
+      apis ->
+        apis
+    end
   end
 
-  def repos(opts, args) do
-    opts
-    |> apis(args)
-    |> Enum.flat_map(&Ash.Api.Info.resources/1)
-    |> Enum.filter(&(Ash.DataLayer.data_layer(&1) == AshPostgres.DataLayer))
+  def repos!(opts, args) do
+    apis = apis!(opts, args)
+
+    resources =
+      apis
+      |> Enum.flat_map(&Ash.Api.Info.resources/1)
+      |> Enum.filter(&(Ash.DataLayer.data_layer(&1) == AshPostgres.DataLayer))
+      |> case do
+        [] ->
+          raise """
+          No resources with `data_layer: AshPostgres.DataLayer` found in the apis #{Enum.map_join(apis, ",", &inspect/1)}.
+
+          Must be able to find at least one resource with `data_layer: AshPostgres.DataLayer`.
+          """
+
+        resources ->
+          resources
+      end
+
+    resources
     |> Enum.map(&AshPostgres.DataLayer.Info.repo(&1))
     |> Enum.uniq()
+    |> case do
+      [] ->
+        raise """
+        No repos could be found configured on the resources in the apis: #{Enum.map_join(apis, ",", &inspect/1)}
+
+        At least one resource must have a repo configured.
+
+        The following resources were found with `data_layer: AshPostgres.DataLayer`:
+
+        #{Enum.map_join(resources, "\n", &"* #{inspect(&1)}")}
+        """
+
+      repos ->
+        repos
+    end
   end
 
   def delete_flag(args, arg) do

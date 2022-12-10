@@ -1,4 +1,5 @@
 defmodule AshPostgres.Test.StringAgg do
+  @moduledoc false
   use Ash.Resource.Aggregate.CustomAggregate
   use AshPostgres.CustomAggregate
 

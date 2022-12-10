@@ -1,5 +1,5 @@
 defmodule AshPostgres.Transformers.PreventMultidimensionalArrayAggregates do
-  @moduledoc "Prevents at compile time certain aggregates that are unsupported by `AshPostgres`"
+  @moduledoc "Prevents at compile time certain aggregates that are unsupported by AshPostgres"
   use Spark.Dsl.Transformer
   alias Spark.Dsl.Transformer
 

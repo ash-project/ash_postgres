@@ -88,11 +88,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
         ]
       )
 
-    apis = AshPostgres.MixHelpers.apis(opts, args)
-
-    if apis == [] do
-      raise "must supply the --apis argument, or set `config :my_app, ash_apis: [...]` in config"
-    end
+    apis = AshPostgres.MixHelpers.apis!(opts, args)
 
     opts =
       opts

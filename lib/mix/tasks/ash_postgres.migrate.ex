@@ -103,11 +103,7 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
   def run(args) do
     {opts, _} = OptionParser.parse!(args, strict: @switches, aliases: @aliases)
 
-    repos = AshPostgres.MixHelpers.repos(opts, args)
-
-    if repos == [] do
-      raise "must supply the --apis argument, or set `config :my_app, ash_apis: [...]` in config"
-    end
+    repos = AshPostgres.MixHelpers.repos!(opts, args)
 
     repo_args =
       Enum.flat_map(repos, fn repo ->

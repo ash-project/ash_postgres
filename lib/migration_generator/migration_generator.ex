@@ -518,9 +518,6 @@ defmodule AshPostgres.MigrationGenerator do
       [] ->
         nil
 
-      [reference] ->
-        reference
-
       references ->
         %{
           destination_attribute: merge_uniq!(references, table, :destination_attribute, name),

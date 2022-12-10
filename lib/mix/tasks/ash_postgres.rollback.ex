@@ -62,11 +62,7 @@ defmodule Mix.Tasks.AshPostgres.Rollback do
         aliases: [n: :step, v: :to]
       )
 
-    repos = AshPostgres.MixHelpers.repos(opts, args)
-
-    if repos == [] do
-      raise "must supply the --apis argument, or set `config :my_app, ash_apis: [...]` in config"
-    end
+    repos = AshPostgres.MixHelpers.repos!(opts, args)
 
     repo_args =
       Enum.flat_map(repos, fn repo ->

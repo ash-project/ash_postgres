@@ -130,15 +130,13 @@ defmodule AshPostgres.Aggregate do
              aggregate,
              relationship_path,
              first_relationship
-           ),
-         {:ok, agg_query} <-
-           apply_agg_authorization_filter(
-             agg_query,
-             aggregate,
-             relationship_path,
-             first_relationship
            ) do
-      {:ok, agg_query}
+      apply_agg_authorization_filter(
+        agg_query,
+        aggregate,
+        relationship_path,
+        first_relationship
+      )
     end
   end
 
@@ -214,7 +212,7 @@ defmodule AshPostgres.Aggregate do
        ) do
     field = first_relationship.destination_attribute
 
-    subquery =
+    new_subquery =
       from(row in subquery,
         select_merge: map(row, ^[field]),
         group_by: field(row, ^first_relationship.destination_attribute),
@@ -226,7 +224,7 @@ defmodule AshPostgres.Aggregate do
         opts,
         source_binding,
         subquery.__ash_bindings__.current - 1,
-        subquery
+        new_subquery
       )
 
     subquery = AshPostgres.Join.set_join_prefix(subquery, query, first_relationship.destination)

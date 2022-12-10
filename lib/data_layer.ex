@@ -415,6 +415,7 @@ defmodule AshPostgres.DataLayer do
   use Spark.Dsl.Extension,
     sections: @sections,
     transformers: [
+      AshPostgres.Transformers.ValidateReferences,
       AshPostgres.Transformers.VerifyRepo,
       AshPostgres.Transformers.EnsureTableOrPolymorphic,
       AshPostgres.Transformers.PreventMultidimensionalArrayAggregates
@@ -660,8 +661,6 @@ defmodule AshPostgres.DataLayer do
         destination_resource,
         path
       ) do
-    raise "what"
-
     case lateral_join_query(
            query,
            root_data,
