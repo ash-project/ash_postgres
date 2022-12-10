@@ -4,6 +4,8 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
   import AshPostgres.MixHelpers,
     only: [migrations_path: 2, tenant_migrations_path: 2, tenants: 2]
 
+  @recursive true
+
   @shortdoc "Runs the repository migrations for all repositories in the provided (or congigured) apis"
 
   @aliases [
