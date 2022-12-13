@@ -1324,8 +1324,7 @@ defmodule AshPostgres.DataLayer do
   defp lazy_non_matching_defaults(attributes) do
     attributes
     |> Enum.filter(&(!&1.match_other_defaults? && get_default_fun(&1)))
-    |> Enum.map(&{&1.name, &1.update_default})
-    |> Enum.flat_map(fn {name, default_fun} ->
+    |> Enum.map(fn {name, default_fun} ->
       default_value =
         case default_fun do
           function when is_function(function) ->
