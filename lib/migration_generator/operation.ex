@@ -876,7 +876,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           option(:prefix, schema)
         ])
 
-      "create index(:#{table}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{opts})"
+      if opts == "" do
+        "create index(:#{table}, [#{Enum.map_join(keys, ", ", &inspect/1)}])"
+      else
+        "create index(:#{table}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{opts})"
+      end
     end
   end
 

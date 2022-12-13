@@ -1,7 +1,7 @@
 defmodule AshPostgres.SortTest do
   @moduledoc false
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Comment, Post}
+  alias AshPostgres.Test.{Api, Comment, Post, PostLink}
 
   require Ash.Query
 
@@ -101,6 +101,63 @@ defmodule AshPostgres.SortTest do
                Post
                |> Ash.Query.sort(title: :asc, score: :asc)
                |> Ash.Query.select([:title, :score])
+             )
+  end
+
+  test "sorting when joining to a many to many relationship sorts properly" do
+    post1 =
+      Post
+      |> Ash.Changeset.new(%{title: "aaa", score: 0})
+      |> Api.create!()
+
+    post2 =
+      Post
+      |> Ash.Changeset.new(%{title: "bbb", score: 1})
+      |> Api.create!()
+
+    post3 =
+      Post
+      |> Ash.Changeset.new(%{title: "ccc", score: 0})
+      |> Api.create!()
+
+    PostLink
+    |> Ash.Changeset.new()
+    |> Ash.Changeset.manage_relationship(:source_post, post1, type: :append)
+    |> Ash.Changeset.manage_relationship(:destination_post, post3, type: :append)
+    |> Api.create!()
+
+    PostLink
+    |> Ash.Changeset.new()
+    |> Ash.Changeset.manage_relationship(:source_post, post2, type: :append)
+    |> Ash.Changeset.manage_relationship(:destination_post, post2, type: :append)
+    |> Api.create!()
+
+    PostLink
+    |> Ash.Changeset.new()
+    |> Ash.Changeset.manage_relationship(:source_post, post3, type: :append)
+    |> Ash.Changeset.manage_relationship(:destination_post, post1, type: :append)
+    |> Api.create!()
+
+    assert [
+             %{title: "aaa"},
+             %{title: "bbb"},
+             %{title: "ccc"}
+           ] =
+             Api.read!(
+               Post
+               |> Ash.Query.sort(title: :asc)
+               |> Ash.Query.filter(linked_posts.title in ["aaa", "bbb", "ccc"])
+             )
+
+    assert [
+             %{title: "ccc"},
+             %{title: "bbb"},
+             %{title: "aaa"}
+           ] =
+             Api.read!(
+               Post
+               |> Ash.Query.sort(title: :desc)
+               |> Ash.Query.filter(linked_posts.title in ["aaa", "bbb", "ccc"])
              )
   end
 

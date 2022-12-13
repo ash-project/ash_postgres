@@ -600,6 +600,23 @@ defmodule AshPostgres.FilterTest do
                |> Api.read!()
     end
 
+    test "it works with join association relationships" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "a"})
+        |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{title: "b"})
+      |> Ash.Changeset.manage_relationship(:linked_posts, [post], type: :append_and_remove)
+      |> Api.create!()
+
+      assert [%{title: "b"}] =
+               Post
+               |> Ash.Query.filter(exists(linked_posts, title == ^"a"))
+               |> Api.read!()
+    end
+
     test "it works with nested relationships as the path" do
       post =
         Post

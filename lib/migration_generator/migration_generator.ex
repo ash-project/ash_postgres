@@ -1,6 +1,5 @@
 defmodule AshPostgres.MigrationGenerator do
   @moduledoc false
-  @default_snapshot_path "priv/resource_snapshots"
 
   require Logger
 
@@ -8,7 +7,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   alias AshPostgres.MigrationGenerator.{Operation, Phase}
 
-  defstruct snapshot_path: @default_snapshot_path,
+  defstruct snapshot_path: nil,
             migration_path: nil,
             name: nil,
             tenant_migration_path: nil,
@@ -101,6 +100,17 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
+  defp snapshot_path(%{snapshot_path: snapshot_path}, _) when not is_nil(snapshot_path),
+    do: snapshot_path
+
+  defp snapshot_path(config, repo) do
+    # Copied from ecto's mix task, thanks Ecto ❤️
+    config = repo.config()
+
+    app = Keyword.fetch!(config, :otp_app)
+    Path.join([Mix.Project.deps_paths()[app] || File.cwd!(), "priv", "resource_snapshots"])
+  end
+
   @latest_ash_functions_version 0
 
   @add_ash_functions """
@@ -143,7 +153,8 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp create_extension_migrations(repos, opts) do
     for repo <- repos do
-      snapshot_file = Path.join(opts.snapshot_path, "extensions.json")
+      snapshot_path = snapshot_path(opts, repo)
+      snapshot_file = Path.join(snapshot_path, "extensions.json")
 
       installed_extensions =
         if File.exists?(snapshot_file) do
@@ -802,11 +813,13 @@ defmodule AshPostgres.MigrationGenerator do
 
         snapshot_folder =
           if tenant? do
-            opts.snapshot_path
+            opts
+            |> snapshot_path(snapshot.repo)
             |> Path.join(repo_name)
             |> Path.join("tenants")
           else
-            opts.snapshot_path
+            opts
+            |> snapshot_path(snapshot.repo)
             |> Path.join(repo_name)
           end
 
@@ -1759,11 +1772,13 @@ defmodule AshPostgres.MigrationGenerator do
 
     folder =
       if snapshot.multitenancy.strategy == :context do
-        opts.snapshot_path
+        opts
+        |> snapshot_path(snapshot.repo)
         |> Path.join(repo_name)
         |> Path.join("tenants")
       else
-        opts.snapshot_path
+        opts
+        |> snapshot_path(snapshot.repo)
         |> Path.join(repo_name)
       end
 
@@ -1799,8 +1814,6 @@ defmodule AshPostgres.MigrationGenerator do
       get_old_snapshot(folder, snapshot)
     end
   end
-
-  T
 
   defp get_old_snapshot(folder, snapshot) do
     old_snapshot_file = Path.join(folder, "#{snapshot.table}.json")
@@ -2354,6 +2367,7 @@ defmodule AshPostgres.MigrationGenerator do
       custom_index
       |> Map.put_new(:fields, [])
       |> Map.put_new(:include, [])
+      |> Map.put_new(:message, nil)
     end)
   end
 
