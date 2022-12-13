@@ -103,7 +103,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp snapshot_path(%{snapshot_path: snapshot_path}, _) when not is_nil(snapshot_path),
     do: snapshot_path
 
-  defp snapshot_path(config, repo) do
+  defp snapshot_path(_config, repo) do
     # Copied from ecto's mix task, thanks Ecto ❤️
     config = repo.config()
 

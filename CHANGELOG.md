@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.2.0](https://github.com/ash-project/ash_postgres/compare/v1.2.0-rc.1...v1.2.0) (2022-12-13)
+
+
+
+
+### Bug Fixes:
+
+* make migration generator work better for umbrellas
+
 ## [v1.2.0-rc.1](https://github.com/ash-project/ash_postgres/compare/v1.2.0-rc.0...v1.2.0-rc.1) (2022-12-10)
 
 
