@@ -1325,6 +1325,18 @@ defmodule AshPostgres.DataLayer do
     attributes
     |> Enum.filter(&(!&1.match_other_defaults? && get_default_fun(&1)))
     |> Enum.map(&{&1.name, &1.update_default})
+    |> Enum.flat_map(fn {name, default_fun} ->
+      default_value =
+        case default_fun do
+          function when is_function(function) ->
+            function.()
+
+          {m, f, a} when is_atom(m) and is_atom(f) and is_list(a) ->
+            apply(m, f, a)
+        end
+
+      {name, default_value}
+    end)
   end
 
   defp lazy_matching_defaults(attributes) do
