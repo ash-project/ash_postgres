@@ -5,6 +5,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.2.1](https://github.com/ash-project/ash_postgres/compare/v1.2.0...v1.2.1) (2022-12-13)
+
+
+
+
+### Bug Fixes:
+
+* pattern match error in `lazy_non_matching_defaults/1`
+
+* use attribute name not attribute for default funs
+
+* *actually* fix `default_fun` upserts
+
+* fix upserting update_defaults
+
 ## [v1.2.0](https://github.com/ash-project/ash_postgres/compare/v1.2.0-rc.1...v1.2.0) (2022-12-13)
 
 
