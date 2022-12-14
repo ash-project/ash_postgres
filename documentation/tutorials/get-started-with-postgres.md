@@ -1,4 +1,4 @@
-Get Started With Postgres
+# Get Started With Postgres
 
 ## Goals
 
