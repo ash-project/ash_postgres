@@ -570,7 +570,18 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def run_query(query, resource) do
-    query = %{query | windows: Keyword.delete(query.windows, :order)}
+    query =
+      if query.__ash_bindings__[:__order__?] && query.windows[:order] do
+        query_with_order =
+          from(row in query, select_merge: %{__order__: over(row_number(), :order)})
+
+        from(row in subquery(query_with_order),
+          select: row,
+          order_by: row.__order__
+        )
+      else
+        %{query | windows: Keyword.delete(query.windows, :order)}
+      end
 
     if AshPostgres.DataLayer.Info.polymorphic?(resource) && no_table?(query) do
       raise_table_error!(resource, :read)

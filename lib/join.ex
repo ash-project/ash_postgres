@@ -306,9 +306,9 @@ defmodule AshPostgres.Join do
 
   defp has_binding?(_, _, _, _), do: false
 
-  defp add_distinct(relationship, join_type, joined_query) do
-    if !joined_query.__ash_bindings__.in_group? && relationship.cardinality == :many and
-         join_type == :left && !joined_query.distinct do
+  defp add_distinct(relationship, _join_type, joined_query) do
+    if !joined_query.__ash_bindings__.in_group? && relationship.cardinality == :many &&
+         !joined_query.distinct do
       if joined_query.group_bys && joined_query.group_bys != [] do
         joined_query
       else

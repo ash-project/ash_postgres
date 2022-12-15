@@ -157,7 +157,7 @@ defmodule AshPostgres.SortTest do
              Api.read!(
                Post
                |> Ash.Query.sort(title: :desc)
-               |> Ash.Query.filter(linked_posts.title in ["aaa", "bbb", "ccc"])
+               |> Ash.Query.filter(linked_posts.title in ["aaa", "bbb", "ccc"] or title == "aaa")
              )
   end
 
