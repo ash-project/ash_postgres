@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.2.3](https://github.com/ash-project/ash_postgres/compare/v1.2.2...v1.2.3) (2022-12-15)
+
+
+
+
+### Bug Fixes:
+
+* properly combine sort + to many join filter
+
 ## [v1.2.2](https://github.com/ash-project/ash_postgres/compare/v1.2.1...v1.2.2) (2022-12-15)
 
 
