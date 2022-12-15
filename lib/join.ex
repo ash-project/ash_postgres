@@ -313,7 +313,7 @@ defmodule AshPostgres.Join do
         joined_query
       else
         from(row in joined_query,
-          distinct: ^Ash.Resource.Info.primary_key(relationship.destination)
+          distinct: ^Ash.Resource.Info.primary_key(joined_query.__ash_bindings__.resource)
         )
       end
     else

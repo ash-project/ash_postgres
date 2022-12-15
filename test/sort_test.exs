@@ -159,6 +159,20 @@ defmodule AshPostgres.SortTest do
                |> Ash.Query.sort(title: :desc)
                |> Ash.Query.filter(linked_posts.title in ["aaa", "bbb", "ccc"] or title == "aaa")
              )
+
+    assert [
+             %{title: "ccc"},
+             %{title: "bbb"},
+             %{title: "aaa"}
+           ] =
+             Api.read!(
+               Post
+               |> Ash.Query.sort(title: :desc)
+               |> Ash.Query.filter(
+                 linked_posts.title in ["aaa", "bbb", "ccc"] or
+                   post_links.source_post_id == ^post2.id
+               )
+             )
   end
 
   test "calculations can be sorted on w/o loading aggregates they reference" do
