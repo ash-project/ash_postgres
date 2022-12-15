@@ -140,7 +140,7 @@ defmodule AshPostgres.MixProject do
       {:ecto, "~> 3.9"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
-      {:ash, ash_version("~> 2.4 and >= 2.4.19")},
+      {:ash, ash_version("~> 2.4 and >= 2.4.25")},
       {:git_ops, "~> 2.5", only: :dev},
       {:nimble_options, "~> 0.5"},
       {:ex_doc, "~> 0.22", only: :dev, runtime: false},

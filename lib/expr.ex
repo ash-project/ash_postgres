@@ -9,8 +9,6 @@ defmodule AshPostgres.Expr do
 
   require Ecto.Query
 
-  import Ash.Filter.TemplateHelpers, only: [is_expr: 1]
-
   def dynamic_expr(query, expr, bindings, embedded? \\ false, type \\ nil)
 
   def dynamic_expr(query, %Filter{expression: expression}, bindings, embedded?, type) do
@@ -806,23 +804,27 @@ defmodule AshPostgres.Expr do
     end
   end
 
-  defp do_dynamic_expr(_, other, _, _, _) when is_expr(other) do
-    raise "Unsupported expression in AshPostgres query: #{inspect(other)}"
-  end
-
   defp do_dynamic_expr(_query, other, _bindings, true, _type) do
     if other && is_atom(other) && !is_boolean(other) do
       to_string(other)
     else
-      other
+      if Ash.Filter.TemplateHelpers.expr?(other) do
+        raise "Unsupported expression in AshPostgres query: #{inspect(other)}"
+      else
+        other
+      end
     end
   end
 
-  defp do_dynamic_expr(query, value, _bindings, false, {:in, type}) when is_list(value) do
-    value = maybe_sanitize_list(value)
+  defp do_dynamic_expr(query, value, bindings, false, {:in, type}) when is_list(value) do
+    case maybe_sanitize_list(query, value, bindings, true, type) do
+      ^value ->
+        validate_type!(query, type, value)
+        Ecto.Query.dynamic(type(^value, ^{:array, type}))
 
-    validate_type!(query, type, value)
-    Ecto.Query.dynamic(type(^value, ^{:array, type}))
+      value ->
+        Ecto.Query.dynamic([], ^value)
+    end
   end
 
   defp do_dynamic_expr(query, value, bindings, false, type)
@@ -830,18 +832,25 @@ defmodule AshPostgres.Expr do
     do_dynamic_expr(query, to_string(value), bindings, false, type)
   end
 
-  defp do_dynamic_expr(_query, value, _bindings, false, type) when type == nil or type == :any do
-    value = maybe_sanitize_list(value)
-
-    Ecto.Query.dynamic(^value)
+  defp do_dynamic_expr(query, value, bindings, false, type) when type == nil or type == :any do
+    maybe_sanitize_list(query, value, bindings, true, type)
   end
 
-  defp do_dynamic_expr(query, value, _bindings, false, type) do
-    value = maybe_sanitize_list(value)
-    type = AshPostgres.Types.parameterized_type(type, [])
-    validate_type!(query, type, value)
+  defp do_dynamic_expr(query, value, bindings, false, type) do
+    if Ash.Filter.TemplateHelpers.expr?(value) do
+      raise "Unsupported expression in AshPostgres query: #{inspect(value)}"
+    else
+      case maybe_sanitize_list(query, value, bindings, true, type) do
+        ^value ->
+          type = AshPostgres.Types.parameterized_type(type, [])
+          validate_type!(query, type, value)
 
-    Ecto.Query.dynamic(type(^value, ^type))
+          Ecto.Query.dynamic(type(^value, ^type))
+
+        value ->
+          value
+      end
+    end
   end
 
   defp maybe_uuid_to_binary({:array, type}, value, _original_value) when is_list(value) do
@@ -886,15 +895,9 @@ defmodule AshPostgres.Expr do
     Ecto.Query.dynamic(type(^dynamic, ^type))
   end
 
-  defp maybe_sanitize_list(value) do
+  defp maybe_sanitize_list(query, value, bindings, embedded?, type) do
     if is_list(value) do
-      Enum.map(value, fn value ->
-        if value && is_atom(value) && !is_boolean(value) do
-          to_string(value)
-        else
-          value
-        end
-      end)
+      Enum.map(value, &do_dynamic_expr(query, &1, bindings, embedded?, type))
     else
       value
     end
