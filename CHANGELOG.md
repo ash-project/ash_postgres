@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.2.2](https://github.com/ash-project/ash_postgres/compare/v1.2.1...v1.2.2) (2022-12-15)
+
+
+
+
+### Improvements:
+
+* udpate to latest ash, fix array issues
+
 ## [v1.2.1](https://github.com/ash-project/ash_postgres/compare/v1.2.0...v1.2.1) (2022-12-13)
 
 
