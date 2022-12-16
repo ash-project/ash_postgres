@@ -133,6 +133,8 @@ config :helpdesk, Helpdesk.Repo,
 And finally, add the repo to your application
 
 ```elixir
+# in lib/helpdesk/application.ex
+
   def start(_type, _args) do
     children = [
       # Starts a worker by calling: Helpdesk.Worker.start_link(arg)
@@ -335,7 +337,7 @@ Take a look at the DSL documentation for more information on what you can config
 
 #### See what is available in the DSL
 
-{{link:ash_postgres:dsl:ashpostgres:postgres}}
+{{link:ash_postgres:dsl:ash_postgres:postgres}}
 
 #### Learn more about the underlying tools
 
