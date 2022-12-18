@@ -10,5 +10,10 @@ defmodule AshPostgres.Test.Bio do
     attribute(:title, :string)
     attribute(:bio, :string)
     attribute(:years_of_experience, :integer)
+
+    attribute :list_of_strings, {:array, :string} do
+      allow_nil?(true)
+      default(nil)
+    end
   end
 end
