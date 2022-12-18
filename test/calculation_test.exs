@@ -1,6 +1,6 @@
 defmodule AshPostgres.CalculationTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Author, Comment, Post, User, Account}
+  alias AshPostgres.Test.{Account, Api, Author, Comment, Post, User}
 
   require Ash.Query
 
@@ -344,14 +344,7 @@ defmodule AshPostgres.CalculationTest do
       |> Ash.Changeset.for_create(:create, %{is_active: true})
       |> Ash.Changeset.manage_relationship(:user, user, type: :append_and_remove)
       |> Api.create!()
-      # When the commented out line below is used instead, it works. However the
-      # :user_is_active aggregate is already specified as needing to be loaded
-      # in the Account resource :active calculation, so we should not have to
-      # pass it in again.
-      #
-      # |> Api.load!([:user_is_active, :active])
       |> Api.load!([:active])
-      |> IO.inspect(limit: :infinity, pretty: true)
 
     assert account.active
   end

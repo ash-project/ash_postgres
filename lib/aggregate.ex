@@ -28,6 +28,7 @@ defmodule AshPostgres.Aggregate do
 
     result =
       aggregates
+      |> Enum.reject(&already_added?(&1, query.__ash_bindings__))
       |> Enum.group_by(& &1.relationship_path)
       |> Enum.flat_map(fn {path, aggregates} ->
         {can_group, cant_group} = Enum.split_with(aggregates, &can_group?(resource, &1))
@@ -113,6 +114,16 @@ defmodule AshPostgres.Aggregate do
     end
   end
 
+  defp already_added?(aggregate, bindings) do
+    Enum.any?(bindings.bindings, fn
+      {_, %{type: :aggregate, aggregates: aggregates}} ->
+        aggregate in aggregates
+
+      _ ->
+        false
+    end)
+  end
+
   defp maybe_filter_subquery(
          agg_query,
          first_relationship,
@@ -157,7 +168,12 @@ defmodule AshPostgres.Aggregate do
         )
 
       used_aggregates =
-        used_aggregates(filter, first_relationship, used_calculations, relationship_path)
+        used_aggregates(
+          filter,
+          first_relationship.destination,
+          used_calculations,
+          relationship_path
+        )
 
       case add_aggregates(agg_query, used_aggregates, first_relationship.destination, false) do
         {:ok, agg_query} ->
@@ -188,7 +204,12 @@ defmodule AshPostgres.Aggregate do
         )
 
       used_aggregates =
-        used_aggregates(filter, first_relationship, used_calculations, relationship_path)
+        used_aggregates(
+          filter,
+          first_relationship.destination,
+          used_calculations,
+          relationship_path
+        )
 
       case add_aggregates(agg_query, used_aggregates, first_relationship.destination, false) do
         {:ok, agg_query} ->
@@ -547,7 +568,7 @@ defmodule AshPostgres.Aggregate do
   defp has_sort?(%{sort: _}), do: true
   defp has_sort?(_), do: false
 
-  def used_aggregates(filter, relationship, used_calculations, path) do
+  def used_aggregates(filter, resource, used_calculations, path) do
     Ash.Filter.used_aggregates(filter, path) ++
       Enum.flat_map(
         used_calculations,
@@ -555,7 +576,7 @@ defmodule AshPostgres.Aggregate do
           case Ash.Filter.hydrate_refs(
                  calculation.module.expression(calculation.opts, calculation.context),
                  %{
-                   resource: relationship.destination,
+                   resource: resource,
                    aggregates: %{},
                    calculations: %{},
                    public?: false

@@ -372,7 +372,11 @@ defmodule AshPostgres.Join do
 
     used_aggregates =
       filter
-      |> AshPostgres.Aggregate.used_aggregates(relationship, used_calculations, full_path)
+      |> AshPostgres.Aggregate.used_aggregates(
+        relationship.destination,
+        used_calculations,
+        full_path
+      )
       |> Enum.map(fn aggregate ->
         %{aggregate | load: aggregate.name}
       end)
@@ -484,7 +488,11 @@ defmodule AshPostgres.Join do
 
     used_aggregates =
       filter
-      |> AshPostgres.Aggregate.used_aggregates(relationship, used_calculations, full_path)
+      |> AshPostgres.Aggregate.used_aggregates(
+        relationship.destination,
+        used_calculations,
+        full_path
+      )
       |> Enum.map(fn aggregate ->
         %{aggregate | load: aggregate.name}
       end)
@@ -604,7 +612,11 @@ defmodule AshPostgres.Join do
 
     used_aggregates =
       filter
-      |> AshPostgres.Aggregate.used_aggregates(relationship, used_calculations, full_path)
+      |> AshPostgres.Aggregate.used_aggregates(
+        relationship.destination,
+        used_calculations,
+        full_path
+      )
       |> Enum.map(fn aggregate ->
         %{aggregate | load: aggregate.name}
       end)
