@@ -5,6 +5,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.2.4](https://github.com/ash-project/ash_postgres/compare/v1.2.3...v1.2.4) (2022-12-18)
+
+
+
+
+### Bug Fixes:
+
+* properly add aggregates to query when referenced from calculations
+
+### Improvements:
+
+* distinct on source of query, not relationship destination
+
 ## [v1.2.3](https://github.com/ash-project/ash_postgres/compare/v1.2.2...v1.2.3) (2022-12-15)
 
 
