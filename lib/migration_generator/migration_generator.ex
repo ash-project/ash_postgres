@@ -2224,7 +2224,7 @@ defmodule AshPostgres.MigrationGenerator do
         identities
     end
     |> Enum.reject(fn identity ->
-      identity.name in AshPostgres.DataLayer.Info.skip_unique_indexes?(resource)
+      identity.name in AshPostgres.DataLayer.Info.skip_unique_indexes(resource)
     end)
     |> Enum.filter(fn identity ->
       Enum.all?(identity.keys, fn key ->

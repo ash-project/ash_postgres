@@ -55,8 +55,8 @@ defmodule AshPostgres do
   @deprecated "use AshPostgres.DataLayer.Info.base_filter_sql/1"
   defdelegate base_filter_sql(resource), to: AshPostgres.DataLayer.Info
 
-  @deprecated "use AshPostgres.DataLayer.Info.skip_unique_indexes?/1"
-  defdelegate skip_unique_indexes?(resource), to: AshPostgres.DataLayer.Info
+  @deprecated "use AshPostgres.DataLayer.Info.skip_unique_indexes/1"
+  defdelegate skip_unique_indexes(resource), to: AshPostgres.DataLayer.Info
 
   @deprecated "use AshPostgres.DataLayer.Info.manage_tenant_template/1"
   defdelegate manage_tenant_template(resource), to: AshPostgres.DataLayer.Info

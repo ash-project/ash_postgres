@@ -83,6 +83,11 @@ defmodule AshPostgres.DataLayer.Info do
     Extension.get_opt(resource, [:postgres], :identity_index_names, [], true)
   end
 
+  @doc "Identities not to include in the migrations"
+  def skip_identities(resource) do
+    Extension.get_opt(resource, [:postgres], :skip_identities, [], true)
+  end
+
   @doc "The configured foreign_key_names"
   def foreign_key_names(resource) do
     Extension.get_opt(resource, [:postgres], :foreign_key_names, [], true)
@@ -99,8 +104,8 @@ defmodule AshPostgres.DataLayer.Info do
   end
 
   @doc "Skip generating unique indexes when generating migrations"
-  def skip_unique_indexes?(resource) do
-    Extension.get_opt(resource, [:postgres], :skip_unique_indexes?, [])
+  def skip_unique_indexes(resource) do
+    Extension.get_opt(resource, [:postgres], :skip_unique_indexes, [])
   end
 
   @doc "The template for a managed tenant"
