@@ -5,7 +5,7 @@ defmodule AshPostgres.Expr do
   alias Ash.Query.{BooleanExpression, Exists, Not, Ref}
   alias Ash.Query.Operator.IsNil
   alias Ash.Query.Function.{Ago, Contains, GetPath, If, Length, Now, Type}
-  alias AshPostgres.Functions.{Fragment, TrigramSimilarity}
+  alias AshPostgres.Functions.{Fragment, ILike, Like, TrigramSimilarity}
 
   require Ecto.Query
 
@@ -48,6 +48,34 @@ defmodule AshPostgres.Expr do
     arg2 = do_dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?)
 
     Ecto.Query.dynamic(fragment("similarity(?, ?)", ^arg1, ^arg2))
+    |> maybe_type(type, query)
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %Like{arguments: [arg1, arg2], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         type
+       ) do
+    arg1 = do_dynamic_expr(query, arg1, bindings, pred_embedded? || embedded?)
+    arg2 = do_dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?)
+
+    Ecto.Query.dynamic(like(^arg1, ^arg2))
+    |> maybe_type(type, query)
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %ILike{arguments: [arg1, arg2], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         type
+       ) do
+    arg1 = do_dynamic_expr(query, arg1, bindings, pred_embedded? || embedded?)
+    arg2 = do_dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?)
+
+    Ecto.Query.dynamic(ilike(^arg1, ^arg2))
     |> maybe_type(type, query)
   end
 

@@ -773,6 +773,48 @@ defmodule AshPostgres.FilterTest do
     end
   end
 
+  describe "like and ilike" do
+    test "like builds and matches" do
+      Post
+      |> Ash.Changeset.new(%{title: "MaTcH"})
+      |> Api.create!()
+
+      results =
+        Post
+        |> Ash.Query.filter(like(title, "%aTc%"))
+        |> Api.read!()
+
+      assert [%Post{title: "MaTcH"}] = results
+
+      results =
+        Post
+        |> Ash.Query.filter(like(title, "%atc%"))
+        |> Api.read!()
+
+      assert [] = results
+    end
+
+    test "ilike builds and matches" do
+      Post
+      |> Ash.Changeset.new(%{title: "MaTcH"})
+      |> Api.create!()
+
+      results =
+        Post
+        |> Ash.Query.filter(ilike(title, "%aTc%"))
+        |> Api.read!()
+
+      assert [%Post{title: "MaTcH"}] = results
+
+      results =
+        Post
+        |> Ash.Query.filter(ilike(title, "%atc%"))
+        |> Api.read!()
+
+      assert [%Post{title: "MaTcH"}] = results
+    end
+  end
+
   describe "trigram_similarity" do
     test "it works on matches" do
       Post
