@@ -5,6 +5,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.2.5](https://github.com/ash-project/ash_postgres/compare/v1.2.4...v1.2.5) (2022-12-21)
+
+
+
+
+### Bug Fixes:
+
+* don't group aggregates that reference relationships in their filters
+
+* properly skip unique indexes when configured
+
+### Improvements:
+
+* add like and ilike
+
 ## [v1.2.4](https://github.com/ash-project/ash_postgres/compare/v1.2.3...v1.2.4) (2022-12-18)
 
 
