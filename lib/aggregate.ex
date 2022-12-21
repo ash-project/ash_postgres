@@ -400,28 +400,46 @@ defmodule AshPostgres.Aggregate do
   defp can_group?(_, %{kind: :list}), do: false
 
   defp can_group?(resource, aggregate) do
-    has_exists? =
-      Ash.Filter.find(aggregate.query && aggregate.query.filter, fn
-        %Ash.Query.Exists{} -> true
-        _ -> false
-      end)
+    can_group_kind?(aggregate, resource) && !has_exists?(aggregate) &&
+      !references_relationships?(aggregate)
+  end
 
-    can_group_kind? =
-      if aggregate.kind == :first do
-        related = Ash.Resource.Info.related(resource, aggregate.relationship_path)
-
-        case Ash.Resource.Info.attribute(related, aggregate.field).type do
-          {:array, _} ->
-            false
-
-          _ ->
-            true
-        end
-      else
+  # We can potentially optimize this. We don't have to prevent aggregates that reference
+  # relationships from joining, we can
+  # 1. group up the ones that do join relationships by the relationships they join
+  # 2. potentially group them all up that join to relationships and just join to all the relationships
+  # but this method is predictable and easy so we're starting by just not grouping them
+  defp references_relationships?(aggregate) do
+    !!Ash.Filter.find(aggregate.query && aggregate.query.filter, fn
+      %Ash.Query.Ref{relationship_path: relationship_path} when relationship_path != [] ->
         true
-      end
 
-    can_group_kind? && !has_exists?
+      _ ->
+        false
+    end)
+  end
+
+  defp can_group_kind?(aggregate, resource) do
+    if aggregate.kind == :first do
+      related = Ash.Resource.Info.related(resource, aggregate.relationship_path)
+
+      case Ash.Resource.Info.attribute(related, aggregate.field).type do
+        {:array, _} ->
+          false
+
+        _ ->
+          true
+      end
+    else
+      true
+    end
+  end
+
+  defp has_exists?(aggregate) do
+    !!Ash.Filter.find(aggregate.query && aggregate.query.filter, fn
+      %Ash.Query.Exists{} -> true
+      _ -> false
+    end)
   end
 
   defp add_aggregate_selects(query, dynamics) do
