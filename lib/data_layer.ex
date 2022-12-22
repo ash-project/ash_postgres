@@ -572,13 +572,23 @@ defmodule AshPostgres.DataLayer do
   def run_query(query, resource) do
     query =
       if query.__ash_bindings__[:__order__?] && query.windows[:order] do
-        query_with_order =
-          from(row in query, select_merge: %{__order__: over(row_number(), :order)})
+        if query.distinct do
+          query_with_order =
+            from(row in query, select_merge: %{__order__: over(row_number(), :order)})
 
-        from(row in subquery(query_with_order),
-          select: row,
-          order_by: row.__order__
-        )
+          from(row in subquery(query_with_order),
+            select: row,
+            order_by: row.__order__
+          )
+        else
+          order_by = %{query.windows[:order] | expr: query.windows[:order].expr[:order_by]}
+
+          %{
+            query
+            | windows: Keyword.delete(query.windows, :order),
+              order_bys: [order_by]
+          }
+        end
       else
         %{query | windows: Keyword.delete(query.windows, :order)}
       end
