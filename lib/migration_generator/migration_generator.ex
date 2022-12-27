@@ -686,12 +686,15 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp migration_path(opts, repo, tenant? \\ false) do
     repo_name = repo_name(repo)
+    # Copied from ecto's mix task, thanks Ecto ❤️
+    config = repo.config()
+    app = Keyword.fetch!(config, :otp_app)
 
     if tenant? do
       if opts.tenant_migration_path do
         opts.tenant_migration_path
       else
-        "priv/"
+        Path.join([Mix.Project.deps_paths()[app] || File.cwd!(), "priv"])
       end
       |> Path.join(repo_name)
       |> Path.join("tenant_migrations")
@@ -699,7 +702,7 @@ defmodule AshPostgres.MigrationGenerator do
       if opts.migration_path do
         opts.migration_path
       else
-        "priv/"
+        Path.join([Mix.Project.deps_paths()[app] || File.cwd!(), "priv"])
       end
       |> Path.join(repo_name)
       |> Path.join("migrations")
