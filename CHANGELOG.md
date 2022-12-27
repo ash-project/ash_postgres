@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.2.6](https://github.com/ash-project/ash_postgres/compare/v1.2.5...v1.2.6) (2022-12-27)
+
+
+
+
+### Bug Fixes:
+
+* properly set `migrations_path` default in umbrellas
+
+* don't subquery unless we have to
+
 ## [v1.2.5](https://github.com/ash-project/ash_postgres/compare/v1.2.4...v1.2.5) (2022-12-21)
 
 
