@@ -562,7 +562,13 @@ defmodule AshPostgres.Expr do
          _type
        ) do
     calculation = %{calculation | load: calculation.name}
-    type = AshPostgres.Types.parameterized_type(calculation.type, calculation.constraints)
+
+    type =
+      AshPostgres.Types.parameterized_type(
+        calculation.type,
+        Map.get(calculation, :constraints, [])
+      )
+
     validate_type!(query, type, type_expr)
 
     case Ash.Filter.hydrate_refs(
@@ -677,7 +683,11 @@ defmodule AshPostgres.Expr do
       |> Map.delete(0)
       |> Map.update!(binding_to_replace, &Map.merge(&1, %{path: [], type: :root}))
 
-    type = AshPostgres.Types.parameterized_type(calculation.type, calculation.constraints)
+    type =
+      AshPostgres.Types.parameterized_type(
+        calculation.type,
+        Map.get(calculation, :constraints, [])
+      )
 
     validate_type!(query, type, ref)
 

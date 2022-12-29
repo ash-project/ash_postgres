@@ -49,7 +49,10 @@ defmodule AshPostgres.Calculation do
                 expression,
                 query.__ash_bindings__,
                 false,
-                AshPostgres.Types.parameterized_type(calculation.type, calculation.constraints)
+                AshPostgres.Types.parameterized_type(
+                  calculation.type,
+                  Map.get(calculation, :constraints, [])
+                )
               )
 
             {calculation.load, calculation.name, expr}
