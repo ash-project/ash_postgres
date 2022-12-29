@@ -575,20 +575,41 @@ defmodule AshPostgres.Expr do
            }
          ) do
       {:ok, expression} ->
-        expr =
-          do_dynamic_expr(
-            query,
-            expression,
-            bindings,
-            embedded?,
-            type
-          )
+        do_dynamic_expr(
+          query,
+          expression,
+          bindings,
+          embedded?,
+          type
+        )
 
-        Ecto.Query.dynamic(type(^expr, ^type))
+      {:error, error} ->
+        raise """
+        Failed to hydrate references in #{inspect(calculation.module.expression(calculation.opts, calculation.context))}
 
-      {:error, _error} ->
-        raise "Failed to hydrate references in #{inspect(calculation.module.expression(calculation.opts, calculation.context))}"
+        #{inspect(error)}
+        """
     end
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %Ref{
+           attribute: %Ash.Resource.Calculation{calculation: {module, opts}} = calculation
+         } = ref,
+         bindings,
+         embedded?,
+         type
+       ) do
+    {:ok, query_calc} =
+      Ash.Query.Calculation.new(
+        calculation.name,
+        module,
+        opts,
+        calculation.type
+      )
+
+    do_dynamic_expr(query, %{ref | attribute: query_calc}, bindings, embedded?, type)
   end
 
   defp do_dynamic_expr(
@@ -832,12 +853,16 @@ defmodule AshPostgres.Expr do
     end
   end
 
-  defp do_dynamic_expr(_query, other, _bindings, true, _type) do
+  defp do_dynamic_expr(query, other, bindings, true, type) do
     if other && is_atom(other) && !is_boolean(other) do
       to_string(other)
     else
       if Ash.Filter.TemplateHelpers.expr?(other) do
-        raise "Unsupported expression in AshPostgres query: #{inspect(other)}"
+        if is_list(other) do
+          list_expr(query, other, bindings, true, type)
+        else
+          raise "Unsupported expression in AshPostgres query: #{inspect(other)}"
+        end
       else
         other
       end
@@ -845,14 +870,7 @@ defmodule AshPostgres.Expr do
   end
 
   defp do_dynamic_expr(query, value, bindings, false, {:in, type}) when is_list(value) do
-    case maybe_sanitize_list(query, value, bindings, true, type) do
-      ^value ->
-        validate_type!(query, type, value)
-        Ecto.Query.dynamic(type(^value, ^{:array, type}))
-
-      value ->
-        Ecto.Query.dynamic([], ^value)
-    end
+    list_expr(query, value, bindings, false, {:array, type})
   end
 
   defp do_dynamic_expr(query, value, bindings, false, type)
@@ -861,12 +879,20 @@ defmodule AshPostgres.Expr do
   end
 
   defp do_dynamic_expr(query, value, bindings, false, type) when type == nil or type == :any do
-    maybe_sanitize_list(query, value, bindings, true, type)
+    if is_list(value) do
+      list_expr(query, value, bindings, false, type)
+    else
+      maybe_sanitize_list(query, value, bindings, true, type)
+    end
   end
 
   defp do_dynamic_expr(query, value, bindings, false, type) do
     if Ash.Filter.TemplateHelpers.expr?(value) do
-      raise "Unsupported expression in AshPostgres query: #{inspect(value)}"
+      if is_list(value) do
+        list_expr(query, value, bindings, false, type)
+      else
+        raise "Unsupported expression in AshPostgres query: #{inspect(value)}"
+      end
     else
       case maybe_sanitize_list(query, value, bindings, true, type) do
         ^value ->
@@ -879,6 +905,50 @@ defmodule AshPostgres.Expr do
           value
       end
     end
+  end
+
+  defp list_expr(query, value, bindings, embedded?, type) do
+    type =
+      case type do
+        {:array, type} -> type
+        {:in, type} -> type
+        _ -> nil
+      end
+
+    {params, exprs, _} =
+      Enum.reduce(value, {[], [], 0}, fn value, {params, data, count} ->
+        case do_dynamic_expr(query, value, bindings, embedded?, type) do
+          %Ecto.Query.DynamicExpr{} = dynamic ->
+            result =
+              Ecto.Query.Builder.Dynamic.partially_expand(
+                :select,
+                query,
+                dynamic,
+                params,
+                count
+              )
+
+            expr = elem(result, 0)
+            new_params = elem(result, 1)
+            new_count = result |> Tuple.to_list() |> List.last()
+
+            {new_params, [expr | data], new_count}
+
+          other ->
+            {params, [other | data], count}
+        end
+      end)
+
+    exprs = Enum.reverse(exprs)
+
+    %Ecto.Query.DynamicExpr{
+      fun: fn _query ->
+        {exprs, Enum.reverse(params), [], []}
+      end,
+      binding: [],
+      file: __ENV__.file,
+      line: __ENV__.line
+    }
   end
 
   defp maybe_uuid_to_binary({:array, type}, value, _original_value) when is_list(value) do
@@ -959,38 +1029,29 @@ defmodule AshPostgres.Expr do
 
   defp do_get_path(
          query,
-         %GetPath{arguments: [left, right], embedded?: pred_embedded?} = get_expr,
+         %GetPath{arguments: [left, right], embedded?: pred_embedded?},
          bindings,
          embedded?,
          type \\ nil
        ) do
     path = Enum.map(right, &to_string/1)
 
-    expr =
-      do_dynamic_expr(
-        query,
-        %Fragment{
-          embedded?: pred_embedded?,
-          arguments: [
-            raw: "(",
-            expr: left,
-            raw: " #>> ",
-            expr: path,
-            raw: ")"
-          ]
-        },
-        bindings,
-        embedded?,
-        type
-      )
-
-    if type do
-      # If we know a type here we use it, since we're pulling out text
-      validate_type!(query, type, get_expr)
-      Ecto.Query.dynamic(type(^expr, ^type))
-    else
-      expr
-    end
+    do_dynamic_expr(
+      query,
+      %Fragment{
+        embedded?: pred_embedded?,
+        arguments: [
+          raw: "(",
+          expr: left,
+          raw: " #>> ",
+          expr: path,
+          raw: ")"
+        ]
+      },
+      bindings,
+      embedded?,
+      type
+    )
   end
 
   defp require_ash_functions!(query) do

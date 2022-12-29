@@ -167,6 +167,19 @@ defmodule AshPostgres.Aggregate do
           relationship_path
         )
 
+      related = Ash.Resource.Info.related(first_relationship.destination, relationship_path)
+
+      used_calculations =
+        if calculation = Ash.Resource.Info.calculation(related, aggregate.field) do
+          if calculation in used_calculations do
+            used_calculations
+          else
+            [calculation | used_calculations]
+          end
+        else
+          used_calculations
+        end
+
       used_aggregates =
         used_aggregates(
           filter,
@@ -423,7 +436,7 @@ defmodule AshPostgres.Aggregate do
     if aggregate.kind == :first do
       related = Ash.Resource.Info.related(resource, aggregate.relationship_path)
 
-      case Ash.Resource.Info.attribute(related, aggregate.field).type do
+      case Ash.Resource.Info.field(related, aggregate.field).type do
         {:array, _} ->
           false
 
@@ -618,7 +631,12 @@ defmodule AshPostgres.Aggregate do
         is_single?
       ) do
     query = AshPostgres.DataLayer.default_bindings(query, aggregate.resource)
-    key = aggregate.field
+
+    ref = %Ash.Query.Ref{
+      attribute: Ash.Resource.Info.field(resource, aggregate.field),
+      relationship_path: relationship_path,
+      resource: resource
+    }
 
     type = AshPostgres.Types.parameterized_type(aggregate.type, aggregate.constraints)
 
@@ -630,11 +648,7 @@ defmodule AshPostgres.Aggregate do
         [:left, :inner, :root]
       )
 
-    field =
-      Ecto.Query.dynamic(
-        [row],
-        field(as(^binding), ^key)
-      )
+    field = AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__, false)
 
     sorted =
       if has_sort?(aggregate.query) do
@@ -665,7 +679,7 @@ defmodule AshPostgres.Aggregate do
 
     filtered = filter_field(sorted, query, aggregate, relationship_path, is_single?)
 
-    value = Ecto.Query.dynamic([], fragment("(?)[1]", ^filtered))
+    value = Ecto.Query.dynamic(fragment("(?)[1]", ^filtered))
 
     with_default =
       if aggregate.default_value do
@@ -696,7 +710,6 @@ defmodule AshPostgres.Aggregate do
         is_single?
       ) do
     query = AshPostgres.DataLayer.default_bindings(query, aggregate.resource)
-    key = aggregate.field
     type = AshPostgres.Types.parameterized_type(aggregate.type, aggregate.constraints)
 
     binding =
@@ -707,11 +720,13 @@ defmodule AshPostgres.Aggregate do
         [:left, :inner, :root]
       )
 
-    field =
-      Ecto.Query.dynamic(
-        [row],
-        field(as(^binding), ^key)
-      )
+    ref = %Ash.Query.Ref{
+      attribute: Ash.Resource.Info.field(resource, aggregate.field),
+      relationship_path: relationship_path,
+      resource: resource
+    }
+
+    field = AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__, false)
 
     sorted =
       if has_sort?(aggregate.query) do
@@ -772,7 +787,25 @@ defmodule AshPostgres.Aggregate do
       )
       when kind in [:count, :sum, :avg, :max, :min, :custom] do
     query = AshPostgres.DataLayer.default_bindings(query, aggregate.resource)
-    key = aggregate.field || List.first(Ash.Resource.Info.primary_key(resource))
+
+    ref = %Ash.Query.Ref{
+      attribute:
+        Ash.Resource.Info.field(
+          resource,
+          aggregate.field || List.first(Ash.Resource.Info.primary_key(resource))
+        ),
+      relationship_path: relationship_path,
+      resource: resource
+    }
+
+    field =
+      if kind == :custom do
+        # we won't use this if its custom so don't try to make one
+        nil
+      else
+        AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__, false)
+      end
+
     type = AshPostgres.Types.parameterized_type(aggregate.type, aggregate.constraints)
 
     binding =
@@ -786,19 +819,19 @@ defmodule AshPostgres.Aggregate do
     field =
       case kind do
         :count ->
-          Ecto.Query.dynamic([row], count(field(as(^binding), ^key)))
+          Ecto.Query.dynamic([row], count(^field))
 
         :sum ->
-          Ecto.Query.dynamic([row], sum(field(as(^binding), ^key)))
+          Ecto.Query.dynamic([row], sum(^field))
 
         :avg ->
-          Ecto.Query.dynamic([row], avg(field(as(^binding), ^key)))
+          Ecto.Query.dynamic([row], avg(^field))
 
         :max ->
-          Ecto.Query.dynamic([row], max(field(as(^binding), ^key)))
+          Ecto.Query.dynamic([row], max(^field))
 
         :min ->
-          Ecto.Query.dynamic([row], min(field(as(^binding), ^key)))
+          Ecto.Query.dynamic([row], min(^field))
 
         :custom ->
           {module, opts} = aggregate.implementation
