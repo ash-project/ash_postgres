@@ -1,13 +1,13 @@
 defmodule AshPostgres.Aggregate do
   @moduledoc false
 
-  import Ecto.Query, only: [from: 2, subquery: 1]
+  import Ecto.Query, only: [from: 2]
   require Ecto.Query
 
-  def add_aggregates(query, aggregates, resource, select? \\ true)
-  def add_aggregates(query, [], _, _), do: {:ok, query}
+  def add_aggregates(query, aggregates, resource, select? \\ true, source_binding \\ nil)
+  def add_aggregates(query, [], _, _, _), do: {:ok, query}
 
-  def add_aggregates(query, aggregates, resource, select?) do
+  def add_aggregates(query, aggregates, resource, select?, source_binding) do
     query = AshPostgres.DataLayer.default_bindings(query, resource)
 
     aggregates =
@@ -24,7 +24,18 @@ defmodule AshPostgres.Aggregate do
         end)
       end)
 
-    source_binding = query.__ash_bindings__.current - 1
+    source_binding =
+      source_binding ||
+        query.__ash_bindings__.bindings
+        |> Enum.reject(fn
+          {_, %{aggregates: _}} ->
+            true
+
+          _ ->
+            false
+        end)
+        |> Enum.map(&elem(&1, 0))
+        |> Enum.max()
 
     result =
       aggregates
@@ -70,7 +81,8 @@ defmodule AshPostgres.Aggregate do
                  first_relationship,
                  relationship_path,
                  aggregates,
-                 is_single?
+                 is_single?,
+                 source_binding
                ),
              with_subquery_select <-
                select_all_aggregates(
@@ -129,29 +141,51 @@ defmodule AshPostgres.Aggregate do
          first_relationship,
          relationship_path,
          [aggregate | _rest],
-         false
+         false,
+         source_binding
        ) do
-    apply_agg_authorization_filter(agg_query, aggregate, relationship_path, first_relationship)
+    apply_agg_authorization_filter(
+      agg_query,
+      aggregate,
+      relationship_path,
+      first_relationship,
+      source_binding
+    )
   end
 
-  defp maybe_filter_subquery(agg_query, first_relationship, relationship_path, [aggregate], true) do
+  defp maybe_filter_subquery(
+         agg_query,
+         first_relationship,
+         relationship_path,
+         [aggregate],
+         true,
+         source_binding
+       ) do
     with {:ok, agg_query} <-
            apply_agg_query(
              agg_query,
              aggregate,
              relationship_path,
-             first_relationship
+             first_relationship,
+             source_binding
            ) do
       apply_agg_authorization_filter(
         agg_query,
         aggregate,
         relationship_path,
-        first_relationship
+        first_relationship,
+        source_binding
       )
     end
   end
 
-  defp apply_agg_query(agg_query, aggregate, relationship_path, first_relationship) do
+  defp apply_agg_query(
+         agg_query,
+         aggregate,
+         relationship_path,
+         first_relationship,
+         source_binding
+       ) do
     if has_filter?(aggregate.query) do
       filter =
         Ash.Filter.move_to_relationship_path(
@@ -170,14 +204,21 @@ defmodule AshPostgres.Aggregate do
       related = Ash.Resource.Info.related(first_relationship.destination, relationship_path)
 
       used_calculations =
-        if calculation = Ash.Resource.Info.calculation(related, aggregate.field) do
-          if calculation in used_calculations do
+        case Ash.Resource.Info.calculation(related, aggregate.field) do
+          %{name: name, calculation: {module, opts}, type: type, constraints: constraints} ->
+            {:ok, new_calc} = Ash.Query.Calculation.new(name, module, opts, {type, constraints})
+
+            if new_calc in used_calculations do
+              used_calculations
+            else
+              [
+                new_calc
+                | used_calculations
+              ]
+            end
+
+          nil ->
             used_calculations
-          else
-            [calculation | used_calculations]
-          end
-        else
-          used_calculations
         end
 
       used_aggregates =
@@ -188,7 +229,13 @@ defmodule AshPostgres.Aggregate do
           relationship_path
         )
 
-      case add_aggregates(agg_query, used_aggregates, first_relationship.destination, false) do
+      case add_aggregates(
+             agg_query,
+             used_aggregates,
+             first_relationship.destination,
+             false,
+             source_binding
+           ) do
         {:ok, agg_query} ->
           AshPostgres.DataLayer.filter(agg_query, filter, first_relationship.destination)
 
@@ -200,7 +247,13 @@ defmodule AshPostgres.Aggregate do
     end
   end
 
-  defp apply_agg_authorization_filter(agg_query, aggregate, relationship_path, first_relationship) do
+  defp apply_agg_authorization_filter(
+         agg_query,
+         aggregate,
+         relationship_path,
+         first_relationship,
+         source_binding
+       ) do
     if aggregate.authorization_filter do
       filter =
         Ash.Filter.move_to_relationship_path(
@@ -224,7 +277,13 @@ defmodule AshPostgres.Aggregate do
           relationship_path
         )
 
-      case add_aggregates(agg_query, used_aggregates, first_relationship.destination, false) do
+      case add_aggregates(
+             agg_query,
+             used_aggregates,
+             first_relationship.destination,
+             false,
+             source_binding
+           ) do
         {:ok, agg_query} ->
           AshPostgres.DataLayer.filter(agg_query, filter, first_relationship.destination)
 
@@ -350,6 +409,18 @@ defmodule AshPostgres.Aggregate do
          source_binding
        ) do
     field = first_relationship.destination_attribute
+
+    if source_binding == 2 && first_relationship.source_attribute == :user_id do
+      IO.puts("""
+      DEBUG INFO:
+
+      #{inspect(first_relationship, pretty: true)}
+
+      #{inspect(subquery, pretty: true)}
+
+      #{inspect(query.__ash_bindings__, pretty: true)}
+      """)
+    end
 
     subquery =
       from(row in subquery,
@@ -479,66 +550,6 @@ defmodule AshPostgres.Aggregate do
       end
 
     Ecto.Query.select_merge(query, ^aggs)
-  end
-
-  def agg_subquery_for_lateral_join(
-        current_binding,
-        query,
-        subquery,
-        %{
-          manual: {module, opts}
-        } = relationship
-      ) do
-    case module.ash_postgres_subquery(
-           opts,
-           current_binding,
-           0,
-           subquery
-         ) do
-      {:ok, inner_sub} ->
-        {:ok,
-         from(sub in subquery(inner_sub), [])
-         |> AshPostgres.Join.set_join_prefix(query, relationship.destination)}
-
-      other ->
-        other
-    end
-  rescue
-    e in UndefinedFunctionError ->
-      if e.function == :ash_postgres_subquery do
-        reraise """
-                Cannot join to a manual relationship #{inspect(module)} that does not implement the `AshPostgres.ManualRelationship` behaviour.
-                """,
-                __STACKTRACE__
-      else
-        reraise e, __STACKTRACE__
-      end
-  end
-
-  def agg_subquery_for_lateral_join(current_binding, query, subquery, relationship) do
-    {dest_binding, dest_field} =
-      case relationship.type do
-        :many_to_many ->
-          {1, relationship.source_attribute_on_join_resource}
-
-        _ ->
-          {0, relationship.destination_attribute}
-      end
-
-    inner_sub =
-      if Map.get(relationship, :no_attributes?) do
-        subquery
-      else
-        from(destination in subquery,
-          where:
-            field(as(^dest_binding), ^dest_field) ==
-              field(parent_as(^current_binding), ^relationship.source_attribute)
-        )
-      end
-
-    {:ok,
-     from(sub in subquery(inner_sub), [])
-     |> AshPostgres.Join.set_join_prefix(query, relationship.destination)}
   end
 
   defp select_dynamic(_resource, _query, aggregate, binding) do
