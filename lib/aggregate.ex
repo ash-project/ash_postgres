@@ -468,6 +468,7 @@ defmodule AshPostgres.Aggregate do
       AshPostgres.Join.join_all_relationships(
         agg_root_query,
         nil,
+        [],
         [
           {:inner,
            AshPostgres.Join.relationship_path_to_relationships(

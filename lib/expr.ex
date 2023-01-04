@@ -755,6 +755,42 @@ defmodule AshPostgres.Expr do
 
   defp do_dynamic_expr(
          query,
+         %Ash.Query.This{expr: expr},
+         bindings,
+         embedded?,
+         type
+       ) do
+    this_path = query.__ash_bindings__.this_path
+    this_path_count = Enum.count(this_path)
+
+    expr =
+      Ash.Filter.map(expr, fn
+        %Ref{relationship_path: relationship_path} = ref ->
+          new_path =
+            if List.starts_with?(relationship_path, this_path) do
+              Enum.drop(relationship_path, this_path_count)
+            else
+              raise "Got a path inside of `this` that was not scoped to the appropriate path"
+            end
+
+          %{ref | relationship_path: new_path}
+
+        %Exists{at_path: at_path} = exists ->
+          new_at_path =
+            if List.starts_with?(at_path, this_path) do
+              Enum.drop(at_path, this_path_count)
+            else
+              raise "Got a path inside of `this` that was not scoped to the appropriate path"
+            end
+
+          %{exists | at_path: new_at_path}
+      end)
+
+    do_dynamic_expr(query, expr, bindings, embedded?, type)
+  end
+
+  defp do_dynamic_expr(
+         query,
          %Exists{at_path: at_path, path: [first | rest], expr: expr},
          bindings,
          _embedded?,
@@ -762,6 +798,20 @@ defmodule AshPostgres.Expr do
        ) do
     resource = Ash.Resource.Info.related(query.__ash_bindings__.resource, at_path)
     first_relationship = Ash.Resource.Info.relationship(resource, first)
+
+    last_relationship =
+      Enum.reduce(rest, first_relationship, fn name, relationship ->
+        Ash.Resource.Info.relationship(relationship.destination, name)
+      end)
+
+    {:ok, expr} =
+      Ash.Filter.hydrate_refs(expr, %{
+        resource: last_relationship.destination,
+        aggregates: %{},
+        this_resource: query.__ash_bindings__.resource,
+        calculations: %{},
+        public?: false
+      })
 
     filter = %Ash.Filter{expression: expr, resource: first_relationship.destination}
 
@@ -772,13 +822,6 @@ defmodule AshPostgres.Expr do
         query
       )
 
-    {:ok, filtered} =
-      AshPostgres.DataLayer.filter(
-        source,
-        Ash.Filter.move_to_relationship_path(filter, rest),
-        first_relationship.destination
-      )
-
     source_ref =
       ref_binding(
         %Ref{
@@ -787,6 +830,14 @@ defmodule AshPostgres.Expr do
           resource: resource
         },
         bindings
+      )
+
+    {:ok, filtered} =
+      AshPostgres.DataLayer.filter(
+        set_this_path(source, at_path),
+        Ash.Filter.move_to_relationship_path(filter, rest),
+        first_relationship.destination,
+        this_binding: source_ref
       )
 
     free_binding = filtered.__ash_bindings__.current
@@ -1185,5 +1236,11 @@ defmodule AshPostgres.Expr do
       type ->
         do_determine_type_at_path(rest, type)
     end
+  end
+
+  defp set_this_path(query, path) do
+    Map.update!(query, :__ash_bindings__, fn ash_bindings ->
+      Map.put(ash_bindings, :this_path, path)
+    end)
   end
 end

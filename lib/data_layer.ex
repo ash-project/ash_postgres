@@ -1576,11 +1576,11 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def filter(query, filter, resource) do
+  def filter(query, filter, resource, opts \\ []) do
     query = default_bindings(query, resource)
 
     query
-    |> AshPostgres.Join.join_all_relationships(filter)
+    |> AshPostgres.Join.join_all_relationships(filter, opts)
     |> case do
       {:ok, query} ->
         {:ok, add_filter_expression(query, filter)}

@@ -26,29 +26,34 @@ defmodule AshPostgres.Join do
   def join_all_relationships(
         query,
         filter,
+        opts \\ [],
         relationship_paths \\ nil,
         path \\ [],
         source \\ nil
       ) do
     relationship_paths =
-      relationship_paths ||
-        filter
-        |> Ash.Filter.relationship_paths()
-        |> Enum.map(fn path ->
-          if can_inner_join?(path, filter) do
-            {:inner,
-             AshPostgres.Join.relationship_path_to_relationships(
-               filter.resource,
-               path
-             )}
-          else
-            {:left,
-             AshPostgres.Join.relationship_path_to_relationships(
-               filter.resource,
-               path
-             )}
-          end
-        end)
+      cond do
+        relationship_paths ->
+          relationship_paths
+
+        opts[:this_binding] ->
+          filter
+          |> Ash.Filter.map(fn
+            %Ash.Query.This{} ->
+              # Removing any `This` from the filter
+              nil
+
+            other ->
+              other
+          end)
+          |> Ash.Filter.relationship_paths()
+          |> to_joins(filter)
+
+        true ->
+          filter
+          |> Ash.Filter.relationship_paths()
+          |> to_joins(filter)
+      end
 
     Enum.reduce_while(relationship_paths, {:ok, query}, fn
       {_join_type, []}, {:ok, query} ->
@@ -78,6 +83,7 @@ defmodule AshPostgres.Join do
               case join_all_relationships(
                      joined_query_with_distinct,
                      filter,
+                     opts,
                      [{join_type, rest_rels}],
                      current_path,
                      source
@@ -93,6 +99,25 @@ defmodule AshPostgres.Join do
               {:halt, {:error, error}}
           end
         end
+    end)
+  end
+
+  defp to_joins(paths, filter) do
+    paths
+    |> Enum.map(fn path ->
+      if can_inner_join?(path, filter) do
+        {:inner,
+         AshPostgres.Join.relationship_path_to_relationships(
+           filter.resource,
+           path
+         )}
+      else
+        {:left,
+         AshPostgres.Join.relationship_path_to_relationships(
+           filter.resource,
+           path
+         )}
+      end
     end)
   end
 
