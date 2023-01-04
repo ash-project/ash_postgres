@@ -5,6 +5,29 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.0-rc.0](https://github.com/ash-project/ash_postgres/compare/v1.2.6...v1.3.0-rc.0) (2023-01-04)
+
+
+
+
+### Features:
+
+* support latest ash
+
+### Bug Fixes:
+
+* honor calculation constraints
+
+* handle lists with expressions inside
+
+### Improvements:
+
+* support calc constraints
+
+* support new `cast_in_query?/2`
+
+* support calculations as aggregate targets
+
 ## [v1.2.6](https://github.com/ash-project/ash_postgres/compare/v1.2.5...v1.2.6) (2022-12-27)
 
 
