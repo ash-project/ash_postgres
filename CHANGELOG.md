@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.0-rc.1](https://github.com/ash-project/ash_postgres/compare/v1.3.0-rc.0...v1.3.0-rc.1) (2023-01-06)
+
+
+
+
+### Bug Fixes:
+
+* use `parent_expr` instead of `this`
+
+* various expression & type building fixes
+
 ## [v1.3.0-rc.0](https://github.com/ash-project/ash_postgres/compare/v1.2.6...v1.3.0-rc.0) (2023-01-04)
 
 
