@@ -305,7 +305,7 @@ defmodule AshPostgres.Expr do
       },
       bindings,
       embedded?,
-      {:internal, type}
+      type
     )
   end
 
@@ -362,12 +362,10 @@ defmodule AshPostgres.Expr do
       line: __ENV__.line
     }
 
-    case type do
-      {:internal, type} when not is_nil(type) ->
-        Ecto.Query.dynamic(type(^frag_dynamic, ^type))
-
-      _ ->
-        frag_dynamic
+    if type do
+      Ecto.Query.dynamic(type(^frag_dynamic, ^type))
+    else
+      frag_dynamic
     end
   end
 
@@ -581,19 +579,13 @@ defmodule AshPostgres.Expr do
            }
          ) do
       {:ok, expression} ->
-        expr =
-          do_dynamic_expr(
-            query,
-            expression,
-            bindings,
-            embedded?
-          )
-
-        if type do
-          Ecto.Query.dynamic(type(^expr, ^type))
-        else
-          expr
-        end
+        do_dynamic_expr(
+          query,
+          expression,
+          bindings,
+          embedded?,
+          type
+        )
 
       {:error, error} ->
         raise """
@@ -611,7 +603,7 @@ defmodule AshPostgres.Expr do
          } = ref,
          bindings,
          embedded?,
-         _type
+         type
        ) do
     calc_type =
       AshPostgres.Types.parameterized_type(
@@ -629,7 +621,7 @@ defmodule AshPostgres.Expr do
         calculation.type
       )
 
-    expr = do_dynamic_expr(query, %{ref | attribute: query_calc}, bindings, embedded?)
+    expr = do_dynamic_expr(query, %{ref | attribute: query_calc}, bindings, embedded?, type)
 
     if calc_type do
       Ecto.Query.dynamic(type(^expr, ^calc_type))
@@ -1129,7 +1121,7 @@ defmodule AshPostgres.Expr do
       },
       bindings,
       embedded?,
-      {:internal, type}
+      type
     )
   end
 
