@@ -12,6 +12,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 ### Bug Fixes:
 
+* undo changes that caused type casting bugs
+
+## [v1.3.0-rc.1](https://github.com/ash-project/ash_postgres/compare/v1.3.0-rc.0...v1.3.0-rc.1) (2023-01-06)
+
+
+
+
+### Bug Fixes:
+
 * use `parent_expr` instead of `this`
 
 * various expression & type building fixes
