@@ -43,17 +43,26 @@ defmodule AshPostgres.Calculation do
 
         dynamics =
           Enum.map(calculations, fn {calculation, expression} ->
+            type =
+              AshPostgres.Types.parameterized_type(
+                calculation.type,
+                Map.get(calculation, :constraints, [])
+              )
+
             expr =
               AshPostgres.Expr.dynamic_expr(
                 query,
                 expression,
                 query.__ash_bindings__,
-                false,
-                AshPostgres.Types.parameterized_type(
-                  calculation.type,
-                  Map.get(calculation, :constraints, [])
-                )
+                false
               )
+
+            expr =
+              if type do
+                Ecto.Query.dynamic(type(^expr, ^type))
+              else
+                expr
+              end
 
             {calculation.load, calculation.name, expr}
           end)

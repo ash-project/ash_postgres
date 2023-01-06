@@ -191,6 +191,12 @@ defmodule AshPostgres.Test.Post do
     sum(:sum_of_comment_likes, :comments, :likes)
     sum(:sum_of_comment_likes_with_default, :comments, :likes, default: 0)
 
+    sum :sum_of_popular_comment_rating_scores, [:comments, :ratings], :score do
+      filter(expr(score > 5))
+    end
+
+    sum(:sum_of_popular_comment_rating_scores_2, [:comments, :popular_ratings], :score)
+
     sum :sum_of_comment_likes_called_match, :comments, :likes do
       filter(title: "match")
     end

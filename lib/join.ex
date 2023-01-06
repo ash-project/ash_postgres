@@ -36,10 +36,10 @@ defmodule AshPostgres.Join do
         relationship_paths ->
           relationship_paths
 
-        opts[:this_binding] ->
+        opts[:no_this?] ->
           filter
           |> Ash.Filter.map(fn
-            %Ash.Query.This{} ->
+            %Ash.Query.Parent{} ->
               # Removing any `This` from the filter
               nil
 
@@ -66,7 +66,7 @@ defmodule AshPostgres.Join do
 
         current_join_type = join_type
 
-        if has_binding?(source, Enum.reverse(current_path), query, current_join_type) do
+        if has_binding?(source, Enum.map(current_path, & &1.name), query, current_join_type) do
           {:cont, {:ok, query}}
         else
           case join_relationship(

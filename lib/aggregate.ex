@@ -237,7 +237,7 @@ defmodule AshPostgres.Aggregate do
              source_binding
            ) do
         {:ok, agg_query} ->
-          AshPostgres.DataLayer.filter(agg_query, filter, first_relationship.destination)
+          AshPostgres.DataLayer.filter(agg_query, filter, agg_query.__ash_bindings__.resource)
 
         other ->
           other

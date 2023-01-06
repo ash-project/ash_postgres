@@ -1,14 +1,14 @@
-defmodule Ash.Type.CiStringWrapper do
+defmodule Ash.Type.StringWrapper do
   @moduledoc false
   use Ash.Type
 
   @impl true
-  def storage_type, do: :citext
+  def storage_type, do: :text
 
   @impl true
-  defdelegate cast_input(value, constraints), to: Ash.Type.CiString
+  defdelegate cast_input(value, constraints), to: Ash.Type.String
   @impl true
-  defdelegate cast_stored(value, constraints), to: Ash.Type.CiString
+  defdelegate cast_stored(value, constraints), to: Ash.Type.String
   @impl true
-  defdelegate dump_to_native(value, constraints), to: Ash.Type.CiString
+  defdelegate dump_to_native(value, constraints), to: Ash.Type.String
 end

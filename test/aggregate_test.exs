@@ -238,6 +238,37 @@ defmodule AshPostgres.AggregateTest do
     end
   end
 
+  test "sum aggregates show the same value with filters on the sum vs filters on relationships" do
+    post =
+      Post
+      |> Ash.Changeset.new(%{title: "title"})
+      |> Api.create!()
+
+    for i <- 1..5 do
+      ratings =
+        for i <- [3, 5, 7, 9] do
+          %{score: i}
+        end
+
+      Comment
+      |> Ash.Changeset.new(%{title: "title#{i}"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.Changeset.manage_relationship(:ratings, ratings, type: :create)
+      |> Api.create!()
+    end
+
+    values =
+      post
+      |> Api.load!([
+        :sum_of_popular_comment_rating_scores,
+        :sum_of_popular_comment_rating_scores_2
+      ])
+      |> Map.take([:sum_of_popular_comment_rating_scores, :sum_of_popular_comment_rating_scores_2])
+      |> Map.values()
+
+    assert [80, 80] = values
+  end
+
   test "can't define multidimensional array aggregate types" do
     assert_raise Spark.Error.DslError, ~r/Aggregate not supported/, fn ->
       defmodule Foo do

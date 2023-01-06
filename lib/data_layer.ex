@@ -971,7 +971,8 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp set_subquery_prefix(data_layer_query, source_query, resource) do
+  @doc false
+  def set_subquery_prefix(data_layer_query, source_query, resource) do
     config = AshPostgres.DataLayer.Info.repo(resource).config()
 
     if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
