@@ -66,38 +66,53 @@ defmodule AshPostgres.Join do
 
         current_join_type = join_type
 
-        if has_binding?(source, Enum.map(current_path, & &1.name), query, current_join_type) do
-          {:cont, {:ok, query}}
-        else
-          case join_relationship(
-                 query,
-                 relationship,
-                 Enum.map(path, & &1.name),
-                 current_join_type,
-                 source,
-                 filter
-               ) do
-            {:ok, joined_query} ->
-              joined_query_with_distinct = add_distinct(relationship, join_type, joined_query)
+        case get_binding(source, Enum.map(current_path, & &1.name), query, current_join_type) do
+          binding when is_integer(binding) ->
+            case join_all_relationships(
+                   query,
+                   filter,
+                   opts,
+                   [{join_type, rest_rels}],
+                   current_path,
+                   source
+                 ) do
+              {:ok, query} ->
+                {:cont, {:ok, query}}
 
-              case join_all_relationships(
-                     joined_query_with_distinct,
-                     filter,
-                     opts,
-                     [{join_type, rest_rels}],
-                     current_path,
-                     source
-                   ) do
-                {:ok, query} ->
-                  {:cont, {:ok, query}}
+              {:error, error} ->
+                {:halt, {:error, error}}
+            end
 
-                {:error, error} ->
-                  {:halt, {:error, error}}
-              end
+          nil ->
+            case join_relationship(
+                   query,
+                   relationship,
+                   Enum.map(path, & &1.name),
+                   current_join_type,
+                   source,
+                   filter
+                 ) do
+              {:ok, joined_query} ->
+                joined_query_with_distinct = add_distinct(relationship, join_type, joined_query)
 
-            {:error, error} ->
-              {:halt, {:error, error}}
-          end
+                case join_all_relationships(
+                       joined_query_with_distinct,
+                       filter,
+                       opts,
+                       [{join_type, rest_rels}],
+                       current_path,
+                       source
+                     ) do
+                  {:ok, query} ->
+                    {:cont, {:ok, query}}
+
+                  {:error, error} ->
+                    {:halt, {:error, error}}
+                end
+
+              {:error, error} ->
+                {:halt, {:error, error}}
+            end
         end
     end)
   end
@@ -319,17 +334,19 @@ defmodule AshPostgres.Join do
 
   defp can_inner_join?(_, _, _), do: false
 
-  defp has_binding?(resource, candidate_path, %{__ash_bindings__: _} = query, type) do
-    Enum.any?(query.__ash_bindings__.bindings, fn
-      {_, %{path: path, source: source, type: ^type}} ->
-        Ash.SatSolver.synonymous_relationship_paths?(resource, path, candidate_path, source)
+  defp get_binding(resource, candidate_path, %{__ash_bindings__: _} = query, type) do
+    Enum.find_value(query.__ash_bindings__.bindings, fn
+      {binding, %{path: path, source: source, type: ^type}} ->
+        if Ash.SatSolver.synonymous_relationship_paths?(resource, path, candidate_path, source) do
+          binding
+        end
 
       _ ->
-        false
+        nil
     end)
   end
 
-  defp has_binding?(_, _, _, _), do: false
+  defp get_binding(_, _, _, _), do: nil
 
   defp add_distinct(relationship, _join_type, joined_query) do
     if !joined_query.__ash_bindings__.in_group? && relationship.cardinality == :many &&
