@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.0-rc.4](https://github.com/ash-project/ash_postgres/compare/v1.3.0-rc.3...v1.3.0-rc.4) (2023-01-09)
+
+
+
+
+### Bug Fixes:
+
+* properly join to all required relationships
+
 ## [v1.3.0-rc.3](https://github.com/ash-project/ash_postgres/compare/v1.3.0-rc.2...v1.3.0-rc.3) (2023-01-09)
 
 
