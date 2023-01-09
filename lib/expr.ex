@@ -275,19 +275,21 @@ defmodule AshPostgres.Expr do
       end
 
     condition =
-      do_dynamic_expr(query, condition, bindings, pred_embedded? || embedded?, condition_type)
+      do_dynamic_expr(query, condition, bindings, pred_embedded? || embedded?)
+      |> maybe_type(query, condition, condition_type)
 
     when_true =
-      do_dynamic_expr(query, when_true, bindings, pred_embedded? || embedded?, when_true_type)
+      do_dynamic_expr(query, when_true, bindings, pred_embedded? || embedded?)
+      |> maybe_type(query, when_true, when_true_type)
 
     when_false =
       do_dynamic_expr(
         query,
         when_false,
         bindings,
-        pred_embedded? || embedded?,
-        when_false_type
+        pred_embedded? || embedded?
       )
+      |> maybe_type(query, when_false, when_false_type)
 
     do_dynamic_expr(
       query,
@@ -742,7 +744,7 @@ defmodule AshPostgres.Expr do
     arg1 = maybe_uuid_to_binary(arg2, arg1, arg1)
     type = AshPostgres.Types.parameterized_type(arg2, constraints)
 
-    Ecto.Query.dynamic(type(^do_dynamic_expr(query, arg1, bindings, embedded?), ^type))
+    Ecto.Query.dynamic(type(^do_dynamic_expr(query, arg1, bindings, embedded?, type), ^type))
   end
 
   defp do_dynamic_expr(
@@ -1038,6 +1040,23 @@ defmodule AshPostgres.Expr do
   end
 
   defp maybe_uuid_to_binary(_type, _value, original_value), do: original_value
+
+  defp maybe_type(dynamic, _query, _type_expr, nil), do: dynamic
+
+  defp maybe_type(dynamic, query, type_expr, type) do
+    type =
+      AshPostgres.Types.parameterized_type(
+        type,
+        []
+      )
+
+    if type do
+      validate_type!(query, type, type_expr)
+      Ecto.Query.dynamic(type(^dynamic, ^type))
+    else
+      dynamic
+    end
+  end
 
   defp validate_type!(query, type, context) do
     case type do
