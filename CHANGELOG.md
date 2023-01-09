@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.0-rc.3](https://github.com/ash-project/ash_postgres/compare/v1.3.0-rc.2...v1.3.0-rc.3) (2023-01-09)
+
+
+
+
+### Bug Fixes:
+
+* properly type cast in fragments (and elsewhere)
+
 ## [v1.3.0-rc.2](https://github.com/ash-project/ash_postgres/compare/v1.3.0-rc.1...v1.3.0-rc.2) (2023-01-06)
 
 
