@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.0](https://github.com/ash-project/ash_postgres/compare/v1.3.0-rc.4...v1.3.0) (2023-01-11)
+
+
+
+
+### Improvements:
+
+* update to latest ash
+
 ## [v1.3.0-rc.4](https://github.com/ash-project/ash_postgres/compare/v1.3.0-rc.3...v1.3.0-rc.4) (2023-01-09)
 
 
