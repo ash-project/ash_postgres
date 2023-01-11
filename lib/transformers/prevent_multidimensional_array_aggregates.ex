@@ -14,7 +14,7 @@ defmodule AshPostgres.Transformers.PreventMultidimensionalArrayAggregates do
     |> Stream.filter(& &1.field)
     |> Enum.each(fn aggregate ->
       related = Ash.Resource.Info.related(resource, aggregate.relationship_path)
-      type = Ash.Resource.Info.attribute(related, aggregate.field).type
+      type = Ash.Resource.Info.field(related, aggregate.field).type
 
       case type do
         {:array, _} ->
