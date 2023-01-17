@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.2](https://github.com/ash-project/ash_postgres/compare/v1.3.1...v1.3.2) (2023-01-17)
+
+
+
+
+### Bug Fixes:
+
+* nest subqueries when required for distinct
+
+* replace `{:in, ...}` type with `{:array, ...}`
+
 ## [v1.3.1](https://github.com/ash-project/ash_postgres/compare/v1.3.0...v1.3.1) (2023-01-11)
 
 
