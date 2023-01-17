@@ -351,13 +351,9 @@ defmodule AshPostgres.Join do
   defp add_distinct(relationship, _join_type, joined_query) do
     if !joined_query.__ash_bindings__.in_group? && relationship.cardinality == :many &&
          !joined_query.distinct do
-      if joined_query.group_bys && joined_query.group_bys != [] do
-        joined_query
-      else
-        from(row in joined_query,
-          distinct: ^Ash.Resource.Info.primary_key(joined_query.__ash_bindings__.resource)
-        )
-      end
+      from(row in joined_query,
+        distinct: ^Ash.Resource.Info.primary_key(joined_query.__ash_bindings__.resource)
+      )
     else
       joined_query
     end

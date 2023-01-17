@@ -1,7 +1,7 @@
 defmodule AshPostgres.Aggregate do
   @moduledoc false
 
-  import Ecto.Query, only: [from: 2]
+  import Ecto.Query, only: [from: 2, subquery: 1]
   require Ecto.Query
 
   def add_aggregates(query, aggregates, resource, select? \\ true, source_binding \\ nil)
@@ -254,44 +254,51 @@ defmodule AshPostgres.Aggregate do
          first_relationship,
          source_binding
        ) do
-    if aggregate.authorization_filter do
-      filter =
+    filter =
+      if is_nil(aggregate.authorization_filter) do
+        nil
+      else
         Ash.Filter.move_to_relationship_path(
-          aggregate.query.filter,
+          aggregate.authorization_filter,
           relationship_path
         )
         |> Map.put(:resource, first_relationship.destination)
-
-      used_calculations =
-        Ash.Filter.used_calculations(
-          filter,
-          first_relationship.destination,
-          relationship_path
-        )
-
-      used_aggregates =
-        used_aggregates(
-          filter,
-          first_relationship.destination,
-          used_calculations,
-          relationship_path
-        )
-
-      case add_aggregates(
-             agg_query,
-             used_aggregates,
-             first_relationship.destination,
-             false,
-             source_binding
-           ) do
-        {:ok, agg_query} ->
-          AshPostgres.DataLayer.filter(agg_query, filter, first_relationship.destination)
-
-        other ->
-          other
       end
-    else
-      {:ok, agg_query}
+
+    filter =
+      if is_nil(Map.get(aggregate, :join_filter)) do
+        filter
+      else
+        Ash.Filter.add_to_filter(filter, aggregate.join_filter)
+      end
+
+    used_calculations =
+      Ash.Filter.used_calculations(
+        filter,
+        first_relationship.destination,
+        relationship_path
+      )
+
+    used_aggregates =
+      used_aggregates(
+        filter,
+        first_relationship.destination,
+        used_calculations,
+        relationship_path
+      )
+
+    case add_aggregates(
+           agg_query,
+           used_aggregates,
+           first_relationship.destination,
+           false,
+           source_binding
+         ) do
+      {:ok, agg_query} ->
+        AshPostgres.DataLayer.filter(agg_query, filter, first_relationship.destination)
+
+      other ->
+        other
     end
   end
 
@@ -324,7 +331,7 @@ defmodule AshPostgres.Aggregate do
 
     query =
       from(row in query,
-        left_lateral_join: sub in subquery(subquery),
+        left_lateral_join: sub in subquery(subquery_if_distinct(subquery)),
         as: ^query.__ash_bindings__.current
       )
 
@@ -386,7 +393,7 @@ defmodule AshPostgres.Aggregate do
 
     query =
       from(row in query,
-        left_lateral_join: agg in subquery(subquery),
+        left_lateral_join: agg in subquery(subquery_if_distinct(subquery)),
         as: ^query.__ash_bindings__.current
       )
 
@@ -435,7 +442,7 @@ defmodule AshPostgres.Aggregate do
 
     query =
       from(row in query,
-        left_lateral_join: agg in subquery(subquery),
+        left_lateral_join: agg in subquery(subquery_if_distinct(subquery)),
         as: ^query.__ash_bindings__.current
       )
 
@@ -446,6 +453,14 @@ defmodule AshPostgres.Aggregate do
         type: :aggregate,
         aggregates: aggregates
       }
+    )
+  end
+
+  defp subquery_if_distinct(%{distinct: nil} = query), do: query
+
+  defp subquery_if_distinct(subquery) do
+    from(row in subquery(subquery),
+      select: row
     )
   end
 

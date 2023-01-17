@@ -7,6 +7,10 @@ defmodule AshPostgres.Types do
     type
   end
 
+  def parameterized_type({:in, type}, constraints) do
+    parameterized_type({:array, type}, constraints)
+  end
+
   def parameterized_type({:array, type}, constraints) do
     case parameterized_type(type, constraints[:items] || []) do
       nil ->
