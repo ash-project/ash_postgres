@@ -108,6 +108,25 @@ defmodule AshPostgres.MixProject do
       source_ref: "v#{@version}",
       logo: "logos/small-logo.png",
       extras: extras(),
+      spark: [
+        mix_tasks: [
+          Postgres: [
+            Mix.Tasks.AshPostgres.GenerateMigrations,
+            Mix.Tasks.AshPostgres.Create,
+            Mix.Tasks.AshPostgres.Drop,
+            Mix.Tasks.AshPostgres.Migrate,
+            Mix.Tasks.AshPostgres.Rollback
+          ]
+        ],
+        extensions: [
+          %{
+            module: AshPostgres.DataLayer,
+            name: "AshPostgres",
+            target: "Ash.Resource",
+            type: "DataLayer"
+          }
+        ]
+      ],
       groups_for_extras: groups_for_extras(),
       groups_for_modules: [
         AshPostgres: [
@@ -128,7 +147,8 @@ defmodule AshPostgres.MixProject do
           AshPostgres.Migration,
           EctoMigrationDefault
         ],
-        Transformers: ~r/AshPostgres\.Transformers\..*/
+        Transformers: ~r/AshPostgres\.Transformers\..*/,
+        Internals: ~r/.*/
       ]
     ]
   end
