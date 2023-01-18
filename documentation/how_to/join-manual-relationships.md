@@ -1,6 +1,6 @@
 # Join Manual Relationships
 
-See {{link:ash:guide:Defining Manual Relationships}} for an idea of manual relationships in general.
+See [Defining Manual Relationships](https://hexdocs.pm/ash/defining-manual-relationships.html) for an idea of manual relationships in general.
 Manual relationships allow for expressing complex/non-typical relationships between resources in a standard way.
 Individual data layers may interact with manual relationships in their own way, so see their corresponding guides.
 

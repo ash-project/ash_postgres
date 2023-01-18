@@ -5,7 +5,7 @@
 In this guide we will:
 
 1. Setup AshPostgres, which includes setting up [Ecto](https://hexdocs.pm/ecto/Ecto.html)
-2. Add AshPostgres to the resources created in {{link:ash:guide:Get Started}}
+2. Add AshPostgres to the resources created in [the Ash getting started guide](https://hexdocs.pm/ash/get-started.html)
 3. Show how the various features of AshPostgres can help you work quickly and cleanly against a postgres database
 4. Highlight some of the more advanced features you can use when using AshPostgres.
 5. Point you to additional resources you may need on your journey
@@ -17,7 +17,7 @@ In this guide we will:
 ## Requirements
 
 - A working Postgres installation, with a sufficiently permissive user
-- If you would like to follow along, you will need to add begin with {{link:ash:guide:Get Started}}
+- If you would like to follow along, you will need to add begin with [the Ash getting started guide](https://hexdocs.pm/ash/get-started.html)
 
 ## Steps
 
@@ -25,7 +25,7 @@ In this guide we will:
 
 Add the `:ash_postgres` dependency to your application
 
-{{mix_dep:ash_postgres}}
+`{:ash_postgres, "~> 1.3.2"}`
 
 Add `:ash_postgres` to your `.formatter.exs` file
 
@@ -147,7 +147,7 @@ And finally, add the repo to your application
 
 ### Add AshPostgres to our resources
 
-Now we can add the data layer to our resources. The basic configuration for a resource requires the {{link:ash_postgres:option:ashpostgres/postgres/table}} and the {{link:ash_postgres:dsl:ash_postgres/postgres/repo}}.
+Now we can add the data layer to our resources. The basic configuration for a resource requires the `d:AshPostgres.postgres|table` and the `d:AshPostgres.postgres|repo`.
 
 ```elixir
 # in lib/helpdesk/support/resources/ticket.ex
@@ -250,7 +250,7 @@ And, naturally, now that we are storing this in postgres, this database is persi
 
 ### Aggregates
 
-Lets add some aggregates to our representatives resource. Aggregates are a tool to include grouped up data about relationships. You can read more about them in the {{link:ash:guide:Aggregates}} guide.
+Lets add some aggregates to our representatives resource. Aggregates are a tool to include grouped up data about relationships. You can read more about them in the [Aggregates guide](https://hexdocs.pm/ash/aggregates.html).
 
 Here we will add an aggregate to easily query how many tickets are assigned to a representative, and how many of those tickets are open/closed.
 
@@ -331,15 +331,11 @@ Helpdesk.Support.Representative
 
 ### Rich Configuration Options
 
-Take a look at the DSL documentation for more information on what you can configure. You can add check constraints, configure the behavior of foreign keys, use postgres schemas with Ash's {{link:ash:guide:Multitenancy}} feature, and more!
+Take a look at the DSL documentation for more information on what you can configure. You can add check constraints, configure the behavior of foreign keys, use postgres schemas with Ash's [multitenancy](https://hexdocs.pm/ash/multitenancy.html) feature, and more!
 
 ### What next?
 
-#### See what is available in the DSL
-
-{{link:ash_postgres:dsl:ash_postgres:postgres}}
-
-#### Learn more about the underlying tools
+- Check out the data layer docs: `AshPostgres.DataLayer`
 
 - [Ecto's documentation](https://hexdocs.pm/ecto/Ecto.html). AshPostgres (and much of Ash itself) is made possible by the amazing Ecto. If you find yourself looking for escape hatches when using Ash or ways to work directly with your database, you will want to know how Ecto works. Ash and AshPostgres intentionally do not hide Ecto, and in fact encourages its use whenever you need an escape hatch.
 
