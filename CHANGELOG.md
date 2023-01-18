@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.3](https://github.com/ash-project/ash_postgres/compare/v1.3.2...v1.3.3) (2023-01-18)
+
+
+
+
+### Improvements:
+
+* update to new docs patterns
+
 ## [v1.3.2](https://github.com/ash-project/ash_postgres/compare/v1.3.1...v1.3.2) (2023-01-17)
 
 
