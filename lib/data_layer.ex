@@ -596,7 +596,7 @@ defmodule AshPostgres.DataLayer do
     if AshPostgres.DataLayer.Info.polymorphic?(resource) && no_table?(query) do
       raise_table_error!(resource, :read)
     else
-      {:ok, AshPostgres.DataLayer.Info.repo(resource).all(query, repo_opts(nil, nil, resource))}
+      {:ok, dynamic_repo(resource, query).all(query, repo_opts(nil, nil, resource))}
     end
   end
 
@@ -670,7 +670,7 @@ defmodule AshPostgres.DataLayer do
         end
       )
 
-    {:ok, AshPostgres.DataLayer.Info.repo(resource).one(query, repo_opts(nil, nil, resource))}
+    {:ok, dynamic_repo(resource, query).one(query, repo_opts(nil, nil, resource))}
   end
 
   @impl true
@@ -722,7 +722,7 @@ defmodule AshPostgres.DataLayer do
           )
 
         {:ok,
-         AshPostgres.DataLayer.Info.repo(source_resource).one(
+         dynamic_repo(source_resource, query).one(
            query,
            repo_opts(nil, nil, source_resource)
          )}
@@ -752,7 +752,7 @@ defmodule AshPostgres.DataLayer do
           |> Map.get(:resource)
 
         {:ok,
-         AshPostgres.DataLayer.Info.repo(source_resource).all(
+         dynamic_repo(source_resource, query).all(
            query,
            repo_opts(nil, nil, source_resource)
          )}
@@ -1015,7 +1015,7 @@ defmodule AshPostgres.DataLayer do
     changeset.data
     |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
     |> ecto_changeset(changeset, :create)
-    |> AshPostgres.DataLayer.Info.repo(resource).insert(
+    |> dynamic_repo(resource, changeset).insert(
       repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
     )
     |> handle_errors()
@@ -1393,7 +1393,7 @@ defmodule AshPostgres.DataLayer do
     changeset.data
     |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
     |> ecto_changeset(changeset, :update)
-    |> AshPostgres.DataLayer.Info.repo(resource).update(
+    |> dynamic_repo(resource, changeset).update(
       repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
     )
     |> handle_errors()
@@ -1412,7 +1412,7 @@ defmodule AshPostgres.DataLayer do
   def destroy(resource, %{data: record} = changeset) do
     record
     |> ecto_changeset(changeset, :delete)
-    |> AshPostgres.DataLayer.Info.repo(resource).delete(
+    |> dynamic_repo(resource, changeset).delete(
       repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
     )
     |> case do
@@ -1730,5 +1730,17 @@ defmodule AshPostgres.DataLayer do
       Could not determine table for #{operation} on #{inspect(resource)}.
       """
     end
+  end
+
+  defp dynamic_repo(resource, %{__ash_bindings__: %{context: %{data_layer: %{repo: repo}}}}) do
+    repo || AshPostgres.DataLayer.Info.repo(resource)
+  end
+
+  defp dynamic_repo(resource, %{context: %{data_layer: %{repo: repo}}}) do
+    repo || AshPostgres.DataLayer.Info.repo(resource)
+  end
+
+  defp dynamic_repo(resource, _) do
+    AshPostgres.DataLayer.Info.repo(resource)
   end
 end
