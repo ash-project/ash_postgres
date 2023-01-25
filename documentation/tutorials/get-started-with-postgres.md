@@ -65,6 +65,8 @@ Place the following contents in those files, ensuring that the credentials match
 # in config/config.exs
 import Config
 
+# This should already have been added in the first
+# getting started guide
 config :helpdesk,
   ash_apis: [Helpdesk.Support]
 
