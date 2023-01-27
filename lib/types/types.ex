@@ -84,11 +84,22 @@ defmodule AshPostgres.Types do
           closest_fitting_type(types, values)
       end
     end)
-    |> Enum.min_by(fn types ->
-      types
-      |> Enum.map(&vagueness/1)
-      |> Enum.sum()
+    |> Enum.filter(fn types ->
+      Enum.all?(types, &(vagueness(&1) == 0))
     end)
+    |> case do
+      [type] ->
+        if type == :any || type == {:in, :any} do
+          nil
+        else
+          type
+        end
+
+      # There are things we could likely do here
+      # We only say "we know what types these are" when we explicitly know
+      _ ->
+        Enum.map(values, fn _ -> nil end)
+    end
   end
 
   defp closest_fitting_type(types, values) do
