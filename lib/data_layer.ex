@@ -1018,6 +1018,7 @@ defmodule AshPostgres.DataLayer do
     |> dynamic_repo(resource, changeset).insert(
       repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
     )
+    |> from_ecto()
     |> handle_errors()
     |> case do
       {:ok, result} ->
@@ -1096,10 +1097,16 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp ecto_changeset(record, changeset, type) do
+    attributes =
+      changeset.resource
+      |> Ash.Resource.Info.attributes()
+      |> Enum.map(& &1.name)
+
     ecto_changeset =
       record
+      |> to_ecto()
       |> set_table(changeset, type)
-      |> Ecto.Changeset.change(changeset.attributes)
+      |> Ecto.Changeset.change(Map.take(changeset.attributes, attributes))
       |> add_configured_foreign_key_constraints(record.__struct__)
       |> add_unique_indexes(record.__struct__, changeset)
       |> add_check_constraints(record.__struct__)
@@ -1146,6 +1153,31 @@ defmodule AshPostgres.DataLayer do
     else
       record
     end
+  end
+
+  defp from_ecto({:ok, result}), do: {:ok, from_ecto(result)}
+  defp from_ecto({:error, _} = other), do: other
+
+  defp from_ecto(%resource{} = record) do
+    empty = struct(resource)
+
+    resource
+    |> Ash.Resource.Info.relationships()
+    |> Enum.reduce(record, fn relationship, record ->
+      Map.put(record, relationship.name, Map.get(empty, relationship.name))
+    end)
+  end
+
+  defp from_ecto(other), do: other
+
+  defp to_ecto(%resource{} = record) do
+    resource
+    |> Ash.Resource.Info.relationships()
+    |> Enum.reduce(record, fn relationship, record ->
+      Map.put(record, relationship.name, %Ecto.Association.NotLoaded{
+        __cardinality__: relationship.cardinality
+      })
+    end)
   end
 
   defp add_check_constraints(changeset, resource) do
@@ -1325,6 +1357,7 @@ defmodule AshPostgres.DataLayer do
       |> AshPostgres.DataLayer.Info.repo(resource).insert(
         Keyword.put(repo_opts, :returning, true)
       )
+      |> from_ecto()
       |> handle_errors()
     end
   end
@@ -1396,6 +1429,7 @@ defmodule AshPostgres.DataLayer do
     |> dynamic_repo(resource, changeset).update(
       repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
     )
+    |> from_ecto()
     |> handle_errors()
     |> case do
       {:ok, result} ->
@@ -1415,6 +1449,7 @@ defmodule AshPostgres.DataLayer do
     |> dynamic_repo(resource, changeset).delete(
       repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
     )
+    |> from_ecto()
     |> case do
       {:ok, _record} ->
         :ok
