@@ -5,6 +5,23 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.4](https://github.com/ash-project/ash_postgres/compare/v1.3.3...v1.3.4) (2023-01-28)
+
+
+
+
+### Bug Fixes:
+
+* support latest ecto interop changes in ash core
+
+### Improvements:
+
+* properly cast division to floats for elixir-y behavior
+
+* support for dynamically set repo
+
+* update ash
+
 ## [v1.3.3](https://github.com/ash-project/ash_postgres/compare/v1.3.2...v1.3.3) (2023-01-18)
 
 
