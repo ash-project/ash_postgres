@@ -1,6 +1,6 @@
 defmodule AshPostgres.AggregateTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Comment, Post, Rating, Organization, User}
+  alias AshPostgres.Test.{Api, Comment, Organization, Post, Rating, User}
 
   require Ash.Query
 
