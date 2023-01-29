@@ -18,7 +18,7 @@ jobs:
       matrix:
         otp: ["25"]
         elixir: ["1.14.0"]
-        ash: ["2.5.0"]
+        ash: ["2.5.12"]
         pg_version: ["13"]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
