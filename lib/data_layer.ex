@@ -1158,27 +1158,56 @@ defmodule AshPostgres.DataLayer do
   defp from_ecto({:ok, result}), do: {:ok, from_ecto(result)}
   defp from_ecto({:error, _} = other), do: other
 
+  defp from_ecto(nil), do: nil
+
+  defp from_ecto(value) when is_list(value) do
+    Enum.map(value, &from_ecto/1)
+  end
+
   defp from_ecto(%resource{} = record) do
     empty = struct(resource)
 
     resource
     |> Ash.Resource.Info.relationships()
     |> Enum.reduce(record, fn relationship, record ->
-      Map.put(record, relationship.name, Map.get(empty, relationship.name))
+      case Map.get(record, relationship.name) do
+        %Ecto.Association.NotLoaded{} ->
+          Map.put(record, relationship.name, Map.get(empty, relationship.name))
+
+        value ->
+          Map.put(record, relationship.name, from_ecto(value))
+      end
     end)
   end
 
   defp from_ecto(other), do: other
 
+  defp to_ecto(nil), do: nil
+
+  defp to_ecto(value) when is_list(value) do
+    Enum.map(value, &to_ecto/1)
+  end
+
   defp to_ecto(%resource{} = record) do
     resource
     |> Ash.Resource.Info.relationships()
     |> Enum.reduce(record, fn relationship, record ->
-      Map.put(record, relationship.name, %Ecto.Association.NotLoaded{
-        __cardinality__: relationship.cardinality
-      })
+      value =
+        case Map.get(record, relationship.name) do
+          %Ash.NotLoaded{} ->
+            %Ecto.Association.NotLoaded{
+              __cardinality__: relationship.cardinality
+            }
+
+          value ->
+            to_ecto(value)
+        end
+
+      Map.put(record, relationship.name, value)
     end)
   end
+
+  defp to_ecto(other), do: other
 
   defp add_check_constraints(changeset, resource) do
     resource
