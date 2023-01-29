@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.5](https://github.com/ash-project/ash_postgres/compare/v1.3.4...v1.3.5) (2023-01-29)
+
+
+
+
+### Bug Fixes:
+
+* properly convert to/from ecto, only when necessary
+
 ## [v1.3.4](https://github.com/ash-project/ash_postgres/compare/v1.3.3...v1.3.4) (2023-01-28)
 
 
