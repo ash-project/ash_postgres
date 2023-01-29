@@ -1,8 +1,50 @@
 defmodule AshPostgres.AggregateTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Comment, Post, Rating}
+  alias AshPostgres.Test.{Api, Comment, Post, Rating, Organization, User}
 
   require Ash.Query
+
+  test "relates to actor via has_many and with an aggregate" do
+    org =
+      Organization
+      |> Ash.Changeset.new(%{name: "The Org"})
+      |> Api.create!()
+
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "title"})
+      |> Ash.Changeset.manage_relationship(:organization, org, type: :append_and_remove)
+      |> Api.create!()
+
+    user =
+      User
+      |> Ash.Changeset.for_create(:create, %{})
+      |> Ash.Changeset.manage_relationship(:organization, org, type: :append_and_remove)
+      |> Api.create!()
+
+    Comment
+    |> Ash.Changeset.new(%{title: "match"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Api.create!()
+
+    read_post =
+      Post
+      |> Ash.Query.filter(id == ^post.id)
+      |> Api.read_one!(actor: user)
+
+    # The policy works fine in this case and we can read the post,
+    # since the post and the actor are in the same org
+    assert read_post.id == post.id
+
+    read_post =
+      Post
+      |> Ash.Query.filter(id == ^post.id)
+      |> Ash.Query.load(:count_of_comments)
+      |> Api.read_one!(actor: user)
+
+    # Loading the :count_of_comments aggregate produces the error
+    assert read_post.count_of_comments == 1
+  end
 
   describe "count" do
     test "with no related data it returns 0" do

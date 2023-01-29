@@ -1,7 +1,17 @@
 defmodule AshPostgres.Test.Post do
   @moduledoc false
   use Ash.Resource,
-    data_layer: AshPostgres.DataLayer
+    data_layer: AshPostgres.DataLayer,
+    authorizers: [
+      Ash.Policy.Authorizer
+    ]
+
+  policies do
+    bypass action_type(:read) do
+      # Check that the post is in the same org as actor
+      authorize_if(relates_to_actor_via([:organization, :users]))
+    end
+  end
 
   postgres do
     table("posts")
@@ -83,6 +93,8 @@ defmodule AshPostgres.Test.Post do
   end
 
   relationships do
+    belongs_to(:organization, AshPostgres.Test.Organization)
+
     belongs_to(:author, AshPostgres.Test.Author)
 
     has_many(:comments, AshPostgres.Test.Comment, destination_attribute: :post_id)

@@ -17,6 +17,7 @@ defmodule AshPostgres.Test.User do
   end
 
   relationships do
+    belongs_to(:organization, AshPostgres.Test.Organization)
     has_many(:accounts, AshPostgres.Test.Account)
   end
 end
