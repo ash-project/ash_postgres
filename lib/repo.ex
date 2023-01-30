@@ -68,6 +68,8 @@ defmodule AshPostgres.Repo do
         adapter: Ecto.Adapters.Postgres,
         otp_app: otp_app
 
+      defoverridable insert: 2, insert: 1, insert!: 2, insert!: 1
+
       def installed_extensions, do: []
       def tenant_migrations_path, do: nil
       def migrations_path, do: nil
@@ -100,6 +102,100 @@ defmodule AshPostgres.Repo do
       end
 
       def on_transaction_begin(_reason), do: :ok
+
+      def insert(struct_or_changeset, opts \\ []) do
+        struct_or_changeset
+        |> to_ecto()
+        |> then(fn value ->
+          repo = get_dynamic_repo()
+
+          Ecto.Repo.Schema.insert(
+            __MODULE__,
+            repo,
+            value,
+            Ecto.Repo.Supervisor.tuplet(repo, prepare_opts(:insert, opts))
+          )
+        end)
+        |> from_ecto()
+      end
+
+      def insert!(struct_or_changeset, opts \\ []) do
+        struct_or_changeset
+        |> to_ecto()
+        |> then(fn value ->
+          repo = get_dynamic_repo()
+
+          Ecto.Repo.Schema.insert!(
+            __MODULE__,
+            repo,
+            value,
+            Ecto.Repo.Supervisor.tuplet(repo, prepare_opts(:insert, opts))
+          )
+        end)
+        |> from_ecto()
+      end
+
+      def from_ecto({:ok, result}), do: {:ok, from_ecto(result)}
+      def from_ecto({:error, _} = other), do: other
+
+      def from_ecto(nil), do: nil
+
+      def from_ecto(value) when is_list(value) do
+        Enum.map(value, &from_ecto/1)
+      end
+
+      def from_ecto(%resource{} = record) do
+        if Spark.Dsl.is?(resource, Ash.Resource) do
+          empty = struct(resource)
+
+          resource
+          |> Ash.Resource.Info.relationships()
+          |> Enum.reduce(record, fn relationship, record ->
+            case Map.get(record, relationship.name) do
+              %Ecto.Association.NotLoaded{} ->
+                Map.put(record, relationship.name, Map.get(empty, relationship.name))
+
+              value ->
+                Map.put(record, relationship.name, from_ecto(value))
+            end
+          end)
+        else
+          record
+        end
+      end
+
+      def from_ecto(other), do: other
+
+      def to_ecto(nil), do: nil
+
+      def to_ecto(value) when is_list(value) do
+        Enum.map(value, &to_ecto/1)
+      end
+
+      def to_ecto(%resource{} = record) do
+        if Spark.Dsl.is?(resource, Ash.Resource) do
+          resource
+          |> Ash.Resource.Info.relationships()
+          |> Enum.reduce(record, fn relationship, record ->
+            value =
+              case Map.get(record, relationship.name) do
+                %Ash.NotLoaded{} ->
+                  %Ecto.Association.NotLoaded{
+                    __cardinality__: relationship.cardinality
+                  }
+
+                value ->
+                  to_ecto(value)
+              end
+
+            Map.put(record, relationship.name, value)
+          end)
+        else
+          record
+        end
+      end
+
+      def to_ecto(other), do: other
 
       defoverridable init: 2,
                      on_transaction_begin: 1,

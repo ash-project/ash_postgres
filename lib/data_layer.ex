@@ -1155,59 +1155,67 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp from_ecto({:ok, result}), do: {:ok, from_ecto(result)}
-  defp from_ecto({:error, _} = other), do: other
+  def from_ecto({:ok, result}), do: {:ok, from_ecto(result)}
+  def from_ecto({:error, _} = other), do: other
 
-  defp from_ecto(nil), do: nil
+  def from_ecto(nil), do: nil
 
-  defp from_ecto(value) when is_list(value) do
+  def from_ecto(value) when is_list(value) do
     Enum.map(value, &from_ecto/1)
   end
 
-  defp from_ecto(%resource{} = record) do
-    empty = struct(resource)
+  def from_ecto(%resource{} = record) do
+    if Spark.Dsl.is?(resource, Ash.Resource) do
+      empty = struct(resource)
 
-    resource
-    |> Ash.Resource.Info.relationships()
-    |> Enum.reduce(record, fn relationship, record ->
-      case Map.get(record, relationship.name) do
-        %Ecto.Association.NotLoaded{} ->
-          Map.put(record, relationship.name, Map.get(empty, relationship.name))
+      resource
+      |> Ash.Resource.Info.relationships()
+      |> Enum.reduce(record, fn relationship, record ->
+        case Map.get(record, relationship.name) do
+          %Ecto.Association.NotLoaded{} ->
+            Map.put(record, relationship.name, Map.get(empty, relationship.name))
 
-        value ->
-          Map.put(record, relationship.name, from_ecto(value))
-      end
-    end)
+          value ->
+            Map.put(record, relationship.name, from_ecto(value))
+        end
+      end)
+    else
+      record
+    end
   end
 
-  defp from_ecto(other), do: other
+  def from_ecto(other), do: other
 
-  defp to_ecto(nil), do: nil
+  def to_ecto(nil), do: nil
 
-  defp to_ecto(value) when is_list(value) do
+  def to_ecto(value) when is_list(value) do
     Enum.map(value, &to_ecto/1)
   end
 
-  defp to_ecto(%resource{} = record) do
-    resource
-    |> Ash.Resource.Info.relationships()
-    |> Enum.reduce(record, fn relationship, record ->
-      value =
-        case Map.get(record, relationship.name) do
-          %Ash.NotLoaded{} ->
-            %Ecto.Association.NotLoaded{
-              __cardinality__: relationship.cardinality
-            }
+  def to_ecto(%resource{} = record) do
+    if Spark.Dsl.is?(resource, Ash.Resource) do
+      resource
+      |> Ash.Resource.Info.relationships()
+      |> Enum.reduce(record, fn relationship, record ->
+        value =
+          case Map.get(record, relationship.name) do
+            %Ash.NotLoaded{} ->
+              %Ecto.Association.NotLoaded{
+                __cardinality__: relationship.cardinality
+              }
 
-          value ->
-            to_ecto(value)
-        end
+            value ->
+              to_ecto(value)
+          end
 
-      Map.put(record, relationship.name, value)
-    end)
+        Map.put(record, relationship.name, value)
+      end)
+    else
+      record
+    end
   end
 
-  defp to_ecto(other), do: other
+  def to_ecto(other), do: other
 
   defp add_check_constraints(changeset, resource) do
     resource
