@@ -32,8 +32,6 @@ defmodule AshPostgres.AggregateTest do
       |> Ash.Query.filter(id == ^post.id)
       |> Api.read_one!(actor: user)
 
-    # The policy works fine in this case and we can read the post,
-    # since the post and the actor are in the same org
     assert read_post.id == post.id
 
     read_post =
@@ -42,7 +40,6 @@ defmodule AshPostgres.AggregateTest do
       |> Ash.Query.load(:count_of_comments)
       |> Api.read_one!(actor: user)
 
-    # Loading the :count_of_comments aggregate produces the error
     assert read_post.count_of_comments == 1
   end
 

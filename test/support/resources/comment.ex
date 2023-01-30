@@ -1,7 +1,17 @@
 defmodule AshPostgres.Test.Comment do
   @moduledoc false
   use Ash.Resource,
-    data_layer: AshPostgres.DataLayer
+    data_layer: AshPostgres.DataLayer,
+    authorizers: [
+      Ash.Policy.Authorizer
+    ]
+
+  policies do
+    bypass action_type(:read) do
+      # Check that the comment is in the same org (via post) as actor
+      authorize_if(relates_to_actor_via([:post, :organization, :users]))
+    end
+  end
 
   postgres do
     table "comments"
