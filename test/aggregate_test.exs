@@ -41,6 +41,12 @@ defmodule AshPostgres.AggregateTest do
       |> Api.read_one!(actor: user)
 
     assert read_post.count_of_comments == 1
+
+    read_post =
+      post
+      |> Api.load!(:count_of_comments, actor: user)
+
+    assert read_post.count_of_comments == 1
   end
 
   describe "count" do
