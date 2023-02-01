@@ -33,6 +33,11 @@ defmodule AshPostgres.DataLayer.Info do
     Extension.get_opt(resource, [:postgres], :migration_defaults, [])
   end
 
+  @doc "A list of attributes to be ignored when generating migrations"
+  def migration_ignore_attributes(resource) do
+    Extension.get_opt(resource, [:postgres], :migration_ignore_attributes, [])
+  end
+
   @doc "The configured check_constraints for a resource"
   def check_constraints(resource) do
     Extension.get_entities(resource, [:postgres, :check_constraints])

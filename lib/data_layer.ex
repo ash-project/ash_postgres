@@ -348,6 +348,13 @@ defmodule AshPostgres.DataLayer do
         Must be in the format `{:key, "name_of_constraint"}` or `{:key, "name_of_constraint", "custom error message"}`
         """
       ],
+      migration_ignore_attributes: [
+        type: {:list, :atom},
+        default: [],
+        doc: """
+        A list of attributes that will be ignored when generating migrations.
+        """
+      ],
       table: [
         type: :string,
         doc: """

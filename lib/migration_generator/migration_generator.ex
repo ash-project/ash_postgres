@@ -2082,9 +2082,11 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp attributes(resource, table) do
     repo = AshPostgres.DataLayer.Info.repo(resource)
+    ignored = AshPostgres.DataLayer.Info.migration_ignore_attributes(resource) || []
 
     resource
     |> Ash.Resource.Info.attributes()
+    |> Enum.reject(&(&1.name in ignored))
     |> Enum.map(
       &Map.take(&1, [:name, :source, :type, :default, :allow_nil?, :generated?, :primary_key?])
     )
