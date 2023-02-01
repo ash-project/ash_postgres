@@ -1,107 +1,11 @@
-name: Elixir CI
+name: AshPostgres CI
 
 on:
   push:
+    tags:
+      - "v*"
     branches: [main]
-    tags-ignore: ["v*"]
-  pull_request:
-    branches: [main]
-  create:
-    branches: main
-    tags: ["v*"]
+  workflow_call:
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    name: OTP ${{matrix.otp}} / Elixir ${{matrix.elixir}} / Ash ${{matrix.ash}}
-    strategy:
-      fail-fast: false
-      matrix:
-        otp: ["25"]
-        elixir: ["1.14.0"]
-        ash: ["2.5.13"]
-        pg_version: ["13"]
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      ASH_VERSION: ${{matrix.ash}}
-    services:
-      pg:
-        image: postgres:${{ matrix.pg_version }}
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-        ports: ["5432:5432"]
-    steps:
-      - run: sudo apt-get install --yes erlang-dev
-      - uses: actions/checkout@v2
-      - uses: erlef/setup-elixir@v1
-        with:
-          otp-version: ${{matrix.otp}}
-          elixir-version: ${{matrix.elixir}}
-      - uses: actions/cache@v2
-        id: cache-deps
-        with:
-          path: deps
-          key: otp-${{matrix.otp}}-elixir-${{matrix.elixir}}-deps-2-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
-          restore-keys: otp-${{matrix.otp}}-elixir-${{matrix.elixir}}-deps-2
-      - uses: actions/cache@v2
-        id: cache-build
-        with:
-          path: _build
-          key: otp-${{matrix.otp}}-elixir-${{matrix.elixir}}-build-2-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
-          restore-keys: otp-${{matrix.otp}}-elixir-${{matrix.elixir}}-build-2
-      - run: mix deps.get
-      - run: mix test.create
-      - run: mix test.migrate
-      - run: mix test.migrate_tenants
-      - run: mix check --except dialyzer
-        if: startsWith(github.ref, 'refs/tags/v')
-      - run: mix check
-        if: "!startsWith(github.ref, 'refs/tags/v')"
-  release:
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    name: Release
-    needs: [build]
-    strategy:
-      matrix:
-        otp: ["25"]
-        elixir: ["1.13.2"]
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - run: sudo apt-get install --yes erlang-dev
-      - uses: actions/checkout@v2
-      - uses: erlef/setup-elixir@v1
-        with:
-          otp-version: ${{matrix.otp}}
-          elixir-version: ${{matrix.elixir}}
-      - uses: actions/cache@v2
-        id: cache-deps
-        with:
-          path: deps
-          key: otp-${{matrix.otp}}-elixir-${{matrix.elixir}}-deps-2-${{ hashFiles(format('{0}{1}', github.workspace, '/mix.lock')) }}
-          restore-keys: otp-${{matrix.otp}}-elixir-${{matrix.elixir}}-deps-2
-      - run: mix deps.get
-      - run: mix compile
-      - run: mix hex.publish --yes
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
-      - uses: little-core-labs/get-git-tag@v3.0.1
-        id: tagName
-      - uses: ethomson/send-tweet-action@v1
-        if: startsWith(github.ref, 'refs/tags/v')
-        with:
-          status: |
-            AshPostgres version "${{ steps.tagName.outputs.tag }}" released!
-
-            #myelixirstatus
-
-            See the changelog for more info:
-            https://github.com/ash-project/ash_postgres/blob/main/CHANGELOG.md
-          consumer-key: ${{ secrets.TWITTER_CONSUMER_API_KEY }}
-          consumer-secret: ${{ secrets.TWITTER_CONSUMER_API_SECRET }}
-          access-token: ${{ secrets.TWITTER_ACCESS_TOKEN }}
-          access-token-secret: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
+  ash-ci:
+    uses: ash-project/ash/.github/workflows/ash-ci.yml@main
