@@ -724,7 +724,21 @@ defmodule AshPostgres.MigrationGenerator do
           migration_path
           |> Path.join("*_migrate_resources*")
           |> Path.wildcard()
-          |> Enum.count()
+          |> Enum.map(fn path ->
+            path
+            |> Path.basename()
+            |> String.split("_migrate_resources", parts: 2)
+            |> Enum.at(1)
+            |> Integer.parse()
+            |> case do
+              {integer, _} ->
+                integer
+
+              _ ->
+                0
+            end
+          end)
+          |> Enum.max(fn -> 0 end)
           |> Kernel.+(1)
 
         {"#{timestamp(true)}_migrate_resources#{count}", "migrate_resources#{count}"}
