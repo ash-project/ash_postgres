@@ -5,6 +5,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.6](https://github.com/ash-project/ash_postgres/compare/v1.3.5...v1.3.6) (2023-02-03)
+
+
+
+
+### Bug Fixes:
+
+* properly set next migration name
+
+* override `insert` function for proper ecto interop
+
+### Improvements:
+
+* add `migration_ignore_attributes`
+
 ## [v1.3.5](https://github.com/ash-project/ash_postgres/compare/v1.3.4...v1.3.5) (2023-01-29)
 
 
