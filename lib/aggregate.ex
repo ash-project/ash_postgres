@@ -138,19 +138,13 @@ defmodule AshPostgres.Aggregate do
 
   defp maybe_filter_subquery(
          agg_query,
-         first_relationship,
-         relationship_path,
-         [aggregate | _rest],
+         _first_relationship,
+         _relationship_path,
+         [_aggregate | _rest],
          false,
-         source_binding
+         _source_binding
        ) do
-    apply_agg_authorization_filter(
-      agg_query,
-      aggregate,
-      relationship_path,
-      first_relationship,
-      source_binding
-    )
+    {:ok, agg_query}
   end
 
   defp maybe_filter_subquery(
@@ -161,22 +155,13 @@ defmodule AshPostgres.Aggregate do
          true,
          source_binding
        ) do
-    with {:ok, agg_query} <-
-           apply_agg_query(
-             agg_query,
-             aggregate,
-             relationship_path,
-             first_relationship,
-             source_binding
-           ) do
-      apply_agg_authorization_filter(
-        agg_query,
-        aggregate,
-        relationship_path,
-        first_relationship,
-        source_binding
-      )
-    end
+    apply_agg_query(
+      agg_query,
+      aggregate,
+      relationship_path,
+      first_relationship,
+      source_binding
+    )
   end
 
   defp apply_agg_query(
@@ -244,61 +229,6 @@ defmodule AshPostgres.Aggregate do
       end
     else
       {:ok, agg_query}
-    end
-  end
-
-  defp apply_agg_authorization_filter(
-         agg_query,
-         aggregate,
-         relationship_path,
-         first_relationship,
-         source_binding
-       ) do
-    filter =
-      if is_nil(aggregate.authorization_filter) do
-        nil
-      else
-        Ash.Filter.move_to_relationship_path(
-          aggregate.authorization_filter,
-          relationship_path
-        )
-        |> Map.put(:resource, first_relationship.destination)
-      end
-
-    filter =
-      if is_nil(Map.get(aggregate, :join_filter)) do
-        filter
-      else
-        Ash.Filter.add_to_filter(filter, aggregate.join_filter)
-      end
-
-    used_calculations =
-      Ash.Filter.used_calculations(
-        filter,
-        first_relationship.destination,
-        relationship_path
-      )
-
-    used_aggregates =
-      used_aggregates(
-        filter,
-        first_relationship.destination,
-        used_calculations,
-        relationship_path
-      )
-
-    case add_aggregates(
-           agg_query,
-           used_aggregates,
-           first_relationship.destination,
-           false,
-           source_binding
-         ) do
-      {:ok, agg_query} ->
-        AshPostgres.DataLayer.filter(agg_query, filter, first_relationship.destination)
-
-      other ->
-        other
     end
   end
 
