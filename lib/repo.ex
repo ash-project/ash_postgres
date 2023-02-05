@@ -52,9 +52,9 @@ defmodule AshPostgres.Repo do
   @doc "Return a list of all schema names (only relevant for a multitenant implementation)"
   @callback all_tenants() :: [String.t()]
   @doc "The path where your tenant migrations are stored (only relevant for a multitenant implementation)"
-  @callback tenant_migrations_path() :: String.t()
+  @callback tenant_migrations_path() :: String.t() | nil
   @doc "The path where your migrations are stored"
-  @callback migrations_path() :: String.t()
+  @callback migrations_path() :: String.t() | nil
   @doc "The default prefix(postgres schema) to use when building queries"
   @callback default_prefix() :: String.t()
   @doc "Allows overriding a given migration type for *all* fields, for example if you wanted to always use :timestamptz for :utc_datetime fields"
@@ -67,6 +67,8 @@ defmodule AshPostgres.Repo do
       use Ecto.Repo,
         adapter: Ecto.Adapters.Postgres,
         otp_app: otp_app
+
+      @behaviour AshPostgres.Repo
 
       defoverridable insert: 2, insert: 1, insert!: 2, insert!: 1
 
