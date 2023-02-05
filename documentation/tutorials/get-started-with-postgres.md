@@ -25,7 +25,7 @@ In this guide we will:
 
 Add the `:ash_postgres` dependency to your application
 
-`{:ash_postgres, "~> 1.3.2"}`
+`{:ash_postgres, "~> 1.3.6"}`
 
 Add `:ash_postgres` to your `.formatter.exs` file
 
