@@ -5,6 +5,32 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.8](https://github.com/ash-project/ash_postgres/compare/v1.3.7...v1.3.8) (2023-02-06)
+
+
+
+
+### Bug Fixes:
+
+* Actually use `AshPostgres.Repo` behaviour (#129)
+
+### Improvements:
+
+* authorization filters are now attached by ash core
+
+## [v1.3.7](https://github.com/ash-project/ash_postgres/compare/v1.3.6...v1.3.7) (2023-02-06)
+
+
+
+
+### Bug Fixes:
+
+* Actually use `AshPostgres.Repo` behaviour (#129)
+
+### Improvements:
+
+* authorization filters are now attached by ash core
+
 ## [v1.3.6](https://github.com/ash-project/ash_postgres/compare/v1.3.5...v1.3.6) (2023-02-03)
 
 
