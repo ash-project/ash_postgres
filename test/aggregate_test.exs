@@ -281,6 +281,60 @@ defmodule AshPostgres.AggregateTest do
                |> Ash.Query.sort(:first_comment)
                |> Api.read_one!()
     end
+
+    test "it can be sorted on and produces the appropriate order" do
+      post1 =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "b"})
+      |> Ash.Changeset.manage_relationship(:post, post1, type: :append_and_remove)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "c"})
+      |> Ash.Changeset.manage_relationship(:post, post1, type: :append_and_remove)
+      |> Api.create!()
+
+      post2 =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "a"})
+      |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "b"})
+      |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
+      |> Api.create!()
+
+      post3 =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "c"})
+      |> Ash.Changeset.manage_relationship(:post, post3, type: :append_and_remove)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "d"})
+      |> Ash.Changeset.manage_relationship(:post, post3, type: :append_and_remove)
+      |> Api.create!()
+
+      assert [%{last_comment: "d"}, %{last_comment: "c"}] =
+               Post
+               |> Ash.Query.load(:last_comment)
+               |> Ash.Query.sort(last_comment: :desc)
+               |> Ash.Query.limit(2)
+               |> Api.read!()
+    end
   end
 
   test "sum aggregates show the same value with filters on the sum vs filters on relationships" do

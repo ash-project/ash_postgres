@@ -179,6 +179,10 @@ defmodule AshPostgres.Test.Post do
       sort(title: :asc_nils_last)
     end
 
+    first :last_comment, :comments, :title do
+      sort(title: :desc)
+    end
+
     max(:highest_comment_rating, [:comments, :ratings], :score)
     min(:lowest_comment_rating, [:comments, :ratings], :score)
     avg(:avg_comment_rating, [:comments, :ratings], :score)

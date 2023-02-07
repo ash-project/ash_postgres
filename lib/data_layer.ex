@@ -585,7 +585,7 @@ defmodule AshPostgres.DataLayer do
 
           from(row in subquery(query_with_order),
             select: row,
-            order_by: row.__order__
+            order_by: [asc: row.__order__]
           )
         else
           order_by = %{query.windows[:order] | expr: query.windows[:order].expr[:order_by]}
@@ -818,7 +818,7 @@ defmodule AshPostgres.DataLayer do
              where: field(source, ^source_attribute) in ^source_values,
              inner_lateral_join: destination in ^subquery,
              on: field(source, ^source_attribute) == field(destination, ^destination_attribute),
-             order_by: destination.__order__,
+             order_by: [asc: destination.__order__],
              select: destination,
              distinct: true
            )}
@@ -926,7 +926,7 @@ defmodule AshPostgres.DataLayer do
                  where: field(source, ^source_attribute) in ^source_values,
                  inner_lateral_join: destination in ^subquery,
                  select: destination,
-                 order_by: destination.__order__,
+                 order_by: [asc: destination.__order__],
                  distinct: true
                )}
             else
