@@ -583,10 +583,17 @@ defmodule AshPostgres.DataLayer do
           query_with_order =
             from(row in query, select_merge: %{__order__: over(row_number(), :order)})
 
-          from(row in subquery(query_with_order),
+          query_without_limit_and_offset =
+            query_with_order
+            |> Ecto.Query.exclude(:limit)
+            |> Ecto.Query.exclude(:offset)
+
+          from(row in subquery(query_without_limit_and_offset),
             select: row,
-            order_by: [asc: row.__order__]
+            order_by: row.__order__
           )
+          |> Map.put(:limit, query.limit)
+          |> Map.put(:offset, query.offset)
         else
           order_by = %{query.windows[:order] | expr: query.windows[:order].expr[:order_by]}
 
@@ -818,7 +825,7 @@ defmodule AshPostgres.DataLayer do
              where: field(source, ^source_attribute) in ^source_values,
              inner_lateral_join: destination in ^subquery,
              on: field(source, ^source_attribute) == field(destination, ^destination_attribute),
-             order_by: [asc: destination.__order__],
+             order_by: destination.__order__,
              select: destination,
              distinct: true
            )}
@@ -926,7 +933,7 @@ defmodule AshPostgres.DataLayer do
                  where: field(source, ^source_attribute) in ^source_values,
                  inner_lateral_join: destination in ^subquery,
                  select: destination,
-                 order_by: [asc: destination.__order__],
+                 order_by: destination.__order__,
                  distinct: true
                )}
             else
