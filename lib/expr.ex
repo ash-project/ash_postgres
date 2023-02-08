@@ -623,13 +623,32 @@ defmodule AshPostgres.Expr do
          _embedded?,
          _type
        ) do
-    ref_binding = ref_binding(ref, bindings)
+    related = Ash.Resource.Info.related(query.__ash_bindings__.resource, ref.relationship_path)
+
+    first_optimized_aggregate? =
+      aggregate.kind == :first &&
+        AshPostgres.Aggregate.single_path?(related, aggregate.relationship_path)
+
+    {ref_binding, field_name} =
+      if first_optimized_aggregate? do
+        ref = %{ref | relationship_path: ref.relationship_path ++ aggregate.relationship_path}
+        {ref_binding(ref, bindings), aggregate.field}
+      else
+        {ref_binding(ref, bindings), aggregate.name}
+      end
 
     if is_nil(ref_binding) do
       raise "Error while building reference: #{inspect(ref)}"
     end
 
-    expr = Ecto.Query.dynamic(field(as(^ref_binding), ^aggregate.name))
+    ref_binding =
+      if ref.relationship_path == [] || first_optimized_aggregate? do
+        ref_binding
+      else
+        ref_binding + 1
+      end
+
+    expr = Ecto.Query.dynamic(field(as(^ref_binding), ^field_name))
 
     type = AshPostgres.Types.parameterized_type(aggregate.type, aggregate.constraints)
     validate_type!(query, type, ref)
@@ -1099,10 +1118,6 @@ defmodule AshPostgres.Expr do
     Enum.find_value(bindings.bindings, fn {binding, data} ->
       data.path == ref.relationship_path && data.type in [:inner, :left, :root] && binding
     end)
-    |> case do
-      nil -> nil
-      binding -> binding + 1
-    end
   end
 
   defp do_get_path(

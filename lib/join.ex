@@ -66,7 +66,19 @@ defmodule AshPostgres.Join do
 
         current_join_type = join_type
 
-        case get_binding(source, Enum.map(current_path, & &1.name), query, current_join_type) do
+        look_for_join_types =
+          case join_type do
+            :left ->
+              [:left, :inner]
+
+            :inner ->
+              [:left, :inner]
+
+            other ->
+              [other]
+          end
+
+        case get_binding(source, Enum.map(current_path, & &1.name), query, look_for_join_types) do
           binding when is_integer(binding) ->
             case join_all_relationships(
                    query,
@@ -334,10 +346,13 @@ defmodule AshPostgres.Join do
 
   defp can_inner_join?(_, _, _), do: false
 
-  defp get_binding(resource, candidate_path, %{__ash_bindings__: _} = query, type) do
+  defp get_binding(resource, candidate_path, %{__ash_bindings__: _} = query, types) do
+    types = List.wrap(types)
+
     Enum.find_value(query.__ash_bindings__.bindings, fn
-      {binding, %{path: path, source: source, type: ^type}} ->
-        if Ash.SatSolver.synonymous_relationship_paths?(resource, path, candidate_path, source) do
+      {binding, %{path: path, source: source, type: type}} ->
+        if type in types &&
+             Ash.SatSolver.synonymous_relationship_paths?(resource, path, candidate_path, source) do
           binding
         end
 
@@ -442,11 +457,21 @@ defmodule AshPostgres.Join do
           |> Ecto.Queryable.to_query()
           |> set_join_prefix(query, relationship.destination)
 
-        binding_kind = kind
+        binding_kinds =
+          case kind do
+            :left ->
+              [:left, :inner]
+
+            :inner ->
+              [:left, :inner]
+
+            other ->
+              [other]
+          end
 
         current_binding =
           Enum.find_value(initial_ash_bindings.bindings, 0, fn {binding, data} ->
-            if data.type == binding_kind && data.path == path do
+            if data.type in binding_kinds && data.path == path do
               binding
             end
           end)
@@ -568,11 +593,21 @@ defmodule AshPostgres.Join do
         |> Ecto.Queryable.to_query()
         |> set_join_prefix(query, relationship.destination)
 
-      binding_kind = kind
+      binding_kinds =
+        case kind do
+          :left ->
+            [:left, :inner]
+
+          :inner ->
+            [:left, :inner]
+
+          other ->
+            [other]
+        end
 
       current_binding =
         Enum.find_value(initial_ash_bindings.bindings, 0, fn {binding, data} ->
-          if data.type == binding_kind && data.path == path do
+          if data.type in binding_kinds && data.path == path do
             binding
           end
         end)
@@ -682,17 +717,35 @@ defmodule AshPostgres.Join do
           |> Ecto.Queryable.to_query()
           |> set_join_prefix(query, relationship.destination)
 
-        binding_kind = kind
+        binding_kinds =
+          case kind do
+            :left ->
+              [:left, :inner]
+
+            :inner ->
+              [:left, :inner]
+
+            other ->
+              [other]
+          end
 
         current_binding =
           Enum.find_value(initial_ash_bindings.bindings, 0, fn {binding, data} ->
-            if data.type == binding_kind && data.path == path do
+            if data.type in binding_kinds && data.path == path do
               binding
             end
           end)
 
         relationship_destination =
-          case used_aggregates do
+          used_aggregates
+          |> Enum.reject(fn aggregate ->
+            aggregate.kind == :first &&
+              AshPostgres.Aggregate.single_path?(
+                relationship.destination,
+                aggregate.relationship_path
+              )
+          end)
+          |> case do
             [] ->
               relationship_destination
 
@@ -720,7 +773,10 @@ defmodule AshPostgres.Join do
                 as: ^initial_ash_bindings.current,
                 on:
                   field(row, ^relationship.source_attribute) ==
-                    field(destination, ^relationship.destination_attribute)
+                    field(
+                      destination,
+                      ^relationship.destination_attribute
+                    )
               )
 
             _ ->
@@ -729,7 +785,10 @@ defmodule AshPostgres.Join do
                 as: ^initial_ash_bindings.current,
                 on:
                   field(row, ^relationship.source_attribute) ==
-                    field(destination, ^relationship.destination_attribute)
+                    field(
+                      destination,
+                      ^relationship.destination_attribute
+                    )
               )
           end
 

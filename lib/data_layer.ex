@@ -1602,19 +1602,10 @@ defmodule AshPostgres.DataLayer do
         distinct_on, {[order_by | rest_order_by], distinct_statement} ->
           case order_by do
             {^distinct_on, order} ->
-              binding =
-                case Map.fetch(query.__ash_bindings__.aggregates, distinct_on) do
-                  {:ok, binding} ->
-                    binding
-
-                  :error ->
-                    0
-                end
-
               {:cont,
                {rest_order_by,
                 [
-                  {order, {{:., [], [{:&, [], [binding]}, distinct_on]}, [], []}}
+                  {order, {{:., [], [{:&, [], [0]}, distinct_on]}, [], []}}
                   | distinct_statement
                 ]}}
 
@@ -1647,16 +1638,7 @@ defmodule AshPostgres.DataLayer do
 
     expr =
       Enum.map(distinct_on, fn distinct_on_field ->
-        binding =
-          case Map.fetch(query.__ash_bindings__.aggregates, distinct_on_field) do
-            {:ok, binding} ->
-              binding
-
-            :error ->
-              0
-          end
-
-        {:asc, {{:., [], [{:&, [], [binding]}, distinct_on_field]}, [], []}}
+        {:asc, {{:., [], [{:&, [], [0]}, distinct_on_field]}, [], []}}
       end)
 
     %{distinct | expr: distinct.expr ++ expr}
@@ -1686,7 +1668,6 @@ defmodule AshPostgres.DataLayer do
       current: Enum.count(query.joins) + 1 + start_bindings,
       in_group?: false,
       calculations: %{},
-      aggregates: %{},
       aggregate_defs: %{},
       context: context,
       bindings: %{start_bindings => %{path: [], type: :root, source: resource}}
@@ -1721,6 +1702,8 @@ defmodule AshPostgres.DataLayer do
           else
             if Ash.SatSolver.synonymous_relationship_paths?(resource, candidate_path, path) do
               binding
+            else
+              false
             end
           end
         end
@@ -1775,6 +1758,17 @@ defmodule AshPostgres.DataLayer do
       query.__ash_bindings__
       | bindings: Map.put(bindings, current, data),
         current: current + 1 + additional_bindings
+    }
+
+    %{query | __ash_bindings__: new_ash_bindings}
+  end
+
+  def add_known_binding(query, data, known_binding) do
+    bindings = query.__ash_bindings__.bindings
+
+    new_ash_bindings = %{
+      query.__ash_bindings__
+      | bindings: Map.put(bindings, known_binding, data)
     }
 
     %{query | __ash_bindings__: new_ash_bindings}

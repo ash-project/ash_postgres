@@ -328,8 +328,6 @@ defmodule AshPostgres.AggregateTest do
       |> Ash.Changeset.manage_relationship(:post, post3, type: :append_and_remove)
       |> Api.create!()
 
-      Logger.configure(level: :debug)
-
       assert [%{last_comment: "d"}, %{last_comment: "c"}] =
                Post
                |> Ash.Query.load(:last_comment)
