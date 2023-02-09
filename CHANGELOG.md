@@ -5,6 +5,23 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.9](https://github.com/ash-project/ash_postgres/compare/v1.3.8...v1.3.9) (2023-02-09)
+
+
+
+
+### Bug Fixes:
+
+* do limit/offset outside of query if distinct is required
+
+* load by __order__ ascending
+
+### Improvements:
+
+* support new `uniq?` option on count/list aggregates
+
+* optimized `first` aggregates where possible
+
 ## [v1.3.8](https://github.com/ash-project/ash_postgres/compare/v1.3.7...v1.3.8) (2023-02-06)
 
 
