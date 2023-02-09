@@ -130,6 +130,7 @@ defmodule AshPostgres.MixProject do
       groups_for_extras: groups_for_extras(),
       groups_for_modules: [
         AshPostgres: [
+          AshPostgres,
           AshPostgres.Repo,
           AshPostgres.DataLayer
         ],

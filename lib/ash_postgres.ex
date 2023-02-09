@@ -1,5 +1,9 @@
 defmodule AshPostgres do
-  @moduledoc false
+  @moduledoc """
+  The AshPostgres extension gives you tools to map a resource to a postgres database table.
+
+  For more, check out the [getting started guide](/documentation/tutorials/get-started-with-postgres.md)
+  """
 
   @deprecated "use AshPostgres.DataLayer.Info.repo/1"
   defdelegate repo(resource), to: AshPostgres.DataLayer.Info
