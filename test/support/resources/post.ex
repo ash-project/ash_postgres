@@ -184,6 +184,8 @@ defmodule AshPostgres.Test.Post do
       sort(title: :desc)
     end
 
+    first(:author_first_name, :author, :first_name)
+
     max(:highest_comment_rating, [:comments, :ratings], :score)
     min(:lowest_comment_rating, [:comments, :ratings], :score)
     avg(:avg_comment_rating, [:comments, :ratings], :score)

@@ -1,6 +1,6 @@
 defmodule AshPostgres.AggregateTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Comment, Organization, Post, Rating, User}
+  alias AshPostgres.Test.{Api, Author, Comment, Organization, Post, Rating, User}
 
   require Ash.Query
 
@@ -313,6 +313,26 @@ defmodule AshPostgres.AggregateTest do
                |> Ash.Query.filter(id == ^post.id)
                |> Ash.Query.load(:first_comment)
                |> Ash.Query.sort(:first_comment)
+               |> Api.read_one!()
+    end
+
+    test "first aggregates can be sorted on" do
+      author =
+        Author
+        |> Ash.Changeset.new(%{first_name: "first name"})
+        |> Api.create!()
+
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Api.create!()
+
+      assert %{author_first_name: "first name"} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:author_first_name)
+               |> Ash.Query.sort(author_first_name: :asc)
                |> Api.read_one!()
     end
 

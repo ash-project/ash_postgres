@@ -84,6 +84,19 @@ defmodule AshPostgres.Sort do
               end
 
             :error ->
+              aggregate = Ash.Resource.Info.aggregate(resource, sort)
+
+              {binding, sort} =
+                if aggregate && aggregate.kind == :first &&
+                     AshPostgres.Aggregate.single_path?(resource, aggregate.relationship_path) do
+                  {AshPostgres.Join.get_binding(resource, aggregate.relationship_path, query, [
+                     :left,
+                     :inner
+                   ]), aggregate.field}
+                else
+                  {binding, sort}
+                end
+
               Ecto.Query.dynamic(field(as(^binding), ^sort))
           end
 

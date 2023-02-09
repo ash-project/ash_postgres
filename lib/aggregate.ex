@@ -657,7 +657,7 @@ defmodule AshPostgres.Aggregate do
     ref = %Ash.Query.Ref{
       attribute: Ash.Resource.Info.field(resource, aggregate.field),
       relationship_path: relationship_path,
-      resource: resource
+      resource: query.__ash_bindings__.resource
     }
 
     type = AshPostgres.Types.parameterized_type(aggregate.type, aggregate.constraints)
@@ -678,7 +678,10 @@ defmodule AshPostgres.Aggregate do
           AshPostgres.Sort.sort(
             query,
             aggregate.query.sort,
-            Ash.Resource.Info.related(resource, relationship_path),
+            Ash.Resource.Info.related(
+              query.__ash_bindings__.resource,
+              relationship_path
+            ),
             relationship_path,
             binding,
             true
@@ -745,7 +748,7 @@ defmodule AshPostgres.Aggregate do
     ref = %Ash.Query.Ref{
       attribute: Ash.Resource.Info.field(resource, aggregate.field),
       relationship_path: relationship_path,
-      resource: resource
+      resource: query.__ash_bindings__.resource
     }
 
     field = AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__, false)
@@ -756,7 +759,10 @@ defmodule AshPostgres.Aggregate do
           AshPostgres.Sort.sort(
             query,
             aggregate.query.sort,
-            Ash.Resource.Info.related(resource, relationship_path),
+            Ash.Resource.Info.related(
+              query.__ash_bindings__.resource,
+              relationship_path
+            ),
             relationship_path,
             binding,
             true

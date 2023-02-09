@@ -346,7 +346,8 @@ defmodule AshPostgres.Join do
 
   defp can_inner_join?(_, _, _), do: false
 
-  defp get_binding(resource, candidate_path, %{__ash_bindings__: _} = query, types) do
+  @doc false
+  def get_binding(resource, candidate_path, %{__ash_bindings__: _} = query, types) do
     types = List.wrap(types)
 
     Enum.find_value(query.__ash_bindings__.bindings, fn
@@ -361,7 +362,7 @@ defmodule AshPostgres.Join do
     end)
   end
 
-  defp get_binding(_, _, _, _), do: nil
+  def get_binding(_, _, _, _), do: nil
 
   defp add_distinct(relationship, _join_type, joined_query) do
     if !joined_query.__ash_bindings__.in_group? && relationship.cardinality == :many &&
