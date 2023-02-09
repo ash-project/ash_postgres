@@ -218,6 +218,40 @@ defmodule AshPostgres.AggregateTest do
                |> Ash.Query.load(:comment_titles)
                |> Api.read_one!()
     end
+
+    test "with related data, it returns the uniq" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "aaa"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "aaa"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Api.create!()
+
+      assert %{uniq_comment_titles: ["aaa"]} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:uniq_comment_titles)
+               |> Api.read_one!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "bbb"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Api.create!()
+
+      assert %{uniq_comment_titles: ["aaa", "bbb"]} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:uniq_comment_titles)
+               |> Api.read_one!()
+    end
   end
 
   describe "first" do

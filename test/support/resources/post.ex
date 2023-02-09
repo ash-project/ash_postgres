@@ -26,10 +26,11 @@ defmodule AshPostgres.Test.Post do
     end
 
     custom_indexes do
-      index [:uniq_custom_one, :uniq_custom_two],
+      index([:uniq_custom_one, :uniq_custom_two],
         unique: true,
         concurrently: true,
         message: "dude what the heck"
+      )
     end
   end
 
@@ -196,6 +197,11 @@ defmodule AshPostgres.Test.Post do
     end
 
     list :comment_titles, :comments, :title do
+      sort(title: :asc_nils_last)
+    end
+
+    list :uniq_comment_titles, :comments, :title do
+      uniq?(true)
       sort(title: :asc_nils_last)
     end
 

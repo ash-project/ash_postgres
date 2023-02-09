@@ -764,17 +764,31 @@ defmodule AshPostgres.Aggregate do
 
         question_marks = Enum.map(sort_expr, fn _ -> " ? " end)
 
+        distinct =
+          if Map.get(aggregate, :uniq?) do
+            "DISTINCT "
+          else
+            ""
+          end
+
         {:ok, expr} =
           AshPostgres.Functions.Fragment.casted_new(
-            ["array_agg(? ORDER BY #{question_marks})", field] ++ sort_expr
+            ["array_agg(#{distinct}? ORDER BY #{question_marks})", field] ++ sort_expr
           )
 
         AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__, false)
       else
-        Ecto.Query.dynamic(
-          [row],
-          fragment("array_agg(?)", ^field)
-        )
+        if Map.get(aggregate, :uniq?) do
+          Ecto.Query.dynamic(
+            [row],
+            fragment("array_agg(DISTINCT ?)", ^field)
+          )
+        else
+          Ecto.Query.dynamic(
+            [row],
+            fragment("array_agg(?)", ^field)
+          )
+        end
       end
 
     filtered = filter_field(sorted, query, aggregate, relationship_path, is_single?)
@@ -841,7 +855,11 @@ defmodule AshPostgres.Aggregate do
     field =
       case kind do
         :count ->
-          Ecto.Query.dynamic([row], count(^field))
+          if Map.get(aggregate, :uniq?) do
+            Ecto.Query.dynamic([row], count(^field, :distinct))
+          else
+            Ecto.Query.dynamic([row], count(^field, :distinct))
+          end
 
         :sum ->
           Ecto.Query.dynamic([row], sum(^field))
