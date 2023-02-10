@@ -161,7 +161,8 @@ defmodule AshPostgres.MixProject do
       {:ecto, "~> 3.9"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
-      {:ash, ash_version("~> 2.6 and >= 2.6.1")},
+      {:ash,
+       ash_version(github: "ash-project/ash", ref: "85a66b1d8556dd48eeae2138a94e9dabb1cc3824")},
       {:git_ops, "~> 2.5", only: [:dev, :test]},
       {:nimble_options, "~> 0.5"},
       {:ex_doc, "~> 0.22", only: [:dev, :test], runtime: false},
@@ -175,10 +176,20 @@ defmodule AshPostgres.MixProject do
 
   defp ash_version(default_version) do
     case System.get_env("ASH_VERSION") do
-      nil -> default_version
-      "local" -> [path: "../ash"]
-      "main" -> [git: "https://github.com/ash-project/ash.git"]
-      version -> "~> #{version}"
+      nil ->
+        default_version
+
+      "local" ->
+        [path: "../ash"]
+
+      "main" ->
+        [git: "https://github.com/ash-project/ash.git"]
+
+      version when is_binary(version) ->
+        "~> #{version}"
+
+      version ->
+        version
     end
   end
 
