@@ -667,15 +667,18 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def run_aggregate_query(query, aggregates, resource) do
-    subquery = from(row in subquery(query), as: ^0, select: %{})
+    query =
+      query
+      |> Ecto.Query.exclude(:select)
+      |> Ecto.Query.select(%{})
 
     query =
       Enum.reduce(
         aggregates,
-        subquery,
-        fn agg, subquery ->
+        query,
+        fn agg, query ->
           AshPostgres.Aggregate.add_subquery_aggregate_select(
-            subquery,
+            query,
             agg.relationship_path |> Enum.drop(1),
             agg,
             resource,
