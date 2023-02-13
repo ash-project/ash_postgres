@@ -378,6 +378,10 @@ defmodule AshPostgres.Expr do
     end
   end
 
+  # Honestly we need to either 1. not type cast or 2. build in type compatibility concepts
+  # instead of `:same` we need an `ANY COMPATIBLE` equivalent.
+  @cast_operands_for [:<>]
+
   defp do_dynamic_expr(
          query,
          %mod{
@@ -397,7 +401,21 @@ defmodule AshPostgres.Expr do
 
     left_expr = do_dynamic_expr(query, left, bindings, pred_embedded? || embedded?, left_type)
 
+    left_expr =
+      if left_type && operator in @cast_operands_for do
+        Ecto.Query.dynamic(type(^left_expr, ^left_type))
+      else
+        left_expr
+      end
+
     right_expr = do_dynamic_expr(query, right, bindings, pred_embedded? || embedded?, right_type)
+
+    right_expr =
+      if right_type && operator in @cast_operands_for do
+        Ecto.Query.dynamic(type(^right_expr, ^right_type))
+      else
+        right_expr
+      end
 
     case operator do
       :== ->

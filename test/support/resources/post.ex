@@ -129,6 +129,7 @@ defmodule AshPostgres.Test.Post do
 
   calculations do
     calculate(:category_label, :ci_string, expr("(" <> category <> ")"))
+    calculate(:score_with_score, :string, expr(score <> score))
 
     calculate(:c_times_p, :integer, expr(count_of_comments * count_of_linked_posts),
       load: [:count_of_comments, :count_of_linked_posts]
