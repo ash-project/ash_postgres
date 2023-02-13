@@ -812,7 +812,7 @@ defmodule AshPostgres.Aggregate do
 
     cast =
       if type do
-        Ecto.Query.dynamic(type(^with_default, ^{:array, type}))
+        Ecto.Query.dynamic(type(^with_default, ^type))
       else
         with_default
       end
