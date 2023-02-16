@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.12](https://github.com/ash-project/ash_postgres/compare/v1.3.11...v1.3.12) (2023-02-16)
+
+
+
+
+### Bug Fixes:
+
+* exclude `order_by` when building aggregates
+
 ## [v1.3.11](https://github.com/ash-project/ash_postgres/compare/v1.3.10...v1.3.11) (2023-02-16)
 
 
