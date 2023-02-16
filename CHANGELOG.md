@@ -5,6 +5,23 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.11](https://github.com/ash-project/ash_postgres/compare/v1.3.10...v1.3.11) (2023-02-16)
+
+
+
+
+### Bug Fixes:
+
+* properly find migration directories in umbrella apps
+
+* don't double-cast to array for list aggregates
+
+### Improvements:
+
+* significantly optimize aggregate queries
+
+* better type casting for concat operator
+
 ## [v1.3.10](https://github.com/ash-project/ash_postgres/compare/v1.3.9...v1.3.10) (2023-02-09)
 
 
