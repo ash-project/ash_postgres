@@ -670,6 +670,8 @@ defmodule AshPostgres.DataLayer do
     query =
       query
       |> Ecto.Query.exclude(:select)
+      |> Ecto.Query.exclude(:order_by)
+      |> Map.put(:windows, [])
       |> Ecto.Query.select(%{})
 
     query =
