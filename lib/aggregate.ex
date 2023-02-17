@@ -864,7 +864,7 @@ defmodule AshPostgres.Aggregate do
           if Map.get(aggregate, :uniq?) do
             Ecto.Query.dynamic([row], count(^field, :distinct))
           else
-            Ecto.Query.dynamic([row], count(^field, :distinct))
+            Ecto.Query.dynamic([row], count(^field))
           end
 
         :sum ->

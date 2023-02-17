@@ -251,6 +251,12 @@ defmodule AshPostgres.AggregateTest do
                |> Ash.Query.filter(id == ^post.id)
                |> Ash.Query.load(:uniq_comment_titles)
                |> Api.read_one!()
+
+      assert %{count_comment_titles: 3, count_uniq_comment_titles: 2} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load([:count_comment_titles, :count_uniq_comment_titles])
+               |> Api.read_one!()
     end
   end
 

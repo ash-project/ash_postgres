@@ -208,6 +208,15 @@ defmodule AshPostgres.Test.Post do
       sort(title: :asc_nils_last)
     end
 
+    count :count_comment_titles, :comments do
+      field(:title)
+    end
+
+    count :count_uniq_comment_titles, :comments do
+      field(:title)
+      uniq?(true)
+    end
+
     list :comment_titles_with_5_likes, :comments, :title do
       sort(title: :asc_nils_last)
       filter(expr(likes >= 5))
