@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.13](https://github.com/ash-project/ash_postgres/compare/v1.3.12...v1.3.13) (2023-02-17)
+
+
+
+
+### Bug Fixes:
+
+* don't use `:distinct` when `uniq?` is not `true`
+
 ## [v1.3.12](https://github.com/ash-project/ash_postgres/compare/v1.3.11...v1.3.12) (2023-02-16)
 
 
