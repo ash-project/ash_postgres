@@ -307,7 +307,7 @@ defmodule AshPostgres.Expr do
 
   defp do_dynamic_expr(
          query,
-         %StringJoin{arguments: [joiner, values], embedded?: pred_embedded?},
+         %StringJoin{arguments: [values, joiner], embedded?: pred_embedded?},
          bindings,
          embedded?,
          type
