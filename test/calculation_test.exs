@@ -348,4 +348,47 @@ defmodule AshPostgres.CalculationTest do
 
     assert account.active
   end
+
+  describe "string join expression" do
+    test "no nil values" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{
+          first_name: "Bill",
+          last_name: "Jones",
+          bio: %{title: "Mr.", bio: "Bones"}
+        })
+        |> Api.create!()
+
+      assert %{
+               full_name_with_nils: "Bill Jones",
+               full_name_with_nils_no_joiner: "BillJones"
+             } =
+               Author
+               |> Ash.Query.filter(id == ^author.id)
+               |> Ash.Query.load(:full_name_with_nils)
+               |> Ash.Query.load(:full_name_with_nils_no_joiner)
+               |> Api.read_one!()
+    end
+
+    test "with nil value" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{
+          first_name: "Bill",
+          bio: %{title: "Mr.", bio: "Bones"}
+        })
+        |> Api.create!()
+
+      assert %{
+               full_name_with_nils: "Bill",
+               full_name_with_nils_no_joiner: "Bill"
+             } =
+               Author
+               |> Ash.Query.filter(id == ^author.id)
+               |> Ash.Query.load(:full_name_with_nils)
+               |> Ash.Query.load(:full_name_with_nils_no_joiner)
+               |> Api.read_one!()
+    end
+  end
 end

@@ -4,7 +4,7 @@ defmodule AshPostgres.Expr do
   alias Ash.Filter
   alias Ash.Query.{BooleanExpression, Exists, Not, Ref}
   alias Ash.Query.Operator.IsNil
-  alias Ash.Query.Function.{Ago, Contains, GetPath, If, Length, Now, Type}
+  alias Ash.Query.Function.{Ago, Contains, GetPath, If, Length, Now, Type, StringJoin}
   alias AshPostgres.Functions.{Fragment, ILike, Like, TrigramSimilarity}
 
   require Ecto.Query
@@ -298,6 +298,54 @@ defmodule AshPostgres.Expr do
           casted_expr: when_false,
           raw: " END)"
         ]
+      },
+      bindings,
+      embedded?,
+      type
+    )
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %StringJoin{arguments: [joiner, values], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         type
+       ) do
+    do_dynamic_expr(
+      query,
+      %Fragment{
+        embedded?: pred_embedded?,
+        arguments:
+          Enum.reduce(values, [raw: "(concat_ws(", expr: joiner], fn value, acc ->
+            acc ++ [raw: ", ", expr: value]
+          end) ++ [raw: "))"]
+      },
+      bindings,
+      embedded?,
+      type
+    )
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %StringJoin{arguments: [values], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         type
+       ) do
+    do_dynamic_expr(
+      query,
+      %Fragment{
+        embedded?: pred_embedded?,
+        arguments:
+          [raw: "(concat("] ++
+            (values
+             |> Enum.reduce([], fn value, acc ->
+               acc ++ [expr: value]
+             end)
+             |> Enum.intersperse({:raw, ", "})) ++
+            [raw: "))"]
       },
       bindings,
       embedded?,
