@@ -4,7 +4,7 @@ defmodule AshPostgres.Expr do
   alias Ash.Filter
   alias Ash.Query.{BooleanExpression, Exists, Not, Ref}
   alias Ash.Query.Operator.IsNil
-  alias Ash.Query.Function.{Ago, Contains, GetPath, If, Length, Now, Type, StringJoin}
+  alias Ash.Query.Function.{Ago, Contains, GetPath, If, Length, Now, StringJoin, Type}
   alias AshPostgres.Functions.{Fragment, ILike, Like, TrigramSimilarity}
 
   require Ecto.Query
