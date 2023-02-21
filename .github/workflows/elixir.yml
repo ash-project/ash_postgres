@@ -12,4 +12,4 @@ jobs:
     with:
       postgres: true
     secrets:
-      hex-api-key: ${{ secrets.HEX_API_KEY }}
+      hex_api_key: ${{ secrets.HEX_API_KEY }}
