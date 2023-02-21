@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.14](https://github.com/ash-project/ash_postgres/compare/v1.3.13...v1.3.14) (2023-02-21)
+
+
+
+
+### Improvements:
+
+* Implement string_join expr (#132)
+
 ## [v1.3.13](https://github.com/ash-project/ash_postgres/compare/v1.3.12...v1.3.13) (2023-02-17)
 
 
