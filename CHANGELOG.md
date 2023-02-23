@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.15](https://github.com/ash-project/ash_postgres/compare/v1.3.14...v1.3.15) (2023-02-23)
+
+
+
+
+### Improvements:
+
+* add aggregates used by sorts
+
 ## [v1.3.14](https://github.com/ash-project/ash_postgres/compare/v1.3.13...v1.3.14) (2023-02-21)
 
 
