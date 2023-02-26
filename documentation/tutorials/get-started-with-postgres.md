@@ -300,9 +300,9 @@ Helpdesk.Support.Representative
 |> Ash.Query.sort(closed_tickets: :desc)
 |> Helpdesk.Support.read!()
 
-tickets = Helpdesk.Support.read!(Helpdesk.Support.Representative)
+representatives = Helpdesk.Support.read!(Helpdesk.Support.Representative)
 
-Helpdesk.Support.load!(tickets, :open_tickets)
+Helpdesk.Support.load!(representatives, :open_tickets)
 ```
 
 ### Calculations
