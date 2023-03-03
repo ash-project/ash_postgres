@@ -4,7 +4,22 @@ defmodule AshPostgres.Expr do
   alias Ash.Filter
   alias Ash.Query.{BooleanExpression, Exists, Not, Ref}
   alias Ash.Query.Operator.IsNil
-  alias Ash.Query.Function.{Ago, Contains, GetPath, If, Length, Now, StringJoin, Type}
+
+  alias Ash.Query.Function.{
+    Ago,
+    Contains,
+    DateAdd,
+    DateTimeAdd,
+    FromNow,
+    GetPath,
+    If,
+    Length,
+    Now,
+    StringJoin,
+    Today,
+    Type
+  }
+
   alias AshPostgres.Functions.{Fragment, ILike, Like, TrigramSimilarity}
 
   require Ecto.Query
@@ -90,14 +105,53 @@ defmodule AshPostgres.Expr do
   end
 
   defp do_dynamic_expr(
-         _query,
-         %Ago{arguments: [left, right], embedded?: _pred_embedded?},
-         _bindings,
-         _embedded?,
+         query,
+         %Ago{arguments: [left, right], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
          _type
        )
-       when is_integer(left) and (is_binary(right) or is_atom(right)) do
+       when is_binary(right) or is_atom(right) do
+    left = do_dynamic_expr(query, left, bindings, pred_embedded? || embedded?, :integer)
     Ecto.Query.dynamic(datetime_add(^DateTime.utc_now(), ^left * -1, ^to_string(right)))
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %FromNow{arguments: [left, right], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         _type
+       )
+       when is_binary(right) or is_atom(right) do
+    left = do_dynamic_expr(query, left, bindings, pred_embedded? || embedded?, :integer)
+    Ecto.Query.dynamic(datetime_add(^DateTime.utc_now(), ^left, ^to_string(right)))
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %DateTimeAdd{arguments: [datetime, amount, interval], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         _type
+       )
+       when is_binary(interval) or is_atom(interval) do
+    datetime = do_dynamic_expr(query, datetime, bindings, pred_embedded? || embedded?)
+    amount = do_dynamic_expr(query, amount, bindings, pred_embedded? || embedded?, :integer)
+    Ecto.Query.dynamic(datetime_add(^datetime, ^amount, ^to_string(interval)))
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %DateAdd{arguments: [date, amount, interval], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         _type
+       )
+       when is_binary(interval) or is_atom(interval) do
+    date = do_dynamic_expr(query, date, bindings, pred_embedded? || embedded?)
+    amount = do_dynamic_expr(query, amount, bindings, pred_embedded? || embedded?, :integer)
+    Ecto.Query.dynamic(datetime_add(^date, ^amount, ^to_string(interval)))
   end
 
   defp do_dynamic_expr(
@@ -830,6 +884,22 @@ defmodule AshPostgres.Expr do
     do_dynamic_expr(
       query,
       DateTime.utc_now(),
+      bindings,
+      embedded? || pred_embedded?,
+      type
+    )
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %Today{embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         type
+       ) do
+    do_dynamic_expr(
+      query,
+      Date.utc_today(),
       bindings,
       embedded? || pred_embedded?,
       type
