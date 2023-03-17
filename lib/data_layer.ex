@@ -1653,11 +1653,36 @@ defmodule AshPostgres.DataLayer do
   def filter(query, filter, resource, opts \\ []) do
     query = default_bindings(query, resource)
 
+    used_calculations =
+      Ash.Filter.used_calculations(
+        filter,
+        resource
+      )
+
+    used_aggregates =
+      filter
+      |> AshPostgres.Aggregate.used_aggregates(
+        resource,
+        used_calculations,
+        []
+      )
+      |> Enum.map(fn aggregate ->
+        %{aggregate | load: aggregate.name}
+      end)
+
     query
     |> AshPostgres.Join.join_all_relationships(filter, opts)
     |> case do
       {:ok, query} ->
-        {:ok, add_filter_expression(query, filter)}
+        query
+        |> AshPostgres.Aggregate.add_aggregates(used_aggregates, resource, false)
+        |> case do
+          {:ok, query} ->
+            {:ok, add_filter_expression(query, filter)}
+
+          {:error, error} ->
+            {:error, error}
+        end
 
       {:error, error} ->
         {:error, error}
@@ -1673,6 +1698,7 @@ defmodule AshPostgres.DataLayer do
       current: Enum.count(query.joins) + 1 + start_bindings,
       in_group?: false,
       calculations: %{},
+      parent_resources: [],
       aggregate_defs: %{},
       context: context,
       bindings: %{start_bindings => %{path: [], type: :root, source: resource}}

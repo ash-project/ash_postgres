@@ -752,14 +752,22 @@ defmodule AshPostgres.Expr do
     {ref_binding, field_name} =
       if first_optimized_aggregate? do
         ref = %{ref | relationship_path: ref.relationship_path ++ aggregate.relationship_path}
-        {ref_binding(ref, bindings), aggregate.field}
-      else
-        {ref_binding(ref, bindings), aggregate.name}
-      end
+        ref_binding = ref_binding(ref, bindings)
 
-    if is_nil(ref_binding) do
-      raise "Error while building reference: #{inspect(ref)}"
-    end
+        if is_nil(ref_binding) do
+          raise "Error while building reference: #{inspect(ref)}"
+        end
+
+        {ref_binding, aggregate.field}
+      else
+        ref_binding = ref_binding(ref, bindings)
+
+        if is_nil(ref_binding) do
+          raise "Error while building reference: #{inspect(ref)}"
+        end
+
+        {ref_binding, aggregate.name}
+      end
 
     ref_binding =
       if ref.relationship_path == [] || first_optimized_aggregate? do
@@ -768,7 +776,12 @@ defmodule AshPostgres.Expr do
         ref_binding + 1
       end
 
-    expr = Ecto.Query.dynamic(field(as(^ref_binding), ^field_name))
+    expr =
+      if query.__ash_bindings__[:parent?] do
+        Ecto.Query.dynamic(field(parent_as(^ref_binding), ^field_name))
+      else
+        Ecto.Query.dynamic(field(as(^ref_binding), ^field_name))
+      end
 
     type = AshPostgres.Types.parameterized_type(aggregate.type, aggregate.constraints)
     validate_type!(query, type, ref)
@@ -913,23 +926,11 @@ defmodule AshPostgres.Expr do
          embedded?,
          type
        ) do
-    {parent_path, _this_resource} = hd(query.__ash_bindings__.parent_paths)
-    parent_path_count = Enum.count(parent_path)
-
-    expr =
-      Ash.Filter.map(expr, fn
-        %Ref{relationship_path: relationship_path} = ref ->
-          %{ref | relationship_path: Enum.drop(relationship_path, parent_path_count)}
-
-        %Exists{at_path: at_path} = exists ->
-          %{exists | at_path: Enum.drop(at_path, parent_path_count)}
-
-        other ->
-          other
-      end)
-
     do_dynamic_expr(
-      %{query | __ash_bindings__: Map.update!(query.__ash_bindings__, :parent_paths, &tl(&1))},
+      %{
+        query
+        | __ash_bindings__: Map.put(query.__ash_bindings__.parent_bindings, :parent?, true)
+      },
       expr,
       bindings,
       embedded?,
@@ -957,14 +958,16 @@ defmodule AshPostgres.Expr do
         resource: last_relationship.destination,
         aggregates: %{},
         parent_stack: [
-          {at_path, query.__ash_bindings__.resource}
-          | Enum.map(query.__ash_bindings__[:parent_paths] || [], &elem(&1, 1))
+          query.__ash_bindings__.resource
+          | query.__ash_bindings__[:parent_resources] || []
         ],
         calculations: %{},
         public?: false
       })
 
-    filter = %Ash.Filter{expression: expr, resource: first_relationship.destination}
+    filter =
+      %Ash.Filter{expression: expr, resource: first_relationship.destination}
+      |> nest_expression(rest)
 
     {:ok, source} =
       AshPostgres.Join.maybe_get_resource_query(
@@ -983,13 +986,44 @@ defmodule AshPostgres.Expr do
         bindings
       )
 
-    {:ok, filtered} =
-      AshPostgres.DataLayer.filter(
-        set_parent_path(source, rest, query),
-        Ash.Filter.move_to_relationship_path(filter, rest),
+    used_calculations =
+      Ash.Filter.used_calculations(
+        filter,
         first_relationship.destination,
-        no_this?: true
+        []
       )
+
+    used_aggregates =
+      filter
+      |> AshPostgres.Aggregate.used_aggregates(
+        first_relationship.destination,
+        used_calculations,
+        []
+      )
+      |> Enum.map(fn aggregate ->
+        %{aggregate | load: aggregate.name}
+      end)
+
+    {:ok, filtered} =
+      source
+      |> set_parent_path(query)
+      |> AshPostgres.Aggregate.add_aggregates(
+        used_aggregates,
+        first_relationship.destination,
+        false
+      )
+      |> case do
+        {:ok, query} ->
+          AshPostgres.DataLayer.filter(
+            query,
+            filter,
+            first_relationship.destination,
+            no_this?: true
+          )
+
+        {:error, error} ->
+          {:error, error}
+      end
 
     free_binding = filtered.__ash_bindings__.current
 
@@ -1061,11 +1095,20 @@ defmodule AshPostgres.Expr do
 
     case AshPostgres.Types.parameterized_type(attr_type || expr_type, []) do
       nil ->
-        Ecto.Query.dynamic(field(as(^ref_binding), ^name))
+        if query.__ash_bindings__[:parent?] do
+          Ecto.Query.dynamic(field(parent_as(^ref_binding), ^name))
+        else
+          Ecto.Query.dynamic(field(as(^ref_binding), ^name))
+        end
 
       type ->
         validate_type!(query, type, ref)
-        Ecto.Query.dynamic(type(field(as(^ref_binding), ^name), ^type))
+
+        if query.__ash_bindings__[:parent?] do
+          Ecto.Query.dynamic(type(field(parent_as(^ref_binding), ^name), ^type))
+        else
+          Ecto.Query.dynamic(type(field(as(^ref_binding), ^name), ^type))
+        end
     end
   end
 
@@ -1413,12 +1456,61 @@ defmodule AshPostgres.Expr do
     end
   end
 
-  defp set_parent_path(query, path, parent) do
+  defp set_parent_path(query, parent) do
     # This is a stupid name. Its actually the path we *remove* when stepping up a level. I.e the child's path
     Map.update!(query, :__ash_bindings__, fn ash_bindings ->
-      Map.put(ash_bindings, :parent_paths, [
-        {path, parent.__ash_bindings__.resource} | parent.__ash_bindings__[:parent_paths] || []
+      ash_bindings
+      |> Map.put(:parent_bindings, parent.__ash_bindings__)
+      |> Map.put(:parent_resources, [
+        parent.__ash_bindings__.resource | parent.__ash_bindings__[:parent_resources] || []
       ])
     end)
+  end
+
+  defp nest_expression(expression, relationship_path) do
+    case expression do
+      {key, value} when is_atom(key) ->
+        {key, nest_expression(value, relationship_path)}
+
+      %Not{expression: expression} = not_expr ->
+        %{not_expr | expression: nest_expression(expression, relationship_path)}
+
+      %BooleanExpression{left: left, right: right} = expression ->
+        %{
+          expression
+          | left: nest_expression(left, relationship_path),
+            right: nest_expression(right, relationship_path)
+        }
+
+      %{__operator__?: true, left: left, right: right} = op ->
+        left = nest_expression(left, relationship_path)
+        right = nest_expression(right, relationship_path)
+        %{op | left: left, right: right}
+
+      %Ref{} = ref ->
+        add_to_ref_path(ref, relationship_path)
+
+      %{__function__?: true, arguments: args} = func ->
+        %{func | arguments: Enum.map(args, &nest_expression(&1, relationship_path))}
+
+      %Ash.Query.Exists{} = exists ->
+        %{exists | at_path: relationship_path ++ exists.at_path}
+
+      %Ash.Query.Parent{} = parent ->
+        parent
+
+      %Ash.Query.Call{args: args} = call ->
+        %{call | args: Enum.map(args, &nest_expression(&1, relationship_path))}
+
+      %Ash.Filter{expression: expression} = filter ->
+        %{filter | expression: nest_expression(expression, relationship_path)}
+
+      other ->
+        other
+    end
+  end
+
+  defp add_to_ref_path(%Ref{relationship_path: relationship_path} = ref, to_add) do
+    %{ref | relationship_path: to_add ++ relationship_path}
   end
 end

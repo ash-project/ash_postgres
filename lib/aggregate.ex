@@ -4,10 +4,18 @@ defmodule AshPostgres.Aggregate do
   import Ecto.Query, only: [from: 2, subquery: 1]
   require Ecto.Query
 
-  def add_aggregates(query, aggregates, resource, select? \\ true, source_binding \\ nil)
-  def add_aggregates(query, [], _, _, _), do: {:ok, query}
+  def add_aggregates(
+        query,
+        aggregates,
+        resource,
+        select? \\ true,
+        source_binding \\ nil,
+        root_data \\ nil
+      )
 
-  def add_aggregates(query, aggregates, resource, select?, source_binding) do
+  def add_aggregates(query, [], _, _, _, _), do: {:ok, query}
+
+  def add_aggregates(query, aggregates, resource, select?, source_binding, root_data) do
     query = AshPostgres.DataLayer.default_bindings(query, resource)
 
     aggregates =
@@ -69,7 +77,7 @@ defmodule AshPostgres.Aggregate do
           end
 
         if first_can_join? do
-          case add_first_join_aggregate(query, resource, hd(aggregates)) do
+          case add_first_join_aggregate(query, resource, hd(aggregates), root_data) do
             {:ok, query, dynamic} ->
               query =
                 if select? do
@@ -152,17 +160,14 @@ defmodule AshPostgres.Aggregate do
     end
   end
 
-  defp add_first_join_aggregate(query, resource, aggregate) do
-    parent_path =
-      case query.__ash_bindings__ do
-        %{parent_paths: [{path, parent_resource}]} ->
-          AshPostgres.Join.relationship_path_to_relationships(
-            parent_resource,
-            path
-          )
+  defp add_first_join_aggregate(query, resource, aggregate, root_data) do
+    {resource, path} =
+      case root_data do
+        {resource, path} ->
+          {resource, path}
 
         _ ->
-          []
+          {resource, []}
       end
 
     case AshPostgres.Join.join_all_relationships(
@@ -173,11 +178,9 @@ defmodule AshPostgres.Aggregate do
              {:left,
               AshPostgres.Join.relationship_path_to_relationships(
                 resource,
-                aggregate.relationship_path
+                path ++ aggregate.relationship_path
               )}
-           ],
-           parent_path,
-           nil
+           ]
          ) do
       {:ok, query} ->
         binding =
