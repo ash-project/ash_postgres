@@ -1220,6 +1220,7 @@ defmodule AshPostgres.DataLayer do
           case Map.get(record, relationship.name) do
             %Ash.NotLoaded{} ->
               %Ecto.Association.NotLoaded{
+                __field__: relationship.name,
                 __cardinality__: relationship.cardinality
               }
 
