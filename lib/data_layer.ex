@@ -113,7 +113,7 @@ defmodule AshPostgres.DataLayer do
       """
       custom_statements do
         # the name is used to detect if you remove or modify the statement
-        custom_statement :pgweb_idx do
+        statement :pgweb_idx do
           up "CREATE INDEX pgweb_idx ON pgweb USING GIN (to_tsvector('english', title || ' ' || body));"
           down "DROP INDEX pgweb_idx;"
         end
