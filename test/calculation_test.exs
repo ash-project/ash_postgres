@@ -391,4 +391,15 @@ defmodule AshPostgres.CalculationTest do
                |> Api.read_one!()
     end
   end
+
+  test "dependent calc" do
+    post =
+      Post
+      |> Ash.Changeset.new(%{title: "match", price: 10024})
+      |> Api.create!()
+
+    Post.get_by_id(post.id,
+      query: Post |> Ash.Query.select([:id]) |> Ash.Query.load([:price_string_with_currency_sign])
+    )
+  end
 end
