@@ -165,6 +165,18 @@ defmodule AshPostgres.Test.Post do
         )
       )
     )
+
+    calculate(
+      :price_string,
+      :string,
+      CalculatePostPriceString
+    )
+
+    calculate(
+      :price_string_with_currency_sign,
+      :string,
+      CalculatePostPriceStringWithSymbol
+    )
   end
 
   aggregates do
@@ -277,5 +289,35 @@ defmodule AshPostgres.Test.Post do
     first :latest_arbitrary_timestamp, :comments, :arbitrary_timestamp do
       sort(arbitrary_timestamp: :desc)
     end
+  end
+end
+
+defmodule CalculatePostPriceString do
+  use Ash.Calculation
+
+  @impl true
+  def select(_, _, _), do: [:price]
+
+  @impl true
+  def calculate(records, _, _) do
+    Enum.map(records, fn %{price: price} ->
+      dollars = div(price, 100)
+      cents = rem(price, 100)
+      "#{dollars}.#{cents}"
+    end)
+  end
+end
+
+defmodule CalculatePostPriceStringWithSymbol do
+  use Ash.Calculation
+
+  @impl true
+  def load(_, _, _), do: [:price_string]
+
+  @impl true
+  def calculate(records, _, _) do
+    Enum.map(records, fn %{price_string: price_string} ->
+      "#{price_string}$"
+    end)
   end
 end
