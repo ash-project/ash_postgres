@@ -293,6 +293,7 @@ defmodule AshPostgres.Test.Post do
 end
 
 defmodule CalculatePostPriceString do
+  @moduledoc false
   use Ash.Calculation
 
   @impl true
@@ -309,6 +310,7 @@ defmodule CalculatePostPriceString do
 end
 
 defmodule CalculatePostPriceStringWithSymbol do
+  @moduledoc false
   use Ash.Calculation
 
   @impl true

@@ -395,7 +395,7 @@ defmodule AshPostgres.CalculationTest do
   test "dependent calc" do
     post =
       Post
-      |> Ash.Changeset.new(%{title: "match", price: 10024})
+      |> Ash.Changeset.new(%{title: "match", price: 10_024})
       |> Api.create!()
 
     Post.get_by_id(post.id,
