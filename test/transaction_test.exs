@@ -5,7 +5,7 @@ defmodule AshPostgres.Test.TransactionTest do
   require Ash.Query
 
   test "after_transaction hooks are invoked on failure" do
-    assert_raise RuntimeError, ~r/something bad happened/, fn ->
+    assert_raise Ash.Error.Unknown, ~r/something bad happened/, fn ->
       Post
       |> Ash.Changeset.for_create(:create)
       |> Ash.Changeset.after_action(fn _changeset, _result ->
@@ -22,7 +22,7 @@ defmodule AshPostgres.Test.TransactionTest do
   end
 
   test "after_transaction hooks are invoked on failure, even in a nested context" do
-    assert_raise RuntimeError, ~r/something bad happened inside/, fn ->
+    assert_raise Ash.Error.Unknown, ~r/something bad happened inside/, fn ->
       Post
       |> Ash.Changeset.for_create(:create)
       |> Ash.Changeset.after_action(fn _changeset, result ->
@@ -45,10 +45,7 @@ defmodule AshPostgres.Test.TransactionTest do
                       message: "something bad happened inside"
                     }}
 
-    assert_receive {:error,
-                    %RuntimeError{
-                      message: "something bad happened inside"
-                    }}
+    assert_receive {:error, %Ash.Error.Unknown{}}
   end
 
   test "after_transaction hooks are invoked on success" do
