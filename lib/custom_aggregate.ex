@@ -16,7 +16,7 @@ defmodule AshPostgres.CustomAggregate do
         fragment("string_agg(?, ?)", field(as(^binding), ^opts[:field]), ^opts[:delimiter])
       )
   """
-  @callback dynamic(opts :: Keyword.t(), binding :: integer) :: Ecto.Query.dynamic()
+  @callback dynamic(opts :: Keyword.t(), binding :: integer) :: Ecto.Query.dynamic_expr()
 
   defmacro __using__(_) do
     quote do
