@@ -222,7 +222,7 @@ defmodule AshPostgres.MigrationGenerator do
         install =
           if update_ash_functions? do
             """
-            #{@drop_ash_functions[extensions_snapshot.ash_functions_version]}
+            #{@drop_ash_functions[extensions_snapshot[:ash_functions_version]]}
 
             #{@add_ash_functions}
 
