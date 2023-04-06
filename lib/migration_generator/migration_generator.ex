@@ -182,7 +182,7 @@ defmodule AshPostgres.MigrationGenerator do
 
       update_ash_functions? =
         "ash-functions" in repo.installed_extensions() &&
-          extensions_snapshot.ash_functions_version != @latest_ash_functions_version
+          extensions_snapshot[:ash_functions_version] != @latest_ash_functions_version
 
       if Enum.empty?(to_install) && !update_ash_functions? do
         Mix.shell().info("No extensions to install")
