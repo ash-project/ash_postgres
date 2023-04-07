@@ -2109,7 +2109,7 @@ defmodule AshPostgres.MigrationGenerator do
 
       type =
         AshPostgres.DataLayer.Info.migration_types(resource)[attribute.name] ||
-          migration_type(attribute.type)
+          migration_type(attribute.type, attribute.constraints)
 
       type =
         if :erlang.function_exported(repo, :override_migration_type, 1) do
@@ -2206,11 +2206,22 @@ defmodule AshPostgres.MigrationGenerator do
     Map.put(ref, :name, ref.name || "#{table}_#{attribute}_fkey")
   end
 
-  defp migration_type({:array, type}), do: {:array, migration_type(type)}
-  defp migration_type(Ash.Type.CiString), do: :citext
-  defp migration_type(Ash.Type.UUID), do: :uuid
-  defp migration_type(Ash.Type.Integer), do: :bigint
-  defp migration_type(other), do: migration_type_from_storage_type(Ash.Type.storage_type(other))
+  defp migration_type({:array, type}, constraints),
+    do: {:array, migration_type(type, constraints)}
+
+  defp migration_type(Ash.Type.CiString, _), do: :citext
+  defp migration_type(Ash.Type.UUID, _), do: :uuid
+  defp migration_type(Ash.Type.Integer, _), do: :bigint
+
+  defp migration_type(Ash.Type.NewType, constraints) do
+    type = Ash.Type.get_type(constraints[:subtype_of])
+    constraints = constraints[:constraints]
+    migration_type(type, constraints)
+  end
+
+  defp migration_type(other, _),
+    do: migration_type_from_storage_type(Ash.Type.storage_type(other))
+
   defp migration_type_from_storage_type(:string), do: :text
   defp migration_type_from_storage_type(storage_type), do: storage_type
 
