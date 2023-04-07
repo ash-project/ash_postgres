@@ -2102,7 +2102,16 @@ defmodule AshPostgres.MigrationGenerator do
     |> Ash.Resource.Info.attributes()
     |> Enum.reject(&(&1.name in ignored))
     |> Enum.map(
-      &Map.take(&1, [:name, :source, :type, :default, :allow_nil?, :generated?, :primary_key?])
+      &Map.take(&1, [
+        :name,
+        :source,
+        :type,
+        :default,
+        :allow_nil?,
+        :generated?,
+        :primary_key?,
+        :constraints
+      ])
     )
     |> Enum.map(fn attribute ->
       default = default(attribute, resource, repo)
@@ -2135,7 +2144,7 @@ defmodule AshPostgres.MigrationGenerator do
       |> Map.put(:size, size)
       |> Map.put(:type, type)
       |> Map.put(:source, attribute.source || attribute.name)
-      |> Map.delete(:name)
+      |> Map.drop([:name, :constraints])
     end)
     |> Enum.map(fn attribute ->
       references = find_reference(resource, table, attribute)
