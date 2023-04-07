@@ -85,6 +85,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
           attribute(:second_title, :string)
           attribute(:title_with_source, :string, source: :t_w_s)
           attribute(:title_with_default, :string)
+          attribute(:email, Test.Support.Types.Email)
         end
       end
 
@@ -130,6 +131,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       # the migration adds other attributes
       assert file_contents =~ ~S[add :title, :text]
+
+      # the migration unwraps newtypes
+      assert file_contents =~ ~S[add :email, :citext]
 
       # the migration adds custom attributes
       assert file_contents =~ ~S[add :second_title, :varchar, size: 16]

@@ -2215,6 +2215,8 @@ defmodule AshPostgres.MigrationGenerator do
     Map.put(ref, :name, ref.name || "#{table}_#{attribute}_fkey")
   end
 
+  def get_migration_type(type, constraints), do: migration_type(type, constraints)
+
   defp migration_type({:array, type}, constraints),
     do: {:array, migration_type(type, constraints)}
 
@@ -2222,14 +2224,18 @@ defmodule AshPostgres.MigrationGenerator do
   defp migration_type(Ash.Type.UUID, _), do: :uuid
   defp migration_type(Ash.Type.Integer, _), do: :bigint
 
-  defp migration_type(Ash.Type.NewType, constraints) do
-    type = Ash.Type.get_type(constraints[:subtype_of])
-    constraints = constraints[:constraints]
-    migration_type(type, constraints)
-  end
+  defp migration_type(other, constraints) do
+    type = Ash.Type.get_type(other)
 
-  defp migration_type(other, _),
-    do: migration_type_from_storage_type(Ash.Type.storage_type(other))
+    if Ash.Type.NewType.new_type?(type) do
+      migration_type(
+        Ash.Type.NewType.subtype_of(type),
+        Ash.Type.NewType.constraints(type, constraints)
+      )
+    else
+      migration_type_from_storage_type(Ash.Type.storage_type(other))
+    end
+  end
 
   defp migration_type_from_storage_type(:string), do: :text
   defp migration_type_from_storage_type(storage_type), do: storage_type
