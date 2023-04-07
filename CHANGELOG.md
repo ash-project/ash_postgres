@@ -5,6 +5,25 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.19](https://github.com/ash-project/ash_postgres/compare/v1.3.18...v1.3.19) (2023-04-07)
+
+
+
+
+### Bug Fixes:
+
+* properly handle newtypes, add test
+
+* honor newtypes when determining migration type
+
+* handle nil ash_functions_version in another place
+
+* handle nil ash_functions_version
+
+### Improvements:
+
+* update ash
+
 ## [v1.3.18](https://github.com/ash-project/ash_postgres/compare/v1.3.17...v1.3.18) (2023-03-23)
 
 
