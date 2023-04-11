@@ -366,8 +366,15 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     defp alter_opts(attribute, old_attribute) do
       primary_key =
-        if attribute.primary_key? and !old_attribute.primary_key? do
-          ", primary_key: true"
+        cond do
+          attribute.primary_key? and !old_attribute.primary_key? ->
+            ", primary_key: true"
+
+          old_attribute.primary_key? and !attribute.primary_key? ->
+            ", primary_key: false"
+
+          true ->
+            nil
         end
 
       default =
@@ -818,6 +825,40 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       "drop_if_exists index(:#{table}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
+    end
+  end
+
+  defmodule RemovePrimaryKey do
+    @moduledoc false
+    defstruct [:schema, :table, no_phase: true]
+
+    def up(%{schema: schema, table: table}) do
+      if schema do
+        "drop constraint(#{inspect(table)}, \"#{table}_pkey\", prefix: \"#{schema}\")"
+      else
+        "drop constraint(#{inspect(table)}, \"#{table}_pkey\")"
+      end
+    end
+
+    def down(_) do
+      ""
+    end
+  end
+
+  defmodule RemovePrimaryKeyDown do
+    @moduledoc false
+    defstruct [:schema, :table, no_phase: true]
+
+    def up(_) do
+      ""
+    end
+
+    def down(%{schema: schema, table: table}) do
+      if schema do
+        "drop constraint(#{inspect(table)}, \"#{table}_pkey\", prefix: \"#{schema}\")"
+      else
+        "drop constraint(#{inspect(table)}, \"#{table}_pkey\")"
+      end
     end
   end
 

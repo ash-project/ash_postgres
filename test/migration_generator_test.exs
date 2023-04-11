@@ -539,31 +539,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[add :subject, :text, null: false]
     end
 
-    test "when changing the primary key, it changes properly" do
-      defposts do
-        attributes do
-          attribute(:id, :uuid, primary_key?: false, default: &Ecto.UUID.generate/0)
-          uuid_primary_key(:guid)
-          attribute(:title, :string)
-        end
-      end
-
-      defapi([Post])
-
-      AshPostgres.MigrationGenerator.generate(Api,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
-
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-
-      assert File.read!(file2) =~
-               ~S[add :guid, :uuid, null: false, default: fragment("uuid_generate_v4()"), primary_key: true]
-    end
-
     test "when multiple schemas apply to the same table, all attributes are added" do
       defposts do
         attributes do
@@ -1144,6 +1119,105 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert file =~
                ~S[add :product_code, :text]
+    end
+  end
+
+  describe "follow up with references" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string)
+        end
+      end
+
+      defmodule Comment do
+        use Ash.Resource,
+          data_layer: AshPostgres.DataLayer
+
+        postgres do
+          table "comments"
+          repo AshPostgres.TestRepo
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        relationships do
+          belongs_to(:post, Post)
+        end
+      end
+
+      defapi([Post, Comment])
+
+      Mix.shell(Mix.Shell.Process)
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      :ok
+    end
+
+    test "when changing the primary key, it changes properly" do
+      defposts do
+        attributes do
+          attribute(:id, :uuid, primary_key?: false, default: &Ecto.UUID.generate/0)
+          uuid_primary_key(:guid)
+          attribute(:title, :string)
+        end
+      end
+
+      defmodule Comment do
+        use Ash.Resource,
+          data_layer: AshPostgres.DataLayer
+
+        postgres do
+          table "comments"
+          repo AshPostgres.TestRepo
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        relationships do
+          belongs_to(:post, Post)
+        end
+      end
+
+      defapi([Post, Comment])
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+
+      file = File.read!(file2)
+
+      assert [before_index_drop, after_index_drop] =
+               String.split(file, ~S[drop constraint("posts", "posts_pkey")], parts: 2)
+
+      assert before_index_drop =~ ~S[drop constraint(:comments, "comments_post_id_fkey")]
+
+      assert after_index_drop =~ ~S[modify :id, :uuid, null: true, primary_key: false]
+
+      assert after_index_drop =~
+               ~S[modify :post_id, references(:posts, column: :id, prefix: "public", name: "comments_post_id_fkey", type: :uuid)]
     end
   end
 end

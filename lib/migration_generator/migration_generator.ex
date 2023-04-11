@@ -50,7 +50,7 @@ defmodule AshPostgres.MigrationGenerator do
     Mix.shell().info("\nExtension Migrations: ")
     create_extension_migrations(repos, opts)
     Mix.shell().info("\nGenerating Tenant Migrations: ")
-    create_migrations(tenant_snapshots, opts, true)
+    create_migrations(tenant_snapshots, opts, true, snapshots)
     Mix.shell().info("\nGenerating Migrations:")
     create_migrations(snapshots, opts, false)
   end
@@ -80,14 +80,56 @@ defmodule AshPostgres.MigrationGenerator do
   def get_operations_from_snapshots(old_snapshots, new_snapshots, opts \\ []) do
     opts = %{opts(opts) | no_shell?: true}
 
-    old_snapshots = Enum.map(old_snapshots, &sanitize_snapshot/1)
+    old_snapshots =
+      old_snapshots
+      |> Enum.map(&sanitize_snapshot/1)
 
     new_snapshots
-    |> deduplicate_snapshots(opts, old_snapshots)
+    |> deduplicate_snapshots(opts, [], old_snapshots)
     |> fetch_operations(opts)
     |> Enum.flat_map(&elem(&1, 1))
     |> Enum.uniq()
     |> organize_operations()
+  end
+
+  defp add_references_primary_key(snapshot, snapshots) do
+    %{
+      snapshot
+      | attributes:
+          snapshot.attributes
+          |> Enum.map(fn
+            %{references: references} = attribute when not is_nil(references) ->
+              if is_nil(Map.get(references, :primary_key?)) do
+                %{
+                  attribute
+                  | references:
+                      Map.put(
+                        references,
+                        :primary_key?,
+                        find_references_primary_key(
+                          references,
+                          snapshots
+                        )
+                      )
+                }
+              else
+                attribute
+              end
+
+            attribute ->
+              attribute
+          end)
+    }
+  end
+
+  defp find_references_primary_key(references, snapshots) do
+    Enum.find_value(snapshots, false, fn snapshot ->
+      if snapshot.table == references.table do
+        Enum.any?(snapshot.attributes, fn attribute ->
+          attribute.source == references.destination_attribute
+        end)
+      end
+    end)
   end
 
   defp opts(opts) do
@@ -287,11 +329,11 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  defp create_migrations(snapshots, opts, tenant?) do
+  defp create_migrations(snapshots, opts, tenant?, non_tenant_snapshots \\ []) do
     snapshots
     |> Enum.group_by(& &1.repo)
     |> Enum.each(fn {repo, snapshots} ->
-      deduped = deduplicate_snapshots(snapshots, opts)
+      deduped = deduplicate_snapshots(snapshots, opts, non_tenant_snapshots)
 
       snapshots_with_operations =
         deduped
@@ -420,18 +462,53 @@ defmodule AshPostgres.MigrationGenerator do
     end)
   end
 
-  defp deduplicate_snapshots(snapshots, opts, existing_snapshots \\ []) do
-    snapshots
-    |> Enum.group_by(fn snapshot ->
-      {snapshot.table, snapshot.schema}
-    end)
-    |> Enum.map(fn {_table, [snapshot | _] = snapshots} ->
-      existing_snapshot =
+  defp deduplicate_snapshots(snapshots, opts, non_tenant_snapshots, existing_snapshots \\ []) do
+    grouped =
+      snapshots
+      |> Enum.group_by(fn snapshot ->
+        {snapshot.table, snapshot.schema}
+      end)
+
+    old_snapshots =
+      Map.new(grouped, fn {key, [snapshot | _]} ->
+        old_snapshot =
+          if opts.no_shell? do
+            Enum.find(existing_snapshots, &(&1.table == snapshot.table))
+          else
+            get_existing_snapshot(snapshot, opts)
+          end
+
+        {
+          key,
+          old_snapshot
+        }
+      end)
+
+    old_non_tenant_snapshots =
+      non_tenant_snapshots
+      |> Enum.uniq_by(&{&1.table, &1.schema})
+      |> Enum.map(fn snapshot ->
         if opts.no_shell? do
           Enum.find(existing_snapshots, &(&1.table == snapshot.table))
         else
           get_existing_snapshot(snapshot, opts)
         end
+      end)
+
+    old_snapshots_list = Map.values(old_snapshots) ++ old_non_tenant_snapshots
+
+    old_snapshots =
+      Map.new(old_snapshots, fn {key, old_snapshot} ->
+        if old_snapshot do
+          {key, add_references_primary_key(old_snapshot, old_snapshots_list)}
+        else
+          {key, old_snapshot}
+        end
+      end)
+
+    grouped
+    |> Enum.map(fn {key, [snapshot | _] = snapshots} ->
+      existing_snapshot = old_snapshots[key]
 
       {primary_key, identities} = merge_primary_keys(existing_snapshot, snapshots, opts)
 
@@ -537,6 +614,7 @@ defmodule AshPostgres.MigrationGenerator do
           destination_attribute_generated:
             merge_uniq!(references, table, :destination_attribute_generated, name),
           multitenancy: merge_uniq!(references, table, :multitenancy, name),
+          primary_key?: merge_uniq!(references, table, :primary_key?, name),
           on_delete: merge_uniq!(references, table, :on_delete, name),
           on_update: merge_uniq!(references, table, :on_update, name),
           name: merge_uniq!(references, table, :name, name),
@@ -549,7 +627,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp merge_uniq!(references, table, field, attribute) do
     references
     |> Enum.map(&Map.get(&1, field))
-    |> Enum.filter(& &1)
+    |> Enum.reject(&is_nil/1)
     |> Enum.uniq()
     |> case do
       [] ->
@@ -1047,27 +1125,86 @@ defmodule AshPostgres.MigrationGenerator do
     group_into_phases(operations, nil, [phase | acc])
   end
 
-  defp sort_operations(ops, acc \\ [])
-  defp sort_operations([], acc), do: acc
+  defp sort_operations(ops) do
+    digraph = :digraph.new()
 
-  defp sort_operations([op | rest], []), do: sort_operations(rest, [op])
+    ops
+    |> Enum.each(fn op ->
+      :digraph.add_vertex(digraph, op)
+    end)
 
-  defp sort_operations([op | rest], acc) do
-    acc = Enum.reverse(acc)
+    ops
+    |> Enum.each(fn left ->
+      ops
+      |> Enum.each(fn right ->
+        if left != right do
+          left_before_right? = after?(right, left)
+          left_after_right? = after?(left, right)
 
-    after_index = Enum.find_index(acc, &after?(op, &1))
+          cond do
+            # They can't both be after eachother
+            left_before_right? && left_after_right? ->
+              :ok
 
-    new_acc =
-      if after_index do
-        acc
-        |> List.insert_at(after_index, op)
-        |> Enum.reverse()
-      else
-        [op | Enum.reverse(acc)]
-      end
+            left_before_right? ->
+              :digraph.add_edge(digraph, left, right)
 
-    sort_operations(rest, new_acc)
+            left_after_right? ->
+              :digraph.add_edge(digraph, right, left)
+
+            true ->
+              :ok
+          end
+        end
+      end)
+    end)
+
+    transformers = walk_rest(digraph)
+    :digraph.delete(digraph)
+
+    transformers
   end
+
+  defp walk_rest(digraph, acc \\ []) do
+    case :digraph.vertices(digraph) do
+      [] ->
+        Enum.reverse(acc)
+
+      vertices ->
+        case Enum.find(vertices, &(:digraph.in_neighbours(digraph, &1) == [])) do
+          nil ->
+            case Enum.find(vertices, &(:digraph.out_neighbours(digraph, &1) == [])) do
+              nil ->
+                raise "Cycle detected in migration operator order"
+
+              vertex ->
+                :digraph.del_vertex(digraph, vertex)
+                walk_rest(digraph, acc ++ [vertex])
+            end
+
+          vertex ->
+            :digraph.del_vertex(digraph, vertex)
+            walk_rest(digraph, [vertex | acc])
+        end
+    end
+  end
+
+  defp after?(
+         %Operation.RemovePrimaryKey{},
+         %Operation.DropForeignKey{}
+       ),
+       do: true
+
+  defp after?(
+         %Operation.DropForeignKey{},
+         %Operation.RemovePrimaryKey{}
+       ),
+       do: false
+
+  defp after?(%Operation.RemovePrimaryKey{}, _), do: false
+  defp after?(_, %Operation.RemovePrimaryKey{}), do: true
+  defp after?(%Operation.RemovePrimaryKeyDown{}, _), do: true
+  defp after?(_, %Operation.RemovePrimaryKeyDown{}), do: false
 
   defp after?(
          %Operation.AddCustomStatement{},
@@ -1160,6 +1297,18 @@ defmodule AshPostgres.MigrationGenerator do
          }
        ),
        do: true
+
+  defp after?(
+         %Operation.RemoveCheckConstraint{
+           table: table,
+           schema: schema,
+           constraint: %{
+             name: name
+           }
+         },
+         %Operation.AddCheckConstraint{table: table, schema: schema, constraint: %{name: name}}
+       ),
+       do: false
 
   defp after?(
          %Operation.AddCheckConstraint{
@@ -1290,6 +1439,100 @@ defmodule AshPostgres.MigrationGenerator do
        do: true
 
   defp after?(
+         %Operation.AddAttribute{
+           table: table,
+           schema: schema,
+           attribute: %{
+             primary_key?: true
+           }
+         },
+         %Operation.AlterAttribute{
+           schema: schema,
+           table: table,
+           new_attribute: %{primary_key?: false},
+           old_attribute: %{primary_key?: true}
+         }
+       ),
+       do: true
+
+  defp after?(
+         %Operation.AddAttribute{
+           table: table,
+           schema: schema,
+           attribute: %{
+             primary_key?: true
+           }
+         },
+         %Operation.AlterAttribute{
+           schema: schema,
+           table: table,
+           new_attribute: %{primary_key?: false},
+           old_attribute: %{primary_key?: true}
+         }
+       ),
+       do: true
+
+  defp after?(
+         %Operation.RemoveAttribute{
+           schema: schema,
+           table: table,
+           attribute: %{primary_key?: true}
+         },
+         %Operation.AlterAttribute{
+           table: table,
+           schema: schema,
+           new_attribute: %{
+             primary_key?: true
+           },
+           old_attribute: %{
+             primary_key?: false
+           }
+         }
+       ),
+       do: true
+
+  defp after?(
+         %Operation.AlterAttribute{
+           schema: schema,
+           table: table,
+           new_attribute: %{primary_key?: false},
+           old_attribute: %{
+             primary_key?: true
+           }
+         },
+         %Operation.AlterAttribute{
+           table: table,
+           schema: schema,
+           new_attribute: %{
+             primary_key?: true
+           },
+           old_attribute: %{
+             primary_key?: false
+           }
+         }
+       ),
+       do: true
+
+  defp after?(
+         %Operation.AlterAttribute{
+           schema: schema,
+           table: table,
+           new_attribute: %{primary_key?: false},
+           old_attribute: %{
+             primary_key?: true
+           }
+         },
+         %Operation.AddAttribute{
+           table: table,
+           schema: schema,
+           attribute: %{
+             primary_key?: true
+           }
+         }
+       ),
+       do: false
+
+  defp after?(
          %Operation.AlterAttribute{
            table: table,
            schema: schema,
@@ -1305,6 +1548,45 @@ defmodule AshPostgres.MigrationGenerator do
          }
        ),
        do: true
+
+  defp after?(
+         %Operation.AlterAttribute{
+           new_attribute: %{
+             references: %{destination_attribute: destination_attribute, table: table}
+           }
+         },
+         %Operation.AddUniqueIndex{identity: %{keys: keys}, table: table}
+       ) do
+    destination_attribute in keys
+  end
+
+  defp after?(
+         %Operation.AlterAttribute{
+           new_attribute: %{references: %{table: table, destination_attribute: source}}
+         },
+         %Operation.AlterAttribute{
+           new_attribute: %{
+             source: source
+           },
+           table: table
+         }
+       ) do
+    true
+  end
+
+  defp after?(
+         %Operation.AlterAttribute{
+           new_attribute: %{
+             source: source
+           },
+           table: table
+         },
+         %Operation.AlterAttribute{
+           new_attribute: %{references: %{table: table, destination_attribute: source}}
+         }
+       ) do
+    false
+  end
 
   defp after?(
          %Operation.RemoveAttribute{attribute: %{source: source}, table: table},
@@ -1378,6 +1660,7 @@ defmodule AshPostgres.MigrationGenerator do
       table: snapshot.table,
       repo: snapshot.repo,
       base_filter: nil,
+      empty?: true,
       multitenancy: %{
         attribute: nil,
         strategy: nil,
@@ -1398,6 +1681,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp do_fetch_operations(snapshot, old_snapshot, opts, acc) do
     attribute_operations = attribute_operations(snapshot, old_snapshot, opts)
+    pkey_operations = pkey_operations(snapshot, old_snapshot, attribute_operations)
 
     rewrite_all_identities? = changing_multitenancy_affects_identities?(snapshot, old_snapshot)
 
@@ -1560,6 +1844,7 @@ defmodule AshPostgres.MigrationGenerator do
       end)
 
     [
+      pkey_operations,
       unique_indexes_to_remove,
       attribute_operations,
       unique_indexes_to_add,
@@ -1592,6 +1877,42 @@ defmodule AshPostgres.MigrationGenerator do
     left == right
   end
 
+  defp pkey_operations(snapshot, old_snapshot, attribute_operations) do
+    if old_snapshot[:empty?] do
+      []
+    else
+      must_drop_pkey? =
+        Enum.any?(
+          attribute_operations,
+          fn
+            %Operation.AlterAttribute{
+              old_attribute: %{primary_key?: old_primary_key},
+              new_attribute: %{primary_key?: new_primary_key}
+            }
+            when old_primary_key != new_primary_key ->
+              true
+
+            %Operation.AddAttribute{
+              attribute: %{primary_key?: true}
+            } ->
+              true
+
+            _ ->
+              false
+          end
+        )
+
+      if must_drop_pkey? do
+        [
+          %Operation.RemovePrimaryKey{schema: snapshot.schema, table: snapshot.table},
+          %Operation.RemovePrimaryKeyDown{schema: snapshot.schema, table: snapshot.table}
+        ]
+      else
+        []
+      end
+    end
+  end
+
   defp attribute_operations(snapshot, old_snapshot, opts) do
     attributes_to_add =
       Enum.reject(snapshot.attributes, fn attribute ->
@@ -1612,7 +1933,8 @@ defmodule AshPostgres.MigrationGenerator do
         {attribute,
          Enum.find(
            old_snapshot.attributes,
-           &(&1.source == attribute.source && attributes_unequal?(&1, attribute, snapshot.repo))
+           &(&1.source == attribute.source &&
+               attributes_unequal?(&1, attribute, snapshot.repo, old_snapshot, snapshot))
          )}
       end)
       |> Enum.filter(&elem(&1, 1))
@@ -1723,15 +2045,15 @@ defmodule AshPostgres.MigrationGenerator do
 
   # This exists to handle the fact that the remapping of the key name -> source caused attributes
   # to be considered unequal. We ignore things that only differ in that way using this function.
-  defp attributes_unequal?(left, right, repo) do
-    left = add_source_and_name_and_schema_and_ignore(left, repo)
+  defp attributes_unequal?(left, right, repo, _old_snapshot, _new_snapshot) do
+    left = clean_for_equality(left, repo)
 
-    right = add_source_and_name_and_schema_and_ignore(right, repo)
+    right = clean_for_equality(right, repo)
 
     left != right
   end
 
-  defp add_source_and_name_and_schema_and_ignore(attribute, repo) do
+  defp clean_for_equality(attribute, repo) do
     cond do
       attribute[:source] ->
         Map.put(attribute, :name, attribute[:source])
@@ -1749,6 +2071,17 @@ defmodule AshPostgres.MigrationGenerator do
     end
     |> add_schema(repo)
     |> add_ignore()
+    |> then(fn
+      # only :integer cares about `destination_attribute_generated`
+      # so we clean it here to avoid generating unnecessary snapshots
+      # during the transitionary period of adding it
+      %{type: type, references: references} = attribute
+      when not is_nil(references) and type != :integer ->
+        Map.update!(attribute, :references, &Map.delete(&1, :destination_attribute_generated))
+
+      attribute ->
+        attribute
+    end)
   end
 
   defp add_ignore(%{references: references} = attribute) when is_map(references) do
@@ -1980,6 +2313,7 @@ defmodule AshPostgres.MigrationGenerator do
                 schema: AshPostgres.DataLayer.Info.schema(relationship.source),
                 on_delete: AshPostgres.DataLayer.Info.polymorphic_on_delete(relationship.source),
                 on_update: AshPostgres.DataLayer.Info.polymorphic_on_update(relationship.source),
+                primary_key?: source_attribute.primary_key?,
                 name:
                   AshPostgres.DataLayer.Info.polymorphic_name(relationship.source) ||
                     "#{relationship.context[:data_layer][:table]}_#{destination_attribute_source}_fkey"
@@ -2168,12 +2502,14 @@ defmodule AshPostgres.MigrationGenerator do
           configured_reference(resource, table, attribute.source || attribute.name, relationship)
 
         unless Map.get(configured_reference, :ignore?) do
+          destination_attribute =
+            Ash.Resource.Info.attribute(
+              relationship.destination,
+              relationship.destination_attribute
+            )
+
           destination_attribute_source =
-            relationship.destination
-            |> Ash.Resource.Info.attribute(relationship.destination_attribute)
-            |> then(fn attribute ->
-              attribute.source || attribute.name
-            end)
+            destination_attribute.source || destination_attribute.name
 
           %{
             destination_attribute: destination_attribute_source,
@@ -2181,6 +2517,7 @@ defmodule AshPostgres.MigrationGenerator do
             on_delete: configured_reference.on_delete,
             on_update: configured_reference.on_update,
             name: configured_reference.name,
+            primary_key?: destination_attribute.primary_key?,
             schema:
               relationship.context[:data_layer][:schema] ||
                 AshPostgres.DataLayer.Info.schema(relationship.destination) ||
@@ -2212,7 +2549,15 @@ defmodule AshPostgres.MigrationGenerator do
         ignore?: false
       })
 
-    Map.put(ref, :name, ref.name || "#{table}_#{attribute}_fkey")
+    ref
+    |> Map.put(:name, ref.name || "#{table}_#{attribute}_fkey")
+    |> Map.put(
+      :primary_key?,
+      Ash.Resource.Info.attribute(
+        relationship.destination,
+        relationship.destination_attribute
+      ).primary_key?
+    )
   end
 
   def get_migration_type(type, constraints), do: migration_type(type, constraints)
