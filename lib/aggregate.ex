@@ -334,7 +334,8 @@ defmodule AshPostgres.Aggregate do
     query =
       from(row in query,
         left_lateral_join: sub in subquery(subquery_if_distinct(subquery)),
-        as: ^query.__ash_bindings__.current
+        as: ^query.__ash_bindings__.current,
+        on: true
       )
 
     AshPostgres.DataLayer.add_binding(
@@ -396,7 +397,8 @@ defmodule AshPostgres.Aggregate do
     query =
       from(row in query,
         left_lateral_join: agg in subquery(subquery_if_distinct(subquery)),
-        as: ^query.__ash_bindings__.current
+        as: ^query.__ash_bindings__.current,
+        on: true
       )
 
     AshPostgres.DataLayer.add_binding(
@@ -433,7 +435,8 @@ defmodule AshPostgres.Aggregate do
     query =
       from(row in query,
         left_lateral_join: agg in subquery(subquery_if_distinct(subquery)),
-        as: ^query.__ash_bindings__.current
+        as: ^query.__ash_bindings__.current,
+        on: true
       )
 
     AshPostgres.DataLayer.add_binding(

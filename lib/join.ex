@@ -763,13 +763,15 @@ defmodule AshPostgres.Join do
             {:inner, true} ->
               from([{row, current_binding}] in query,
                 join: destination in ^relationship_destination,
-                as: ^initial_ash_bindings.current
+                as: ^initial_ash_bindings.current,
+                on: true
               )
 
             {_, true} ->
               from([{row, current_binding}] in query,
                 left_join: destination in ^relationship_destination,
-                as: ^initial_ash_bindings.current
+                as: ^initial_ash_bindings.current,
+                on: true
               )
 
             {:inner, _} ->

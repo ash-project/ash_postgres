@@ -937,6 +937,7 @@ defmodule AshPostgres.DataLayer do
                from(source in data_layer_query,
                  where: field(source, ^source_attribute) in ^source_values,
                  inner_lateral_join: destination in ^subquery,
+                 on: true,
                  select: destination,
                  order_by: destination.__order__,
                  distinct: true
@@ -976,6 +977,7 @@ defmodule AshPostgres.DataLayer do
                from(source in data_layer_query,
                  where: field(source, ^source_attribute) in ^source_values,
                  inner_lateral_join: destination in ^subquery,
+                 on: true,
                  select: destination,
                  distinct: true
                )}
