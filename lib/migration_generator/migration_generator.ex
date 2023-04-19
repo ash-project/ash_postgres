@@ -122,6 +122,8 @@ defmodule AshPostgres.MigrationGenerator do
     }
   end
 
+  defp find_references_primary_key(nil, _), do: nil
+
   defp find_references_primary_key(references, snapshots) do
     Enum.find_value(snapshots, false, fn snapshot ->
       if snapshot.table == references.table do
