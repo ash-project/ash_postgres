@@ -402,4 +402,25 @@ defmodule AshPostgres.CalculationTest do
       query: Post |> Ash.Query.select([:id]) |> Ash.Query.load([:price_string_with_currency_sign])
     )
   end
+
+  test "runtime expression calcs" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{
+        first_name: "Bill",
+        last_name: "Jones",
+        bio: %{title: "Mr.", bio: "Bones"}
+      })
+      |> Api.create!()
+
+    post =
+      Post
+      |> Ash.Changeset.new(%{title: "match", price: 10_024})
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+      |> Api.create!()
+      |> Api.load!(:calc_returning_json)
+
+    author
+    |> Api.load!(posts: :calc_returning_json)
+  end
 end
