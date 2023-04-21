@@ -413,14 +413,18 @@ defmodule AshPostgres.CalculationTest do
       })
       |> Api.create!()
 
-    post =
-      Post
-      |> Ash.Changeset.new(%{title: "match", price: 10_024})
-      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
-      |> Api.create!()
-      |> Api.load!(:calc_returning_json)
+    assert %AshPostgres.Test.Money{} =
+             Post
+             |> Ash.Changeset.new(%{title: "match", price: 10_024})
+             |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+             |> Api.create!()
+             |> Api.load!(:calc_returning_json)
+             |> Map.get(:calc_returning_json)
 
-    author
-    |> Api.load!(posts: :calc_returning_json)
+    assert [%AshPostgres.Test.Money{}] =
+             author
+             |> Api.load!(posts: :calc_returning_json)
+             |> Map.get(:posts)
+             |> Enum.map(&Map.get(&1, :calc_returning_json))
   end
 end
