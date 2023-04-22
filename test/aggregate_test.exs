@@ -953,6 +953,12 @@ defmodule AshPostgres.AggregateTest do
                |> Api.read_one!()
     end
 
+    test "a count with a filter that references a to many relationship can be aggregated at the query level" do
+      Post
+      |> Ash.Query.filter(comments.likes > 10)
+      |> Api.count!()
+    end
+
     test "a count with a filter that references a relationship combined with another" do
       post =
         Post

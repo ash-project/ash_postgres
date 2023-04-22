@@ -668,11 +668,21 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def run_aggregate_query(query, aggregates, resource) do
     query =
-      query
-      |> Ecto.Query.exclude(:select)
-      |> Ecto.Query.exclude(:order_by)
-      |> Map.put(:windows, [])
-      |> Ecto.Query.select(%{})
+      if query.distinct do
+        query =
+          query
+          |> Ecto.Query.exclude(:select)
+          |> Ecto.Query.exclude(:order_by)
+          |> Map.put(:windows, [])
+
+        from(row in subquery(query), as: ^0, select: %{})
+      else
+        query
+        |> Ecto.Query.exclude(:select)
+        |> Ecto.Query.exclude(:order_by)
+        |> Map.put(:windows, [])
+        |> Ecto.Query.select(%{})
+      end
 
     query =
       Enum.reduce(
