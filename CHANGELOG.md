@@ -5,6 +5,29 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.20](https://github.com/ash-project/ash_postgres/compare/v1.3.19...v1.3.20) (2023-04-22)
+
+
+
+
+### Bug Fixes:
+
+* subquery aggregates when a distinct is being added
+
+* don't call `.table` on `nil`
+
+* wrap `datetime_add` in parenthesis
+
+* handle primary key changes properly
+
+### Improvements:
+
+* update ash
+
+* don't call `.table` on `nil` `snapshot`
+
+* use digraph for operation ordering
+
 ## [v1.3.19](https://github.com/ash-project/ash_postgres/compare/v1.3.18...v1.3.19) (2023-04-07)
 
 
