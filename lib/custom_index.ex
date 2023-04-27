@@ -1,6 +1,6 @@
 defmodule AshPostgres.CustomIndex do
   @moduledoc false
-  defstruct [
+  @fields [
     :table,
     :fields,
     :name,
@@ -12,6 +12,10 @@ defmodule AshPostgres.CustomIndex do
     :include,
     :message
   ]
+
+  defstruct @fields
+
+  def fields, do: @fields
 
   @schema [
     fields: [

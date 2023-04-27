@@ -1,11 +1,15 @@
 defmodule AshPostgres.Statement do
   @moduledoc false
-  defstruct [
+  @fields [
     :name,
     :up,
     :down,
     :code?
   ]
+
+  defstruct @fields
+
+  def fields, do: @fields
 
   @schema [
     name: [

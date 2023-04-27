@@ -2404,7 +2404,7 @@ defmodule AshPostgres.MigrationGenerator do
     resource
     |> AshPostgres.DataLayer.Info.custom_indexes()
     |> Enum.map(fn custom_index ->
-      Map.from_struct(custom_index)
+      Map.take(custom_index, AshPostgres.CustomIndex.fields())
     end)
   end
 
@@ -2412,7 +2412,7 @@ defmodule AshPostgres.MigrationGenerator do
     resource
     |> AshPostgres.DataLayer.Info.custom_statements()
     |> Enum.map(fn custom_statement ->
-      Map.from_struct(custom_statement)
+      Map.take(custom_statement, AshPostgres.Statement.fields())
     end)
   end
 
