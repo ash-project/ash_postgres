@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.21](https://github.com/ash-project/ash_postgres/compare/v1.3.20...v1.3.21) (2023-04-27)
+
+
+
+
+### Improvements:
+
+* handle new spark versions better, more explicit snapshots
+
 ## [v1.3.20](https://github.com/ash-project/ash_postgres/compare/v1.3.19...v1.3.20) (2023-04-22)
 
 
