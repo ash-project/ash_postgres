@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.22](https://github.com/ash-project/ash_postgres/compare/v1.3.21...v1.3.22) (2023-04-28)
+
+
+
+
+### Improvements:
+
+* support locking
+
 ## [v1.3.21](https://github.com/ash-project/ash_postgres/compare/v1.3.20...v1.3.21) (2023-04-27)
 
 
