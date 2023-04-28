@@ -505,10 +505,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       join([
         "references(:#{table}, column: #{inspect(destination_attribute)}",
-        option("prefix", destination_schema),
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
         size,
+        option("prefix", destination_schema),
         on_delete(reference),
         on_update(reference),
         ")"
@@ -539,10 +539,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       join([
         "references(:#{table}, column: #{inspect(destination_attribute)}",
-        option("prefix", destination_schema),
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
         size,
+        option("prefix", destination_schema),
         on_delete(reference),
         on_update(reference),
         ")"

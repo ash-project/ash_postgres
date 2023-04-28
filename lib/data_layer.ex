@@ -454,6 +454,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def can?(_, :async_engine), do: true
+  def can?(_, {:lock, :for_update}), do: true
   def can?(_, :transact), do: true
   def can?(_, :composite_primary_key), do: true
   def can?(_, :upsert), do: true
@@ -1526,6 +1527,11 @@ defmodule AshPostgres.DataLayer do
       {:error, error} ->
         handle_errors({:error, error})
     end
+  end
+
+  @impl true
+  def lock(query, :for_update, _) do
+    {:ok, Ecto.Query.lock(query, "FOR UPDATE")}
   end
 
   @impl true
