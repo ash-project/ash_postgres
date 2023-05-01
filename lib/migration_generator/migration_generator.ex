@@ -1125,69 +1125,68 @@ defmodule AshPostgres.MigrationGenerator do
     group_into_phases(operations, nil, [phase | acc])
   end
 
-  defp sort_operations(ops) do
-    digraph = :digraph.new()
+  defp sort_operations(ops, acc \\ [])
+  defp sort_operations([], acc), do: acc
 
-    ops
-    |> Enum.each(fn op ->
-      :digraph.add_vertex(digraph, op)
-    end)
+  defp sort_operations([op | rest], []), do: sort_operations(rest, [op])
 
-    ops
-    |> Enum.each(fn left ->
-      ops
-      |> Enum.each(fn right ->
-        if left != right do
-          left_before_right? = after?(right, left)
-          left_after_right? = after?(left, right)
+  defp sort_operations([op | rest], acc) do
+    acc = Enum.reverse(acc)
 
-          cond do
-            # They can't both be after eachother
-            left_before_right? && left_after_right? ->
-              :ok
+    after_index = Enum.find_index(acc, &after?(op, &1))
 
-            left_before_right? ->
-              :digraph.add_edge(digraph, left, right)
+    new_acc =
+      if after_index do
+        acc
+        |> List.insert_at(after_index, op)
+        |> Enum.reverse()
+      else
+        [op | Enum.reverse(acc)]
+      end
 
-            left_after_right? ->
-              :digraph.add_edge(digraph, right, left)
-
-            true ->
-              :ok
-          end
-        end
-      end)
-    end)
-
-    transformers = walk_rest(digraph)
-    :digraph.delete(digraph)
-
-    transformers
+    sort_operations(rest, new_acc)
   end
 
-  defp walk_rest(digraph, acc \\ []) do
-    case :digraph.vertices(digraph) do
-      [] ->
-        Enum.reverse(acc)
+  # defp sort_operations(ops) do
 
-      vertices ->
-        case Enum.find(vertices, &(:digraph.in_neighbours(digraph, &1) == [])) do
-          nil ->
-            case Enum.find(vertices, &(:digraph.out_neighbours(digraph, &1) == [])) do
-              nil ->
-                raise "Cycle detected in migration operator order"
+  #   digraph = :digraph.new()
 
-              vertex ->
-                :digraph.del_vertex(digraph, vertex)
-                walk_rest(digraph, acc ++ [vertex])
-            end
+  #   ops
+  #   |> Enum.each(fn op ->
+  #     :digraph.add_vertex(digraph, op)
+  #   end)
 
-          vertex ->
-            :digraph.del_vertex(digraph, vertex)
-            walk_rest(digraph, [vertex | acc])
-        end
-    end
-  end
+  #   ops
+  #   |> Enum.each(fn left ->
+  #     ops
+  #     |> Enum.each(fn right ->
+  #       if left != right do
+  #         left_before_right? = after?(right, left)
+  #         left_after_right? = after?(left, right)
+
+  #         cond do
+  #           # They can't both be after eachother
+  #           left_before_right? && left_after_right? ->
+  #             :ok
+
+  #           left_before_right? ->
+  #             :digraph.add_edge(digraph, left, right)
+
+  #           left_after_right? ->
+  #             :digraph.add_edge(digraph, right, left)
+
+  #           true ->
+  #             :ok
+  #         end
+  #       end
+  #     end)
+  #   end)
+
+  #   transformers = walk_rest(digraph)
+  #   :digraph.delete(digraph)
+
+  #   transformers
+  # end
 
   defp after?(
          %Operation.RemovePrimaryKey{},
@@ -1382,6 +1381,16 @@ defmodule AshPostgres.MigrationGenerator do
          direction: :up
        }),
        do: true
+
+  defp after?(
+         %Operation.AlterAttribute{table: table, schema: schema},
+         %Operation.DropForeignKey{
+           table: table,
+           schema: schema,
+           direction: :down
+         }
+       ),
+       do: false
 
   defp after?(
          %Operation.DropForeignKey{

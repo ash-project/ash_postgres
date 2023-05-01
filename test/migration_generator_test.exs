@@ -811,11 +811,19 @@ defmodule AshPostgres.MigrationGeneratorTest do
                |> Path.wildcard()
                |> Enum.sort()
                |> Enum.at(1)
+               |> File.read!()
 
-      assert File.read!(file) =~
-               ~S[references(:posts, column: :id, prefix: "public", name: "special_post_fkey", type: :uuid, on_delete: :delete_all, on_update: :update_all)]
+      assert file =~
+               ~S[references(:posts, column: :id, name: "special_post_fkey", type: :uuid, prefix: "public", on_delete: :delete_all, on_update: :update_all)]
 
-      assert File.read!(file) =~ ~S[drop constraint(:posts, "posts_post_id_fkey")]
+      assert file =~ ~S[drop constraint(:posts, "posts_post_id_fkey")]
+
+      assert [_, down_code] = String.split(file, "def down do")
+
+      assert [_, after_drop] =
+               String.split(down_code, "drop constraint(:posts, \"special_post_fkey\")")
+
+      assert after_drop =~ ~S[references(:posts]
     end
   end
 
@@ -1217,7 +1225,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert after_index_drop =~ ~S[modify :id, :uuid, null: true, primary_key: false]
 
       assert after_index_drop =~
-               ~S[modify :post_id, references(:posts, column: :id, prefix: "public", name: "comments_post_id_fkey", type: :uuid)]
+               ~S[modify :post_id, references(:posts, column: :id, name: "comments_post_id_fkey", type: :uuid, prefix: "public")]
     end
   end
 end
