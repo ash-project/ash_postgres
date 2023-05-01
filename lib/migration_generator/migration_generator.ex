@@ -1147,47 +1147,6 @@ defmodule AshPostgres.MigrationGenerator do
     sort_operations(rest, new_acc)
   end
 
-  # defp sort_operations(ops) do
-
-  #   digraph = :digraph.new()
-
-  #   ops
-  #   |> Enum.each(fn op ->
-  #     :digraph.add_vertex(digraph, op)
-  #   end)
-
-  #   ops
-  #   |> Enum.each(fn left ->
-  #     ops
-  #     |> Enum.each(fn right ->
-  #       if left != right do
-  #         left_before_right? = after?(right, left)
-  #         left_after_right? = after?(left, right)
-
-  #         cond do
-  #           # They can't both be after eachother
-  #           left_before_right? && left_after_right? ->
-  #             :ok
-
-  #           left_before_right? ->
-  #             :digraph.add_edge(digraph, left, right)
-
-  #           left_after_right? ->
-  #             :digraph.add_edge(digraph, right, left)
-
-  #           true ->
-  #             :ok
-  #         end
-  #       end
-  #     end)
-  #   end)
-
-  #   transformers = walk_rest(digraph)
-  #   :digraph.delete(digraph)
-
-  #   transformers
-  # end
-
   defp after?(
          %Operation.RemovePrimaryKey{},
          %Operation.DropForeignKey{}
