@@ -126,7 +126,7 @@ defmodule AshPostgres.MigrationGenerator do
     Enum.find_value(snapshots, false, fn snapshot ->
       if snapshot && references && snapshot.table == references.table do
         Enum.any?(snapshot.attributes, fn attribute ->
-          attribute.source == references.destination_attribute
+          attribute.source == references.destination_attribute && attribute.primary_key?
         end)
       end
     end)
