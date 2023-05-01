@@ -74,6 +74,37 @@ defmodule AshPostgres.Test.LoadTest do
     assert %{linked_posts: [%{title: "destination"}, %{title: "destination"}]} = results
   end
 
+  test "many_to_many loads work when nested" do
+    source_post =
+      Post
+      |> Ash.Changeset.new(%{title: "source"})
+      |> Api.create!()
+
+    destination_post =
+      Post
+      |> Ash.Changeset.new(%{title: "destination"})
+      |> Api.create!()
+
+    source_post
+    |> Ash.Changeset.new()
+    |> Ash.Changeset.manage_relationship(:linked_posts, [destination_post],
+      type: :append_and_remove
+    )
+    |> Api.update!()
+
+    destination_post
+    |> Ash.Changeset.new()
+    |> Ash.Changeset.manage_relationship(:linked_posts, [source_post], type: :append_and_remove)
+    |> Api.update!()
+
+    results =
+      source_post
+      |> Api.load!(linked_posts: :linked_posts)
+
+    assert %{linked_posts: [%{title: "destination", linked_posts: [%{title: "source"}]}]} =
+             results
+  end
+
   describe "lateral join loads" do
     test "lateral join loads (loads with limits or offsets) are supported" do
       assert %Post{comments: %Ash.NotLoaded{type: :relationship}} =
