@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.23](https://github.com/ash-project/ash_postgres/compare/v1.3.22...v1.3.23) (2023-05-01)
+
+
+
+
+### Bug Fixes:
+
+* don't incorrectly mark references as primary key references
+
+* go back to old migration sorting algorithm
+
 ## [v1.3.22](https://github.com/ash-project/ash_postgres/compare/v1.3.21...v1.3.22) (2023-04-28)
 
 
