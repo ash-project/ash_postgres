@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.24](https://github.com/ash-project/ash_postgres/compare/v1.3.23...v1.3.24) (2023-05-03)
+
+
+
+
+### Improvements:
+
+* support bulk upserts
+
 ## [v1.3.23](https://github.com/ash-project/ash_postgres/compare/v1.3.22...v1.3.23) (2023-05-01)
 
 
