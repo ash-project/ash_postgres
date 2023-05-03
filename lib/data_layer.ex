@@ -1094,7 +1094,6 @@ defmodule AshPostgres.DataLayer do
     end
   rescue
     e ->
-      IO.inspect(e)
       {:error, Ash.Error.to_ash_error(e)}
   end
 

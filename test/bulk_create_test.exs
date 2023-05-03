@@ -40,12 +40,12 @@ defmodule AshPostgres.BulkCreateTest do
 
       assert [
                {:ok, %{title: "fred", uniq_one: "one", uniq_two: "two", price: 1000}},
-               {:ok, %{title: "george", uniq_one: "three", uniq_two: "four", price: 20000}}
+               {:ok, %{title: "george", uniq_one: "three", uniq_two: "four", price: 20_000}}
              ] =
                Api.bulk_create!(
                  [
                    %{title: "something", uniq_one: "one", uniq_two: "two", price: 1000},
-                   %{title: "else", uniq_one: "three", uniq_two: "four", price: 20000}
+                   %{title: "else", uniq_one: "three", uniq_two: "four", price: 20_000}
                  ],
                  Post,
                  :create,
