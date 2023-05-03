@@ -103,6 +103,11 @@ defmodule AshPostgres.DataLayer.Info do
     Extension.get_opt(resource, [:postgres], :migrate?, nil, true)
   end
 
+  @doc "A list of keys to always include in upserts."
+  def global_upsert_keys(resource) do
+    Extension.get_opt(resource, [:postgres], :global_upsert_keys, [])
+  end
+
   @doc "A stringified version of the base_filter, to be used in a where clause when generating unique indexes"
   def base_filter_sql(resource) do
     Extension.get_opt(resource, [:postgres], :base_filter_sql, nil)

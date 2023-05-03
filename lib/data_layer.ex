@@ -454,6 +454,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def can?(_, :async_engine), do: true
+  def can?(_, :bulk_create), do: true
   def can?(_, {:lock, :for_update}), do: true
   def can?(_, :transact), do: true
   def can?(_, :composite_primary_key), do: true
@@ -1043,6 +1044,61 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
+  def bulk_create(resource, stream, options) do
+    opts = repo_opts(nil, options[:tenant], resource)
+
+    opts =
+      if options.return_records? do
+        Keyword.put(opts, :returning, true)
+      else
+        opts
+      end
+
+    opts =
+      if options[:upsert?] do
+        opts
+        |> Keyword.put(:on_conflict, {:replace, options[:upsert_fields] || []})
+        |> Keyword.put(
+          :conflict_target,
+          conflict_target(
+            resource,
+            options[:upsert_keys] || Ash.Resource.Info.primary_key(resource)
+          )
+        )
+      else
+        opts
+      end
+
+    changesets = Enum.to_list(stream)
+
+    ecto_changesets =
+      changesets
+      |> Stream.map(& &1.attributes)
+      |> Enum.to_list()
+
+    resource
+    |> dynamic_repo(resource, Enum.at(changesets, 0)).insert_all(ecto_changesets, opts)
+    |> case do
+      {_, nil} ->
+        :ok
+
+      {_, results} ->
+        {:ok,
+         Stream.zip_with(results, changesets, fn result, changeset ->
+           Ash.Resource.put_metadata(
+             result,
+             :bulk_create_index,
+             changeset.context.bulk_create.index
+           )
+         end)}
+    end
+  rescue
+    e ->
+      IO.inspect(e)
+      {:error, Ash.Error.to_ash_error(e)}
+  end
+
+  @impl true
   def create(resource, changeset) do
     changeset.data
     |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
@@ -1399,18 +1455,7 @@ defmodule AshPostgres.DataLayer do
       |> update_defaults()
       |> Keyword.merge(explicitly_changing_attributes)
 
-    conflict_target =
-      if Ash.Resource.Info.base_filter(resource) do
-        base_filter_sql =
-          AshPostgres.DataLayer.Info.base_filter_sql(resource) ||
-            raise """
-            Cannot use upserts with resources that have a base_filter without also adding `base_filter_sql` in the postgres section.
-            """
-
-        {:unsafe_fragment, "(" <> Enum.join(keys, ", ") <> ") WHERE (#{base_filter_sql})"}
-      else
-        keys
-      end
+    conflict_target = conflict_target(resource, keys)
 
     repo_opts =
       changeset.timeout
@@ -1429,6 +1474,25 @@ defmodule AshPostgres.DataLayer do
       )
       |> from_ecto()
       |> handle_errors()
+    end
+  end
+
+  defp conflict_target(resource, keys) do
+    if Ash.Resource.Info.base_filter(resource) do
+      base_filter_sql =
+        AshPostgres.DataLayer.Info.base_filter_sql(resource) ||
+          raise """
+          Cannot use upserts with resources that have a base_filter without also adding `base_filter_sql` in the postgres section.
+          """
+
+      sources =
+        Enum.map(keys, fn key ->
+          Ash.Resource.Info.attribute(resource, key).source || key
+        end)
+
+      {:unsafe_fragment, "(" <> Enum.join(sources, ", ") <> ") WHERE (#{base_filter_sql})"}
+    else
+      keys
     end
   end
 
