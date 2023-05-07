@@ -44,7 +44,9 @@ defmodule Mix.Tasks.AshPostgres.Drop do
     {opts, _} = OptionParser.parse!(args, strict: @switches, aliases: @aliases)
     opts = Keyword.merge(@default_opts, opts)
 
-    repos = AshPostgres.MixHelpers.repos!(opts, args)
+    repos =
+      AshPostgres.MixHelpers.repos!(opts, args)
+      |> Enum.filter(fn repo -> repo.drop? end)
 
     repo_args =
       Enum.flat_map(repos, fn repo ->
