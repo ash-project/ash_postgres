@@ -459,6 +459,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :transact), do: true
   def can?(_, :composite_primary_key), do: true
   def can?(_, :upsert), do: true
+  def can?(_, :changeset_filter), do: true
 
   def can?(resource, {:join, other_resource}) do
     data_layer = Ash.DataLayer.data_layer(resource)
@@ -1184,6 +1185,13 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp ecto_changeset(record, changeset, type) do
+    filters =
+      if changeset.action.type == :create do
+        %{}
+      else
+        Map.get(changeset, :filters, %{})
+      end
+
     attributes =
       changeset.resource
       |> Ash.Resource.Info.attributes()
@@ -1194,6 +1202,7 @@ defmodule AshPostgres.DataLayer do
       |> to_ecto()
       |> set_table(changeset, type)
       |> Ecto.Changeset.change(Map.take(changeset.attributes, attributes))
+      |> Map.update!(:filters, &Map.merge(&1, filters))
       |> add_configured_foreign_key_constraints(record.__struct__)
       |> add_unique_indexes(record.__struct__, changeset)
       |> add_check_constraints(record.__struct__)
@@ -1213,6 +1222,20 @@ defmodule AshPostgres.DataLayer do
         ecto_changeset
         |> add_related_foreign_key_constraints(record.__struct__)
     end
+  end
+
+  defp handle_raised_error(
+         %Ecto.StaleEntryError{changeset: %{data: %resource{}, filters: filters}},
+         stacktrace
+       ) do
+    handle_raised_error(
+      Ash.Error.Changes.StaleRecord.exception(resource: resource, filters: filters),
+      stacktrace
+    )
+  end
+
+  defp handle_raised_error(error, stacktrace) do
+    {:error, Ash.Error.to_ash_error(error, stacktrace)}
   end
 
   defp set_table(record, changeset, operation) do
@@ -1573,6 +1596,9 @@ defmodule AshPostgres.DataLayer do
       {:error, error} ->
         {:error, error}
     end
+  rescue
+    e ->
+      handle_raised_error(e, __STACKTRACE__)
   end
 
   @impl true
@@ -1590,6 +1616,9 @@ defmodule AshPostgres.DataLayer do
       {:error, error} ->
         handle_errors({:error, error})
     end
+  rescue
+    e ->
+      handle_raised_error(e, __STACKTRACE__)
   end
 
   @impl true
