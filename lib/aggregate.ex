@@ -212,7 +212,7 @@ defmodule AshPostgres.Aggregate do
          agg_query,
          _first_relationship,
          _relationship_path,
-         [_aggregate | _rest],
+         [_aggregate1, _aggregate2 | _rest],
          false,
          _source_binding
        ) do

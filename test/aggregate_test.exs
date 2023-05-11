@@ -74,7 +74,14 @@ defmodule AshPostgres.AggregateTest do
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
+      Comment
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Api.create!()
+
       import Ash.Query
+
+      Logger.configure(level: :debug)
 
       assert %{aggregates: %{custom_count_of_comments: 1}} =
                Post
@@ -83,7 +90,7 @@ defmodule AshPostgres.AggregateTest do
                  :custom_count_of_comments,
                  :count,
                  :comments,
-                 filter: expr(not is_nil(title))
+                 query: [filter: expr(not is_nil(title))]
                )
                |> Api.read_one!()
 
@@ -99,7 +106,7 @@ defmodule AshPostgres.AggregateTest do
                  :custom_count_of_comments,
                  :count,
                  :comments,
-                 filter: expr(not is_nil(title))
+                 query: [filter: expr(not is_nil(title))]
                )
                |> Api.read_one!()
     end
