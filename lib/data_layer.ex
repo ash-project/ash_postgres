@@ -1186,7 +1186,7 @@ defmodule AshPostgres.DataLayer do
 
   defp ecto_changeset(record, changeset, type) do
     filters =
-      if changeset.action.type == :create do
+      if changeset.action_type == :create do
         %{}
       else
         Map.get(changeset, :filters, %{})
