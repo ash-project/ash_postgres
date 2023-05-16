@@ -456,6 +456,22 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :async_engine), do: true
   def can?(_, :bulk_create), do: true
   def can?(_, {:lock, :for_update}), do: true
+
+  def can?(_, {:lock, string}) do
+    string = String.trim_trailing(string, " NOWAIT")
+
+    String.upcase(string) in [
+      "ACCESS SHARE",
+      "ROW SHARE",
+      "ROW EXCLUSIVE",
+      "SHARE UPDATE EXCLUSIVE",
+      "SHARE",
+      "SHARE ROW EXCLUSIVE",
+      "EXCLUSIVE",
+      "ACCESS EXCLUSIVE"
+    ]
+  end
+
   def can?(_, :transact), do: true
   def can?(_, :composite_primary_key), do: true
   def can?(_, :upsert), do: true
@@ -1624,6 +1640,25 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def lock(query, :for_update, _) do
     {:ok, Ecto.Query.lock(query, "FOR UPDATE")}
+  end
+
+  @locks [
+    "ACCESS SHARE",
+    "ROW SHARE",
+    "ROW EXCLUSIVE",
+    "SHARE UPDATE EXCLUSIVE",
+    "SHARE",
+    "SHARE ROW EXCLUSIVE",
+    "EXCLUSIVE",
+    "ACCESS EXCLUSIVE"
+  ]
+
+  @all_locks @locks ++ Enum.map(@locks, &"#{&1} NOWAIT")
+
+  for lock <- @all_locks do
+    def lock(query, unquote(lock), _) do
+      {:ok, Ecto.Query.lock(query, unquote(lock))}
+    end
   end
 
   @impl true
