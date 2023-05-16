@@ -1639,14 +1639,10 @@ defmodule AshPostgres.DataLayer do
   end
 
   @locks [
-    "ACCESS SHARE",
-    "ROW SHARE",
-    "ROW EXCLUSIVE",
-    "SHARE UPDATE EXCLUSIVE",
-    "SHARE",
-    "SHARE ROW EXCLUSIVE",
-    "EXCLUSIVE",
-    "ACCESS EXCLUSIVE"
+    "FOR UPDATE",
+    "FOR NO KEY UPDATE",
+    "FOR SHARE",
+    "FOR KEY SHARE"
   ]
 
   @all_locks @locks ++ Enum.map(@locks, &"#{&1} NOWAIT")
