@@ -461,14 +461,10 @@ defmodule AshPostgres.DataLayer do
     string = String.trim_trailing(string, " NOWAIT")
 
     String.upcase(string) in [
-      "ACCESS SHARE",
-      "ROW SHARE",
-      "ROW EXCLUSIVE",
-      "SHARE UPDATE EXCLUSIVE",
-      "SHARE",
-      "SHARE ROW EXCLUSIVE",
-      "EXCLUSIVE",
-      "ACCESS EXCLUSIVE"
+      "FOR UPDATE",
+      "FOR NO KEY UPDATE",
+      "FOR SHARE",
+      "FOR KEY SHARE"
     ]
   end
 
