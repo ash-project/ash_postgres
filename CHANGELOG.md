@@ -5,6 +5,23 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.26](https://github.com/ash-project/ash_postgres/compare/v1.3.25...v1.3.26) (2023-05-16)
+
+
+
+
+### Bug Fixes:
+
+* use proper lock list again
+
+* use proper list of row level locks
+
+* check `changeset.action_type` not `changeset.action.type`
+
+### Improvements:
+
+* support more lock types
+
 ## [v1.3.25](https://github.com/ash-project/ash_postgres/compare/v1.3.24...v1.3.25) (2023-05-08)
 
 
