@@ -547,7 +547,7 @@ defmodule AshPostgres.FilterTest do
       |> Ash.Changeset.new()
       |> Api.create!()
 
-      assert_raise(Postgrex.Error, fn ->
+      assert_raise(Ash.Error.Unknown, fn ->
         Author
         |> Ash.Query.filter(length(first_name) > 0)
         |> Api.read!()

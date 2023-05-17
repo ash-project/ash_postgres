@@ -26,11 +26,22 @@ if Mix.env() == :test do
   # sobelow_skip ["Config.Secrets"]
   config :ash_postgres, AshPostgres.TestRepo, password: "postgres"
 
-  config :ash_postgres,
-    ecto_repos: [AshPostgres.TestRepo],
-    ash_apis: [AshPostgres.Test.Api, AshPostgres.MultitenancyTest.Api]
-
   config :ash_postgres, AshPostgres.TestRepo, migration_primary_key: [name: :id, type: :binary_id]
+
+  config :ash_postgres, AshPostgres.TestNoSandboxRepo,
+    username: "postgres",
+    database: "ash_postgres_test",
+    hostname: "localhost"
+
+  # sobelow_skip ["Config.Secrets"]
+  config :ash_postgres, AshPostgres.TestNoSandboxRepo, password: "postgres"
+
+  config :ash_postgres, AshPostgres.TestNoSandboxRepo,
+    migration_primary_key: [name: :id, type: :binary_id]
+
+  config :ash_postgres,
+    ecto_repos: [AshPostgres.TestRepo, AshPostgres.TestNoSandboxRepo],
+    ash_apis: [AshPostgres.Test.Api, AshPostgres.MultitenancyTest.Api]
 
   config :logger, level: :warn
 end

@@ -627,6 +627,9 @@ defmodule AshPostgres.DataLayer do
     else
       {:ok, dynamic_repo(resource, query).all(query, repo_opts(nil, nil, resource))}
     end
+  rescue
+    e ->
+      handle_raised_error(e, __STACKTRACE__, query, resource)
   end
 
   defp no_table?(%{from: %{source: {"", _}}}), do: true
@@ -1238,15 +1241,42 @@ defmodule AshPostgres.DataLayer do
 
   defp handle_raised_error(
          %Ecto.StaleEntryError{changeset: %{data: %resource{}, filters: filters}},
-         stacktrace
+         stacktrace,
+         context,
+         resource
        ) do
     handle_raised_error(
       Ash.Error.Changes.StaleRecord.exception(resource: resource, filters: filters),
-      stacktrace
+      stacktrace,
+      context,
+      resource
     )
   end
 
-  defp handle_raised_error(error, stacktrace) do
+  defp handle_raised_error(
+         %Postgrex.Error{
+           postgres: %{
+             code: :lock_not_available,
+             message: message
+           }
+         },
+         stacktrace,
+         context,
+         resource
+       ) do
+    handle_raised_error(
+      Ash.Error.Invalid.Unavailable.exception(
+        resource: resource,
+        source: inspect(context, pretty: true),
+        reason: message
+      ),
+      stacktrace,
+      context,
+      resource
+    )
+  end
+
+  defp handle_raised_error(error, stacktrace, _context, _resource) do
     {:error, Ash.Error.to_ash_error(error, stacktrace)}
   end
 
@@ -1610,7 +1640,7 @@ defmodule AshPostgres.DataLayer do
     end
   rescue
     e ->
-      handle_raised_error(e, __STACKTRACE__)
+      handle_raised_error(e, __STACKTRACE__, changeset, resource)
   end
 
   @impl true
@@ -1630,7 +1660,7 @@ defmodule AshPostgres.DataLayer do
     end
   rescue
     e ->
-      handle_raised_error(e, __STACKTRACE__)
+      handle_raised_error(e, __STACKTRACE__, changeset, resource)
   end
 
   @impl true

@@ -81,8 +81,6 @@ defmodule AshPostgres.AggregateTest do
 
       import Ash.Query
 
-      Logger.configure(level: :debug)
-
       assert %{aggregates: %{custom_count_of_comments: 1}} =
                Post
                |> Ash.Query.filter(id == ^post.id)
