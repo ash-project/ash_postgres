@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.27](https://github.com/ash-project/ash_postgres/compare/v1.3.26...v1.3.27) (2023-05-17)
+
+
+
+
+### Improvements:
+
+* raise better errors on conflicting locks
+
 ## [v1.3.26](https://github.com/ash-project/ash_postgres/compare/v1.3.25...v1.3.26) (2023-05-16)
 
 
