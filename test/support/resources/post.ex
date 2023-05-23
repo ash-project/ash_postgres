@@ -94,7 +94,9 @@ defmodule AshPostgres.Test.Post do
   end
 
   relationships do
-    belongs_to(:organization, AshPostgres.Test.Organization)
+    belongs_to :organization, AshPostgres.Test.Organization do
+      attribute_writable?(true)
+    end
 
     belongs_to(:author, AshPostgres.Test.Author)
 
@@ -125,6 +127,10 @@ defmodule AshPostgres.Test.Post do
       source_attribute_on_join_resource: :source_post_id,
       destination_attribute_on_join_resource: :destination_post_id
     )
+  end
+
+  validations do
+    validate(attribute_does_not_equal(:title, "not allowed"))
   end
 
   calculations do

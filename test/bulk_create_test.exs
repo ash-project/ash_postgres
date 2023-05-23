@@ -64,4 +64,54 @@ defmodule AshPostgres.BulkCreateTest do
                end)
     end
   end
+
+  describe "validation errors" do
+    test "skips invalid by default" do
+      assert %{records: [_], errors: [_]} =
+               Api.bulk_create!([%{title: "fred"}, %{title: "not allowed"}], Post, :create,
+                 return_records?: true
+               )
+    end
+
+    test "returns errors in the stream" do
+      assert [{:ok, _}, {:error, _}] =
+               Api.bulk_create!([%{title: "fred"}, %{title: "not allowed"}], Post, :create,
+                 return_records?: true,
+                 return_stream?: true
+               )
+               |> Enum.to_list()
+    end
+  end
+
+  describe "database errors" do
+    test "database errors affect the entire batch" do
+      # assert %{records: [_], errors: [_]} =
+      Api.bulk_create(
+        [%{title: "fred"}, %{title: "george", organization_id: Ash.UUID.generate()}],
+        Post,
+        :create,
+        return_records?: true
+      )
+
+      assert [] =
+               Post
+               |> Ash.Query.sort(:title)
+               |> Api.read!()
+    end
+
+    test "database errors don't affect other batches" do
+      Api.bulk_create(
+        [%{title: "george", organization_id: Ash.UUID.generate()}, %{title: "fred"}],
+        Post,
+        :create,
+        return_records?: true,
+        batch_size: 1
+      )
+
+      assert [%{title: "fred"}] =
+               Post
+               |> Ash.Query.sort(:title)
+               |> Api.read!()
+    end
+  end
 end

@@ -1110,7 +1110,14 @@ defmodule AshPostgres.DataLayer do
     end
   rescue
     e ->
-      {:error, Ash.Error.to_ash_error(e)}
+      changeset = Ash.Changeset.new(resource)
+
+      handle_raised_error(
+        e,
+        __STACKTRACE__,
+        {:bulk_create, ecto_changeset(changeset.data, changeset, :create)},
+        resource
+      )
   end
 
   @impl true
@@ -1276,8 +1283,61 @@ defmodule AshPostgres.DataLayer do
     )
   end
 
+  defp handle_raised_error(
+         %Postgrex.Error{} = error,
+         stacktrace,
+         {:bulk_create, fake_changeset},
+         _resource
+       ) do
+    case Ecto.Adapters.Postgres.Connection.to_constraints(error, []) do
+      [] ->
+        {:error, Ash.Error.to_ash_error(error, stacktrace)}
+
+      constraints ->
+        {:error,
+         fake_changeset
+         |> constraints_to_errors(:insert, constraints)
+         |> Ash.Error.to_ash_error()}
+    end
+  end
+
   defp handle_raised_error(error, stacktrace, _context, _resource) do
     {:error, Ash.Error.to_ash_error(error, stacktrace)}
+  end
+
+  defp constraints_to_errors(%{constraints: user_constraints} = changeset, action, constraints) do
+    Enum.map(constraints, fn {type, constraint} ->
+      user_constraint =
+        Enum.find(user_constraints, fn c ->
+          case {c.type, c.constraint, c.match} do
+            {^type, ^constraint, :exact} -> true
+            {^type, cc, :suffix} -> String.ends_with?(constraint, cc)
+            {^type, cc, :prefix} -> String.starts_with?(constraint, cc)
+            {^type, %Regex{} = r, _match} -> Regex.match?(r, constraint)
+            _ -> false
+          end
+        end)
+
+      case user_constraint do
+        %{field: field, error_message: error_message, type: type, constraint: constraint} ->
+          Ash.Error.Changes.InvalidAttribute.exception(
+            field: field,
+            message: error_message,
+            private_vars: [
+              constraint: constraint,
+              constraint_type: type
+            ]
+          )
+
+        nil ->
+          Ecto.ConstraintError.exception(
+            action: action,
+            type: type,
+            constraint: constraint,
+            changeset: changeset
+          )
+      end
+    end)
   end
 
   defp set_table(record, changeset, operation) do
