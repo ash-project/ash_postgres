@@ -69,7 +69,8 @@ defmodule AshPostgres.BulkCreateTest do
     test "skips invalid by default" do
       assert %{records: [_], errors: [_]} =
                Api.bulk_create!([%{title: "fred"}, %{title: "not allowed"}], Post, :create,
-                 return_records?: true
+                 return_records?: true,
+                 return_errors?: true
                )
     end
 
@@ -77,7 +78,8 @@ defmodule AshPostgres.BulkCreateTest do
       assert [{:ok, _}, {:error, _}] =
                Api.bulk_create!([%{title: "fred"}, %{title: "not allowed"}], Post, :create,
                  return_records?: true,
-                 return_stream?: true
+                 return_stream?: true,
+                 return_errors?: true
                )
                |> Enum.to_list()
     end
