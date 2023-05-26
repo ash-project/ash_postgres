@@ -13,12 +13,13 @@ defmodule AshPostgres.Test.Organization do
   end
 
   attributes do
-    uuid_primary_key(:id)
+    uuid_primary_key(:id, writable?: true)
     attribute(:name, :string)
   end
 
   relationships do
     has_many(:users, AshPostgres.Test.User)
     has_many(:posts, AshPostgres.Test.Post)
+    has_many(:managers, AshPostgres.Test.Manager)
   end
 end
