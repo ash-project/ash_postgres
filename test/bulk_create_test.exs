@@ -66,7 +66,7 @@ defmodule AshPostgres.BulkCreateTest do
 
     test "bulk creates can create relationships" do
       Api.bulk_create!(
-        [%{title: "fred", ratings: [%{score: 5}]}, %{title: "george", ratings: [%{score: 0}]}],
+        [%{title: "fred", rating: %{score: 5}}, %{title: "george", rating: %{score: 0}}],
         Post,
         :create
       )
