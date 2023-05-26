@@ -63,6 +63,23 @@ defmodule AshPostgres.BulkCreateTest do
                    nil
                end)
     end
+
+    test "bulk creates can create relationships" do
+      Api.bulk_create!(
+        [%{title: "fred", ratings: [%{score: 5}]}, %{title: "george", ratings: [%{score: 0}]}],
+        Post,
+        :create
+      )
+
+      assert [
+               %{title: "fred", ratings: [%{score: 5}]},
+               %{title: "george", ratings: [%{score: 0}]}
+             ] =
+               Post
+               |> Ash.Query.sort(:title)
+               |> Ash.Query.load(:ratings)
+               |> Api.read!()
+    end
   end
 
   describe "validation errors" do
