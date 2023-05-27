@@ -13,5 +13,6 @@ defmodule AshPostgres.Test.Registry do
     entry(AshPostgres.Test.User)
     entry(AshPostgres.Test.Account)
     entry(AshPostgres.Test.Organization)
+    entry(AshPostgres.Test.Manager)
   end
 end
