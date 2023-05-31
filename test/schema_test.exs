@@ -55,6 +55,7 @@ defmodule AshPostgres.SchemaTest do
     assert [%{profile_description: "foo"}] =
              Author
              |> Ash.Query.filter(profile_description == "foo")
+             |> Ash.Query.load(:profile_description)
              |> Api.read!()
 
     assert %{profile_description: "foo"} = Api.load!(author, :profile_description)
