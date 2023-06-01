@@ -342,7 +342,7 @@ defmodule AshPostgres.Aggregate do
         query,
         opts,
         source_binding,
-        subquery.__ash_bindings__.current - 1,
+        subquery.__ash_bindings__.current,
         :left,
         subquery
       )
