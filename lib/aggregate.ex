@@ -318,7 +318,7 @@ defmodule AshPostgres.Aggregate do
       from(row in subquery,
         select_merge: map(row, ^[field]),
         group_by: field(row, ^first_relationship.destination_attribute),
-        distinct: [^field]
+        distinct: true
       )
 
     {:ok, subquery} =

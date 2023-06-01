@@ -625,6 +625,7 @@ defmodule AshPostgres.DataLayer do
     if AshPostgres.DataLayer.Info.polymorphic?(resource) && no_table?(query) do
       raise_table_error!(resource, :read)
     else
+      IO.inspect(query, label: "query")
       {:ok, dynamic_repo(resource, query).all(query, repo_opts(nil, nil, resource))}
     end
   rescue
