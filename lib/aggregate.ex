@@ -304,49 +304,49 @@ defmodule AshPostgres.Aggregate do
     end
   end
 
-  defp join_subquery(
-         query,
-         subquery,
-         %{manual: {module, opts}} = first_relationship,
-         _relationship_path,
-         aggregates,
-         source_binding
-       ) do
-    field = first_relationship.destination_attribute
+  # defp join_subquery(
+  #        query,
+  #        subquery,
+  #        %{manual: {module, opts}} = first_relationship,
+  #        _relationship_path,
+  #        aggregates,
+  #        source_binding
+  #      ) do
+  #   field = first_relationship.destination_attribute
 
-    new_subquery =
-      from(row in subquery,
-        select_merge: map(row, ^[field]),
-        group_by: field(row, ^first_relationship.destination_attribute),
-        distinct: true
-      )
+  #   new_subquery =
+  #     from(row in subquery,
+  #       select_merge: map(row, ^[field]),
+  #       group_by: field(row, ^first_relationship.destination_attribute),
+  #       distinct: true
+  #     )
 
-    {:ok, subquery} =
-      module.ash_postgres_subquery(
-        opts,
-        source_binding,
-        subquery.__ash_bindings__.current - 1,
-        new_subquery
-      )
+  #   {:ok, subquery} =
+  #     module.ash_postgres_subquery(
+  #       opts,
+  #       source_binding,
+  #       subquery.__ash_bindings__.current - 1,
+  #       new_subquery
+  #     )
 
-    subquery = AshPostgres.Join.set_join_prefix(subquery, query, first_relationship.destination)
+  #   subquery = AshPostgres.Join.set_join_prefix(subquery, query, first_relationship.destination)
 
-    query =
-      from(row in query,
-        left_lateral_join: sub in subquery(subquery_if_distinct(subquery)),
-        as: ^query.__ash_bindings__.current,
-        on: true
-      )
+  #   query =
+  #     from(row in query,
+  #       left_lateral_join: sub in subquery(subquery_if_distinct(subquery)),
+  #       as: ^query.__ash_bindings__.current,
+  #       on: true
+  #     )
 
-    AshPostgres.DataLayer.add_binding(
-      query,
-      %{
-        path: [],
-        type: :aggregate,
-        aggregates: aggregates
-      }
-    )
-  end
+  #   AshPostgres.DataLayer.add_binding(
+  #     query,
+  #     %{
+  #       path: [],
+  #       type: :aggregate,
+  #       aggregates: aggregates
+  #     }
+  #   )
+  # end
 
   defp join_subquery(
          query,
