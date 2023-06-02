@@ -274,19 +274,23 @@ defmodule AshPostgres.Join do
   end
 
   def set_join_prefix(join_query, query, resource) do
-    if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
-      %{
-        join_query
-        | prefix: query.prefix || AshPostgres.DataLayer.Info.schema(resource) || "public"
-      }
+    if join_query.__ash_bindings__[:skip_prefix?] do
+      join_query
     else
-      %{
-        join_query
-        | prefix:
-            AshPostgres.DataLayer.Info.schema(resource) ||
-              AshPostgres.DataLayer.Info.repo(resource).config()[:default_prefix] ||
-              "public"
-      }
+      if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
+        %{
+          join_query
+          | prefix: query.prefix || AshPostgres.DataLayer.Info.schema(resource) || "public"
+        }
+      else
+        %{
+          join_query
+          | prefix:
+              AshPostgres.DataLayer.Info.schema(resource) ||
+                AshPostgres.DataLayer.Info.repo(resource).config()[:default_prefix] ||
+                "public"
+        }
+      end
     end
   end
 
