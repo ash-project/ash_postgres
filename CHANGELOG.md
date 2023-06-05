@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.29](https://github.com/ash-project/ash_postgres/compare/v1.3.28...v1.3.29) (2023-06-05)
+
+
+
+
+### Bug Fixes:
+
+* properly handle nested aggregate references
+
 ## [v1.3.28](https://github.com/ash-project/ash_postgres/compare/v1.3.27...v1.3.28) (2023-05-23)
 
 
