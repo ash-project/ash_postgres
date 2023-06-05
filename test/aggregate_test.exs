@@ -491,6 +491,8 @@ defmodule AshPostgres.AggregateTest do
     |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
     |> Api.create!()
 
+    Logger.configure(level: :debug)
+
     assert %{title: "match"} =
              Comment
              |> Ash.Query.filter(post.count_of_comments == 1)

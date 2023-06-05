@@ -8,8 +8,8 @@ defmodule AshPostgres.Aggregate do
         query,
         aggregates,
         resource,
-        select? \\ true,
-        source_binding \\ nil,
+        select?,
+        source_binding,
         root_data \\ nil
       )
 
@@ -31,19 +31,6 @@ defmodule AshPostgres.Aggregate do
           Map.merge(aggregate_defs, Map.new(aggregates, &{&1.name, &1}))
         end)
       end)
-
-    source_binding =
-      source_binding ||
-        query.__ash_bindings__.bindings
-        |> Enum.reject(fn
-          {_, %{aggregates: _}} ->
-            true
-
-          _ ->
-            false
-        end)
-        |> Enum.map(&elem(&1, 0))
-        |> Enum.max()
 
     result =
       aggregates

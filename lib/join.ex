@@ -280,15 +280,14 @@ defmodule AshPostgres.Join do
       if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
         %{
           join_query
-          | prefix: query.prefix || AshPostgres.DataLayer.Info.schema(resource) || "public"
+          | prefix: query.prefix || AshPostgres.DataLayer.Info.schema(resource)
         }
       else
         %{
           join_query
           | prefix:
               AshPostgres.DataLayer.Info.schema(resource) ||
-                AshPostgres.DataLayer.Info.repo(resource).config()[:default_prefix] ||
-                "public"
+                AshPostgres.DataLayer.Info.repo(resource).config()[:default_prefix]
         }
       end
     end
@@ -503,8 +502,8 @@ defmodule AshPostgres.Join do
               query,
               used_aggregates,
               relationship.destination,
-              true,
-              nil,
+              false,
+              initial_ash_bindings.current,
               {query.__ash_bindings__.resource, full_path}
             )
         end
@@ -664,7 +663,7 @@ defmodule AshPostgres.Join do
         used_aggregates,
         relationship.destination,
         false,
-        nil,
+        initial_ash_bindings.current,
         {query.__ash_bindings__.resource, full_path}
       )
     end
@@ -808,7 +807,7 @@ defmodule AshPostgres.Join do
           used_aggregates,
           relationship.destination,
           false,
-          nil,
+          initial_ash_bindings.current,
           {query.__ash_bindings__.resource, full_path}
         )
     end
