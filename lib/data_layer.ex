@@ -1903,7 +1903,7 @@ defmodule AshPostgres.DataLayer do
     |> case do
       {:ok, query} ->
         query
-        |> AshPostgres.Aggregate.add_aggregates(used_aggregates, resource, false)
+        |> AshPostgres.Aggregate.add_aggregates(used_aggregates, resource, false, 0)
         |> case do
           {:ok, query} ->
             {:ok, add_filter_expression(query, filter)}
@@ -1934,13 +1934,14 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
+  @spec add_aggregates(any, any, any) :: {:error, any} | {:ok, any}
   def add_aggregates(query, aggregates, resource) do
-    AshPostgres.Aggregate.add_aggregates(query, aggregates, resource)
+    AshPostgres.Aggregate.add_aggregates(query, aggregates, resource, true, 0)
   end
 
   @impl true
   def add_calculations(query, calculations, resource) do
-    AshPostgres.Calculation.add_calculations(query, calculations, resource)
+    AshPostgres.Calculation.add_calculations(query, calculations, resource, 0)
   end
 
   @doc false

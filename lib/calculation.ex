@@ -3,9 +3,9 @@ defmodule AshPostgres.Calculation do
 
   require Ecto.Query
 
-  def add_calculations(query, [], _), do: {:ok, query}
+  def add_calculations(query, [], _, _), do: {:ok, query}
 
-  def add_calculations(query, calculations, resource) do
+  def add_calculations(query, calculations, resource, source_binding) do
     query = AshPostgres.DataLayer.default_bindings(query, resource)
 
     aggregates =
@@ -31,7 +31,8 @@ defmodule AshPostgres.Calculation do
            query,
            aggregates,
            query.__ash_bindings__.resource,
-           false
+           false,
+           source_binding
          ) do
       {:ok, query} ->
         query =

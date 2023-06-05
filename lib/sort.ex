@@ -44,7 +44,7 @@ defmodule AshPostgres.Sort do
           []
       end)
 
-    case AshPostgres.Aggregate.add_aggregates(query, used_aggregates, resource, false) do
+    case AshPostgres.Aggregate.add_aggregates(query, used_aggregates, resource, false, 0) do
       {:error, error} ->
         {:error, error}
 

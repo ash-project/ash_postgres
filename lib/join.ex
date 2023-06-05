@@ -499,8 +499,8 @@ defmodule AshPostgres.Join do
               query,
               used_aggregates,
               relationship.destination,
-              true,
-              nil,
+              false,
+              initial_ash_bindings.current,
               {query.__ash_bindings__.resource, full_path}
             )
         end
@@ -660,7 +660,7 @@ defmodule AshPostgres.Join do
         used_aggregates,
         relationship.destination,
         false,
-        nil,
+        initial_ash_bindings.current,
         {query.__ash_bindings__.resource, full_path}
       )
     end
@@ -804,7 +804,7 @@ defmodule AshPostgres.Join do
           used_aggregates,
           relationship.destination,
           false,
-          nil,
+          initial_ash_bindings.current,
           {query.__ash_bindings__.resource, full_path}
         )
     end

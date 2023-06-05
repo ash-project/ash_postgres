@@ -116,8 +116,6 @@ defmodule AshPostgres.BulkCreateTest do
     #            )
     #            |> Enum.sort_by(fn {:ok, result} -> result.name end)
 
-    #   Logger.configure(level: :debug)
-
     #   assert [
     #            {:ok,
     #             %{

@@ -1016,7 +1016,8 @@ defmodule AshPostgres.Expr do
       |> AshPostgres.Aggregate.add_aggregates(
         used_aggregates,
         first_relationship.destination,
-        false
+        false,
+        0
       )
       |> case do
         {:ok, query} ->
