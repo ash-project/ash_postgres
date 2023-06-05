@@ -1934,7 +1934,6 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  @spec add_aggregates(any, any, any) :: {:error, any} | {:ok, any}
   def add_aggregates(query, aggregates, resource) do
     AshPostgres.Aggregate.add_aggregates(query, aggregates, resource, true, 0)
   end
