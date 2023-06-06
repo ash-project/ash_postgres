@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.30](https://github.com/ash-project/ash_postgres/compare/v1.3.29...v1.3.30) (2023-06-06)
+
+
+
+
+### Bug Fixes:
+
+* handle changing custom index names better
+
+* validate custom index names
+
 ## [v1.3.29](https://github.com/ash-project/ash_postgres/compare/v1.3.28...v1.3.29) (2023-06-05)
 
 
