@@ -1687,7 +1687,7 @@ defmodule AshPostgres.MigrationGenerator do
     custom_indexes_to_add =
       Enum.filter(snapshot.custom_indexes, fn index ->
         !Enum.find(old_snapshot.custom_indexes, fn old_custom_index ->
-          indexes_match?(old_custom_index, index)
+          indexes_match?(snapshot.table, old_custom_index, index)
         end)
       end)
       |> Enum.map(fn custom_index ->
@@ -1704,7 +1704,7 @@ defmodule AshPostgres.MigrationGenerator do
       Enum.filter(old_snapshot.custom_indexes, fn old_custom_index ->
         rewrite_all_identities? ||
           !Enum.find(snapshot.custom_indexes, fn index ->
-            indexes_match?(old_custom_index, index)
+            indexes_match?(snapshot.table, old_custom_index, index)
           end)
       end)
       |> Enum.map(fn custom_index ->
@@ -1831,18 +1831,33 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.map(&Map.put(&1, :old_multitenancy, old_snapshot.multitenancy))
   end
 
-  defp indexes_match?(left, right) do
+  defp indexes_match?(table, left, right) do
     left =
-      Map.update!(left, :fields, fn fields ->
+      left
+      |> Map.update!(:fields, fn fields ->
         Enum.map(fields, &to_string/1)
       end)
+      |> add_custom_index_name(table)
 
     right =
-      Map.update!(right, :fields, fn fields ->
+      right
+      |> Map.update!(:fields, fn fields ->
         Enum.map(fields, &to_string/1)
       end)
+      |> add_custom_index_name(table)
 
     left == right
+  end
+
+  defp add_custom_index_name(custom_index, table) do
+    custom_index
+    |> Map.put_new_lazy(:name, fn ->
+      AshPostgres.CustomIndex.name(table, %{fields: custom_index.fields})
+    end)
+    |> Map.update!(
+      :name,
+      &(&1 || AshPostgres.CustomIndex.name(table, %{fields: custom_index.fields}))
+    )
   end
 
   defp pkey_operations(snapshot, old_snapshot, attribute_operations) do

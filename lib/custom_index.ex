@@ -63,18 +63,45 @@ defmodule AshPostgres.CustomIndex do
 
   # sobelow_skip ["DOS.StringToAtom"]
   def transform(%__MODULE__{fields: fields} = index) do
-    {:ok,
-     %{
-       index
-       | fields:
-           Enum.map(fields, fn field ->
-             if is_atom(field) do
-               field
-             else
-               String.to_atom(field)
-             end
-           end)
-     }}
+    index = %{
+      index
+      | fields:
+          Enum.map(fields, fn field ->
+            if is_atom(field) do
+              field
+            else
+              String.to_atom(field)
+            end
+          end)
+    }
+
+    cond do
+      index.name ->
+        if Regex.match?(~r/^[0-9a-zA-Z_]+$/, index.name) do
+          {:ok, index}
+        else
+          {:error,
+           "Custom index name #{index.name} is not valid. Must have letters, numbers and underscores only"}
+        end
+
+      mismatched_field =
+          Enum.find(index.fields, fn field ->
+            !Regex.match?(~r/^[0-9a-zA-Z_]+$/, to_string(field))
+          end) ->
+        {:error,
+         """
+         Custom index field #{mismatched_field} contains invalid index name characters.
+
+         A name must be set manually, i.e
+
+             `name: "your_desired_index_name"`
+
+         Index names must have letters, numbers and underscores only
+         """}
+
+      true ->
+        {:ok, index}
+    end
   end
 
   def name(_resource, %{name: name}) when is_binary(name) do
