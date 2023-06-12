@@ -308,6 +308,18 @@ defmodule AshPostgres.DataLayer do
         doc:
           "A raw sql version of the base_filter, e.g `representative = true`. Required if trying to create a unique constraint on a resource with a base_filter"
       ],
+      simple_join_first_aggregates: [
+        type: {:list, :atom},
+        default: [],
+        doc: """
+        A list of `:first` type aggregate names that can be joined to using a simple join.
+
+        This is used in the relatively rare case that you have a `:first` aggregate that uses
+        a `has_many` or `many_to_many` relationship in its path, but your `filter` statement ensures
+        that there is only one result. In these cases, we can use a more optimized version of
+        computing the aggregate value.
+        """
+      ],
       skip_unique_indexes: [
         type: {:custom, __MODULE__, :validate_skip_unique_indexes, []},
         default: false,

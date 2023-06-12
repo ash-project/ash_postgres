@@ -57,7 +57,7 @@ defmodule AshPostgres.Aggregate do
         first_can_join? =
           case aggregates do
             [aggregate] ->
-              single_path?(resource, aggregate.relationship_path)
+              optimizable_first_aggregate?(resource, aggregate)
 
             _ ->
               false
@@ -501,7 +501,7 @@ defmodule AshPostgres.Aggregate do
 
   defp can_group_kind?(aggregate, resource) do
     if aggregate.kind == :first do
-      if array_type?(resource, aggregate) || single_path?(resource, aggregate.relationship_path) do
+      if array_type?(resource, aggregate) || optimizable_first_aggregate?(resource, aggregate) do
         false
       else
         true
@@ -510,6 +510,18 @@ defmodule AshPostgres.Aggregate do
       true
     end
   end
+
+  @doc false
+  def optimizable_first_aggregate?(resource, %{
+        name: name,
+        kind: :first,
+        relationship_path: relationship_path
+      }) do
+    name in AshPostgres.DataLayer.Info.simple_join_first_aggregates(resource) &&
+      single_path?(resource, relationship_path)
+  end
+
+  def optimizable_first_aggregate?(_, _), do: false
 
   defp array_type?(resource, aggregate) do
     related = Ash.Resource.Info.related(resource, aggregate.relationship_path)
@@ -939,10 +951,9 @@ defmodule AshPostgres.Aggregate do
     Ecto.Query.select_merge(query, ^%{aggregate_name => casted})
   end
 
-  @doc false
-  def single_path?(_, []), do: true
+  defp single_path?(_, []), do: true
 
-  def single_path?(resource, [relationship | rest]) do
+  defp single_path?(resource, [relationship | rest]) do
     relationship = Ash.Resource.Info.relationship(resource, relationship)
     relationship.type == :belongs_to && single_path?(relationship.destination, rest)
   end

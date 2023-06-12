@@ -129,8 +129,8 @@ defmodule AshPostgres.Sort do
                   aggregate = Ash.Resource.Info.aggregate(resource, sort)
 
                   {binding, sort} =
-                    if aggregate && aggregate.kind == :first &&
-                         AshPostgres.Aggregate.single_path?(resource, aggregate.relationship_path) do
+                    if aggregate &&
+                         AshPostgres.Aggregate.optimizable_first_aggregate?(resource, aggregate) do
                       {AshPostgres.Join.get_binding(
                          resource,
                          aggregate.relationship_path,

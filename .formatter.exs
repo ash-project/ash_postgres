@@ -31,6 +31,7 @@ spark_locals_without_parens = [
   reference: 2,
   repo: 1,
   schema: 1,
+  simple_join_first_aggregates: 1,
   skip_unique_indexes: 1,
   statement: 1,
   statement: 2,

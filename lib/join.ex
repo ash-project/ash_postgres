@@ -744,11 +744,10 @@ defmodule AshPostgres.Join do
         relationship_destination =
           used_aggregates
           |> Enum.reject(fn aggregate ->
-            aggregate.kind == :first &&
-              AshPostgres.Aggregate.single_path?(
-                relationship.destination,
-                aggregate.relationship_path
-              )
+            AshPostgres.Aggregate.optimizable_first_aggregate?(
+              relationship.destination,
+              aggregate
+            )
           end)
           |> case do
             [] ->

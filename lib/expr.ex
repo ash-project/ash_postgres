@@ -752,8 +752,7 @@ defmodule AshPostgres.Expr do
     related = Ash.Resource.Info.related(query.__ash_bindings__.resource, ref.relationship_path)
 
     first_optimized_aggregate? =
-      aggregate.kind == :first &&
-        AshPostgres.Aggregate.single_path?(related, aggregate.relationship_path)
+      AshPostgres.Aggregate.optimizable_first_aggregate?(related, aggregate)
 
     {ref_binding, field_name} =
       if first_optimized_aggregate? do

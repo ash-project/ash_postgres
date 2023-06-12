@@ -13,6 +13,10 @@ defmodule AshPostgres.DataLayer.Info do
     Extension.get_opt(resource, [:postgres], :table, nil, true)
   end
 
+  def simple_join_first_aggregates(resource) do
+    Extension.get_opt(resource, [:postgres], :simple_join_first_aggregates, [])
+  end
+
   @doc "The configured schema for a resource"
   def schema(resource) do
     Extension.get_opt(resource, [:postgres], :schema, nil, true)
