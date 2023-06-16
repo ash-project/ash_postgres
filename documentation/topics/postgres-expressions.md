@@ -20,7 +20,7 @@ Please be aware, these match *patterns* not raw text. Use `contains/1` if you wa
 For example:
 
 ```elixir
-Ash.Query.filter(User, ilike(name, "%obo%")) # name contains obo anywhere in the string, case sensitively
+Ash.Query.filter(User, like(name, "%obo%")) # name contains obo anywhere in the string, case sensitively
 ```
 
 ```elixir
