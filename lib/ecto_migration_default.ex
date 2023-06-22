@@ -13,7 +13,7 @@ defimpl EctoMigrationDefault, for: Any do
   require Logger
 
   def to_default(value) do
-    Logger.warn("""
+    Logger.warning("""
     You have specified a default value for a type that cannot be explicitly
     converted to an Ecto default:
 
