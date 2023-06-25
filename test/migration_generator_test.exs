@@ -574,6 +574,58 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[add :foobar, :text]
     end
 
+    test "when multiple schemas apply to the same table, all identities are added" do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string)
+        end
+
+        identities do
+          identity(:unique_title, [:title])
+        end
+      end
+
+      defposts Post2 do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string)
+        end
+
+        identities do
+          identity(:unique_name, [:name])
+        end
+      end
+
+      defapi([Post, Post2])
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [file1, file2] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+
+      file1_content = File.read!(file1)
+
+      assert file1_content =~
+               "create unique_index(:posts, [:title], name: \"posts_title_index\")"
+
+      file2_content = File.read!(file2)
+
+      assert file2_content =~
+               "drop_if_exists unique_index(:posts, [:title], name: \"posts_title_index\")"
+
+      assert file2_content =~
+               "create unique_index(:posts, [:name], name: \"posts_unique_name_index\")"
+
+      assert file2_content =~
+               "create unique_index(:posts, [:title], name: \"posts_unique_title_index\")"
+    end
+
     test "when an attribute exists only on some of the resources that use the same table, it isn't marked as null: false" do
       defposts do
         attributes do

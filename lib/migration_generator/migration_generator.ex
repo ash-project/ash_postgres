@@ -522,6 +522,7 @@ defmodule AshPostgres.MigrationGenerator do
       new_snapshot = %{
         snapshot
         | attributes: merge_attributes(attributes, snapshot.table, count_with_create),
+          identities: snapshots |> Enum.flat_map(& &1.identities) |> Enum.uniq(),
           custom_indexes: snapshots |> Enum.flat_map(& &1.custom_indexes) |> Enum.uniq(),
           custom_statements: snapshots |> Enum.flat_map(& &1.custom_statements) |> Enum.uniq()
       }
