@@ -8,10 +8,6 @@ defmodule AshPostgres.Test.Author do
     repo(AshPostgres.TestRepo)
   end
 
-  identities do
-    identity(:unique_profile, :profile_id)
-  end
-
   attributes do
     uuid_primary_key(:id, writable?: true)
     attribute(:first_name, :string)
