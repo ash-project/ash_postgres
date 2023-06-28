@@ -18,6 +18,16 @@ defmodule AshPostgres.FilterTest do
     end
   end
 
+  describe "invalid uuid" do
+    test "with an invalid uuid, an invalid error is raised" do
+      assert_raise Ash.Error.Invalid, fn ->
+        Post
+        |> Ash.Query.filter(id == "foo")
+        |> Api.read!()
+      end
+    end
+  end
+
   describe "citext validation" do
     setup do
       on_exit(fn ->

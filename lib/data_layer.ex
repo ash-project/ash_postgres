@@ -1313,6 +1313,15 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
+  defp handle_raised_error(%Ecto.Query.CastError{} = e, stacktrace, context, resource) do
+    handle_raised_error(
+      Ash.Error.Query.InvalidFilterValue.exception(value: e.value, context: context),
+      stacktrace,
+      context,
+      resource
+    )
+  end
+
   defp handle_raised_error(error, stacktrace, _context, _resource) do
     {:error, Ash.Error.to_ash_error(error, stacktrace)}
   end
