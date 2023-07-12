@@ -433,6 +433,27 @@ defmodule AshPostgres.CalculationTest do
     end
   end
 
+  describe "at/2" do
+    test "selects items by index" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{
+          first_name: "Bill ",
+          last_name: "Jones ",
+          bio: %{title: "Mr.", bio: "Bones"}
+        })
+        |> Api.create!()
+
+      assert %{
+               first_name_from_split: "Bill"
+             } =
+               Author
+               |> Ash.Query.filter(id == ^author.id)
+               |> Ash.Query.load([:first_name_from_split])
+               |> Api.read_one!()
+    end
+  end
+
   test "dependent calc" do
     post =
       Post

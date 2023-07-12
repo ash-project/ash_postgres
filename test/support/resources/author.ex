@@ -42,6 +42,8 @@ defmodule AshPostgres.Test.Author do
       expr(string_split(full_name, " ", trim?: true))
     )
 
+    calculate(:first_name_from_split, :string, expr(at(split_full_name_trim, 0)))
+
     calculate(:first_name_or_bob, :string, expr(first_name || "bob"))
     calculate(:first_name_and_bob, :string, expr(first_name && "bob"))
 

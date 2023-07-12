@@ -7,6 +7,7 @@ defmodule AshPostgres.Expr do
 
   alias Ash.Query.Function.{
     Ago,
+    At,
     Contains,
     DateAdd,
     DateTimeAdd,
@@ -118,6 +119,23 @@ defmodule AshPostgres.Expr do
     Ecto.Query.dynamic(
       fragment("(?)", datetime_add(^DateTime.utc_now(), ^left * -1, ^to_string(right)))
     )
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %At{arguments: [left, right], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         _type
+       ) do
+    left = do_dynamic_expr(query, left, bindings, pred_embedded? || embedded?, :integer)
+    right = do_dynamic_expr(query, right, bindings, pred_embedded? || embedded?, :integer)
+
+    if is_integer(right) do
+      Ecto.Query.dynamic(fragment("(?)[?]", ^left, ^(right + 1)))
+    else
+      Ecto.Query.dynamic(fragment("(?)[? + 1]", ^left, ^right))
+    end
   end
 
   defp do_dynamic_expr(
