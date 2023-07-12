@@ -392,6 +392,47 @@ defmodule AshPostgres.CalculationTest do
     end
   end
 
+  describe "string split expression" do
+    test "with the default delimiter" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{
+          first_name: "Bill",
+          last_name: "Jones",
+          bio: %{title: "Mr.", bio: "Bones"}
+        })
+        |> Api.create!()
+
+      assert %{
+               split_full_name: ["Bill", "Jones"]
+             } =
+               Author
+               |> Ash.Query.filter(id == ^author.id)
+               |> Ash.Query.load(:split_full_name)
+               |> Api.read_one!()
+    end
+
+    test "trimming whitespace" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{
+          first_name: "Bill ",
+          last_name: "Jones ",
+          bio: %{title: "Mr.", bio: "Bones"}
+        })
+        |> Api.create!()
+
+      assert %{
+               split_full_name_trim: ["Bill", "Jones"],
+               split_full_name: ["Bill", "Jones"]
+             } =
+               Author
+               |> Ash.Query.filter(id == ^author.id)
+               |> Ash.Query.load([:split_full_name_trim, :split_full_name])
+               |> Api.read_one!()
+    end
+  end
+
   test "dependent calc" do
     post =
       Post

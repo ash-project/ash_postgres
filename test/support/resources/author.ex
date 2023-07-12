@@ -34,6 +34,13 @@ defmodule AshPostgres.Test.Author do
     calculate(:full_name, :string, expr(first_name <> " " <> last_name))
     calculate(:full_name_with_nils, :string, expr(string_join([first_name, last_name], " ")))
     calculate(:full_name_with_nils_no_joiner, :string, expr(string_join([first_name, last_name])))
+    calculate(:split_full_name, {:array, :string}, expr(string_split(full_name)))
+
+    calculate(
+      :split_full_name_trim,
+      {:array, :string},
+      expr(string_split(full_name, " ", trim?: true))
+    )
 
     calculate(:first_name_or_bob, :string, expr(first_name || "bob"))
     calculate(:first_name_and_bob, :string, expr(first_name && "bob"))

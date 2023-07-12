@@ -153,45 +153,7 @@ defmodule AshPostgres.MigrationGenerator do
     Path.join([Mix.Project.deps_paths()[app] || File.cwd!(), "priv", "resource_snapshots"])
   end
 
-  @latest_ash_functions_version 0
-
-  @add_ash_functions """
-  execute(\"\"\"
-  CREATE OR REPLACE FUNCTION ash_elixir_or(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
-  AS $$ SELECT COALESCE(NULLIF($1, FALSE), $2) $$
-  LANGUAGE SQL;
-  \"\"\")
-
-  execute(\"\"\"
-  CREATE OR REPLACE FUNCTION ash_elixir_or(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
-  AS $$ SELECT COALESCE($1, $2) $$
-  LANGUAGE SQL;
-  \"\"\")
-
-  execute(\"\"\"
-  CREATE OR REPLACE FUNCTION ash_elixir_and(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) AS $$
-    SELECT CASE
-      WHEN $1 IS TRUE THEN $2
-      ELSE $1
-    END $$
-  LANGUAGE SQL;
-  \"\"\")
-
-  execute(\"\"\"
-  CREATE OR REPLACE FUNCTION ash_elixir_and(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) AS $$
-    SELECT CASE
-      WHEN $1 IS NOT NULL THEN $2
-      ELSE $1
-    END $$
-  LANGUAGE SQL;
-  \"\"\")
-  """
-
-  @drop_ash_functions %{
-    0 => """
-    execute(\"DROP FUNCTION IF EXISTS ash_elixir_and(BOOLEAN, ANYCOMPATIBLE), ash_elixir_and(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(BOOLEAN, ANYCOMPATIBLE)\")
-    """
-  }
+  @latest_ash_functions_version 1
 
   defp create_extension_migrations(repos, opts) do
     for repo <- repos do
@@ -212,9 +174,7 @@ defmodule AshPostgres.MigrationGenerator do
           installed when is_list(installed) ->
             {%{
                installed: installed
-             }
-             |> add_ash_functions(repo.installed_extensions, @latest_ash_functions_version - 1),
-             installed}
+             }, installed}
 
           other ->
             {other, other.installed}
@@ -222,11 +182,16 @@ defmodule AshPostgres.MigrationGenerator do
 
       to_install = List.wrap(repo.installed_extensions()) -- List.wrap(installed_extensions)
 
-      update_ash_functions? =
-        "ash-functions" in repo.installed_extensions() &&
-          extensions_snapshot[:ash_functions_version] != @latest_ash_functions_version
+      to_install =
+        if "ash-functions" in repo.installed_extensions() &&
+             extensions_snapshot[:ash_functions_version] !=
+               @latest_ash_functions_version do
+          Enum.uniq(["ash-functions" | to_install])
+        else
+          to_install
+        end
 
-      if Enum.empty?(to_install) && !update_ash_functions? do
+      if Enum.empty?(to_install) do
         Mix.shell().info("No extensions to install")
         :ok
       else
@@ -255,24 +220,11 @@ defmodule AshPostgres.MigrationGenerator do
         install =
           Enum.map_join(to_install, "\n", fn
             "ash-functions" ->
-              @add_ash_functions
+              install_ash_functions(extensions_snapshot[:ash_functions_version])
 
             extension ->
               "execute(\"CREATE EXTENSION IF NOT EXISTS \\\"#{extension}\\\"\")"
           end)
-
-        install =
-          if update_ash_functions? do
-            """
-            #{@drop_ash_functions[extensions_snapshot[:ash_functions_version]]}
-
-            #{@add_ash_functions}
-
-            #{install}
-            """
-          else
-            install
-          end
 
         uninstall =
           Enum.map_join(to_install, "\n", fn
@@ -310,7 +262,7 @@ defmodule AshPostgres.MigrationGenerator do
             %{
               installed: repo.installed_extensions()
             }
-            |> add_ash_functions(repo.installed_extensions(), @latest_ash_functions_version),
+            |> set_ash_functions(repo.installed_extensions()),
             pretty: true
           )
 
@@ -321,9 +273,117 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  defp add_ash_functions(snapshot, installed_extensions, version) do
+  defp install_ash_functions(nil) do
+    """
+    execute(\"\"\"
+    CREATE OR REPLACE FUNCTION ash_elixir_or(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
+    AS $$ SELECT COALESCE(NULLIF($1, FALSE), $2) $$
+    LANGUAGE SQL
+    IMMUTABLE;
+    \"\"\")
+
+    execute(\"\"\"
+    CREATE OR REPLACE FUNCTION ash_elixir_or(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
+    AS $$ SELECT COALESCE($1, $2) $$
+    LANGUAGE SQL
+    IMMUTABLE;
+    \"\"\")
+
+    execute(\"\"\"
+    CREATE OR REPLACE FUNCTION ash_elixir_and(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) AS $$
+      SELECT CASE
+        WHEN $1 IS TRUE THEN $2
+        ELSE $1
+      END $$
+    LANGUAGE SQL
+    IMMUTABLE;
+    \"\"\")
+
+    execute(\"\"\"
+    CREATE OR REPLACE FUNCTION ash_elixir_and(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) AS $$
+      SELECT CASE
+        WHEN $1 IS NOT NULL THEN $2
+        ELSE $1
+      END $$
+    LANGUAGE SQL
+    IMMUTABLE;
+    \"\"\")
+
+    execute(\"\"\"
+    CREATE OR REPLACE FUNCTION ash_trim_whitespace(arr text[])
+    RETURNS text[] AS $$
+    DECLARE
+        start_index INT = 1;
+        end_index INT = array_length(arr, 1);
+    BEGIN
+        WHILE start_index <= end_index AND arr[start_index] = '' LOOP
+            start_index := start_index + 1;
+        END LOOP;
+
+        WHILE end_index >= start_index AND arr[end_index] = '' LOOP
+            end_index := end_index - 1;
+        END LOOP;
+
+        IF start_index > end_index THEN
+            RETURN ARRAY[]::text[];
+        ELSE
+            RETURN arr[start_index : end_index];
+        END IF;
+    END; $$
+    LANGUAGE plpgsql
+    IMMUTABLE;
+    \"\"\")
+    """
+  end
+
+  defp install_ash_functions(0) do
+    """
+    execute(\"\"\"
+    ALTER FUNCTION ash_elixir_or(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) IMMUTABLE
+    \"\"\")
+
+    execute(\"\"\"
+    ALTER FUNCTION ash_elixir_or(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) IMMUTABLE
+    \"\"\")
+
+    execute(\"\"\"
+    ALTER FUNCTION ash_elixir_and(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) IMMUTABLE
+    \"\"\")
+
+    execute(\"\"\"
+    ALTER FUNCTION ash_elixir_and(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) IMMUTABLE
+    \"\"\")
+
+    execute(\"\"\"
+    CREATE OR REPLACE FUNCTION ash_trim_whitespace(arr text[])
+    RETURNS text[] AS $$
+    DECLARE
+        start_index INT = 1;
+        end_index INT = array_length(arr, 1);
+    BEGIN
+        WHILE start_index <= end_index AND arr[start_index] = '' LOOP
+            start_index := start_index + 1;
+        END LOOP;
+
+        WHILE end_index >= start_index AND arr[end_index] = '' LOOP
+            end_index := end_index - 1;
+        END LOOP;
+
+        IF start_index > end_index THEN
+            RETURN ARRAY[]::text[];
+        ELSE
+            RETURN arr[start_index : end_index];
+        END IF;
+    END; $$
+    LANGUAGE plpgsql
+    IMMUTABLE;
+    \"\"\")
+    """
+  end
+
+  defp set_ash_functions(snapshot, installed_extensions) do
     if "ash-functions" in installed_extensions do
-      Map.put(snapshot, :ash_functions_version, version)
+      Map.put(snapshot, :ash_functions_version, @latest_ash_functions_version)
     else
       snapshot
     end

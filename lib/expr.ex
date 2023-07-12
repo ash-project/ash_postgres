@@ -16,6 +16,7 @@ defmodule AshPostgres.Expr do
     Length,
     Now,
     StringJoin,
+    StringSplit,
     Today,
     Type
   }
@@ -389,6 +390,52 @@ defmodule AshPostgres.Expr do
 
   defp do_dynamic_expr(
          query,
+         %StringSplit{arguments: [string, delimiter, options], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         type
+       ) do
+    if options[:trim?] do
+      require_ash_functions!(query)
+
+      do_dynamic_expr(
+        query,
+        %Fragment{
+          embedded?: pred_embedded?,
+          arguments: [
+            raw: "ash_trim_whitespace(string_to_array(",
+            expr: string,
+            raw: ", NULLIF(",
+            expr: delimiter,
+            raw: ", '')))"
+          ]
+        },
+        bindings,
+        embedded?,
+        type
+      )
+    else
+      do_dynamic_expr(
+        query,
+        %Fragment{
+          embedded?: pred_embedded?,
+          arguments: [
+            raw: "string_to_array(",
+            expr: string,
+            raw: ", NULLIF(",
+            expr: delimiter,
+            raw: ", ''))"
+          ]
+        },
+        bindings,
+        embedded?,
+        type
+      )
+    end
+  end
+
+  defp do_dynamic_expr(
+         query,
          %StringJoin{arguments: [values], embedded?: pred_embedded?},
          bindings,
          embedded?,
@@ -507,22 +554,21 @@ defmodule AshPostgres.Expr do
       mod
       |> AshPostgres.Types.determine_types([left, right])
 
-    left_expr = do_dynamic_expr(query, left, bindings, pred_embedded? || embedded?, left_type)
-
     left_expr =
       if left_type && operator in @cast_operands_for do
+        left_expr = do_dynamic_expr(query, left, bindings, pred_embedded? || embedded?)
+
         Ecto.Query.dynamic(type(^left_expr, ^left_type))
       else
-        left_expr
+        do_dynamic_expr(query, left, bindings, pred_embedded? || embedded?, left_type)
       end
-
-    right_expr = do_dynamic_expr(query, right, bindings, pred_embedded? || embedded?, right_type)
 
     right_expr =
       if right_type && operator in @cast_operands_for do
+        right_expr = do_dynamic_expr(query, right, bindings, pred_embedded? || embedded?)
         Ecto.Query.dynamic(type(^right_expr, ^right_type))
       else
-        right_expr
+        do_dynamic_expr(query, right, bindings, pred_embedded? || embedded?, right_type)
       end
 
     case operator do
