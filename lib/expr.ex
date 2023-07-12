@@ -396,7 +396,7 @@ defmodule AshPostgres.Expr do
          type
        ) do
     if options[:trim?] do
-      require_ash_functions!(query)
+      require_ash_functions!(query, "string_split(..., trim?: true)")
 
       do_dynamic_expr(
         query,
@@ -624,7 +624,7 @@ defmodule AshPostgres.Expr do
         )
 
       :|| ->
-        require_ash_functions!(query)
+        require_ash_functions!(query, "||")
 
         do_dynamic_expr(
           query,
@@ -644,7 +644,7 @@ defmodule AshPostgres.Expr do
         )
 
       :&& ->
-        require_ash_functions!(query)
+        require_ash_functions!(query, "&&")
 
         do_dynamic_expr(
           query,
@@ -1393,48 +1393,15 @@ defmodule AshPostgres.Expr do
     end
   end
 
-  defp require_ash_functions!(query) do
+  defp require_ash_functions!(query, operator) do
     installed_extensions =
       AshPostgres.DataLayer.Info.repo(query.__ash_bindings__.resource).installed_extensions()
 
     unless "ash-functions" in installed_extensions do
       raise """
-      Cannot use `||` or `&&` operators without adding the extension `ash-functions` to your repo.
+      Cannot use `#{operator}` without adding the extension `ash-functions` to your repo.
 
-      Add it to the list in `installed_extensions/0`
-
-      If you are using the migration generator, you will then need to generate migrations.
-      If not, you will need to copy the following into a migration:
-
-      execute(\"\"\"
-      CREATE OR REPLACE FUNCTION ash_elixir_or(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
-      AS $$ SELECT COALESCE(NULLIF($1, FALSE), $2) $$
-      LANGUAGE SQL;
-      \"\"\")
-
-      execute(\"\"\"
-      CREATE OR REPLACE FUNCTION ash_elixir_or(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
-      AS $$ SELECT COALESCE($1, $2) $$
-      LANGUAGE SQL;
-      \"\"\")
-
-      execute(\"\"\"
-      CREATE OR REPLACE FUNCTION ash_elixir_and(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) AS $$
-        SELECT CASE
-          WHEN $1 IS TRUE THEN $2
-          ELSE $1
-        END $$
-      LANGUAGE SQL;
-      \"\"\")
-
-      execute(\"\"\"
-      CREATE OR REPLACE FUNCTION ash_elixir_and(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) AS $$
-        SELECT CASE
-          WHEN $1 IS NOT NULL THEN $2
-          ELSE $1
-        END $$
-      LANGUAGE SQL;
-      \"\"\")
+      Add it to the list in `installed_extensions/0` and generate migrations.
       """
     end
   end
