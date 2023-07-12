@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.32](https://github.com/ash-project/ash_postgres/compare/v1.3.31...v1.3.32) (2023-07-12)
+
+
+
+
+### Improvements:
+
+* support `at/2` expression
+
 ## [v1.3.31](https://github.com/ash-project/ash_postgres/compare/v1.3.30...v1.3.31) (2023-07-12)
 
 
