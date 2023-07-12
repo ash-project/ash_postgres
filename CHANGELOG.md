@@ -5,6 +5,31 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.31](https://github.com/ash-project/ash_postgres/compare/v1.3.30...v1.3.31) (2023-07-12)
+
+
+
+
+### Bug Fixes:
+
+* raise better error on invalid filter values
+
+* Fixes multiple schema identities migrations (#156)
+
+* fix Logger deprecations for elixir 1.15 (#155)
+
+* interpolate table names with `inspect` in generated migrations (#152)
+
+### Improvements:
+
+* better `ash_functions` message
+
+* support `string_split`
+
+* add postgres expressions guide
+
+* add `simple_join_first_aggregates` option
+
 ## [v1.3.30](https://github.com/ash-project/ash_postgres/compare/v1.3.29...v1.3.30) (2023-06-06)
 
 
