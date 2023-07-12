@@ -3,10 +3,8 @@ defmodule AshPostgres.MultitenancyTest.Org do
   use Ash.Resource,
     data_layer: AshPostgres.DataLayer
 
-  resource do
-    identities do
-      identity(:unique_by_name, [:name])
-    end
+  identities do
+    identity(:unique_by_name, [:name])
   end
 
   attributes do
