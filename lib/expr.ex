@@ -808,6 +808,28 @@ defmodule AshPostgres.Expr do
 
   defp do_dynamic_expr(
          query,
+         %Ref{
+           attribute: %Ash.Query.Aggregate{
+             kind: :exists,
+             relationship_path: agg_relationship_path
+           },
+           relationship_path: ref_relationship_path
+         },
+         bindings,
+         embedded?,
+         type
+       ) do
+    do_dynamic_expr(
+      query,
+      %Ash.Query.Exists{path: agg_relationship_path, expr: true, at_path: ref_relationship_path},
+      bindings,
+      embedded?,
+      type
+    )
+  end
+
+  defp do_dynamic_expr(
+         query,
          %Ref{attribute: %Ash.Query.Aggregate{} = aggregate} = ref,
          bindings,
          _embedded?,

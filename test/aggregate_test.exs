@@ -176,6 +176,74 @@ defmodule AshPostgres.AggregateTest do
     end
   end
 
+  describe "exists" do
+    test "with data and a filter, it returns the count" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      assert %{has_comment_called_match: false} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:has_comment_called_match)
+               |> Api.read_one!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "match"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Api.create!()
+
+      assert %{has_comment_called_match: true} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:has_comment_called_match)
+               |> Api.read_one!()
+    end
+
+    test "exists aggregates can be referenced in filters" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      refute Post
+             |> Ash.Query.filter(has_comment_called_match)
+             |> Api.read_one!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "match"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Api.create!()
+
+      assert %{has_comment_called_match: true} =
+               Post
+               |> Ash.Query.filter(has_comment_called_match)
+               |> Ash.Query.load(:has_comment_called_match)
+               |> Api.read_one!()
+    end
+
+    test "exists aggregates can be used at the query level" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      refute Post
+             |> Ash.Query.filter(has_comment_called_match)
+             |> Api.exists?()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "match"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Api.create!()
+
+      assert Post |> Api.exists?()
+
+      refute Post |> Api.exists?(query: [filter: [title: "non-match"]])
+    end
+  end
+
   describe "list" do
     test "with no related data it returns an empty list" do
       post =

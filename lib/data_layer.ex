@@ -507,7 +507,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :boolean_filter), do: true
 
   def can?(_, {:aggregate, type})
-      when type in [:count, :sum, :first, :list, :avg, :max, :min, :custom],
+      when type in [:count, :sum, :first, :list, :avg, :max, :min, :exists, :custom],
       do: true
 
   def can?(_, :aggregate_filter), do: true
@@ -697,6 +697,9 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def run_aggregate_query(query, aggregates, resource) do
+    {exists, aggregates} = Enum.split_with(aggregates, &(&1.kind == :exists))
+    query = default_bindings(query, resource)
+
     query =
       if query.distinct do
         query =
@@ -714,6 +717,8 @@ defmodule AshPostgres.DataLayer do
         |> Ecto.Query.select(%{})
       end
 
+    query_before_select = query
+
     query =
       Enum.reduce(
         aggregates,
@@ -729,7 +734,31 @@ defmodule AshPostgres.DataLayer do
         end
       )
 
-    {:ok, dynamic_repo(resource, query).one(query, repo_opts(nil, nil, resource))}
+    {:ok,
+     dynamic_repo(resource, query).one(query, repo_opts(nil, nil, resource))
+     |> add_exists_aggs(resource, query_before_select, exists)}
+  end
+
+  defp add_exists_aggs(result, resource, query, exists) do
+    repo = dynamic_repo(resource, query)
+    repo_opts = repo_opts(nil, nil, resource)
+
+    Enum.reduce(exists, result, fn agg, result ->
+      {:ok, filtered} =
+        case agg do
+          %{query: %{filter: filter}} when not is_nil(filter) ->
+            filter(query, filter, resource)
+
+          _ ->
+            {:ok, query}
+        end
+
+      Map.put(
+        result || %{},
+        agg.name,
+        repo.exists?(filtered, repo_opts)
+      )
+    end)
   end
 
   @impl true
@@ -745,6 +774,8 @@ defmodule AshPostgres.DataLayer do
         destination_resource,
         path
       ) do
+    {exists, aggregates} = Enum.split_with(aggregates, &(&1.kind == :exists))
+
     case lateral_join_query(
            query,
            root_data,
@@ -758,6 +789,7 @@ defmodule AshPostgres.DataLayer do
           |> Map.get(:resource)
 
         subquery = from(row in subquery(lateral_join_query), as: ^0, select: %{})
+        subquery = default_bindings(subquery, source_resource)
 
         query =
           Enum.reduce(
@@ -784,7 +816,8 @@ defmodule AshPostgres.DataLayer do
          dynamic_repo(source_resource, query).one(
            query,
            repo_opts(nil, nil, source_resource)
-         )}
+         )
+         |> add_exists_aggs(source_resource, subquery, exists)}
 
       {:error, error} ->
         {:error, error}

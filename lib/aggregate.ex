@@ -52,89 +52,95 @@ defmodule AshPostgres.Aggregate do
                                                  aggregates},
                                                 {:ok, query, dynamics} ->
         first_relationship = Ash.Resource.Info.relationship(resource, first_relationship)
-        is_single? = Enum.count_until(aggregates, 2) == 1
+        is_single? = match?([_], aggregates)
 
-        first_can_join? =
-          case aggregates do
-            [aggregate] ->
-              optimizable_first_aggregate?(resource, aggregate)
+        cond do
+          is_single? &&
+              optimizable_first_aggregate?(resource, Enum.at(aggregates, 0)) ->
+            case add_first_join_aggregate(query, resource, hd(aggregates), root_data) do
+              {:ok, query, dynamic} ->
+                query =
+                  if select? do
+                    select_or_merge(query, hd(aggregates).name, dynamic)
+                  else
+                    query
+                  end
 
-            _ ->
-              false
-          end
+                {:cont, {:ok, query, dynamics}}
 
-        if first_can_join? do
-          case add_first_join_aggregate(query, resource, hd(aggregates), root_data) do
-            {:ok, query, dynamic} ->
-              query =
-                if select? do
-                  select_or_merge(query, hd(aggregates).name, dynamic)
-                else
-                  query
-                end
-
-              {:cont, {:ok, query, dynamics}}
-
-            {:error, error} ->
-              {:halt, {:error, error}}
-          end
-        else
-          with {:ok, agg_root_query} <-
-                 AshPostgres.Join.maybe_get_resource_query(
-                   first_relationship.destination,
-                   first_relationship,
-                   query
-                 ),
-               agg_root_query <-
-                 Map.update!(agg_root_query, :__ash_bindings__, &Map.put(&1, :in_group?, true)),
-               {:ok, joined} <-
-                 join_all_relationships(
-                   agg_root_query,
-                   aggregates,
-                   relationship_path,
-                   first_relationship,
-                   is_single?
-                 ),
-               {:ok, filtered} <-
-                 maybe_filter_subquery(
-                   joined,
-                   first_relationship,
-                   relationship_path,
-                   aggregates,
-                   is_single?,
-                   source_binding
-                 ),
-               with_subquery_select <-
-                 select_all_aggregates(
-                   aggregates,
-                   filtered,
-                   relationship_path,
-                   query,
-                   is_single?,
-                   Ash.Resource.Info.related(first_relationship.destination, relationship_path)
-                 ),
-               query <-
-                 join_subquery(
-                   query,
-                   with_subquery_select,
-                   first_relationship,
-                   relationship_path,
-                   aggregates,
-                   source_binding
-                 ) do
-            if select? do
-              new_dynamics =
-                Enum.map(
-                  aggregates,
-                  &{&1.load, &1.name,
-                   select_dynamic(resource, query, &1, query.__ash_bindings__.current - 1)}
-                )
-
-              {:cont, {:ok, query, new_dynamics ++ dynamics}}
-            else
-              {:cont, {:ok, query, dynamics}}
+              {:error, error} ->
+                {:halt, {:error, error}}
             end
-          end
+
+          is_single? && Enum.at(aggregates, 0).kind == :exists ->
+            [aggregate] = aggregates
+
+            exists =
+              AshPostgres.Expr.dynamic_expr(
+                query,
+                %Ash.Query.Exists{path: aggregate.relationship_path, expr: true},
+                query.__ash_bindings__
+              )
+
+            {:cont, {:ok, query, [{aggregate.load, aggregate.name, exists} | dynamics]}}
+
+          true ->
+            with {:ok, agg_root_query} <-
+                   AshPostgres.Join.maybe_get_resource_query(
+                     first_relationship.destination,
+                     first_relationship,
+                     query
+                   ),
+                 agg_root_query <-
+                   Map.update!(agg_root_query, :__ash_bindings__, &Map.put(&1, :in_group?, true)),
+                 {:ok, joined} <-
+                   join_all_relationships(
+                     agg_root_query,
+                     aggregates,
+                     relationship_path,
+                     first_relationship,
+                     is_single?
+                   ),
+                 {:ok, filtered} <-
+                   maybe_filter_subquery(
+                     joined,
+                     first_relationship,
+                     relationship_path,
+                     aggregates,
+                     is_single?,
+                     source_binding
+                   ),
+                 with_subquery_select <-
+                   select_all_aggregates(
+                     aggregates,
+                     filtered,
+                     relationship_path,
+                     query,
+                     is_single?,
+                     Ash.Resource.Info.related(first_relationship.destination, relationship_path)
+                   ),
+                 query <-
+                   join_subquery(
+                     query,
+                     with_subquery_select,
+                     first_relationship,
+                     relationship_path,
+                     aggregates,
+                     source_binding
+                   ) do
+              if select? do
+                new_dynamics =
+                  Enum.map(
+                    aggregates,
+                    &{&1.load, &1.name,
+                     select_dynamic(resource, query, &1, query.__ash_bindings__.current - 1)}
+                  )
+
+                {:cont, {:ok, query, new_dynamics ++ dynamics}}
+              else
+                {:cont, {:ok, query, dynamics}}
+              end
+            end
         end
       end)
 
@@ -477,6 +483,7 @@ defmodule AshPostgres.Aggregate do
     end
   end
 
+  defp can_group?(_, %{kind: :exists}), do: false
   defp can_group?(_, %{kind: :list}), do: false
 
   defp can_group?(resource, aggregate) do

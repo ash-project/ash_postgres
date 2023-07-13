@@ -193,6 +193,10 @@ defmodule AshPostgres.Test.Post do
       filter(title: "match")
     end
 
+    exists :has_comment_called_match, :comments do
+      filter(title: "match")
+    end
+
     count(:count_of_comments_containing_title, :comments_containing_title)
 
     first :first_comment, :comments, :title do
