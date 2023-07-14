@@ -355,6 +355,28 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     end
   end
 
+  defmodule AlterDeferrability do
+    @moduledoc false
+    defstruct [:table, :schema, :references, :direction, no_phase: true]
+
+    def up(%{direction: :up, table: table, references: %{name: name, deferrable: true}}) do
+      "execute(\"ALTER TABLE #{table} alter CONSTRAINT #{name} DEFERRABLE INITIALLY IMMEDIATE\");"
+    end
+
+    def up(%{direction: :up, table: table, references: %{name: name, deferrable: :initially}}) do
+      "execute(\"ALTER TABLE #{table} alter CONSTRAINT #{name} DEFERRABLE INITIALLY DEFERRED\");"
+    end
+
+    def up(%{direction: :up, table: table, references: %{name: name}}) do
+      "execute(\"ALTER TABLE #{table} alter CONSTRAINT #{name} NOT DEFERRABLE\");"
+    end
+
+    def up(_), do: ""
+
+    def down(%{direction: :down} = data), do: up(%{data | direction: :up})
+    def down(_), do: ""
+  end
+
   defmodule AlterAttribute do
     @moduledoc false
     defstruct [

@@ -50,23 +50,29 @@ defmodule AshPostgres.MigrationGenerator.Phase do
 
     def up(%{table: table, schema: schema, operations: operations, multitenancy: multitenancy}) do
       body =
-        Enum.map_join(operations, "\n", fn operation -> operation.__struct__.up(operation) end)
+        operations
+        |> Enum.map_join("\n", fn operation -> operation.__struct__.up(operation) end)
+        |> String.trim()
 
-      if multitenancy.strategy == :context do
-        "alter table(:#{as_atom(table)}, prefix: prefix()) do\n" <>
-          body <>
-          "\nend"
+      if body == "" do
+        ""
       else
-        opts =
-          if schema do
-            ", prefix: \"#{schema}\""
-          else
-            ""
-          end
+        if multitenancy.strategy == :context do
+          "alter table(:#{as_atom(table)}, prefix: prefix()) do\n" <>
+            body <>
+            "\nend"
+        else
+          opts =
+            if schema do
+              ", prefix: \"#{schema}\""
+            else
+              ""
+            end
 
-        "alter table(:#{as_atom(table)}#{opts}) do\n" <>
-          body <>
-          "\nend"
+          "alter table(:#{as_atom(table)}#{opts}) do\n" <>
+            body <>
+            "\nend"
+        end
       end
     end
 
@@ -75,22 +81,27 @@ defmodule AshPostgres.MigrationGenerator.Phase do
         operations
         |> Enum.reverse()
         |> Enum.map_join("\n", fn operation -> operation.__struct__.down(operation) end)
+        |> String.trim()
 
-      if multitenancy.strategy == :context do
-        "alter table(:#{as_atom(table)}, prefix: prefix()) do\n" <>
-          body <>
-          "\nend"
+      if body == "" do
+        ""
       else
-        opts =
-          if schema do
-            ", prefix: \"#{schema}\""
-          else
-            ""
-          end
+        if multitenancy.strategy == :context do
+          "alter table(:#{as_atom(table)}, prefix: prefix()) do\n" <>
+            body <>
+            "\nend"
+        else
+          opts =
+            if schema do
+              ", prefix: \"#{schema}\""
+            else
+              ""
+            end
 
-        "alter table(:#{as_atom(table)}#{opts}) do\n" <>
-          body <>
-          "\nend"
+          "alter table(:#{as_atom(table)}#{opts}) do\n" <>
+            body <>
+            "\nend"
+        end
       end
     end
   end

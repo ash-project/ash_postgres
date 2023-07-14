@@ -502,23 +502,24 @@ defmodule AshPostgres.MigrationGenerator do
     |> sort_operations()
     |> streamline()
     |> group_into_phases()
-    |> comment_out_phases()
+    |> clean_phases()
   end
 
-  defp comment_out_phases(phases) do
-    Enum.map(phases, fn
-      %{operations: []} = phase ->
-        phase
+  defp clean_phases(phases) do
+    phases
+    |> Enum.flat_map(fn
+      %{operations: []} ->
+        []
 
       %{operations: operations} = phase ->
         if Enum.all?(operations, &match?(%{commented?: true}, &1)) do
-          %{phase | commented?: true}
+          [%{phase | commented?: true}]
         else
-          phase
+          [phase]
         end
 
-      phase ->
-        phase
+      op ->
+        [op]
     end)
   end
 
@@ -670,6 +671,7 @@ defmodule AshPostgres.MigrationGenerator do
       references ->
         %{
           destination_attribute: merge_uniq!(references, table, :destination_attribute, name),
+          deferrable: merge_uniq!(references, table, :deferrable, name),
           destination_attribute_default:
             merge_uniq!(references, table, :destination_attribute_default, name),
           destination_attribute_generated:
@@ -1207,6 +1209,9 @@ defmodule AshPostgres.MigrationGenerator do
 
     sort_operations(rest, new_acc)
   end
+
+  defp after?(_, %Operation.AlterDeferrability{direction: :down}), do: true
+  defp after?(%Operation.AlterDeferrability{direction: :up}, _), do: true
 
   defp after?(
          %Operation.RemovePrimaryKey{},
@@ -1996,6 +2001,26 @@ defmodule AshPostgres.MigrationGenerator do
     add_attribute_events =
       Enum.flat_map(attributes_to_add, fn attribute ->
         if attribute.references do
+          reference_ops =
+            if attribute.references.deferrable do
+              [
+                %Operation.AlterDeferrability{
+                  table: snapshot.table,
+                  schema: snapshot.schema,
+                  references: attribute.references,
+                  direction: :up
+                },
+                %Operation.AlterDeferrability{
+                  table: snapshot.table,
+                  schema: snapshot.schema,
+                  references: Map.get(attribute, :references),
+                  direction: :down
+                }
+              ]
+            else
+              []
+            end
+
           [
             %Operation.AddAttribute{
               attribute: Map.delete(attribute, :references),
@@ -2015,7 +2040,7 @@ defmodule AshPostgres.MigrationGenerator do
               multitenancy: Map.get(attribute, :multitenancy),
               direction: :down
             }
-          ]
+          ] ++ reference_ops
         else
           [
             %Operation.AddAttribute{
@@ -2029,6 +2054,26 @@ defmodule AshPostgres.MigrationGenerator do
 
     alter_attribute_events =
       Enum.flat_map(attributes_to_alter, fn {new_attribute, old_attribute} ->
+        deferrable_ops =
+          if differently_deferrable?(new_attribute, old_attribute) do
+            [
+              %Operation.AlterDeferrability{
+                table: snapshot.table,
+                schema: snapshot.schema,
+                references: new_attribute.references,
+                direction: :up
+              },
+              %Operation.AlterDeferrability{
+                table: snapshot.table,
+                schema: snapshot.schema,
+                references: Map.get(old_attribute, :references),
+                direction: :down
+              }
+            ]
+          else
+            []
+          end
+
         if has_reference?(old_snapshot.multitenancy, old_attribute) and
              Map.get(old_attribute, :references) != Map.get(new_attribute, :references) do
           old_and_alter = [
@@ -2048,16 +2093,18 @@ defmodule AshPostgres.MigrationGenerator do
           ]
 
           if has_reference?(snapshot.multitenancy, new_attribute) do
+            reference_ops = [
+              %Operation.DropForeignKey{
+                attribute: new_attribute,
+                table: snapshot.table,
+                schema: snapshot.schema,
+                multitenancy: snapshot.multitenancy,
+                direction: :down
+              }
+            ]
+
             old_and_alter ++
-              [
-                %Operation.DropForeignKey{
-                  attribute: new_attribute,
-                  table: snapshot.table,
-                  schema: snapshot.schema,
-                  multitenancy: snapshot.multitenancy,
-                  direction: :down
-                }
-              ]
+              reference_ops
           else
             old_and_alter
           end
@@ -2071,6 +2118,7 @@ defmodule AshPostgres.MigrationGenerator do
             }
           ]
         end
+        |> Enum.concat(deferrable_ops)
       end)
 
     remove_attribute_events =
@@ -2086,6 +2134,26 @@ defmodule AshPostgres.MigrationGenerator do
     add_attribute_events ++
       alter_attribute_events ++ remove_attribute_events ++ rename_attribute_events
   end
+
+  defp differently_deferrable?(%{references: %{deferrable: left}}, %{
+         references: %{deferrable: right}
+       })
+       when left != right do
+    true
+  end
+
+  defp differently_deferrable?(%{references: %{deferrable: same}}, %{
+         references: %{deferrable: same}
+       }) do
+    false
+  end
+
+  defp differently_deferrable?(%{references: %{deferrable: left}}, _) when left != false, do: true
+
+  defp differently_deferrable?(_, %{references: %{deferrable: right}}) when right != false,
+    do: true
+
+  defp differently_deferrable?(_, _), do: false
 
   # This exists to handle the fact that the remapping of the key name -> source caused attributes
   # to be considered unequal. We ignore things that only differ in that way using this function.
@@ -2351,6 +2419,7 @@ defmodule AshPostgres.MigrationGenerator do
                     relationship.destination,
                     AshPostgres.DataLayer.Info.repo(relationship.destination)
                   ),
+                deferrable: false,
                 destination_attribute_generated: source_attribute.generated?,
                 multitenancy: multitenancy(relationship.source),
                 table: AshPostgres.DataLayer.Info.table(relationship.source),
@@ -2557,6 +2626,7 @@ defmodule AshPostgres.MigrationGenerator do
 
           %{
             destination_attribute: destination_attribute_source,
+            deferrable: configured_reference.deferrable,
             multitenancy: multitenancy(relationship.destination),
             on_delete: configured_reference.on_delete,
             on_update: configured_reference.on_update,
@@ -2585,6 +2655,7 @@ defmodule AshPostgres.MigrationGenerator do
       |> Kernel.||(%{
         on_delete: nil,
         on_update: nil,
+        deferrable: false,
         schema:
           relationship.context[:data_layer][:schema] ||
             AshPostgres.DataLayer.Info.schema(relationship.destination) ||
@@ -2858,6 +2929,11 @@ defmodule AshPostgres.MigrationGenerator do
         |> Map.delete(:ignore)
         |> rewrite(:ignore?, :ignore)
         |> Map.update!(:destination_attribute, &String.to_atom/1)
+        |> Map.put_new(:deferrable, false)
+        |> Map.update!(:deferrable, fn
+          "initially" -> :initially
+          other -> other
+        end)
         |> Map.put_new(:schema, nil)
         |> Map.put_new(:destination_attribute_default, "nil")
         |> Map.put_new(:destination_attribute_generated, false)

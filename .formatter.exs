@@ -6,6 +6,7 @@ spark_locals_without_parens = [
   code?: 1,
   concurrently: 1,
   create?: 1,
+  deferrable: 1,
   down: 1,
   exclusion_constraint_names: 1,
   foreign_key_names: 1,

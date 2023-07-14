@@ -1,6 +1,6 @@
 defmodule AshPostgres.Reference do
   @moduledoc false
-  defstruct [:relationship, :on_delete, :on_update, :name, ignore?: false]
+  defstruct [:relationship, :on_delete, :on_update, :name, :deferrable, ignore?: false]
 
   def schema do
     [
@@ -47,6 +47,13 @@ defmodule AshPostgres.Reference do
 
           No resource logic is applied with this operation! No authorization rules or validations take place, and no notifications are issued.
           This operation happens *directly* in the database.
+        """
+      ],
+      deferrable: [
+        type: {:one_of, [false, true, :initially]},
+        default: false,
+        doc: """
+        Wether or not the constraint is deferrable. This only affects the migration generator.
         """
       ],
       name: [
