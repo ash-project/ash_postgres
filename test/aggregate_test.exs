@@ -382,16 +382,27 @@ defmodule AshPostgres.AggregateTest do
         |> Ash.Changeset.new(%{title: "title"})
         |> Api.create!()
 
+      post_id = post.id
+
       Comment
       |> Ash.Changeset.new(%{title: "match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Api.create!()
 
-      assert %{first_comment: "match"} =
+      post_2 =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "zed"})
+      |> Ash.Changeset.manage_relationship(:post, post_2, type: :append_and_remove)
+      |> Api.create!()
+
+      assert %{id: ^post_id} =
                Post
-               |> Ash.Query.filter(id == ^post.id)
-               |> Ash.Query.load(:first_comment)
                |> Ash.Query.sort(:first_comment)
+               |> Ash.Query.limit(1)
                |> Api.read_one!()
     end
 
