@@ -5,6 +5,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.33](https://github.com/ash-project/ash_postgres/compare/v1.3.32...v1.3.33) (2023-07-14)
+
+
+
+
+### Bug Fixes:
+
+* convert `Ash.Resource.Aggregate` to `Ash.Query.Aggregate` when adding
+
+### Improvements:
+
+* support `deferrable` option in migration generator
+
+* support `exists` aggregates
+
 ## [v1.3.32](https://github.com/ash-project/ash_postgres/compare/v1.3.31...v1.3.32) (2023-07-12)
 
 
