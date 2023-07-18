@@ -134,6 +134,7 @@ defmodule AshPostgres.Test.Post do
   end
 
   calculations do
+    calculate(:negative_score, :integer, expr(-score))
     calculate(:category_label, :ci_string, expr("(" <> category <> ")"))
     calculate(:score_with_score, :string, expr(score <> score))
 

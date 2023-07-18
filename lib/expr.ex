@@ -551,6 +551,21 @@ defmodule AshPostgres.Expr do
     end
   end
 
+  defp do_dynamic_expr(
+         query,
+         %Ash.Query.Function.Minus{arguments: [arg], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         type
+       ) do
+    [determined_type] = AshPostgres.Types.determine_types(Ash.Query.Function.Minus, [arg])
+
+    expr =
+      do_dynamic_expr(query, arg, bindings, pred_embedded? || embedded?, determined_type || type)
+
+    Ecto.Query.dynamic(-(^expr))
+  end
+
   # Honestly we need to either 1. not type cast or 2. build in type compatibility concepts
   # instead of `:same` we need an `ANY COMPATIBLE` equivalent.
   @cast_operands_for [:<>]

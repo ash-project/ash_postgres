@@ -433,6 +433,19 @@ defmodule AshPostgres.CalculationTest do
     end
   end
 
+  describe "-/1" do
+    test "makes numbers negative" do
+      Post
+      |> Ash.Changeset.new(%{title: "match", score: 42})
+      |> Api.create!()
+
+      assert [%{negative_score: -42}] =
+               Post
+               |> Ash.Query.load(:negative_score)
+               |> Api.read!()
+    end
+  end
+
   describe "at/2" do
     test "selects items by index" do
       author =

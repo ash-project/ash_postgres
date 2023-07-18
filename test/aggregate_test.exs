@@ -127,7 +127,9 @@ defmodule AshPostgres.AggregateTest do
 
       post
       |> Ash.Changeset.new()
-      |> Ash.Changeset.manage_relationship(:linked_posts, [post2, post3], type: :append_and_remove)
+      |> Ash.Changeset.manage_relationship(:linked_posts, [post2, post3],
+        type: :append_and_remove
+      )
       |> Api.update!()
 
       post2
