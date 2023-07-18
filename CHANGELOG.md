@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.34](https://github.com/ash-project/ash_postgres/compare/v1.3.33...v1.3.34) (2023-07-18)
+
+
+
+
+### Improvements:
+
+* support unary `-/1` operator
+
 ## [v1.3.33](https://github.com/ash-project/ash_postgres/compare/v1.3.32...v1.3.33) (2023-07-14)
 
 
