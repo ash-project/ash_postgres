@@ -408,7 +408,7 @@ defmodule AshPostgres.DataLayer do
   }
 
   alias Ash.Filter
-  alias Ash.Query.{BooleanExpression, Not}
+  alias Ash.Query.{BooleanExpression, Not, Ref}
 
   @behaviour Ash.DataLayer
 
@@ -1839,6 +1839,7 @@ defmodule AshPostgres.DataLayer do
       {:error, distinct_statement} ->
         distinct_query =
           query
+          |> Ecto.Query.exclude(:order_by)
           |> default_bindings(resource)
           |> Map.put(:distinct, distinct_statement)
 
@@ -1854,8 +1855,28 @@ defmodule AshPostgres.DataLayer do
             end
           end)
 
+        joined_query_source =
+          Enum.reduce(
+            [
+              :join,
+              :group_by,
+              :having,
+              :distinct,
+              :select,
+              :combinations,
+              :with_ctes,
+              :limit,
+              :offset,
+              :lock,
+              :preload,
+              :update
+            ],
+            query,
+            &Ecto.Query.exclude(&2, &1)
+          )
+
         joined_query =
-          from(row in query.from.source,
+          from(row in joined_query_source,
             join: distinct in subquery(distinct_query),
             on: ^on
           )
@@ -1878,23 +1899,28 @@ defmodule AshPostgres.DataLayer do
   defp get_distinct_statement(query, distinct_on) do
     sort = query.__ash_bindings__.sort || []
 
+    distinct =
+      query.distinct ||
+        %Ecto.Query.QueryExpr{
+          expr: [],
+          params: []
+        }
+
     if sort == [] do
       {:ok, default_distinct_statement(query, distinct_on)}
     else
       distinct_on
-      |> Enum.reduce_while({sort, []}, fn
-        _, {[], _distinct_statement} ->
+      |> Enum.reduce_while({sort, [], [], Enum.count(distinct.params)}, fn
+        _, {[], _distinct_statement, _, _count} ->
           {:halt, :error}
 
-        distinct_on, {[order_by | rest_order_by], distinct_statement} ->
+        distinct_on, {[order_by | rest_order_by], distinct_statement, params, count} ->
           case order_by do
             {^distinct_on, order} ->
+              {distinct_expr, params, count} = distinct_on_expr(query, distinct_on, params, count)
+
               {:cont,
-               {rest_order_by,
-                [
-                  {order, {{:., [], [{:&, [], [0]}, distinct_on]}, [], []}}
-                  | distinct_statement
-                ]}}
+               {rest_order_by, [{order, distinct_expr} | distinct_statement], params, count}}
 
             _ ->
               {:halt, :error}
@@ -1904,14 +1930,13 @@ defmodule AshPostgres.DataLayer do
         :error ->
           {:error, default_distinct_statement(query, distinct_on)}
 
-        {_, result} ->
-          distinct =
-            query.distinct ||
-              %Ecto.Query.QueryExpr{
-                expr: []
-              }
-
-          {:ok, %{distinct | expr: distinct.expr ++ Enum.reverse(result)}}
+        {_, result, params, _} ->
+          {:ok,
+           %{
+             distinct
+             | expr: distinct.expr ++ Enum.reverse(result),
+               params: distinct.params ++ Enum.reverse(params)
+           }}
       end
     end
   end
@@ -1923,12 +1948,60 @@ defmodule AshPostgres.DataLayer do
           expr: []
         }
 
-    expr =
-      Enum.map(distinct_on, fn distinct_on_field ->
-        {:asc, {{:., [], [{:&, [], [0]}, distinct_on_field]}, [], []}}
+    {expr, params, _} =
+      Enum.reduce(distinct_on, {[], [], Enum.count(distinct.params)}, fn
+        {distinct_on_field, order}, {expr, params, count} ->
+          {distinct_expr, params, count} =
+            distinct_on_expr(query, distinct_on_field, params, count)
+
+          {[{order, distinct_expr} | expr], params, count}
+
+        distinct_on_field, {expr, params, count} ->
+          {distinct_expr, params, count} =
+            distinct_on_expr(query, distinct_on_field, params, count)
+
+          {[{:asc, distinct_expr} | expr], params, count}
       end)
 
-    %{distinct | expr: distinct.expr ++ expr}
+    %{
+      distinct
+      | expr: distinct.expr ++ Enum.reverse(expr),
+        params: distinct.params ++ Enum.reverse(params)
+    }
+  end
+
+  defp distinct_on_expr(query, field, params, count) do
+    resource = query.__ash_bindings__.resource
+
+    ref =
+      case field do
+        %Ash.Query.Calculation{} = calc ->
+          %Ref{attribute: calc, relationship_path: [], resource: resource}
+
+        field ->
+          %Ref{
+            attribute: Ash.Resource.Info.field(resource, field),
+            relationship_path: [],
+            resource: resource
+          }
+      end
+
+    dynamic = AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__)
+
+    result =
+      Ecto.Query.Builder.Dynamic.partially_expand(
+        :distinct,
+        query,
+        dynamic,
+        params,
+        count
+      )
+
+    expr = elem(result, 0)
+    new_params = elem(result, 1)
+    new_count = result |> Tuple.to_list() |> List.last()
+
+    {expr, new_params, new_count}
   end
 
   @impl true

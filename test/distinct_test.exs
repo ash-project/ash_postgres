@@ -7,19 +7,19 @@ defmodule AshPostgres.DistinctTest do
 
   setup do
     Post
-    |> Ash.Changeset.new(%{title: "title"})
+    |> Ash.Changeset.new(%{title: "title", score: 1})
     |> Api.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "title"})
+    |> Ash.Changeset.new(%{title: "title", score: 1})
     |> Api.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "foo"})
+    |> Ash.Changeset.new(%{title: "foo", score: 2})
     |> Api.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "foo"})
+    |> Ash.Changeset.new(%{title: "foo", score: 2})
     |> Api.create!()
 
     :ok
@@ -76,5 +76,43 @@ defmodule AshPostgres.DistinctTest do
       |> Api.read!()
 
     assert [_] = results
+  end
+
+  test "distinct can use calculations sort that does not match the distinct using a limit #2" do
+    results =
+      Post
+      |> Ash.Query.distinct(:negative_score)
+      |> Ash.Query.sort(:negative_score)
+      |> Ash.Query.load(:negative_score)
+      |> Api.read!()
+
+    assert [
+             %{title: "foo", negative_score: -2},
+             %{title: "title", negative_score: -1}
+           ] = results
+
+    results =
+      Post
+      |> Ash.Query.distinct(:negative_score)
+      |> Ash.Query.sort(negative_score: :desc)
+      |> Ash.Query.load(:negative_score)
+      |> Api.read!()
+
+    assert [
+             %{title: "title", negative_score: -1},
+             %{title: "foo", negative_score: -2}
+           ] = results
+
+    results =
+      Post
+      |> Ash.Query.distinct(:negative_score)
+      |> Ash.Query.sort(:title)
+      |> Ash.Query.load(:negative_score)
+      |> Api.read!()
+
+    assert [
+             %{title: "foo", negative_score: -2},
+             %{title: "title", negative_score: -1}
+           ] = results
   end
 end

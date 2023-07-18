@@ -102,6 +102,10 @@ defmodule AshPostgres.Test.Post do
 
     has_many(:comments, AshPostgres.Test.Comment, destination_attribute: :post_id)
 
+    has_many :comments_matching_post_title, AshPostgres.Test.Comment do
+      filter(expr(title == parent_expr(title)))
+    end
+
     has_many :popular_comments, AshPostgres.Test.Comment do
       destination_attribute(:post_id)
       filter(expr(likes > 10))

@@ -790,40 +790,6 @@ defmodule AshPostgres.Expr do
   defp do_dynamic_expr(
          query,
          %Ref{
-           attribute: %Ash.Resource.Calculation{calculation: {module, opts}} = calculation
-         } = ref,
-         bindings,
-         embedded?,
-         type
-       ) do
-    calc_type =
-      AshPostgres.Types.parameterized_type(
-        calculation.type,
-        Map.get(calculation, :constraints, [])
-      )
-
-    validate_type!(query, calc_type, ref)
-
-    {:ok, query_calc} =
-      Ash.Query.Calculation.new(
-        calculation.name,
-        module,
-        opts,
-        calculation.type
-      )
-
-    expr = do_dynamic_expr(query, %{ref | attribute: query_calc}, bindings, embedded?, type)
-
-    if calc_type do
-      Ecto.Query.dynamic(type(^expr, ^calc_type))
-    else
-      expr
-    end
-  end
-
-  defp do_dynamic_expr(
-         query,
-         %Ref{
            attribute: %Ash.Query.Aggregate{
              kind: :exists,
              relationship_path: agg_relationship_path
