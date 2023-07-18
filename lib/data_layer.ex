@@ -1665,7 +1665,7 @@ defmodule AshPostgres.DataLayer do
 
       sources =
         Enum.map(keys, fn key ->
-          Ash.Resource.Info.attribute(resource, key).source || key
+          ~s("#{Ash.Resource.Info.attribute(resource, key).source || key}")
         end)
 
       {:unsafe_fragment, "(" <> Enum.join(sources, ", ") <> ") WHERE (#{base_filter_sql})"}
