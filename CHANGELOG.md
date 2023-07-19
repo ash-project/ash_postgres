@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.37](https://github.com/ash-project/ash_postgres/compare/v1.3.36...v1.3.37) (2023-07-19)
+
+
+
+
+### Improvements:
+
+* support new `distinct_sort` option
+
 ## [v1.3.36](https://github.com/ash-project/ash_postgres/compare/v1.3.35...v1.3.36) (2023-07-19)
 
 
