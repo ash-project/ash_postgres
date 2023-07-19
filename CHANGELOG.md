@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.36](https://github.com/ash-project/ash_postgres/compare/v1.3.35...v1.3.36) (2023-07-19)
+
+
+
+
+### Bug Fixes:
+
+* type casting improvements, handle manual relationships in `exists`
+
+* protected names in conflict_target (#158)
+
 ## [v1.3.35](https://github.com/ash-project/ash_postgres/compare/v1.3.34...v1.3.35) (2023-07-18)
 
 
