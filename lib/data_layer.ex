@@ -541,6 +541,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :nested_expressions), do: true
   def can?(_, {:query_aggregate, :count}), do: true
   def can?(_, :sort), do: true
+  def can?(_, :distinct_sort), do: true
   def can?(_, :distinct), do: true
   def can?(_, {:sort, _}), do: true
   def can?(_, _), do: false
@@ -604,40 +605,55 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def run_query(query, resource) do
-    query =
-      if query.__ash_bindings__[:__order__?] && query.windows[:order] do
-        if query.distinct do
-          query_with_order =
-            from(row in query, select_merge: %{__order__: over(row_number(), :order)})
+    query = default_bindings(query, resource)
 
-          query_without_limit_and_offset =
-            query_with_order
-            |> Ecto.Query.exclude(:limit)
-            |> Ecto.Query.exclude(:offset)
-
-          from(row in subquery(query_without_limit_and_offset),
-            select: row,
-            order_by: row.__order__
-          )
-          |> Map.put(:limit, query.limit)
-          |> Map.put(:offset, query.offset)
-        else
-          order_by = %{query.windows[:order] | expr: query.windows[:order].expr[:order_by]}
-
-          %{
-            query
-            | windows: Keyword.delete(query.windows, :order),
-              order_bys: [order_by]
-          }
-        end
+    with_sort_applied =
+      if query.__ash_bindings__[:sort_applied?] do
+        {:ok, query}
       else
-        %{query | windows: Keyword.delete(query.windows, :order)}
+        apply_sort(query, query.__ash_bindings__[:sort], resource)
       end
 
-    if AshPostgres.DataLayer.Info.polymorphic?(resource) && no_table?(query) do
-      raise_table_error!(resource, :read)
-    else
-      {:ok, dynamic_repo(resource, query).all(query, repo_opts(nil, nil, resource))}
+    case with_sort_applied do
+      {:error, error} ->
+        {:error, error}
+
+      {:ok, query} ->
+        query =
+          if query.__ash_bindings__[:__order__?] && query.windows[:order] do
+            if query.distinct do
+              query_with_order =
+                from(row in query, select_merge: %{__order__: over(row_number(), :order)})
+
+              query_without_limit_and_offset =
+                query_with_order
+                |> Ecto.Query.exclude(:limit)
+                |> Ecto.Query.exclude(:offset)
+
+              from(row in subquery(query_without_limit_and_offset),
+                select: row,
+                order_by: row.__order__
+              )
+              |> Map.put(:limit, query.limit)
+              |> Map.put(:offset, query.offset)
+            else
+              order_by = %{query.windows[:order] | expr: query.windows[:order].expr[:order_by]}
+
+              %{
+                query
+                | windows: Keyword.delete(query.windows, :order),
+                  order_bys: [order_by]
+              }
+            end
+          else
+            %{query | windows: Keyword.delete(query.windows, :order)}
+          end
+
+        if AshPostgres.DataLayer.Info.polymorphic?(resource) && no_table?(query) do
+          raise_table_error!(resource, :read)
+        else
+          {:ok, dynamic_repo(resource, query).all(query, repo_opts(nil, nil, resource))}
+        end
     end
   rescue
     e ->
@@ -831,26 +847,39 @@ defmodule AshPostgres.DataLayer do
         _destination_resource,
         path
       ) do
-    case lateral_join_query(
-           query,
-           root_data,
-           path
-         ) do
-      {:ok, query} ->
-        source_resource =
-          path
-          |> Enum.at(0)
-          |> elem(0)
-          |> Map.get(:resource)
+    with_sort_applied =
+      if query.__ash_bindings__[:sort_applied?] do
+        {:ok, query}
+      else
+        apply_sort(query, query.__ash_bindings__[:sort], query.__ash_bindings__.resource)
+      end
 
-        {:ok,
-         dynamic_repo(source_resource, query).all(
-           query,
-           repo_opts(nil, nil, source_resource)
-         )}
-
+    case with_sort_applied do
       {:error, error} ->
         {:error, error}
+
+      {:ok, query} ->
+        case lateral_join_query(
+               query,
+               root_data,
+               path
+             ) do
+          {:ok, query} ->
+            source_resource =
+              path
+              |> Enum.at(0)
+              |> elem(0)
+              |> Map.get(:resource)
+
+            {:ok,
+             dynamic_repo(source_resource, query).all(
+               query,
+               repo_opts(nil, nil, source_resource)
+             )}
+
+          {:error, error} ->
+            {:error, error}
+        end
     end
   end
 
@@ -1798,19 +1827,8 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def sort(query, sort, resource) do
-    query
-    |> AshPostgres.Sort.sort(sort, resource)
-    |> case do
-      {:ok, query} ->
-        {:ok,
-         Map.update!(query, :__ash_bindings__, fn bindings ->
-           Map.put(bindings, :sort, sort)
-         end)}
-
-      other ->
-        other
-    end
+  def sort(query, sort, _resource) do
+    {:ok, Map.update!(query, :__ash_bindings__, &Map.put(&1, :sort, sort))}
   end
 
   @impl true
@@ -1823,119 +1841,177 @@ defmodule AshPostgres.DataLayer do
      )}
   end
 
+  @impl true
+  def distinct_sort(query, sort, _) when sort in [nil, []] do
+    {:ok, query}
+  end
+
+  def distinct_sort(query, sort, _) do
+    {:ok, Map.update!(query, :__ash_bindings__, &Map.put(&1, :distinct_sort, sort))}
+  end
+
   # If the order by does not match the initial sort clause, then we use a subquery
   # to limit to only distinct rows. This may not perform that well, so we may need
   # to come up with alternatives here.
   @impl true
-  def distinct(query, empty, _) when empty in [nil, []] do
-    {:ok, query}
+  def distinct(query, empty, resource) when empty in [nil, []] do
+    query |> apply_sort(query.__ash_bindings__[:sort], resource)
   end
 
   def distinct(query, distinct_on, resource) do
     case get_distinct_statement(query, distinct_on) do
       {:ok, distinct_statement} ->
-        {:ok, %{query | distinct: distinct_statement}}
+        %{query | distinct: distinct_statement}
+        |> apply_sort(query.__ash_bindings__[:sort], resource)
 
       {:error, distinct_statement} ->
-        distinct_query =
-          query
-          |> default_bindings(resource)
-          |> Map.put(:distinct, distinct_statement)
+        query
+        |> Ecto.Query.exclude(:order_by)
+        |> default_bindings(resource)
+        |> Map.put(:distinct, distinct_statement)
+        |> apply_sort(
+          query.__ash_bindings__[:distinct_sort] || query.__ash_bindings__[:sort],
+          resource,
+          true
+        )
+        |> case do
+          {:ok, distinct_query} ->
+            on =
+              Enum.reduce(Ash.Resource.Info.primary_key(resource), nil, fn key, dynamic ->
+                if dynamic do
+                  Ecto.Query.dynamic(
+                    [row, distinct],
+                    ^dynamic and field(row, ^key) == field(distinct, ^key)
+                  )
+                else
+                  Ecto.Query.dynamic([row, distinct], field(row, ^key) == field(distinct, ^key))
+                end
+              end)
 
-        on =
-          Enum.reduce(Ash.Resource.Info.primary_key(resource), nil, fn key, dynamic ->
-            if dynamic do
-              Ecto.Query.dynamic(
-                [row, distinct],
-                ^dynamic and field(row, ^key) == field(distinct, ^key)
+            joined_query_source =
+              Enum.reduce(
+                [
+                  :join,
+                  :order_by,
+                  :group_by,
+                  :having,
+                  :distinct,
+                  :select,
+                  :combinations,
+                  :with_ctes,
+                  :limit,
+                  :offset,
+                  :lock,
+                  :preload,
+                  :update
+                ],
+                query,
+                &Ecto.Query.exclude(&2, &1)
               )
-            else
-              Ecto.Query.dynamic([row, distinct], field(row, ^key) == field(distinct, ^key))
+
+            joined_query =
+              from(row in joined_query_source,
+                join: distinct in subquery(distinct_query),
+                on: ^on
+              )
+
+            from([row, distinct] in joined_query,
+              select: distinct
+            )
+            |> default_bindings(resource)
+            |> apply_sort(query.__ash_bindings__[:sort], resource)
+            |> case do
+              {:ok, joined_query} ->
+                {:ok,
+                 Map.update!(
+                   joined_query,
+                   :__ash_bindings__,
+                   &Map.put(&1, :__order__?, query.__ash_bindings__[:__order__?] || false)
+                 )}
+
+              {:error, error} ->
+                {:error, error}
             end
-          end)
 
-        joined_query_source =
-          Enum.reduce(
-            [
-              :join,
-              :group_by,
-              :having,
-              :distinct,
-              :select,
-              :combinations,
-              :with_ctes,
-              :limit,
-              :offset,
-              :lock,
-              :preload,
-              :update
-            ],
-            query,
-            &Ecto.Query.exclude(&2, &1)
-          )
-
-        joined_query =
-          from(row in joined_query_source,
-            join: distinct in subquery(distinct_query),
-            on: ^on
-          )
-
-        joined_query =
-          from([row, distinct] in joined_query,
-            select: distinct
-          )
-          |> default_bindings(resource)
-
-        {:ok,
-         Map.update!(
-           joined_query,
-           :__ash_bindings__,
-           &Map.put(&1, :__order__?, query.__ash_bindings__[:__order__?] || false)
-         )}
+          {:error, error} ->
+            {:error, error}
+        end
     end
   end
 
+  defp apply_sort(query, sort, resource, directly? \\ false)
+
+  defp apply_sort(query, sort, _resource, _) when sort in [nil, []] do
+    {:ok, query |> set_sort_applied()}
+  end
+
+  defp apply_sort(query, sort, resource, directly?) do
+    query
+    |> AshPostgres.Sort.sort(sort, resource, [], 0, directly?)
+    |> case do
+      {:ok, sort} when directly? ->
+        {:ok, query |> Ecto.Query.order_by(^sort) |> set_sort_applied()}
+
+      {:ok, query} ->
+        {:ok, query |> set_sort_applied()}
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  defp set_sort_applied(query) do
+    Map.update!(query, :__ash_bindings__, &Map.put(&1, :sort_applied?, true))
+  end
+
   defp get_distinct_statement(query, distinct_on) do
-    sort = query.__ash_bindings__.sort || []
+    has_distinct_sort? = match?(%{__ash_bindings__: %{distinct_sort: _}}, query)
 
-    distinct =
-      query.distinct ||
-        %Ecto.Query.QueryExpr{
-          expr: [],
-          params: []
-        }
-
-    if sort == [] do
-      {:ok, default_distinct_statement(query, distinct_on)}
+    if has_distinct_sort? do
+      {:error, default_distinct_statement(query, distinct_on)}
     else
-      distinct_on
-      |> Enum.reduce_while({sort, [], [], Enum.count(distinct.params)}, fn
-        _, {[], _distinct_statement, _, _count} ->
-          {:halt, :error}
+      sort = query.__ash_bindings__[:sort] || []
 
-        distinct_on, {[order_by | rest_order_by], distinct_statement, params, count} ->
-          case order_by do
-            {^distinct_on, order} ->
-              {distinct_expr, params, count} = distinct_on_expr(query, distinct_on, params, count)
+      distinct =
+        query.distinct ||
+          %Ecto.Query.QueryExpr{
+            expr: [],
+            params: []
+          }
 
-              {:cont,
-               {rest_order_by, [{order, distinct_expr} | distinct_statement], params, count}}
+      if sort == [] do
+        {:ok, default_distinct_statement(query, distinct_on)}
+      else
+        distinct_on
+        |> Enum.reduce_while({sort, [], [], Enum.count(distinct.params)}, fn
+          _, {[], _distinct_statement, _, _count} ->
+            {:halt, :error}
 
-            _ ->
-              {:halt, :error}
-          end
-      end)
-      |> case do
-        :error ->
-          {:error, default_distinct_statement(query, distinct_on)}
+          distinct_on, {[order_by | rest_order_by], distinct_statement, params, count} ->
+            case order_by do
+              {^distinct_on, order} ->
+                {distinct_expr, params, count} =
+                  distinct_on_expr(query, distinct_on, params, count)
 
-        {_, result, params, _} ->
-          {:ok,
-           %{
-             distinct
-             | expr: distinct.expr ++ Enum.reverse(result),
-               params: distinct.params ++ Enum.reverse(params)
-           }}
+                {:cont,
+                 {rest_order_by, [{order, distinct_expr} | distinct_statement], params, count}}
+
+              _ ->
+                {:halt, :error}
+            end
+        end)
+        |> case do
+          :error ->
+            {:error, default_distinct_statement(query, distinct_on)}
+
+          {_, result, params, _} ->
+            {:ok,
+             %{
+               distinct
+               | expr: distinct.expr ++ Enum.reverse(result),
+                 params: distinct.params ++ Enum.reverse(params)
+             }}
+        end
       end
     end
   end

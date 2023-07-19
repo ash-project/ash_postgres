@@ -115,4 +115,40 @@ defmodule AshPostgres.DistinctTest do
              %{title: "title", negative_score: -1}
            ] = results
   end
+
+  test "distinct sort is applied" do
+    Post
+    |> Ash.Changeset.new(%{title: "a", score: 2})
+    |> Api.create!()
+
+    Post
+    |> Ash.Changeset.new(%{title: "a", score: 1})
+    |> Api.create!()
+
+    results =
+      Post
+      |> Ash.Query.distinct(:negative_score)
+      |> Ash.Query.distinct_sort(:title)
+      |> Ash.Query.sort(:negative_score)
+      |> Ash.Query.load(:negative_score)
+      |> Api.read!()
+
+    assert [
+             %{title: "a", negative_score: -2},
+             %{title: "a", negative_score: -1}
+           ] = results
+
+    results =
+      Post
+      |> Ash.Query.distinct(:negative_score)
+      |> Ash.Query.distinct_sort(title: :desc)
+      |> Ash.Query.sort(:negative_score)
+      |> Ash.Query.load(:negative_score)
+      |> Api.read!()
+
+    assert [
+             %{title: "foo", negative_score: -2},
+             %{title: "title", negative_score: -1}
+           ] = results
+  end
 end
