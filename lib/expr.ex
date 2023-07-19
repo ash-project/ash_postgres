@@ -90,6 +90,11 @@ defmodule AshPostgres.Expr do
     arg1 = do_dynamic_expr(query, arg1, bindings, pred_embedded? || embedded?, :string)
     arg2 = do_dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?, :string)
 
+    type =
+      if type != Ash.Type.Boolean do
+        type
+      end
+
     Ecto.Query.dynamic(ilike(^arg1, ^arg2))
     |> maybe_type(type, query)
   end
@@ -348,21 +353,19 @@ defmodule AshPostgres.Expr do
       end
 
     condition =
-      do_dynamic_expr(query, condition, bindings, pred_embedded? || embedded?)
-      |> maybe_type(query, condition, condition_type)
+      do_dynamic_expr(query, condition, bindings, pred_embedded? || embedded?, condition_type)
 
     when_true =
-      do_dynamic_expr(query, when_true, bindings, pred_embedded? || embedded?)
-      |> maybe_type(query, when_true, when_true_type)
+      do_dynamic_expr(query, when_true, bindings, pred_embedded? || embedded?, when_true_type)
 
     when_false =
       do_dynamic_expr(
         query,
         when_false,
         bindings,
-        pred_embedded? || embedded?
+        pred_embedded? || embedded?,
+        when_false_type
       )
-      |> maybe_type(query, when_false, when_false_type)
 
     do_dynamic_expr(
       query,
@@ -763,20 +766,13 @@ defmodule AshPostgres.Expr do
            }
          ) do
       {:ok, expression} ->
-        expr =
-          do_dynamic_expr(
-            query,
-            expression,
-            bindings,
-            embedded?,
-            type
-          )
-
-        if type do
-          Ecto.Query.dynamic(type(^expr, ^type))
-        else
-          expr
-        end
+        do_dynamic_expr(
+          query,
+          expression,
+          bindings,
+          embedded?,
+          type
+        )
 
       {:error, error} ->
         raise """
@@ -1048,16 +1044,6 @@ defmodule AshPostgres.Expr do
         query
       )
 
-    source_ref =
-      ref_binding(
-        %Ref{
-          attribute: Ash.Resource.Info.attribute(resource, first_relationship.source_attribute),
-          relationship_path: at_path,
-          resource: resource
-        },
-        bindings
-      )
-
     used_calculations =
       Ash.Filter.used_calculations(
         filter,
@@ -1101,47 +1087,99 @@ defmodule AshPostgres.Expr do
     free_binding = filtered.__ash_bindings__.current
 
     exists_query =
-      if first_relationship.type == :many_to_many do
-        through_relationship =
-          Ash.Resource.Info.relationship(resource, first_relationship.join_relationship)
+      cond do
+        Map.get(first_relationship, :manual) ->
+          {module, opts} = first_relationship.manual
 
-        through_bindings =
-          query
-          |> Map.delete(:__ash_bindings__)
-          |> AshPostgres.DataLayer.default_bindings(
-            query.__ash_bindings__.resource,
-            query.__ash_bindings__.context
+          [pkey_attr | _] =
+            Ash.Resource.Info.primary_key(first_relationship.destination)
+
+          pkey_attr = Ash.Resource.Info.attribute(first_relationship.destination, pkey_attr)
+
+          source_ref =
+            ref_binding(
+              %Ref{
+                attribute: pkey_attr,
+                relationship_path: at_path,
+                resource: resource
+              },
+              bindings
+            )
+
+          {:ok, subquery} =
+            module.ash_postgres_subquery(
+              opts,
+              source_ref,
+              0,
+              filtered
+            )
+
+          subquery
+
+        first_relationship.type == :many_to_many ->
+          source_ref =
+            ref_binding(
+              %Ref{
+                attribute:
+                  Ash.Resource.Info.attribute(resource, first_relationship.source_attribute),
+                relationship_path: at_path,
+                resource: resource
+              },
+              bindings
+            )
+
+          through_relationship =
+            Ash.Resource.Info.relationship(resource, first_relationship.join_relationship)
+
+          through_bindings =
+            query
+            |> Map.delete(:__ash_bindings__)
+            |> AshPostgres.DataLayer.default_bindings(
+              query.__ash_bindings__.resource,
+              query.__ash_bindings__.context
+            )
+            |> Map.get(:__ash_bindings__)
+            |> Map.put(:bindings, %{
+              free_binding => %{path: [], source: first_relationship.through, type: :left}
+            })
+
+          {:ok, through} =
+            AshPostgres.Join.maybe_get_resource_query(
+              first_relationship.through,
+              through_relationship,
+              query,
+              [],
+              through_bindings
+            )
+
+          Ecto.Query.from(destination in filtered,
+            join: through in ^through,
+            as: ^free_binding,
+            on:
+              field(through, ^first_relationship.destination_attribute_on_join_resource) ==
+                field(destination, ^first_relationship.destination_attribute),
+            on:
+              field(parent_as(^source_ref), ^first_relationship.source_attribute) ==
+                field(through, ^first_relationship.source_attribute_on_join_resource)
           )
-          |> Map.get(:__ash_bindings__)
-          |> Map.put(:bindings, %{
-            free_binding => %{path: [], source: first_relationship.through, type: :left}
-          })
 
-        {:ok, through} =
-          AshPostgres.Join.maybe_get_resource_query(
-            first_relationship.through,
-            through_relationship,
-            query,
-            [],
-            through_bindings
+        true ->
+          source_ref =
+            ref_binding(
+              %Ref{
+                attribute:
+                  Ash.Resource.Info.attribute(resource, first_relationship.source_attribute),
+                relationship_path: at_path,
+                resource: resource
+              },
+              bindings
+            )
+
+          Ecto.Query.from(destination in filtered,
+            where:
+              field(parent_as(^source_ref), ^first_relationship.source_attribute) ==
+                field(destination, ^first_relationship.destination_attribute)
           )
-
-        Ecto.Query.from(destination in filtered,
-          join: through in ^through,
-          as: ^free_binding,
-          on:
-            field(through, ^first_relationship.destination_attribute_on_join_resource) ==
-              field(destination, ^first_relationship.destination_attribute),
-          on:
-            field(parent_as(^source_ref), ^first_relationship.source_attribute) ==
-              field(through, ^first_relationship.source_attribute_on_join_resource)
-        )
-      else
-        Ecto.Query.from(destination in filtered,
-          where:
-            field(parent_as(^source_ref), ^first_relationship.source_attribute) ==
-              field(destination, ^first_relationship.destination_attribute)
-        )
       end
 
     exists_query =
@@ -1300,23 +1338,6 @@ defmodule AshPostgres.Expr do
 
   defp maybe_uuid_to_binary(_type, _value, original_value), do: original_value
 
-  defp maybe_type(dynamic, _query, _type_expr, nil), do: dynamic
-
-  defp maybe_type(dynamic, query, type_expr, type) do
-    type =
-      AshPostgres.Types.parameterized_type(
-        type,
-        []
-      )
-
-    if type do
-      validate_type!(query, type, type_expr)
-      Ecto.Query.dynamic(type(^dynamic, ^type))
-    else
-      dynamic
-    end
-  end
-
   defp validate_type!(query, type, context) do
     case type do
       {:parameterized, Ash.Type.CiStringWrapper.EctoType, _} ->
@@ -1395,8 +1416,7 @@ defmodule AshPostgres.Expr do
           ]
         },
         bindings,
-        embedded?,
-        type
+        embedded?
       )
 
     if type do

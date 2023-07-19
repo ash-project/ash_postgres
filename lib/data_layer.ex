@@ -1839,7 +1839,6 @@ defmodule AshPostgres.DataLayer do
       {:error, distinct_statement} ->
         distinct_query =
           query
-          |> Ecto.Query.exclude(:order_by)
           |> default_bindings(resource)
           |> Map.put(:distinct, distinct_statement)
 
