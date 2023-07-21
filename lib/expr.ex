@@ -806,6 +806,18 @@ defmodule AshPostgres.Expr do
   end
 
   defp do_dynamic_expr(
+         _query,
+         %Ref{
+           attribute: %Ash.Resource.Calculation{} = calculation
+         },
+         _bindings,
+         _embedded?,
+         _type
+       ) do
+    raise "cannot build expression from resource calculation! #{calculation.name}"
+  end
+
+  defp do_dynamic_expr(
          query,
          %Ref{attribute: %Ash.Query.Aggregate{} = aggregate} = ref,
          bindings,
@@ -1338,7 +1350,8 @@ defmodule AshPostgres.Expr do
 
   defp maybe_uuid_to_binary(_type, _value, original_value), do: original_value
 
-  defp validate_type!(query, type, context) do
+  @doc false
+  def validate_type!(query, type, context) do
     case type do
       {:parameterized, Ash.Type.CiStringWrapper.EctoType, _} ->
         require_extension!(query, "citext", context)

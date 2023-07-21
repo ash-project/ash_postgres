@@ -733,7 +733,7 @@ defmodule AshPostgres.Aggregate do
     query = AshPostgres.DataLayer.default_bindings(query, aggregate.resource)
 
     ref = %Ash.Query.Ref{
-      attribute: Ash.Resource.Info.field(resource, aggregate.field),
+      attribute: aggregate_field(aggregate, resource, relationship_path, query),
       relationship_path: relationship_path,
       resource: query.__ash_bindings__.resource
     }
@@ -824,7 +824,7 @@ defmodule AshPostgres.Aggregate do
       )
 
     ref = %Ash.Query.Ref{
-      attribute: Ash.Resource.Info.field(resource, aggregate.field),
+      attribute: aggregate_field(aggregate, resource, relationship_path, query),
       relationship_path: relationship_path,
       resource: query.__ash_bindings__.resource
     }
@@ -909,11 +909,7 @@ defmodule AshPostgres.Aggregate do
     query = AshPostgres.DataLayer.default_bindings(query, aggregate.resource)
 
     ref = %Ash.Query.Ref{
-      attribute:
-        Ash.Resource.Info.field(
-          resource,
-          aggregate.field || List.first(Ash.Resource.Info.primary_key(resource))
-        ),
+      attribute: aggregate_field(aggregate, resource, relationship_path, query),
       relationship_path: relationship_path,
       resource: resource
     }
@@ -1029,5 +1025,35 @@ defmodule AshPostgres.Aggregate do
   defp single_path?(resource, [relationship | rest]) do
     relationship = Ash.Resource.Info.relationship(resource, relationship)
     relationship.type == :belongs_to && single_path?(relationship.destination, rest)
+  end
+
+  defp aggregate_field(aggregate, resource, _relationship_path, query) do
+    case Ash.Resource.Info.field(
+           resource,
+           aggregate.field || List.first(Ash.Resource.Info.primary_key(resource))
+         ) do
+      %Ash.Resource.Calculation{calculation: {module, opts}} = calculation ->
+        calc_type =
+          AshPostgres.Types.parameterized_type(
+            calculation.type,
+            Map.get(calculation, :constraints, [])
+          )
+
+        AshPostgres.Expr.validate_type!(query, calc_type, "#{inspect(calculation.name)}")
+
+        {:ok, query_calc} =
+          Ash.Query.Calculation.new(
+            calculation.name,
+            module,
+            opts,
+            calculation.type,
+            Map.get(aggregate, :context, %{})
+          )
+
+        query_calc
+
+      other ->
+        other
+    end
   end
 end
