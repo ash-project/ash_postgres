@@ -5,6 +5,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.38](https://github.com/ash-project/ash_postgres/compare/v1.3.37...v1.3.38) (2023-07-21)
+
+
+
+
+### Bug Fixes:
+
+* un-break aggregates referencing calculations
+
+### Improvements:
+
+* properly handle context for referenced calculations
+
 ## [v1.3.37](https://github.com/ash-project/ash_postgres/compare/v1.3.36...v1.3.37) (2023-07-19)
 
 
