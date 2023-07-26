@@ -958,22 +958,19 @@ defmodule AshPostgres.DataLayer do
     end
     |> case do
       {:ok, data_layer_query} ->
-        data_layer_query =
-          if Map.get(relationship, :no_attributes?) do
-            data_layer_query
-          else
-            source_values = Enum.map(root_data, &Map.get(&1, source_attribute))
+        source_values = Enum.map(root_data, &Map.get(&1, source_attribute))
 
-            from(source in data_layer_query,
-              where: field(source, ^source_attribute) in ^source_values
-            )
-          end
+        data_layer_query =
+          from(source in data_layer_query,
+            where: field(source, ^source_attribute) in ^source_values
+          )
 
         if query.__ash_bindings__[:__order__?] do
           {:ok,
            from(source in data_layer_query,
              inner_lateral_join: destination in ^subquery,
              on: true,
+             order_by: destination.__order__,
              select: destination,
              select_merge: %{__lateral_join_source__: field(source, ^source_attribute)},
              distinct: true
