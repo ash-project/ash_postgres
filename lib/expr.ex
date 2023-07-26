@@ -1180,6 +1180,9 @@ defmodule AshPostgres.Expr do
                 field(through, ^first_relationship.source_attribute_on_join_resource)
           )
 
+        Map.get(first_relationship, :no_attributes?) ->
+          filtered
+
         true ->
           source_ref =
             ref_binding(
