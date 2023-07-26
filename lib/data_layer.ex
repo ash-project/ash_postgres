@@ -1808,7 +1808,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def lock(query, :for_update, _) do
-    {:ok, Ecto.Query.lock(query, "FOR UPDATE")}
+    {:ok, Ecto.Query.lock(query, [{^0, a}], fragment("FOR UPDATE OF ?", a))}
   end
 
   @locks [
@@ -1818,11 +1818,18 @@ defmodule AshPostgres.DataLayer do
     "FOR KEY SHARE"
   ]
 
-  @all_locks @locks ++ Enum.map(@locks, &"#{&1} NOWAIT")
+  for lock <- @locks do
+    frag = "#{lock} OF ?"
 
-  for lock <- @all_locks do
     def lock(query, unquote(lock), _) do
-      {:ok, Ecto.Query.lock(query, unquote(lock))}
+      {:ok, Ecto.Query.lock(query, [{^0, a}], fragment(unquote(frag), a))}
+    end
+
+    frag = "#{lock} OF ? NOWAIT"
+    lock = "#{lock} NOWAIT"
+
+    def lock(query, unquote(lock), _) do
+      {:ok, Ecto.Query.lock(query, [{^0, a}], fragment(unquote(frag), a))}
     end
   end
 
