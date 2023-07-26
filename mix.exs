@@ -161,7 +161,8 @@ defmodule AshPostgres.MixProject do
       {:ecto, "~> 3.9"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
-      {:ash, ash_version("~> 2.13")},
+      # {:ash, ash_version("~> 2.13")},
+      {:ash, github: "ash-project/ash", ref: "main"},
       {:git_ops, "~> 2.5", only: [:dev, :test]},
       {:ex_doc, "~> 0.22", only: [:dev, :test], runtime: false},
       {:ex_check, "~> 0.14", only: [:dev, :test]},
@@ -172,24 +173,24 @@ defmodule AshPostgres.MixProject do
     ]
   end
 
-  defp ash_version(default_version) do
-    case System.get_env("ASH_VERSION") do
-      nil ->
-        default_version
+  # defp ash_version(default_version) do
+  #   case System.get_env("ASH_VERSION") do
+  #     nil ->
+  #       default_version
 
-      "local" ->
-        [path: "../ash"]
+  #     "local" ->
+  #       [path: "../ash"]
 
-      "main" ->
-        [git: "https://github.com/ash-project/ash.git"]
+  #     "main" ->
+  #       [git: "https://github.com/ash-project/ash.git"]
 
-      version when is_binary(version) ->
-        "~> #{version}"
+  #     version when is_binary(version) ->
+  #       "~> #{version}"
 
-      version ->
-        version
-    end
-  end
+  #     version ->
+  #       version
+  #   end
+  # end
 
   defp aliases do
     [

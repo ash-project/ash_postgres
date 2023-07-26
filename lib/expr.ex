@@ -1006,10 +1006,12 @@ defmodule AshPostgres.Expr do
          embedded?,
          type
        ) do
+    parent? = Map.get(bindings.parent_bindings, :parent_is_parent_as?, true)
+
     do_dynamic_expr(
       %{
         query
-        | __ash_bindings__: Map.put(query.__ash_bindings__.parent_bindings, :parent?, true)
+        | __ash_bindings__: Map.put(bindings.parent_bindings, :parent?, parent?)
       },
       expr,
       bindings,
@@ -1053,7 +1055,8 @@ defmodule AshPostgres.Expr do
       AshPostgres.Join.maybe_get_resource_query(
         first_relationship.destination,
         first_relationship,
-        query
+        query,
+        [first_relationship.name]
       )
 
     used_calculations =
@@ -1152,7 +1155,7 @@ defmodule AshPostgres.Expr do
             )
             |> Map.get(:__ash_bindings__)
             |> Map.put(:bindings, %{
-              free_binding => %{path: [], source: first_relationship.through, type: :left}
+              free_binding => %{path: [], source: first_relationship.through, type: :root}
             })
 
           {:ok, through} =
@@ -1160,8 +1163,10 @@ defmodule AshPostgres.Expr do
               first_relationship.through,
               through_relationship,
               query,
-              [],
-              through_bindings
+              [first_relationship.join_relationship],
+              through_bindings,
+              nil,
+              false
             )
 
           Ecto.Query.from(destination in filtered,

@@ -589,7 +589,25 @@ defmodule AshPostgres.DataLayer do
       data_layer_query
       |> default_bindings(resource, context)
 
-    {:ok, data_layer_query}
+    case context[:data_layer][:lateral_join_source] do
+      {_, [{%{resource: resource}, _, _, _} | _]} ->
+        parent =
+          resource
+          |> resource_to_query(nil)
+          |> default_bindings(resource, context)
+
+        ash_bindings =
+          data_layer_query.__ash_bindings__
+          |> Map.put(:parent_bindings, Map.put(parent.__ash_bindings__, :parent?, true))
+          |> Map.put(:parent_resources, [
+            parent.__ash_bindings__.resource | parent.__ash_bindings__[:parent_resources] || []
+          ])
+
+        {:ok, %{data_layer_query | __ash_bindings__: ash_bindings}}
+
+      _ ->
+        {:ok, data_layer_query}
+    end
   end
 
   @impl true
@@ -891,27 +909,42 @@ defmodule AshPostgres.DataLayer do
     source_values = Enum.map(root_data, &Map.get(&1, source_attribute))
     source_query = Ash.Query.new(source_query)
 
-    subquery =
+    base_query =
       if query.__ash_bindings__[:__order__?] do
-        subquery(
-          from(destination in query,
-            select_merge: %{__order__: over(row_number(), :order)},
-            where:
-              field(destination, ^destination_attribute) ==
-                field(parent_as(^0), ^source_attribute)
-          )
-          |> set_subquery_prefix(source_query, relationship.destination)
+        from(row in query,
+          select_merge: %{__order__: over(row_number(), :order)}
         )
       else
-        subquery(
-          from(destination in query,
+        query
+      end
+
+    base_query =
+      cond do
+        Map.get(relationship, :manual) ->
+          {module, opts} = relationship.manual
+
+          module.ash_postgres_subquery(
+            opts,
+            0,
+            0,
+            base_query
+          )
+
+        Map.get(relationship, :no_attributes?) ->
+          base_query
+
+        true ->
+          from(destination in base_query,
             where:
               field(destination, ^destination_attribute) ==
                 field(parent_as(^0), ^source_attribute)
           )
-          |> set_subquery_prefix(source_query, relationship.destination)
-        )
       end
+
+    subquery =
+      base_query
+      |> set_subquery_prefix(source_query, relationship.destination)
+      |> subquery()
 
     source_query.resource
     |> Ash.Query.set_context(%{:data_layer => source_query.context[:data_layer]})
@@ -931,9 +964,10 @@ defmodule AshPostgres.DataLayer do
            from(source in data_layer_query,
              where: field(source, ^source_attribute) in ^source_values,
              inner_lateral_join: destination in ^subquery,
-             on: field(source, ^source_attribute) == field(destination, ^destination_attribute),
+             on: true,
              order_by: destination.__order__,
              select: destination,
+             select_merge: %{__lateral_join_source__: field(source, ^source_attribute)},
              distinct: true
            )}
         else
@@ -941,8 +975,9 @@ defmodule AshPostgres.DataLayer do
            from(source in data_layer_query,
              where: field(source, ^source_attribute) in ^source_values,
              inner_lateral_join: destination in ^subquery,
-             on: field(source, ^source_attribute) == field(destination, ^destination_attribute),
+             on: true,
              select: destination,
+             select_merge: %{__lateral_join_source__: field(source, ^source_attribute)},
              distinct: true
            )}
         end

@@ -163,7 +163,8 @@ defmodule AshPostgres.Join do
         root_query,
         path \\ [],
         bindings \\ nil,
-        start_binding \\ nil
+        start_binding \\ nil,
+        is_subquery? \\ true
       ) do
     resource
     |> Ash.Query.new(nil, base_filter?: false)
@@ -193,12 +194,13 @@ defmodule AshPostgres.Join do
                 bindings
               )
               |> do_relationship_filter(
-                relationship.filter,
+                relationship,
                 root_query,
                 ash_query,
                 resource,
                 path,
-                bindings
+                bindings,
+                is_subquery?
               )
 
             {:ok, query}
@@ -212,33 +214,96 @@ defmodule AshPostgres.Join do
     end
   end
 
-  defp do_relationship_filter(query, nil, _, _, _, _, _), do: query
+  defp do_relationship_filter(query, %{filter: nil}, _, _, _, _, _, _), do: query
 
   defp do_relationship_filter(
          query,
-         relationship_filter,
+         relationship,
          root_query,
          ash_query,
          resource,
          path,
-         bindings
+         bindings,
+         is_subquery?
        ) do
     filter =
       resource
       |> Ash.Filter.parse!(
-        relationship_filter,
+        relationship.filter,
         ash_query.aggregates,
         ash_query.calculations,
-        ash_query.context
+        Map.update(
+          ash_query.context,
+          :parent_stack,
+          [relationship.source],
+          &[&1 | relationship.source]
+        )
       )
 
-    dynamic =
+    base_bindings = bindings || query.__ash_bindings__
+
+    parent_binding =
+      case :lists.droplast(path) do
+        [] ->
+          base_bindings.bindings
+          |> Enum.find_value(fn {key, %{type: type}} ->
+            if type == :root do
+              key
+            end
+          end)
+
+        path ->
+          get_binding(
+            root_query.__ash_bindings__.resource,
+            path,
+            %{query | __ash_bindings__: base_bindings},
+            [
+              :inner,
+              :left
+            ]
+          )
+      end
+
+    parent_bindings =
+      %{
+        base_bindings
+        | resource: relationship.source,
+          calculations: %{},
+          parent_resources: [],
+          aggregate_defs: %{},
+          context: relationship.context,
+          current: parent_binding + 1
+      }
+
+    parent_bindings =
       if bindings do
-        filter = Ash.Filter.move_to_relationship_path(filter, path)
+        Map.put(parent_bindings, :parent_is_parent_as?, !is_subquery?)
+      else
+        parent_bindings
+        |> Map.update!(:bindings, &Map.take(&1, [parent_binding]))
+      end
+
+    has_bindings? = not is_nil(bindings)
+
+    bindings =
+      base_bindings
+      |> Map.put(:parent_bindings, parent_bindings)
+      |> Map.put(:parent_resources, [
+        relationship.source | parent_bindings[:parent_resources] || []
+      ])
+
+    dynamic =
+      if has_bindings? do
+        filter =
+          if is_subquery? do
+            Ash.Filter.move_to_relationship_path(filter, path)
+          else
+            filter
+          end
 
         AshPostgres.Expr.dynamic_expr(root_query, filter, bindings, true)
       else
-        AshPostgres.Expr.dynamic_expr(query, filter, query.__ash_bindings__, true)
+        AshPostgres.Expr.dynamic_expr(query, filter, bindings, true)
       end
 
     {:ok, query} = join_all_relationships(query, filter)
@@ -528,7 +593,7 @@ defmodule AshPostgres.Join do
     join_relationship =
       Ash.Resource.Info.relationship(relationship.source, relationship.join_relationship)
 
-    join_path = Enum.reverse([join_relationship.name | path])
+    join_path = path ++ [join_relationship.name]
 
     full_path = path ++ [relationship.name]
 

@@ -106,6 +106,62 @@ defmodule AshPostgres.Test.LoadTest do
   end
 
   describe "lateral join loads" do
+    test "parent references are resolved" do
+      post1 =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      post2 =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      post2_id = post2.id
+
+      post3 =
+        Post
+        |> Ash.Changeset.new(%{title: "no match"})
+        |> Api.create!()
+
+      assert [%{posts_with_matching_title: [%{id: ^post2_id}]}] =
+               Post
+               |> Ash.Query.load(:posts_with_matching_title)
+               |> Ash.Query.filter(id == ^post1.id)
+               |> Api.read!()
+
+      assert [%{posts_with_matching_title: []}] =
+               Post
+               |> Ash.Query.load(:posts_with_matching_title)
+               |> Ash.Query.filter(id == ^post3.id)
+               |> Api.read!()
+    end
+
+    test "parent references work when joining for filters" do
+      %{id: post1_id} =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      post2 =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{title: "no match"})
+      |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{title: "no match"})
+      |> Api.create!()
+
+      assert [%{id: ^post1_id}] =
+               Post
+               |> Ash.Query.filter(posts_with_matching_title.id == ^post2.id)
+               |> Api.read!()
+    end
+
     test "lateral join loads (loads with limits or offsets) are supported" do
       assert %Post{comments: %Ash.NotLoaded{type: :relationship}} =
                post =

@@ -91,7 +91,8 @@ defmodule AshPostgres.Aggregate do
                        AshPostgres.Join.maybe_get_resource_query(
                          first_relationship.destination,
                          first_relationship,
-                         query
+                         query,
+                         [first_relationship.name]
                        ),
                      agg_root_query <-
                        Map.update!(
@@ -423,7 +424,7 @@ defmodule AshPostgres.Aggregate do
         join_relationship_struct.destination,
         join_relationship_struct,
         query,
-        [],
+        [join_relationship],
         nil,
         subquery.__ash_bindings__.current
       )
