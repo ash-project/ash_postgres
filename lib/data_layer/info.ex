@@ -27,6 +27,13 @@ defmodule AshPostgres.DataLayer.Info do
     Extension.get_entities(resource, [:postgres, :references])
   end
 
+  @doc "The configured reference for a given relationship of a  resource"
+  def reference(resource, relationship) do
+    resource
+    |> Extension.get_entities([:postgres, :references])
+    |> Enum.find(&(&1.relationship == relationship))
+  end
+
   @doc "A keyword list of customized migration types"
   def migration_types(resource) do
     Extension.get_opt(resource, [:postgres], :migration_types, [])

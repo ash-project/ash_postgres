@@ -2076,21 +2076,36 @@ defmodule AshPostgres.MigrationGenerator do
 
         if has_reference?(old_snapshot.multitenancy, old_attribute) and
              Map.get(old_attribute, :references) != Map.get(new_attribute, :references) do
-          old_and_alter = [
-            %Operation.DropForeignKey{
-              attribute: old_attribute,
-              table: snapshot.table,
-              schema: snapshot.schema,
-              multitenancy: old_snapshot.multitenancy,
-              direction: :up
-            },
-            %Operation.AlterAttribute{
-              new_attribute: new_attribute,
-              old_attribute: old_attribute,
-              schema: snapshot.schema,
-              table: snapshot.table
-            }
-          ]
+          redo_deferrability =
+            if differently_deferrable?(new_attribute, old_attribute) do
+              []
+            else
+              [
+                %Operation.AlterDeferrability{
+                  table: snapshot.table,
+                  schema: snapshot.schema,
+                  references: new_attribute.references,
+                  direction: :up
+                }
+              ]
+            end
+
+          old_and_alter =
+            [
+              %Operation.DropForeignKey{
+                attribute: old_attribute,
+                table: snapshot.table,
+                schema: snapshot.schema,
+                multitenancy: old_snapshot.multitenancy,
+                direction: :up
+              },
+              %Operation.AlterAttribute{
+                new_attribute: new_attribute,
+                old_attribute: old_attribute,
+                schema: snapshot.schema,
+                table: snapshot.table
+              }
+            ] ++ redo_deferrability
 
           if has_reference?(snapshot.multitenancy, new_attribute) do
             reference_ops = [

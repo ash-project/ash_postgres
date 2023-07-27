@@ -1592,19 +1592,28 @@ defmodule AshPostgres.DataLayer do
       related
       |> Ash.Resource.Info.relationships()
       |> Enum.filter(&(&1.destination == resource))
-      |> Enum.map(&Map.take(&1, [:source, :source_attribute, :destination_attribute]))
+      |> Enum.map(&Map.take(&1, [:source, :source_attribute, :destination_attribute, :name]))
     end)
-    |> Enum.uniq()
     |> Enum.reduce(changeset, fn %{
                                    source: source,
                                    source_attribute: source_attribute,
-                                   destination_attribute: destination_attribute
+                                   destination_attribute: destination_attribute,
+                                   name: relationship_name
                                  },
                                  changeset ->
-      Ecto.Changeset.foreign_key_constraint(changeset, destination_attribute,
-        name: "#{AshPostgres.DataLayer.Info.table(source)}_#{source_attribute}_fkey",
-        message: "would leave records behind"
-      )
+      case AshPostgres.DataLayer.Info.reference(resource, relationship_name) do
+        %{name: name} when not is_nil(name) ->
+          Ecto.Changeset.foreign_key_constraint(changeset, destination_attribute,
+            name: name,
+            message: "would leave records behind"
+          )
+
+        _ ->
+          Ecto.Changeset.foreign_key_constraint(changeset, destination_attribute,
+            name: "#{AshPostgres.DataLayer.Info.table(source)}_#{source_attribute}_fkey",
+            message: "would leave records behind"
+          )
+      end
     end)
   end
 
