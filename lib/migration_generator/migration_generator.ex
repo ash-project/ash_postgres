@@ -2784,6 +2784,9 @@ defmodule AshPostgres.MigrationGenerator do
   defp default(%{name: name, default: []}, resource, _),
     do: configured_default(resource, name) || "[]"
 
+  defp default(%{name: name, default: default}, resource, _) when default == %{},
+    do: configured_default(resource, name) || "%{}"
+
   defp default(%{name: name, default: value}, resource, _),
     do: configured_default(resource, name) || EctoMigrationDefault.to_default(value)
 
