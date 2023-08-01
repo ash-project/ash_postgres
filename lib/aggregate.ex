@@ -591,7 +591,7 @@ defmodule AshPostgres.Aggregate do
         kind: :first,
         relationship_path: relationship_path
       }) do
-    name in AshPostgres.DataLayer.Info.simple_join_first_aggregates(resource) &&
+    name in AshPostgres.DataLayer.Info.simple_join_first_aggregates(resource) ||
       single_path?(resource, relationship_path)
   end
 
