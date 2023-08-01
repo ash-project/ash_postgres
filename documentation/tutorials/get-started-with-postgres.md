@@ -191,9 +191,10 @@ Typically, you need to write these by hand. AshPostgres, however, will store sna
 
 You should always look at the generated migrations to ensure that they look correct. Do so now by looking at the generated file in `priv/repo/migrations`.
 
-Finally, we will apply the generated migrations to our local database:
+Finally, we will create the local database and apply the generated migrations:
 
 ```bash
+mix ash_postgres.create
 mix ash_postgres.migrate
 ```
 
