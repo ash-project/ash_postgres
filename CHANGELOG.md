@@ -5,6 +5,31 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.39](https://github.com/ash-project/ash_postgres/compare/v1.3.38...v1.3.39) (2023-08-01)
+
+
+
+
+### Bug Fixes:
+
+* properly alter deferrability on attribute alter
+
+### Improvements:
+
+* update ash
+
+* handle empty maps in migration defaults automatically
+
+* handle empty lists in migraiton defaults automatically
+
+* apply sort in subqueries properly
+
+* handle `no_attributes?` better in more places
+
+* support the new `parent/1` expr in relationships
+
+* explicitly lock the source row
+
 ## [v1.3.38](https://github.com/ash-project/ash_postgres/compare/v1.3.37...v1.3.38) (2023-07-21)
 
 
