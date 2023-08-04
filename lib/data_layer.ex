@@ -1856,7 +1856,15 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def lock(query, :for_update, _) do
-    {:ok, Ecto.Query.lock(query, [{^0, a}], fragment("FOR UPDATE OF ?", a))}
+    if query.distinct do
+      new_query =
+        Ecto.Query.lock(%{query | distinct: nil}, [{^0, a}], fragment("FOR UPDATE OF ?", a))
+
+      q = from(row in subquery(new_query), [])
+      {:ok, %{q | distinct: query.distinct}}
+    else
+      {:ok, Ecto.Query.lock(query, [{^0, a}], fragment("FOR UPDATE OF ?", a))}
+    end
   end
 
   @locks [

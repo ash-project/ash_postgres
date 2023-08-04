@@ -430,7 +430,8 @@ defmodule AshPostgres.Join do
   def get_binding(_, _, _, _), do: nil
 
   defp add_distinct(relationship, _join_type, joined_query) do
-    if !joined_query.__ash_bindings__.in_group? && relationship.cardinality == :many &&
+    if !joined_query.__ash_bindings__.in_group? &&
+         (relationship.cardinality == :many || Map.get(relationship, :from_many?)) &&
          !joined_query.distinct do
       from(row in joined_query,
         distinct: ^Ash.Resource.Info.primary_key(joined_query.__ash_bindings__.resource)
