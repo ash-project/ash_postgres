@@ -116,6 +116,23 @@ defmodule AshPostgres.DistinctTest do
            ] = results
   end
 
+  test "distinct, join filters and sort can be combined" do
+    Post
+    |> Ash.Changeset.new(%{title: "a", score: 2})
+    |> Api.create!()
+
+    Post
+    |> Ash.Changeset.new(%{title: "a", score: 1})
+    |> Api.create!()
+
+    assert [] =
+             Post
+             |> Ash.Query.distinct(:negative_score)
+             |> Ash.Query.filter(author.first_name == "a")
+             |> Ash.Query.sort(:negative_score)
+             |> Api.read!()
+  end
+
   test "distinct sort is applied" do
     Post
     |> Ash.Changeset.new(%{title: "a", score: 2})

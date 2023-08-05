@@ -1966,7 +1966,8 @@ defmodule AshPostgres.DataLayer do
                   :offset,
                   :lock,
                   :preload,
-                  :update
+                  :update,
+                  :where
                 ],
                 query,
                 &Ecto.Query.exclude(&2, &1)
