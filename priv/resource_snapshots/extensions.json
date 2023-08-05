@@ -4,6 +4,7 @@
     "ash-functions",
     "uuid-ossp",
     "pg_trgm",
-    "citext"
+    "citext",
+    "demo-functions_v1"
   ]
 }
