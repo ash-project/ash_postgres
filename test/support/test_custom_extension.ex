@@ -1,4 +1,6 @@
 defmodule AshPostgres.TestCustomExtension do
+  @moduledoc false
+
   use AshPostgres.CustomExtension, name: "demo-functions", latest_version: 1
 
   @impl true

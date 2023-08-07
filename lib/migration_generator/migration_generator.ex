@@ -180,15 +180,22 @@ defmodule AshPostgres.MigrationGenerator do
             {other, other.installed}
         end
 
-      requesteds = repo.installed_extensions()
-      |> Enum.map(fn
-        {ext_name, version, _up_fn, _down_fn} = extension -> {"#{ext_name}_v#{version}", extension}
-          extension -> {extension, extension}
-      end)
+      requesteds =
+        repo.installed_extensions()
+        |> Enum.map(fn
+          extension_module when is_atom(extension_module) ->
+            {ext_name, version, _up_fn, _down_fn} = extension = extension_module.extension()
 
-      to_install = requesteds
-      |> Enum.filter(fn {name, _extension} -> !Enum.member?(installed_extensions, name) end)
-      |> Enum.map(fn {_name, extension} -> extension end)
+            {"#{ext_name}_v#{version}", extension}
+
+          extension_name ->
+            {extension_name, extension_name}
+        end)
+
+      to_install =
+        requesteds
+        |> Enum.filter(fn {name, _extension} -> !Enum.member?(installed_extensions, name) end)
+        |> Enum.map(fn {_name, extension} -> extension end)
 
       to_install =
         if "ash-functions" in requesteds &&
@@ -206,7 +213,9 @@ defmodule AshPostgres.MigrationGenerator do
         {module, migration_name} =
           case to_install do
             [{ext_name, version, _up_fn, _down_fn}] ->
-              {"install_#{ext_name}_v#{version}", "#{timestamp(true)}_install_#{ext_name}_v#{version}_extension"}
+              {"install_#{ext_name}_v#{version}",
+               "#{timestamp(true)}_install_#{ext_name}_v#{version}_extension"}
+
             [single] ->
               {"install_#{single}", "#{timestamp(true)}_install_#{single}_extension"}
 
@@ -232,7 +241,8 @@ defmodule AshPostgres.MigrationGenerator do
             "ash-functions" ->
               install_ash_functions(extensions_snapshot[:ash_functions_version])
 
-            {_ext_name, version, up_fn, _down_fn} when is_function(up_fn, 1) -> up_fn.(version)
+            {_ext_name, version, up_fn, _down_fn} when is_function(up_fn, 1) ->
+              up_fn.(version)
 
             extension ->
               "execute(\"CREATE EXTENSION IF NOT EXISTS \\\"#{extension}\\\"\")"
@@ -243,7 +253,8 @@ defmodule AshPostgres.MigrationGenerator do
             "ash-functions" ->
               "execute(\"DROP FUNCTION IF EXISTS ash_elixir_and(BOOLEAN, ANYCOMPATIBLE), ash_elixir_and(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(BOOLEAN, ANYCOMPATIBLE)\")"
 
-            {_ext_name, version, _up_fn, down_fn} when is_function(down_fn, 1) -> down_fn.(version)
+            {_ext_name, version, _up_fn, down_fn} when is_function(down_fn, 1) ->
+              down_fn.(version)
 
             extension ->
               "# execute(\"DROP EXTENSION IF EXISTS \\\"#{extension}\\\"\")"

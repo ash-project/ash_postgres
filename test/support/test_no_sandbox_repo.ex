@@ -8,7 +8,7 @@ defmodule AshPostgres.TestNoSandboxRepo do
   end
 
   def installed_extensions do
-    ["ash-functions", "uuid-ossp", "pg_trgm", "citext", AshPostgres.TestCustomExtension.extension()] --
+    ["ash-functions", "uuid-ossp", "pg_trgm", "citext", AshPostgres.TestCustomExtension] --
       Application.get_env(:ash_postgres, :no_extensions, [])
   end
 

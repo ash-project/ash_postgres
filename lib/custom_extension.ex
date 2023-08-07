@@ -7,7 +7,7 @@ defmodule AshPostgres.CustomExtension do
 
   @callback uninstall(version :: integer) :: String.t()
 
-  defmacro __using__([name: name, latest_version: latest_version]) do
+  defmacro __using__(name: name, latest_version: latest_version) do
     quote do
       @behaviour AshPostgres.CustomExtension
 
