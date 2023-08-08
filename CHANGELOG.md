@@ -5,6 +5,27 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.41](https://github.com/ash-project/ash_postgres/compare/v1.3.40...v1.3.41) (2023-08-08)
+
+
+
+
+### Bug Fixes:
+
+* handle interaction between distinct, join filters and sort
+
+### Improvements:
+
+* custom-extension implementation (#162)
+
+* custom-extension implementation
+
+* allow adding custom-extension by module's reference and fixes formatting
+
+* support new `from_many?` option
+
+* subquery after distinct to handle distinct
+
 ## [v1.3.40](https://github.com/ash-project/ash_postgres/compare/v1.3.39...v1.3.40) (2023-08-01)
 
 
