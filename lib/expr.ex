@@ -1106,8 +1106,7 @@ defmodule AshPostgres.Expr do
         Map.get(first_relationship, :manual) ->
           {module, opts} = first_relationship.manual
 
-          [pkey_attr | _] =
-            Ash.Resource.Info.primary_key(first_relationship.destination)
+          [pkey_attr | _] = Ash.Resource.Info.primary_key(first_relationship.destination)
 
           pkey_attr = Ash.Resource.Info.attribute(first_relationship.destination, pkey_attr)
 

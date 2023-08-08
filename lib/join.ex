@@ -264,16 +264,15 @@ defmodule AshPostgres.Join do
           )
       end
 
-    parent_bindings =
-      %{
-        base_bindings
-        | resource: relationship.source,
-          calculations: %{},
-          parent_resources: [],
-          aggregate_defs: %{},
-          context: relationship.context,
-          current: parent_binding + 1
-      }
+    parent_bindings = %{
+      base_bindings
+      | resource: relationship.source,
+        calculations: %{},
+        parent_resources: [],
+        aggregate_defs: %{},
+        context: relationship.context,
+        current: parent_binding + 1
+    }
 
     parent_bindings =
       if bindings do
