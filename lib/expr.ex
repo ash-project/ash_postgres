@@ -964,7 +964,11 @@ defmodule AshPostgres.Expr do
     arg1 = maybe_uuid_to_binary(arg2, arg1, arg1)
     type = AshPostgres.Types.parameterized_type(arg2, constraints)
 
-    Ecto.Query.dynamic(type(^do_dynamic_expr(query, arg1, bindings, embedded?, type), ^type))
+    if type do
+      Ecto.Query.dynamic(type(^do_dynamic_expr(query, arg1, bindings, embedded?, type), ^type))
+    else
+      do_dynamic_expr(query, arg1, bindings, embedded?, type)
+    end
   end
 
   defp do_dynamic_expr(

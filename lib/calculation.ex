@@ -59,7 +59,12 @@ defmodule AshPostgres.Calculation do
                 type
               )
 
-            expr = Ecto.Query.dynamic(type(^expr, ^type))
+            expr =
+              if type do
+                Ecto.Query.dynamic(type(^expr, ^type))
+              else
+                expr
+              end
 
             {calculation.load, calculation.name, expr}
           end)
