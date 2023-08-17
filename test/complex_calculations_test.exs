@@ -52,9 +52,11 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
     certification =
       certification
       |> AshPostgres.Test.ComplexCalculations.Api.load!([
+        :count_of_documented_skills,
+        :all_documentation_approved,
         :some_documentation_created
       ])
 
-    refute certification.some_documentation_created
+    assert certification.some_documentation_created
   end
 end
