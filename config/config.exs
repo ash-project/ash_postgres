@@ -44,7 +44,11 @@ if Mix.env() == :test do
 
   config :ash_postgres,
     ecto_repos: [AshPostgres.TestRepo, AshPostgres.TestNoSandboxRepo],
-    ash_apis: [AshPostgres.Test.Api, AshPostgres.MultitenancyTest.Api]
+    ash_apis: [
+      AshPostgres.Test.Api,
+      AshPostgres.MultitenancyTest.Api,
+      AshPostgres.Test.ComplexCalculations.Api
+    ]
 
   config :logger, level: :warning
 end
