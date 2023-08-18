@@ -3,7 +3,7 @@ defmodule Ash.Type.StringWrapper do
   use Ash.Type
 
   @impl true
-  def storage_type, do: :text
+  def storage_type(_), do: :text
 
   @impl true
   defdelegate cast_input(value, constraints), to: Ash.Type.String

@@ -2735,7 +2735,7 @@ defmodule AshPostgres.MigrationGenerator do
         Ash.Type.NewType.constraints(type, constraints)
       )
     else
-      migration_type_from_storage_type(Ash.Type.storage_type(other))
+      migration_type_from_storage_type(Ash.Type.storage_type(other, constraints))
     end
   end
 
@@ -2829,8 +2829,37 @@ defmodule AshPostgres.MigrationGenerator do
   defp default(%{name: name, default: default}, resource, _) when default == %{},
     do: configured_default(resource, name) || "%{}"
 
-  defp default(%{name: name, default: value}, resource, _),
-    do: configured_default(resource, name) || EctoMigrationDefault.to_default(value)
+  defp default(%{name: name, default: value, type: type} = attr, resource, _) do
+    case configured_default(resource, name) do
+      nil ->
+        case migration_default(type, Map.get(attr, :constraints, []), value) do
+          {:ok, default} ->
+            default
+
+          :error ->
+            EctoMigrationDefault.to_default(value)
+        end
+
+      default ->
+        default
+    end
+  end
+
+  defp migration_default(type, constraints, value) do
+    type =
+      type
+      |> unwrap_type()
+      |> Ash.Type.get_type()
+
+    if function_exported?(type, :value_to_postgres_default, 3) do
+      type.value_to_postgres_default(type, constraints, value)
+    else
+      :error
+    end
+  end
+
+  defp unwrap_type({:array, type}), do: unwrap_type(type)
+  defp unwrap_type(type), do: type
 
   defp configured_default(resource, attribute) do
     AshPostgres.DataLayer.Info.migration_defaults(resource)[attribute]

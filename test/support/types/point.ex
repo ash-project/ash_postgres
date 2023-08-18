@@ -2,7 +2,7 @@ defmodule AshPostgres.Test.Point do
   @moduledoc false
   use Ash.Type
 
-  def storage_type, do: {:array, :float}
+  def storage_type(_), do: {:array, :float}
 
   def cast_input(nil, _), do: {:ok, nil}
 

@@ -3,7 +3,7 @@ defmodule Ash.Type.CiStringWrapper do
   use Ash.Type
 
   @impl true
-  def storage_type, do: :citext
+  def storage_type(_), do: :citext
 
   @impl true
   defdelegate cast_input(value, constraints), to: Ash.Type.CiString
