@@ -10,6 +10,7 @@ defmodule AshPostgres.Type do
 
   defmacro __using__(_) do
     quote do
+      @behaviour AshPostgres.Type
       def value_to_postgres_default(_, _, _), do: :error
 
       defoverridable value_to_postgres_default: 3
