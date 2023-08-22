@@ -5,6 +5,27 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.42](https://github.com/ash-project/ash_postgres/compare/v1.3.41...v1.3.42) (2023-08-22)
+
+
+
+
+### Bug Fixes:
+
+* support non-atom named aggregates
+
+* handle case where multiple grouped aggregates depend on further aggregates
+
+### Improvements:
+
+* support in-line aggregates
+
+* specify @behaviour in AshPostgres.Type
+
+* add `value_to_postgres_default/3` and `AshPostgres.Type`
+
+* handle non-cast-in-type queries
+
 ## [v1.3.41](https://github.com/ash-project/ash_postgres/compare/v1.3.40...v1.3.41) (2023-08-08)
 
 
