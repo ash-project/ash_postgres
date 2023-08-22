@@ -55,7 +55,7 @@ defmodule AshPostgres.Sort do
           {order, %Ash.Query.Calculation{} = calc}, {:ok, query_expr} ->
             type =
               if calc.type do
-                AshPostgres.Types.parameterized_type(calc.type, [])
+                AshPostgres.Types.parameterized_type(calc.type, calc.constraints)
               else
                 nil
               end

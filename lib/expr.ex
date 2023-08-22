@@ -1232,7 +1232,13 @@ defmodule AshPostgres.Expr do
 
   defp do_dynamic_expr(
          query,
-         %Ref{attribute: %Ash.Resource.Attribute{name: name, type: attr_type}} = ref,
+         %Ref{
+           attribute: %Ash.Resource.Attribute{
+             name: name,
+             type: attr_type,
+             constraints: constraints
+           }
+         } = ref,
          bindings,
          _embedded?,
          expr_type
@@ -1243,7 +1249,12 @@ defmodule AshPostgres.Expr do
       raise "Error while building reference: #{inspect(ref)}"
     end
 
-    case AshPostgres.Types.parameterized_type(attr_type || expr_type, []) do
+    constraints =
+      if attr_type do
+        constraints
+      end
+
+    case AshPostgres.Types.parameterized_type(attr_type || expr_type, constraints) do
       nil ->
         if query.__ash_bindings__[:parent?] do
           Ecto.Query.dynamic(field(parent_as(^ref_binding), ^name))
@@ -1312,10 +1323,13 @@ defmodule AshPostgres.Expr do
     else
       case maybe_sanitize_list(query, value, bindings, true, type) do
         ^value ->
-          type = AshPostgres.Types.parameterized_type(type, [])
-          validate_type!(query, type, value)
+          if type do
+            validate_type!(query, type, value)
 
-          Ecto.Query.dynamic(type(^value, ^type))
+            Ecto.Query.dynamic(type(^value, ^type))
+          else
+            value
+          end
 
         value ->
           value
@@ -1404,7 +1418,6 @@ defmodule AshPostgres.Expr do
   defp maybe_type(dynamic, nil, _query), do: dynamic
 
   defp maybe_type(dynamic, type, query) do
-    type = AshPostgres.Types.parameterized_type(type, [])
     validate_type!(query, type, type)
 
     Ecto.Query.dynamic(type(^dynamic, ^type))
@@ -1467,12 +1480,6 @@ defmodule AshPostgres.Expr do
       )
 
     if type do
-      type =
-        AshPostgres.Types.parameterized_type(
-          type,
-          []
-        )
-
       validate_type!(query, type, get_path)
 
       Ecto.Query.dynamic(type(^expr, ^type))
