@@ -446,6 +446,46 @@ defmodule AshPostgres.CalculationTest do
     end
   end
 
+  describe "maps" do
+    test "maps can reference filtered aggregats" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "match", score: 42})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "foo", likes: 2})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "foo", likes: 2})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "bar", likes: 2})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Api.create!()
+
+      assert [%{agg_map: %{called_foo: 2, called_bar: 1}}] =
+               Post
+               |> Ash.Query.load(:agg_map)
+               |> Api.read!()
+    end
+
+    test "maps can be constructed" do
+      Post
+      |> Ash.Changeset.new(%{title: "match", score: 42})
+      |> Api.create!()
+
+      assert [%{score_map: %{negative_score: %{foo: -42}}}] =
+               Post
+               |> Ash.Query.load(:score_map)
+               |> Api.read!()
+    end
+  end
+
   describe "at/2" do
     test "selects items by index" do
       author =

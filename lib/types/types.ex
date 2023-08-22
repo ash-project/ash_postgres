@@ -29,6 +29,9 @@ defmodule AshPostgres.Types do
     parameterized_type(Ash.Type.StringWrapper, constraints)
   end
 
+  def parameterized_type(type, _constraints) when type in [Ash.Type.Map, Ash.Type.Map.EctoType],
+    do: nil
+
   def parameterized_type(type, constraints) do
     if Ash.Type.ash_type?(type) do
       cast_in_query? =

@@ -4,6 +4,10 @@ defmodule AshPostgres.Aggregate do
   import Ecto.Query, only: [from: 2, subquery: 1]
   require Ecto.Query
 
+  @next_aggregate_names Enum.reduce(0..999, %{}, fn i, acc ->
+                          Map.put(acc, :"aggregate_#{i}", :"aggregate_#{i + 1}")
+                        end)
+
   def add_aggregates(
         query,
         aggregates,
@@ -19,6 +23,19 @@ defmodule AshPostgres.Aggregate do
     case resource_aggregates_to_aggregates(resource, aggregates) do
       {:ok, aggregates} ->
         query = AshPostgres.DataLayer.default_bindings(query, resource)
+
+        {query, aggregates, aggregate_name_mapping} =
+          Enum.reduce(aggregates, {query, [], %{}}, fn aggregate,
+                                                       {query, aggregates, aggregate_name_mapping} ->
+            if is_atom(aggregate.name) do
+              {query, [aggregate | aggregates], aggregate_name_mapping}
+            else
+              {query, name} = use_aggregate_name(query, aggregate.name)
+
+              {query, [%{aggregate | name: name} | aggregates],
+               Map.put(aggregate_name_mapping, name, aggregate.name)}
+            end
+          end)
 
         aggregates =
           Enum.reject(aggregates, fn aggregate ->
@@ -157,7 +174,7 @@ defmodule AshPostgres.Aggregate do
 
         case result do
           {:ok, query, dynamics} ->
-            {:ok, add_aggregate_selects(query, dynamics)}
+            {:ok, add_aggregate_selects(query, dynamics, aggregate_name_mapping)}
 
           {:error, error} ->
             {:error, error}
@@ -166,6 +183,23 @@ defmodule AshPostgres.Aggregate do
       {:error, error} ->
         {:error, error}
     end
+  end
+
+  defp use_aggregate_name(query, aggregate_name) do
+    {%{
+       query
+       | __ash_bindings__: %{
+           query.__ash_bindings__
+           | current_aggregate_name:
+               next_aggregate_name(query.__ash_bindings__.current_aggregate_name),
+             aggregate_names:
+               Map.put(
+                 query.__ash_bindings__.aggregate_names,
+                 aggregate_name,
+                 query.__ash_bindings__.current_aggregate_name
+               )
+         }
+     }, query.__ash_bindings__.current_aggregate_name}
   end
 
   defp resource_aggregates_to_aggregates(resource, aggregates) do
@@ -490,6 +524,16 @@ defmodule AshPostgres.Aggregate do
     )
   end
 
+  def next_aggregate_name(i) do
+    @next_aggregate_names[i] ||
+      raise Ash.Error.Framework.AssumptionFailed,
+        message: """
+        All 1000 static names for aggregates have been used in a single query.
+        Congratulations, this means that you have gone so wildly beyond our imagination
+        of how much can fit into a single quer. Please file an issue and we will raise the limit.
+        """
+  end
+
   defp subquery_if_distinct(%{distinct: nil} = query), do: query
 
   defp subquery_if_distinct(subquery) do
@@ -597,7 +641,7 @@ defmodule AshPostgres.Aggregate do
     end)
   end
 
-  defp add_aggregate_selects(query, dynamics) do
+  defp add_aggregate_selects(query, dynamics, name_mapping) do
     {in_aggregates, in_body} =
       Enum.split_with(dynamics, fn {load, _name, _dynamic} -> is_nil(load) end)
 
@@ -615,7 +659,7 @@ defmodule AshPostgres.Aggregate do
           aggs,
           :aggregates,
           Map.new(in_aggregates, fn {_, name, dynamic} ->
-            {name, dynamic}
+            {name_mapping[name] || name, dynamic}
           end)
         )
       end

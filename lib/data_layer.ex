@@ -2194,6 +2194,8 @@ defmodule AshPostgres.DataLayer do
       calculations: %{},
       parent_resources: [],
       aggregate_defs: %{},
+      current_aggregate_name: :aggregate_0,
+      aggregate_names: %{},
       context: context,
       bindings: %{start_bindings => %{path: [], type: :root, source: resource}}
     })

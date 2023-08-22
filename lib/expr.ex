@@ -517,12 +517,18 @@ defmodule AshPostgres.Expr do
           {params, [{:raw, str} | fragment_data], count}
 
         {:casted_expr, dynamic}, {params, fragment_data, count} ->
-          {[{dynamic, :any} | params], [{:expr, {:^, [], [count]}} | fragment_data], count + 1}
+          {item, params, count} =
+            {{:^, [], [count]}, [{dynamic, :any} | params], count + 1}
+
+          {params, [{:expr, item} | fragment_data], count}
 
         {:expr, expr}, {params, fragment_data, count} ->
           dynamic = do_dynamic_expr(query, expr, bindings, pred_embedded? || embedded?)
 
-          {[{dynamic, :any} | params], [{:expr, {:^, [], [count]}} | fragment_data], count + 1}
+          {item, params, count} =
+            {{:^, [], [count]}, [{dynamic, :any} | params], count + 1}
+
+          {params, [{:expr, item} | fragment_data], count}
       end)
 
     %Ecto.Query.DynamicExpr{
@@ -824,6 +830,16 @@ defmodule AshPostgres.Expr do
          _embedded?,
          _type
        ) do
+    %{attribute: aggregate} =
+      ref =
+      case bindings.aggregate_names[aggregate.name] do
+        nil ->
+          ref
+
+        name ->
+          %{ref | attribute: %{aggregate | name: name}}
+      end
+
     related = Ash.Resource.Info.related(query.__ash_bindings__.resource, ref.relationship_path)
 
     first_optimized_aggregate? =
@@ -1244,6 +1260,13 @@ defmodule AshPostgres.Expr do
           Ecto.Query.dynamic(type(field(as(^ref_binding), ^name), ^type))
         end
     end
+  end
+
+  defp do_dynamic_expr(query, value, bindings, embedded?, _type)
+       when is_map(value) and not is_struct(value) do
+    Map.new(value, fn {key, value} ->
+      {key, do_dynamic_expr(query, value, bindings, embedded?)}
+    end)
   end
 
   defp do_dynamic_expr(query, other, bindings, true, type) do

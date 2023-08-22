@@ -147,6 +147,23 @@ defmodule AshPostgres.Test.Post do
     calculate(:category_label, :ci_string, expr("(" <> category <> ")"))
     calculate(:score_with_score, :string, expr(score <> score))
 
+    calculate(
+      :score_map,
+      :map,
+      expr(%{
+        negative_score: %{foo: negative_score, bar: negative_score}
+      })
+    )
+
+    calculate(
+      :agg_map,
+      :map,
+      expr(%{
+        called_foo: count(comments, query: [filter: expr(title == "foo")]),
+        called_bar: count(comments, query: [filter: expr(title == "bar")])
+      })
+    )
+
     calculate(:c_times_p, :integer, expr(count_of_comments * count_of_linked_posts),
       load: [:count_of_comments, :count_of_linked_posts]
     )

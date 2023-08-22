@@ -109,6 +109,36 @@ defmodule AshPostgres.AggregateTest do
                |> Api.read_one!()
     end
 
+    test "with data and a custom string keyed aggregate, it returns the count" do
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "match"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Api.create!()
+
+      import Ash.Query
+
+      assert %{aggregates: %{"custom_count_of_comments" => 1}} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.aggregate(
+                 "custom_count_of_comments",
+                 :count,
+                 :comments,
+                 query: [filter: expr(not is_nil(title))]
+               )
+               |> Api.read_one!()
+    end
+
     test "with data for a many_to_many, it returns the count" do
       post =
         Post
