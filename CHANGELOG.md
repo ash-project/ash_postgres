@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.43](https://github.com/ash-project/ash_postgres/compare/v1.3.42...v1.3.43) (2023-08-22)
+
+
+
+
+### Bug Fixes:
+
+* properly provide constraints on all type casting
+
 ## [v1.3.42](https://github.com/ash-project/ash_postgres/compare/v1.3.41...v1.3.42) (2023-08-22)
 
 
