@@ -518,6 +518,18 @@ defmodule AshPostgres.CalculationTest do
     )
   end
 
+  test "nested get_path works" do
+    Logger.configure(level: :debug)
+
+    assert "thing" =
+             Post
+             |> Ash.Changeset.new(%{title: "match", price: 10_024, stuff: %{foo: %{bar: "thing"}}})
+             |> Ash.Changeset.deselect(:stuff)
+             |> Api.create!()
+             |> Api.load!(:foo_bar_from_stuff)
+             |> Map.get(:foo_bar_from_stuff)
+  end
+
   test "runtime expression calcs" do
     author =
       Author

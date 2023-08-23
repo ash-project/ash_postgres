@@ -80,6 +80,7 @@ defmodule AshPostgres.Test.Post do
     attribute(:status_enum, AshPostgres.Test.Types.StatusEnum)
     attribute(:status_enum_no_cast, AshPostgres.Test.Types.StatusEnumNoCast, source: :status_enum)
     attribute(:point, AshPostgres.Test.Point)
+    attribute(:stuff, :map)
     attribute(:uniq_one, :string)
     attribute(:uniq_two, :string)
     attribute(:uniq_custom_one, :string)
@@ -146,6 +147,7 @@ defmodule AshPostgres.Test.Post do
     calculate(:negative_score, :integer, expr(-score))
     calculate(:category_label, :ci_string, expr("(" <> category <> ")"))
     calculate(:score_with_score, :string, expr(score <> score))
+    calculate(:foo_bar_from_stuff, :string, expr(stuff[:foo][:bar]))
 
     calculate(
       :score_map,

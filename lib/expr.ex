@@ -525,8 +525,15 @@ defmodule AshPostgres.Expr do
         {:expr, expr}, {params, fragment_data, count} ->
           dynamic = do_dynamic_expr(query, expr, bindings, pred_embedded? || embedded?)
 
+          type =
+            if is_binary(expr) do
+              :string
+            else
+              :any
+            end
+
           {item, params, count} =
-            {{:^, [], [count]}, [{dynamic, :any} | params], count + 1}
+            {{:^, [], [count]}, [{dynamic, type} | params], count + 1}
 
           {params, [{:expr, item} | fragment_data], count}
       end)
@@ -1462,18 +1469,25 @@ defmodule AshPostgres.Expr do
        ) do
     path = Enum.map(right, &to_string/1)
 
+    path_frags =
+      path
+      |> Enum.flat_map(fn item ->
+        [expr: item, raw: "::text,"]
+      end)
+      |> :lists.droplast()
+      |> Enum.concat(raw: "::text)")
+
     expr =
       do_dynamic_expr(
         query,
         %Fragment{
           embedded?: pred_embedded?,
-          arguments: [
-            raw: "(",
-            expr: left,
-            raw: " #>> ",
-            expr: path,
-            raw: ")"
-          ]
+          arguments:
+            [
+              raw: "jsonb_extract_path_text(",
+              expr: left,
+              raw: "::jsonb,"
+            ] ++ path_frags
         },
         bindings,
         embedded?
