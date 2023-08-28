@@ -482,6 +482,7 @@ defmodule AshPostgres.DataLayer do
 
   def can?(_, :transact), do: true
   def can?(_, :composite_primary_key), do: true
+  def can?(_, {:atomic, :update}), do: true
   def can?(_, :upsert), do: true
   def can?(_, :changeset_filter), do: true
 
@@ -1327,16 +1328,32 @@ defmodule AshPostgres.DataLayer do
         Map.get(changeset, :filters, %{})
       end
 
+    filters =
+      if changeset.action_type == :create do
+        filters
+      else
+        changeset.resource
+        |> Ash.Resource.Info.primary_key()
+        |> Enum.reduce(filters, fn key, filters ->
+          Map.put(filters, key, Map.get(record, key))
+        end)
+      end
+
     attributes =
       changeset.resource
       |> Ash.Resource.Info.attributes()
       |> Enum.map(& &1.name)
 
+    attributes_to_change =
+      Enum.reject(attributes, fn attribute ->
+        Keyword.has_key?(changeset.atomics, attribute)
+      end)
+
     ecto_changeset =
       record
       |> to_ecto()
       |> set_table(changeset, type)
-      |> Ecto.Changeset.change(Map.take(changeset.attributes, attributes))
+      |> Ecto.Changeset.change(Map.take(changeset.attributes, attributes_to_change))
       |> Map.update!(:filters, &Map.merge(&1, filters))
       |> add_configured_foreign_key_constraints(record.__struct__)
       |> add_unique_indexes(record.__struct__, changeset)
@@ -1423,7 +1440,42 @@ defmodule AshPostgres.DataLayer do
     )
   end
 
-  defp handle_raised_error(error, stacktrace, _context, _resource) do
+  defp handle_raised_error(
+         %Postgrex.Error{} = error,
+         stacktrace,
+         %{constraints: user_constraints},
+         _resource
+       ) do
+    case Ecto.Adapters.Postgres.Connection.to_constraints(error, []) do
+      [{type, constraint}] ->
+        user_constraint =
+          Enum.find(user_constraints, fn c ->
+            case {c.type, c.constraint, c.match} do
+              {^type, ^constraint, :exact} -> true
+              {^type, cc, :suffix} -> String.ends_with?(constraint, cc)
+              {^type, cc, :prefix} -> String.starts_with?(constraint, cc)
+              {^type, %Regex{} = r, _match} -> Regex.match?(r, constraint)
+              _ -> false
+            end
+          end)
+
+        case user_constraint do
+          %{field: field, error_message: error_message, error_type: error_type} ->
+            {:error,
+             to_ash_error(
+               {field, {error_message, [constraint: error_type, constraint_name: constraint]}}
+             )}
+
+          nil ->
+            reraise error, stacktrace
+        end
+
+      _ ->
+        reraise error, stacktrace
+    end
+  end
+
+  defp handle_raised_error(error, stacktrace, _ecto_changeset, _resource) do
     {:error, Ash.Error.to_ash_error(error, stacktrace)}
   end
 
@@ -1812,46 +1864,170 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def update(resource, changeset) do
-    changeset.data
-    |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
-    |> ecto_changeset(changeset, :update)
-    |> dynamic_repo(resource, changeset).update(
-      repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
-    )
-    |> from_ecto()
-    |> handle_errors()
-    |> case do
-      {:ok, result} ->
-        maybe_update_tenant(resource, changeset, result)
+    ecto_changeset =
+      changeset.data
+      |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
+      |> ecto_changeset(changeset, :update)
 
-        {:ok, result}
+    try do
+      attr_names =
+        resource
+        |> Ash.Resource.Info.attributes()
+        |> Enum.map(& &1.name)
 
-      {:error, error} ->
-        {:error, error}
+      query = from(row in resource, as: ^0)
+
+      query =
+        query
+        |> default_bindings(resource, changeset.context)
+        |> Ecto.Query.select(^attr_names)
+
+      query =
+        Enum.reduce(ecto_changeset.filters, query, fn {key, value}, query ->
+          from(row in query,
+            where: field(row, ^key) == ^value
+          )
+        end)
+
+      set =
+        ecto_changeset.changes
+        |> Map.take(attr_names)
+        |> Map.to_list()
+
+      atomics_result =
+        Enum.reduce_while(changeset.atomics, {:ok, query, set}, fn {field, expr},
+                                                                   {:ok, query, set} ->
+          used_calculations =
+            Ash.Filter.used_calculations(
+              expr,
+              resource
+            )
+
+          used_aggregates =
+            expr
+            |> AshPostgres.Aggregate.used_aggregates(
+              resource,
+              used_calculations,
+              []
+            )
+            |> Enum.map(fn aggregate ->
+              %{aggregate | load: aggregate.name}
+            end)
+
+          with {:ok, query} <-
+                 AshPostgres.Join.join_all_relationships(
+                   query,
+                   %Ash.Filter{
+                     resource: resource,
+                     expression: expr
+                   },
+                   left_only?: true
+                 ),
+               {:ok, query} <-
+                 AshPostgres.Aggregate.add_aggregates(query, used_aggregates, resource, false, 0),
+               dynamic <-
+                 AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__) do
+            {:cont, {:ok, query, Keyword.put(set, field, dynamic)}}
+          else
+            other ->
+              {:halt, other}
+          end
+        end)
+
+      case atomics_result do
+        {:ok, query, set} ->
+          {params, set, _} =
+            Enum.reduce(set, {[], [], 0}, fn {key, value}, {params, set, count} ->
+              case AshPostgres.Expr.dynamic_expr(query, value, query.__ash_bindings__) do
+                %Ecto.Query.DynamicExpr{} = dynamic ->
+                  result =
+                    Ecto.Query.Builder.Dynamic.partially_expand(
+                      :select,
+                      query,
+                      dynamic,
+                      params,
+                      count
+                    )
+
+                  expr = elem(result, 0)
+                  new_params = elem(result, 1)
+
+                  new_count =
+                    result |> Tuple.to_list() |> List.last()
+
+                  {new_params, [{key, expr} | set], new_count}
+
+                other ->
+                  {[{other, {0, key}} | params], [{key, {:^, [], [count]}} | set], count + 1}
+              end
+            end)
+
+          query =
+            Map.put(query, :updates, [
+              %Ecto.Query.QueryExpr{
+                # why do I have to reverse the `set`???
+                # it breaks if I don't
+                expr: [set: Enum.reverse(set)],
+                params: Enum.reverse(params)
+              }
+            ])
+
+          repo_opts = repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
+
+          repo_opts =
+            Keyword.put(repo_opts, :returning, Keyword.keys(changeset.atomics))
+
+          result =
+            dynamic_repo(resource, changeset).update_all(
+              query,
+              [],
+              repo_opts
+            )
+
+          case result do
+            {0, []} ->
+              {:error,
+               Ash.Error.Changes.StaleRecord.exception(
+                 resource: resource,
+                 filters: ecto_changeset.filters
+               )}
+
+            {1, [record]} ->
+              maybe_update_tenant(resource, changeset, record)
+
+              {:ok, record}
+          end
+
+        {:error, error} ->
+          {:error, error}
+      end
+    rescue
+      e ->
+        handle_raised_error(e, __STACKTRACE__, ecto_changeset, resource)
     end
-  rescue
-    e ->
-      handle_raised_error(e, __STACKTRACE__, changeset, resource)
   end
 
   @impl true
   def destroy(resource, %{data: record} = changeset) do
-    record
-    |> ecto_changeset(changeset, :delete)
-    |> dynamic_repo(resource, changeset).delete(
-      repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
-    )
-    |> from_ecto()
-    |> case do
-      {:ok, _record} ->
-        :ok
+    ecto_changeset = ecto_changeset(record, changeset, :delete)
 
-      {:error, error} ->
-        handle_errors({:error, error})
+    try do
+      ecto_changeset
+      |> dynamic_repo(resource, changeset).delete(
+        repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
+      )
+      |> from_ecto()
+      |> case do
+        {:ok, _record} ->
+          :ok
+
+        {:error, error} ->
+          handle_errors({:error, error})
+      end
+    rescue
+      e ->
+        handle_raised_error(e, __STACKTRACE__, ecto_changeset, resource)
     end
-  rescue
-    e ->
-      handle_raised_error(e, __STACKTRACE__, changeset, resource)
   end
 
   @impl true
