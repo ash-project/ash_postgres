@@ -1376,11 +1376,9 @@ defmodule AshPostgres.Expr do
         end
       end)
 
-    exprs = Enum.reverse(exprs)
-
     %Ecto.Query.DynamicExpr{
       fun: fn _query ->
-        {exprs, Enum.reverse(params), [], []}
+        {Enum.reverse(exprs), Enum.reverse(params), [], []}
       end,
       binding: [],
       file: __ENV__.file,

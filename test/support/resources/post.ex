@@ -61,6 +61,11 @@ defmodule AshPostgres.Test.Post do
         )
       )
     end
+
+    update :increment_score do
+      argument(:amount, :integer, default: 1)
+      set(:score, expr((score || 0) + ^arg(:amount)))
+    end
   end
 
   identities do
@@ -92,6 +97,7 @@ defmodule AshPostgres.Test.Post do
   code_interface do
     define_for(AshPostgres.Test.Api)
     define(:get_by_id, action: :read, get_by: [:id])
+    define(:increment_score, args: [{:optional, :amount}])
   end
 
   relationships do
@@ -144,6 +150,7 @@ defmodule AshPostgres.Test.Post do
   end
 
   calculations do
+    calculate(:score_after_winning, :integer, expr((score || 0) + 1))
     calculate(:negative_score, :integer, expr(-score))
     calculate(:category_label, :ci_string, expr("(" <> category <> ")"))
     calculate(:score_with_score, :string, expr(score <> score))
