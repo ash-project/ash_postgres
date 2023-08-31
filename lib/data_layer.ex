@@ -1993,6 +1993,13 @@ defmodule AshPostgres.DataLayer do
                )}
 
             {1, [record]} ->
+              record =
+                changeset.resource
+                |> Ash.Resource.Info.attributes()
+                |> Enum.reduce(changeset.data, fn attribute, data ->
+                  Map.put(data, attribute.name, Map.get(record, attribute.name))
+                end)
+
               maybe_update_tenant(resource, changeset, record)
 
               {:ok, record}

@@ -519,8 +519,6 @@ defmodule AshPostgres.CalculationTest do
   end
 
   test "nested get_path works" do
-    Logger.configure(level: :debug)
-
     assert "thing" =
              Post
              |> Ash.Changeset.new(%{title: "match", price: 10_024, stuff: %{foo: %{bar: "thing"}}})
