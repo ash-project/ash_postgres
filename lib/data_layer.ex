@@ -1870,17 +1870,14 @@ defmodule AshPostgres.DataLayer do
       |> ecto_changeset(changeset, :update)
 
     try do
-      attr_names =
-        resource
-        |> Ash.Resource.Info.attributes()
-        |> Enum.map(& &1.name)
-
       query = from(row in resource, as: ^0)
+
+      select = Keyword.keys(changeset.atomics) ++ Ash.Resource.Info.primary_key(resource)
 
       query =
         query
         |> default_bindings(resource, changeset.context)
-        |> Ecto.Query.select(^attr_names)
+        |> Ecto.Query.select(^select)
 
       query =
         Enum.reduce(ecto_changeset.filters, query, fn {key, value}, query ->
@@ -1889,14 +1886,9 @@ defmodule AshPostgres.DataLayer do
           )
         end)
 
-      set =
-        ecto_changeset.changes
-        |> Map.take(attr_names)
-        |> Map.to_list()
-
       atomics_result =
-        Enum.reduce_while(changeset.atomics, {:ok, query, set}, fn {field, expr},
-                                                                   {:ok, query, set} ->
+        Enum.reduce_while(changeset.atomics, {:ok, query, []}, fn {field, expr},
+                                                                  {:ok, query, set} ->
           used_calculations =
             Ash.Filter.used_calculations(
               expr,
@@ -1935,9 +1927,16 @@ defmodule AshPostgres.DataLayer do
         end)
 
       case atomics_result do
-        {:ok, query, set} ->
+        {:ok, query, dynamics} ->
+          {params, set, count} =
+            ecto_changeset.changes
+            |> Map.to_list()
+            |> Enum.reduce({[], [], 0}, fn {key, value}, {params, set, count} ->
+              {[{value, {0, key}} | params], [{key, {:^, [], [count]}} | set], count + 1}
+            end)
+
           {params, set, _} =
-            Enum.reduce(set, {[], [], 0}, fn {key, value}, {params, set, count} ->
+            Enum.reduce(dynamics, {params, set, count}, fn {key, value}, {params, set, count} ->
               case AshPostgres.Expr.dynamic_expr(query, value, query.__ash_bindings__) do
                 %Ecto.Query.DynamicExpr{} = dynamic ->
                   result =
@@ -1992,13 +1991,11 @@ defmodule AshPostgres.DataLayer do
                  filters: ecto_changeset.filters
                )}
 
-            {1, [record]} ->
+            {1, [result]} ->
               record =
-                changeset.resource
-                |> Ash.Resource.Info.attributes()
-                |> Enum.reduce(changeset.data, fn attribute, data ->
-                  Map.put(data, attribute.name, Map.get(record, attribute.name))
-                end)
+                changeset.data
+                |> Map.merge(changeset.attributes)
+                |> Map.merge(Map.take(result, Keyword.keys(changeset.atomics)))
 
               maybe_update_tenant(resource, changeset, record)
 
