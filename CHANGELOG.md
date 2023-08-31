@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.47](https://github.com/ash-project/ash_postgres/compare/v1.3.46...v1.3.47) (2023-08-31)
+
+
+
+
+### Bug Fixes:
+
+* ensure we always select at least one field, and change one field
+
 ## [v1.3.46](https://github.com/ash-project/ash_postgres/compare/v1.3.45...v1.3.46) (2023-08-31)
 
 
