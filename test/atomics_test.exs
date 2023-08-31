@@ -13,7 +13,7 @@ defmodule AshPostgres.AtomicsTest do
     assert %{price: 2} =
              post
              |> Ash.Changeset.for_update(:update, %{})
-             |> Ash.Changeset.atomic(:price, expr(price + 1))
+             |> Ash.Changeset.atomic_update(:price, expr(price + 1))
              |> Api.update!()
   end
 
@@ -26,7 +26,7 @@ defmodule AshPostgres.AtomicsTest do
     assert_raise Ash.Error.Invalid, ~r/does not exist/, fn ->
       post
       |> Ash.Changeset.for_update(:update, %{})
-      |> Ash.Changeset.atomic(:organization_id, Ash.UUID.generate())
+      |> Ash.Changeset.atomic_update(:organization_id, Ash.UUID.generate())
       |> Api.update!()
     end
   end
@@ -40,7 +40,7 @@ defmodule AshPostgres.AtomicsTest do
     post =
       post
       |> Ash.Changeset.for_update(:update, %{})
-      |> Ash.Changeset.atomic(:score, expr(score_after_winning))
+      |> Ash.Changeset.atomic_update(:score, expr(score_after_winning))
       |> Api.update!()
 
     assert post.score == 1

@@ -64,7 +64,7 @@ defmodule AshPostgres.Test.Post do
 
     update :increment_score do
       argument(:amount, :integer, default: 1)
-      set(:score, expr((score || 0) + ^arg(:amount)))
+      change(atomic_update(:score, expr((score || 0) + ^arg(:amount))))
     end
   end
 
