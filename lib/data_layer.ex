@@ -1961,45 +1961,51 @@ defmodule AshPostgres.DataLayer do
               end
             end)
 
-          query =
-            Map.put(query, :updates, [
-              %Ecto.Query.QueryExpr{
-                # why do I have to reverse the `set`???
-                # it breaks if I don't
-                expr: [set: Enum.reverse(set)],
-                params: Enum.reverse(params)
-              }
-            ])
+          case set do
+            [] ->
+              {:ok, changeset.data}
 
-          repo_opts = repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
+            set ->
+              query =
+                Map.put(query, :updates, [
+                  %Ecto.Query.QueryExpr{
+                    # why do I have to reverse the `set`???
+                    # it breaks if I don't
+                    expr: [set: Enum.reverse(set)],
+                    params: Enum.reverse(params)
+                  }
+                ])
 
-          repo_opts =
-            Keyword.put(repo_opts, :returning, Keyword.keys(changeset.atomics))
+              repo_opts = repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
 
-          result =
-            dynamic_repo(resource, changeset).update_all(
-              query,
-              [],
-              repo_opts
-            )
+              repo_opts =
+                Keyword.put(repo_opts, :returning, Keyword.keys(changeset.atomics))
 
-          case result do
-            {0, []} ->
-              {:error,
-               Ash.Error.Changes.StaleRecord.exception(
-                 resource: resource,
-                 filters: ecto_changeset.filters
-               )}
+              result =
+                dynamic_repo(resource, changeset).update_all(
+                  query,
+                  [],
+                  repo_opts
+                )
 
-            {1, [result]} ->
-              record =
-                changeset.data
-                |> Map.merge(changeset.attributes)
-                |> Map.merge(Map.take(result, Keyword.keys(changeset.atomics)))
+              case result do
+                {0, []} ->
+                  {:error,
+                   Ash.Error.Changes.StaleRecord.exception(
+                     resource: resource,
+                     filters: ecto_changeset.filters
+                   )}
 
-              maybe_update_tenant(resource, changeset, record)
+                {1, [result]} ->
+                  record =
+                    changeset.data
+                    |> Map.merge(changeset.attributes)
+                    |> Map.merge(Map.take(result, Keyword.keys(changeset.atomics)))
 
-              {:ok, record}
+                  maybe_update_tenant(resource, changeset, record)
+
+                  {:ok, record}
+              end
           end
 
         {:error, error} ->
