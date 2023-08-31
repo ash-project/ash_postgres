@@ -5,6 +5,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.44](https://github.com/ash-project/ash_postgres/compare/v1.3.43...v1.3.44) (2023-08-31)
+
+
+
+
+### Bug Fixes:
+
+* properly handle ensure nsted calls to `get_path` are jsonb
+
+### Improvements:
+
+* support atomics (#165)
+
 ## [v1.3.43](https://github.com/ash-project/ash_postgres/compare/v1.3.42...v1.3.43) (2023-08-22)
 
 
