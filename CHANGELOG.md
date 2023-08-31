@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.45](https://github.com/ash-project/ash_postgres/compare/v1.3.44...v1.3.45) (2023-08-31)
+
+
+
+
+### Bug Fixes:
+
+* don't clobber loaded data on update
+
 ## [v1.3.44](https://github.com/ash-project/ash_postgres/compare/v1.3.43...v1.3.44) (2023-08-31)
 
 
