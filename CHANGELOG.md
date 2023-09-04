@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.48](https://github.com/ash-project/ash_postgres/compare/v1.3.47...v1.3.48) (2023-09-04)
+
+
+
+
+### Improvements:
+
+* better error message for missing table config
+
 ## [v1.3.47](https://github.com/ash-project/ash_postgres/compare/v1.3.46...v1.3.47) (2023-08-31)
 
 
