@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.49](https://github.com/ash-project/ash_postgres/compare/v1.3.48...v1.3.49) (2023-09-04)
+
+
+
+
+### Improvements:
+
+* implement ash lifecycle tasks
+
 ## [v1.3.48](https://github.com/ash-project/ash_postgres/compare/v1.3.47...v1.3.48) (2023-09-04)
 
 
