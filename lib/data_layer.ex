@@ -440,6 +440,28 @@ defmodule AshPostgres.DataLayer do
       AshPostgres.Transformers.PreventMultidimensionalArrayAggregates
     ]
 
+  def migrate(args) do
+    # TODO: take args that we care about
+    Mix.Task.run("ash_postgres.migrate", args)
+  end
+
+  def codegen(args) do
+    # TODO: take args that we care about
+    Mix.Task.run("ash_postgres.generate_migrations", args)
+  end
+
+  def setup(args) do
+    # TODO: take args that we care about
+    Mix.Task.run("ash_postgres.create", args)
+    Mix.Task.run("ash_postgres.migrate", args)
+    Mix.Task.run("ash_postgres.migrate", ["--tenant" | args])
+  end
+
+  def tear_down(args) do
+    # TODO: take args that we care about
+    Mix.Task.run("ash_postgres.drop", args)
+  end
+
   @doc false
   def tenant_template(value) do
     value = List.wrap(value)
