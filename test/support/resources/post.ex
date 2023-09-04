@@ -165,11 +165,18 @@ defmodule AshPostgres.Test.Post do
     )
 
     calculate(
+      :count_of_comments_called_baz,
+      :integer,
+      expr(count(comments, query: [filter: expr(title == "baz")]))
+    )
+
+    calculate(
       :agg_map,
       :map,
       expr(%{
         called_foo: count(comments, query: [filter: expr(title == "foo")]),
-        called_bar: count(comments, query: [filter: expr(title == "bar")])
+        called_bar: count(comments, query: [filter: expr(title == "bar")]),
+        called_baz: count_of_comments_called_baz
       })
     )
 
