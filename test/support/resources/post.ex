@@ -143,6 +143,8 @@ defmodule AshPostgres.Test.Post do
       source_attribute_on_join_resource: :source_post_id,
       destination_attribute_on_join_resource: :destination_post_id
     )
+
+    has_many(:views, AshPostgres.Test.PostView)
   end
 
   validations do
