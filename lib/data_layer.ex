@@ -540,8 +540,13 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :create), do: true
   def can?(_, :select), do: true
   def can?(_, :read), do: true
-  def can?(_, :update), do: true
-  def can?(_, :destroy), do: true
+
+  def can?(resource, action) when action in ~w[update destroy]a do
+    resource
+    |> Ash.Resource.Info.primary_key()
+    |> Enum.any?()
+  end
+
   def can?(_, :filter), do: true
   def can?(_, :limit), do: true
   def can?(_, :offset), do: true
@@ -1754,9 +1759,11 @@ defmodule AshPostgres.DataLayer do
         value -> List.wrap(value)
       end
 
-    names = [
-      {Ash.Resource.Info.primary_key(resource), table(resource, ash_changeset) <> "_pkey"} | names
-    ]
+    names =
+      case Ash.Resource.Info.primary_key(resource) do
+        [] -> names
+        fields -> [{fields, table(resource, ash_changeset) <> "_pkey"} | names]
+      end
 
     Enum.reduce(names, changeset, fn
       {keys, name}, changeset ->

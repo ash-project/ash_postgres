@@ -8,6 +8,7 @@ defmodule AshPostgres.Test.Registry do
     entry(AshPostgres.Test.IntegerPost)
     entry(AshPostgres.Test.Rating)
     entry(AshPostgres.Test.PostLink)
+    entry(AshPostgres.Test.PostView)
     entry(AshPostgres.Test.Author)
     entry(AshPostgres.Test.Profile)
     entry(AshPostgres.Test.User)
