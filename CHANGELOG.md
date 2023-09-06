@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.50](https://github.com/ash-project/ash_postgres/compare/v1.3.49...v1.3.50) (2023-09-06)
+
+
+
+
+### Improvements:
+
+* Allow resources to opt out of the primary key requirement. (#166)
+
 ## [v1.3.49](https://github.com/ash-project/ash_postgres/compare/v1.3.48...v1.3.49) (2023-09-04)
 
 
