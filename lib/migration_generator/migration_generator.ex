@@ -2624,6 +2624,9 @@ defmodule AshPostgres.MigrationGenerator do
           {:binary, size} ->
             {:binary, size}
 
+          {other, size} when is_atom(other) and is_integer(size) ->
+            {other, size}
+
           other ->
             {other, nil}
         end
@@ -2887,6 +2890,10 @@ defmodule AshPostgres.MigrationGenerator do
     ["binary", size]
   end
 
+  defp sanitize_type(type, size) when is_atom(type) and is_integer(size) do
+    [sanitize_type(type, nil), size]
+  end
+
   defp sanitize_type(type, _) do
     type
   end
@@ -2975,6 +2982,9 @@ defmodule AshPostgres.MigrationGenerator do
 
         {:binary, size} ->
           {:binary, size}
+
+        {other, size} when is_atom(other) and is_integer(size) ->
+          {other, size}
 
         other ->
           {other, nil}
@@ -3066,6 +3076,10 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp load_type(["binary", size]) do
     {:binary, size}
+  end
+
+  defp load_type([string, size]) when is_binary(string) and is_integer(size) do
+    {String.to_existing_atom(string), size}
   end
 
   defp load_type(type) do

@@ -22,7 +22,7 @@ defmodule AshPostgres.Expr do
     Type
   }
 
-  alias AshPostgres.Functions.{Fragment, ILike, Like, TrigramSimilarity}
+  alias AshPostgres.Functions.{Fragment, ILike, Like, TrigramSimilarity, VectorCosineDistance}
 
   require Ecto.Query
 
@@ -65,6 +65,19 @@ defmodule AshPostgres.Expr do
     arg2 = do_dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?, :string)
 
     Ecto.Query.dynamic(fragment("similarity(?, ?)", ^arg1, ^arg2))
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %VectorCosineDistance{arguments: [arg1, arg2], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         _type
+       ) do
+    arg1 = do_dynamic_expr(query, arg1, bindings, pred_embedded? || embedded?, :string)
+    arg2 = do_dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?, :string)
+
+    Ecto.Query.dynamic(fragment("(? <=> ?)", ^arg1, ^arg2))
   end
 
   defp do_dynamic_expr(
@@ -1278,6 +1291,10 @@ defmodule AshPostgres.Expr do
           Ecto.Query.dynamic(type(field(as(^ref_binding), ^name), ^type))
         end
     end
+  end
+
+  defp do_dynamic_expr(_query, %Ash.Vector{} = value, _bindings, _embedded?, _type) do
+    value
   end
 
   defp do_dynamic_expr(query, value, bindings, embedded?, _type)

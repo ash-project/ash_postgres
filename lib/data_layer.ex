@@ -747,10 +747,20 @@ defmodule AshPostgres.DataLayer do
       AshPostgres.Functions.ILike
     ]
 
-    if "pg_trgm" in (config[:installed_extensions] || []) do
+    functions =
+      if "pg_trgm" in (config[:installed_extensions] || []) do
+        functions ++
+          [
+            AshPostgres.Functions.TrigramSimilarity
+          ]
+      else
+        functions
+      end
+
+    if "vector" in (config[:installed_extensions] || []) do
       functions ++
         [
-          AshPostgres.Functions.TrigramSimilarity
+          AshPostgres.Functions.VectorCosineDistance
         ]
     else
       functions

@@ -17,12 +17,13 @@ defmodule AshPostgres.Repo do
   * "ash-functions" - This isn't really an extension, but it expresses that certain functions
     should be added when generating migrations, to support the `||` and `&&` operators in expressions.
   * `"uuid-ossp"` - Sets UUID primary keys defaults in the migration generator
-  * `"pg_trgm"` - Makes the `AshPostgres.Predicates.Trigram` custom predicate available
+  * `"pg_trgm"` - Makes the `AshPostgres.Functions.TrigramSimilarity` function available
   * "citext" - Allows case insensitive fields to be used
+  * `"vector"` - Makes the `AshPostgres.Functions.VectorCosineDistance` function available. See `AshPostgres.Extensions.Vector` for more setup instructions.
 
   ```
   def installed_extensions() do
-    ["pg_trgm", "uuid-ossp"]
+    ["pg_trgm", "uuid-ossp", "vector"]
   end
   ```
 
