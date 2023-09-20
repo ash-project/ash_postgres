@@ -3,6 +3,7 @@ defmodule AshPostgres.CalculationTest do
   alias AshPostgres.Test.{Account, Api, Author, Comment, Post, User}
 
   require Ash.Query
+  import Ash.Expr
 
   test "an expression calculation can be filtered on" do
     post =
@@ -390,6 +391,23 @@ defmodule AshPostgres.CalculationTest do
                |> Ash.Query.load(:full_name_with_nils_no_joiner)
                |> Api.read_one!()
     end
+  end
+
+  test "arguments with cast_in_query?: false are not cast" do
+    Post
+    |> Ash.Changeset.new(%{title: "match", score: 42})
+    |> Api.create!()
+
+    Post
+    |> Ash.Changeset.new(%{title: "not", score: 42})
+    |> Api.create!()
+
+    assert [post] =
+             Post
+             |> Ash.Query.filter(similarity(search: expr(query(search: "match"))))
+             |> Api.read!()
+
+    assert post.title == "match"
   end
 
   describe "string split expression" do

@@ -29,6 +29,10 @@ defmodule AshPostgres.Types do
     parameterized_type(Ash.Type.StringWrapper, constraints)
   end
 
+  def parameterized_type(:tsquery, constraints) do
+    parameterized_type(AshPostgres.Tsquery, constraints)
+  end
+
   def parameterized_type(type, _constraints) when type in [Ash.Type.Map, Ash.Type.Map.EctoType],
     do: nil
 

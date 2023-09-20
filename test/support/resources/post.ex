@@ -186,6 +186,16 @@ defmodule AshPostgres.Test.Post do
       load: [:count_of_comments, :count_of_linked_posts]
     )
 
+    calculate :similarity,
+              :boolean,
+              expr(fragment("(to_tsvector(?) @@ ?)", title, ^arg(:search))) do
+      argument(:search, AshPostgres.Tsquery, allow_expr?: true, allow_nil?: false)
+    end
+
+    calculate :query, AshPostgres.Tsquery, expr(fragment("to_tsquery(?)", ^arg(:search))) do
+      argument(:search, :string, allow_expr?: true, allow_nil?: false)
+    end
+
     calculate(
       :calc_returning_json,
       AshPostgres.Test.Money,
