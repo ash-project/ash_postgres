@@ -5,6 +5,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.51](https://github.com/ash-project/ash_postgres/compare/v1.3.50...v1.3.51) (2023-09-20)
+
+
+
+
+### Improvements:
+
+* add `AshPostgres.Tsvector`
+
+* add AshPostgres.Tsquery
+
+* support vector types and `vector_cosine_distance`
+
 ## [v1.3.50](https://github.com/ash-project/ash_postgres/compare/v1.3.49...v1.3.50) (2023-09-06)
 
 
