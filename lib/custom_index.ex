@@ -19,7 +19,7 @@ defmodule AshPostgres.CustomIndex do
 
   @schema [
     fields: [
-      type: {:list, {:or, [:atom, :string]}},
+      type: {:wrap_list, {:or, [:atom, :string]}},
       doc: "The fields to include in the index."
     ],
     name: [

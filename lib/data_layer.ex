@@ -15,7 +15,7 @@ defmodule AshPostgres.DataLayer do
     ],
     schema: [
       template: [
-        type: {:custom, __MODULE__, :tenant_template, []},
+        type: {:wrap_list, {:or, [:string, :atom]}},
         required: true,
         doc: """
         A template that will cause the resource to create/manage the specified schema.
@@ -321,7 +321,7 @@ defmodule AshPostgres.DataLayer do
         """
       ],
       skip_unique_indexes: [
-        type: {:custom, __MODULE__, :validate_skip_unique_indexes, []},
+        type: {:wrap_list, :atom},
         default: false,
         doc: "Skip generating unique indexes when generating migrations"
       ],
@@ -460,28 +460,6 @@ defmodule AshPostgres.DataLayer do
   def tear_down(args) do
     # TODO: take args that we care about
     Mix.Task.run("ash_postgres.drop", args)
-  end
-
-  @doc false
-  def tenant_template(value) do
-    value = List.wrap(value)
-
-    if Enum.all?(value, &(is_binary(&1) || is_atom(&1))) do
-      {:ok, value}
-    else
-      {:error, "Expected all values for `manages_tenant` to be strings or atoms"}
-    end
-  end
-
-  @doc false
-  def validate_skip_unique_indexes(indexes) do
-    indexes = List.wrap(indexes)
-
-    if Enum.all?(indexes, &is_atom/1) do
-      {:ok, indexes}
-    else
-      {:error, "All indexes to skip must be atoms"}
-    end
   end
 
   import Ecto.Query, only: [from: 2, subquery: 1]
