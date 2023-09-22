@@ -1216,26 +1216,42 @@ defmodule AshPostgres.DataLayer do
 
     changesets = Enum.to_list(stream)
 
-    ecto_changesets =
-      changesets
-      |> Stream.map(& &1.attributes)
-      |> Enum.to_list()
+    ecto_changesets = Enum.map(changesets, & &1.attributes)
 
-    resource
-    |> dynamic_repo(resource, Enum.at(changesets, 0)).insert_all(ecto_changesets, opts)
+    source =
+      if table = Enum.at(changesets, 0).context[:data_layer][:table] do
+        {table, resource}
+      else
+        resource
+      end
+
+    repo = dynamic_repo(resource, Enum.at(changesets, 0))
+
+    source
+    |> repo.insert_all(ecto_changesets, opts)
     |> case do
       {_, nil} ->
         :ok
 
       {_, results} ->
-        {:ok,
-         Stream.zip_with(results, changesets, fn result, changeset ->
-           Ash.Resource.put_metadata(
-             result,
-             :bulk_create_index,
-             changeset.context.bulk_create.index
-           )
-         end)}
+        if options[:single?] do
+          Enum.each(results, &maybe_create_tenant!(resource, &1))
+
+          {:ok, results}
+        else
+          {:ok,
+           Stream.zip_with(results, changesets, fn result, changeset ->
+             if !opts[:upsert?] do
+               maybe_create_tenant!(resource, result)
+             end
+
+             Ash.Resource.put_metadata(
+               result,
+               :bulk_create_index,
+               changeset.context.bulk_create.index
+             )
+           end)}
+        end
     end
   rescue
     e ->
@@ -1244,25 +1260,29 @@ defmodule AshPostgres.DataLayer do
       handle_raised_error(
         e,
         __STACKTRACE__,
-        {:bulk_create, ecto_changeset(changeset.data, changeset, :create)},
+        {:bulk_create, ecto_changeset(changeset.data, changeset, :create, false)},
         resource
       )
   end
 
   @impl true
   def create(resource, changeset) do
-    changeset.data
-    |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
-    |> ecto_changeset(changeset, :create)
-    |> dynamic_repo(resource, changeset).insert(
-      repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
-    )
-    |> from_ecto()
-    |> handle_errors()
-    |> case do
-      {:ok, result} ->
-        maybe_create_tenant!(resource, result)
+    changeset = %{
+      changeset
+      | data:
+          Map.update!(
+            changeset.data,
+            :__meta__,
+            &Map.put(&1, :source, table(resource, changeset))
+          )
+    }
 
+    case bulk_create(resource, [changeset], %{
+           single?: true,
+           tenant: changeset.tenant,
+           return_records?: true
+         }) do
+      {:ok, [result]} ->
         {:ok, result}
 
       {:error, error} ->
@@ -1325,8 +1345,6 @@ defmodule AshPostgres.DataLayer do
     {:error, Enum.map(errors, &to_ash_error/1)}
   end
 
-  defp handle_errors({:ok, val}), do: {:ok, val}
-
   defp to_ash_error({field, {message, vars}}) do
     Ash.Error.Changes.InvalidAttribute.exception(
       field: field,
@@ -1335,7 +1353,7 @@ defmodule AshPostgres.DataLayer do
     )
   end
 
-  defp ecto_changeset(record, changeset, type) do
+  defp ecto_changeset(record, changeset, type, table_error? \\ true) do
     filters =
       if changeset.action_type == :create do
         %{}
@@ -1367,7 +1385,7 @@ defmodule AshPostgres.DataLayer do
     ecto_changeset =
       record
       |> to_ecto()
-      |> set_table(changeset, type)
+      |> set_table(changeset, type, table_error?)
       |> Ecto.Changeset.change(Map.take(changeset.attributes, attributes_to_change))
       |> Map.update!(:filters, &Map.merge(&1, filters))
       |> add_configured_foreign_key_constraints(record.__struct__)
@@ -1529,7 +1547,7 @@ defmodule AshPostgres.DataLayer do
     end)
   end
 
-  defp set_table(record, changeset, operation) do
+  defp set_table(record, changeset, operation, table_error?) do
     if AshPostgres.DataLayer.Info.polymorphic?(record.__struct__) do
       table =
         changeset.context[:data_layer][:table] ||
@@ -1539,7 +1557,11 @@ defmodule AshPostgres.DataLayer do
         if table do
           Ecto.put_meta(record, source: table)
         else
-          raise_table_error!(changeset.resource, operation)
+          if table_error? do
+            raise_table_error!(changeset.resource, operation)
+          else
+            record
+          end
         end
 
       prefix =
@@ -1749,8 +1771,15 @@ defmodule AshPostgres.DataLayer do
 
     names =
       case Ash.Resource.Info.primary_key(resource) do
-        [] -> names
-        fields -> [{fields, table(resource, ash_changeset) <> "_pkey"} | names]
+        [] ->
+          names
+
+        fields ->
+          if table = table(resource, ash_changeset) do
+            [{fields, table <> "_pkey"} | names]
+          else
+            []
+          end
       end
 
     Enum.reduce(names, changeset, fn
@@ -1764,40 +1793,38 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def upsert(resource, changeset, keys \\ nil) do
-    keys = keys || Ash.Resource.Info.primary_key(resource)
-
-    explicitly_changing_attributes =
-      Enum.map(
-        Map.keys(changeset.attributes) -- Map.get(changeset, :defaults, []) -- keys,
-        fn key ->
-          {key, Ash.Changeset.get_attribute(changeset, key)}
-        end
-      )
-
-    on_conflict =
-      changeset
-      |> update_defaults()
-      |> Keyword.merge(explicitly_changing_attributes)
-
-    conflict_target = conflict_target(resource, keys)
-
-    repo_opts =
-      changeset.timeout
-      |> repo_opts(changeset.tenant, changeset.resource)
-      |> Keyword.put(:on_conflict, set: on_conflict)
-      |> Keyword.put(:conflict_target, conflict_target)
-
     if AshPostgres.DataLayer.Info.manage_tenant_update?(resource) do
       {:error, "Cannot currently upsert a resource that owns a tenant"}
     else
-      changeset.data
-      |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
-      |> ecto_changeset(changeset, :upsert)
-      |> AshPostgres.DataLayer.Info.repo(resource).insert(
-        Keyword.put(repo_opts, :returning, true)
-      )
-      |> from_ecto()
-      |> handle_errors()
+      keys = keys || Ash.Resource.Info.primary_key(resource)
+
+      explicitly_changing_attributes =
+        Enum.map(
+          Map.keys(changeset.attributes) -- Map.get(changeset, :defaults, []) -- keys,
+          fn key ->
+            {key, Ash.Changeset.get_attribute(changeset, key)}
+          end
+        )
+
+      on_conflict =
+        changeset
+        |> update_defaults()
+        |> Keyword.merge(explicitly_changing_attributes)
+
+      case bulk_create(resource, [changeset], %{
+             single?: true,
+             upsert?: true,
+             tenant: changeset.tenant,
+             upsert_keys: keys,
+             upsert_fields: Keyword.keys(on_conflict),
+             return_records?: true
+           }) do
+        {:ok, [result]} ->
+          {:ok, result}
+
+        {:error, error} ->
+          {:error, error}
+      end
     end
   end
 
@@ -2506,15 +2533,24 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def transaction(resource, func, timeout \\ nil, reason \\ %{type: :custom, metadata: %{}}) do
+    repo =
+      case reason[:data_layer_context] do
+        %{repo: repo} when not is_nil(repo) ->
+          repo
+
+        _ ->
+          AshPostgres.DataLayer.Info.repo(resource)
+      end
+
     func = fn ->
-      AshPostgres.DataLayer.Info.repo(resource).on_transaction_begin(reason)
+      repo.on_transaction_begin(reason)
       func.()
     end
 
     if timeout do
-      AshPostgres.DataLayer.Info.repo(resource).transaction(func, timeout: timeout)
+      repo.transaction(func, timeout: timeout)
     else
-      AshPostgres.DataLayer.Info.repo(resource).transaction(func)
+      repo.transaction(func)
     end
   end
 
