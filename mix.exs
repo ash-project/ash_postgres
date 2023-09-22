@@ -158,7 +158,7 @@ defmodule AshPostgres.MixProject do
           AshPostgres.Tsvector
         ],
         Extensions: [
-         AshPostgres.Extensions.Vector,
+          AshPostgres.Extensions.Vector
         ],
         "Custom Aggregates": [
           AshPostgres.CustomAggregate
@@ -229,7 +229,8 @@ defmodule AshPostgres.MixProject do
       ],
       "spark.formatter": "spark.formatter --extensions AshPostgres.DataLayer",
       "spark.cheat_sheets": "spark.cheat_sheets --extensions AshPostgres.DataLayer",
-      "spark.cheat_sheets_in_search": "spark.cheat_sheets_in_search --extensions AshPostgres.DataLayer",
+      "spark.cheat_sheets_in_search":
+        "spark.cheat_sheets_in_search --extensions AshPostgres.DataLayer",
       "test.generate_migrations": "ash_postgres.generate_migrations",
       "test.check_migrations": "ash_postgres.generate_migrations --check",
       "test.migrate_tenants": "ash_postgres.migrate --tenants",
