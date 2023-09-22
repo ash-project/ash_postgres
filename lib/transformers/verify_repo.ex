@@ -1,5 +1,5 @@
 defmodule AshPostgres.Transformers.VerifyRepo do
-  @moduledoc "Verifies that the repo is configured correctly"
+  @moduledoc false
   use Spark.Dsl.Transformer
   alias Spark.Dsl.Transformer
 

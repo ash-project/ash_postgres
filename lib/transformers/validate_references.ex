@@ -1,5 +1,5 @@
 defmodule AshPostgres.Transformers.ValidateReferences do
-  @moduledoc "Ensures that all `references` on a resource refer to a real relationship"
+  @moduledoc false
   use Spark.Dsl.Transformer
   alias Spark.Dsl.Transformer
 

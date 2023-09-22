@@ -1,5 +1,5 @@
 defmodule AshPostgres.Transformers.EnsureTableOrPolymorphic do
-  @moduledoc "Ensures that there is a table configured or the resource is polymorphic"
+  @moduledoc false
   use Spark.Dsl.Transformer
   alias Spark.Dsl.Transformer
 

@@ -1,5 +1,5 @@
 defmodule AshPostgres.CustomIndex do
-  @moduledoc false
+  @moduledoc "Represents a custom index on the table backing a resource"
   @fields [
     :table,
     :fields,

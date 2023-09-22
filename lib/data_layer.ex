@@ -19,14 +19,6 @@ defmodule AshPostgres.DataLayer do
         required: true,
         doc: """
         A template that will cause the resource to create/manage the specified schema.
-
-        Use this if you have a resource that, when created, it should create a new tenant
-        for you. For example, if you have a `customer` resource, and you want to create
-        a schema for each customer based on their id, e.g `customer_10` set this option
-        to `["customer_", :id]`. Then, when this is created, it will create a schema called
-        `["customer_", :id]`, and run your tenant migrations on it. Then, if you were to change
-        that customer's id to `20`, it would rename the schema to `customer_20`. Generally speaking
-        you should avoid changing the tenant id.
         """
       ],
       create?: [
@@ -298,9 +290,7 @@ defmodule AshPostgres.DataLayer do
         type: :keyword_list,
         default: [],
         doc: """
-        A keyword list of attribute names to the ecto migration default that should be used for that attribute. Only necessary if you need to override the defaults.
-
-        The string you use will be placed verbatim in the migration. Use fragments like `fragment(\\\\"now()\\\\")`, or for `nil`, use `\\\\"nil\\\\"`.
+        A keyword list of attribute names to the ecto migration default that should be used for that attribute. The string you use will be placed verbatim in the migration. Use fragments like `fragment(\\\\"now()\\\\")`, or for `nil`, use `\\\\"nil\\\\"`.
         """
       ],
       base_filter_sql: [
@@ -312,12 +302,7 @@ defmodule AshPostgres.DataLayer do
         type: {:list, :atom},
         default: [],
         doc: """
-        A list of `:first` type aggregate names that can be joined to using a simple join.
-
-        This is used in the relatively rare case that you have a `:first` aggregate that uses
-        a `has_many` or `many_to_many` relationship in its path, but your `filter` statement ensures
-        that there is only one result. In these cases, we can use a more optimized version of
-        computing the aggregate value.
+        A list of `:first` type aggregate names that can be joined to using a simple join.  Use when you have a `:first` aggregate that uses a to-many relationship , but your `filter` statement ensures that there is only one result. Optimizes the generated query.
         """
       ],
       skip_unique_indexes: [
@@ -326,15 +311,10 @@ defmodule AshPostgres.DataLayer do
         doc: "Skip generating unique indexes when generating migrations"
       ],
       unique_index_names: [
-        type: :any,
+        type: {:or, [{:tuple, [{:list, :atom}, :string]}, {:tuple, [{:list, :atom}, :string, :string]}]},
         default: [],
         doc: """
-        A list of unique index names that could raise errors, or an mfa to a function that takes a changeset
-        and returns the list. Must be in the format `{[:affected, :keys], "name_of_constraint"}` or `{[:affected, :keys], "name_of_constraint", "custom error message"}`
-
-        Note that this is *not* used to rename the unique indexes created from `identities`.
-        Use `identity_index_names` for that. This is used to tell ash_postgres about unique indexes that
-        exist in the database that it didn't create.
+        A list of unique index names that could raise errors that are not configured in identities, or an mfa to a function that takes a changeset and returns the list. In the format `{[:affected, :keys], "name_of_constraint"}` or `{[:affected, :keys], "name_of_constraint", "custom error message"}`
         """
       ],
       exclusion_constraint_names: [
@@ -348,16 +328,14 @@ defmodule AshPostgres.DataLayer do
         type: :any,
         default: [],
         doc: """
-        A keyword list of identity names to the unique index name that they should use when being managed by the migration
-        generator.
+        A keyword list of identity names to the unique index name that they should use when being managed by the migration generator.
         """
       ],
       foreign_key_names: [
-        type: :any,
+        type: {:or, [{:tuple, [:atom, :string]}, {:tuple, [:string, :string]}]},
         default: [],
         doc: """
-        A list of foreign keys that could raise errors, or an mfa to a function that takes a changeset and returns the list.
-        Must be in the format `{:key, "name_of_constraint"}` or `{:key, "name_of_constraint", "custom error message"}`
+        A list of foreign keys that could raise errors, or an mfa to a function that takes a changeset and returns a list. In the format: `{:key, "name_of_constraint"}` or `{:key, "name_of_constraint", "custom error message"}`
         """
       ],
       migration_ignore_attributes: [
@@ -370,38 +348,20 @@ defmodule AshPostgres.DataLayer do
       table: [
         type: :string,
         doc: """
-        The table to store and read the resource from. Required unless `polymorphic?` is true.
-
-        If this is changed, the migration generator will not remove the old table.
+        The table to store and read the resource from. If this is changed, the migration generator will not remove the old table.
         """
       ],
       schema: [
         type: :string,
         doc: """
-        The schema that the table is located in.
-        Multitenancy supersedes this, so this acts as the schema in the cases that `global?: true` is set.
-        If this is changed, the migration generator will not remove the old table in the old schema.
+        The schema that the table is located in. Schema-based multitenancy will supercede this option. If this is changed, the migration generator will not remove the old schema.
         """
       ],
       polymorphic?: [
         type: :boolean,
         default: false,
         doc: """
-        Declares this resource as polymorphic.
-
-        Polymorphic resources cannot be read or updated unless the table is provided in the query/changeset context.
-
-        For example:
-
-            PolymorphicResource
-            |> Ash.Query.set_context(%{data_layer: %{table: "table"}})
-            |> MyApi.read!()
-
-        When relating to polymorphic resources, you'll need to use the `context` option on relationships,
-        e.g
-
-            belongs_to :polymorphic_association, PolymorphicResource,
-              context: %{data_layer: %{table: "table"}}
+        Declares this resource as polymorphic. See the [polymorphic resources guide](/documentation/topics/polymorphic_resources.md) for more.
         """
       ]
     ]
@@ -416,19 +376,6 @@ defmodule AshPostgres.DataLayer do
 
   @moduledoc """
   A postgres data layer that leverages Ecto's postgres capabilities.
-
-  <!--- ash-hq-hide-start --> <!--- -->
-
-  ## DSL Documentation
-
-  ### Index
-
-  #{Spark.Dsl.Extension.doc_index(@sections)}
-
-  ### Docs
-
-  #{Spark.Dsl.Extension.doc(@sections)}
-  <!--- ash-hq-hide-stop --> <!--- -->
   """
 
   use Spark.Dsl.Extension,

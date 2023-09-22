@@ -1,5 +1,6 @@
 defmodule AshPostgres.Statement do
-  @moduledoc false
+  @moduledoc "Represents a custom statement to be run in generated migrations"
+
   @fields [
     :name,
     :up,
@@ -23,11 +24,7 @@ defmodule AshPostgres.Statement do
       type: :boolean,
       default: false,
       doc: """
-      Whether the provided up/down should be treated as code or sql strings.
-
-      By default, we place the strings inside of ecto migration's `execute/1`
-      function and assume they are sql. Use this option if you want to provide custom
-      elixir code to be placed directly in the migrations
+      By default, we place the strings inside of ecto migration's `execute/1` function and assume they are sql. Use this option if you want to provide custom elixir code to be placed directly in the migrations
       """
     ],
     up: [

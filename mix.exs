@@ -64,15 +64,16 @@ defmodule AshPostgres.MixProject do
   end
 
   defp extras() do
-    "documentation/**/*.md"
+    "documentation/**/*.{md,livemd,cheatmd}"
     |> Path.wildcard()
     |> Enum.map(fn path ->
       title =
         path
         |> Path.basename(".md")
+        |> Path.basename(".livemd")
+        |> Path.basename(".cheatmd")
         |> String.split(~r/[-_]/)
-        |> Enum.map(&String.capitalize/1)
-        |> Enum.join(" ")
+        |> Enum.map(&capitalize/1)
         |> case do
           "F A Q" ->
             "FAQ"
@@ -88,19 +89,25 @@ defmodule AshPostgres.MixProject do
     end)
   end
 
-  defp groups_for_extras() do
-    "documentation/*"
-    |> Path.wildcard()
-    |> Enum.map(fn folder ->
-      name =
-        folder
-        |> Path.basename()
-        |> String.split(~r/[-_]/)
-        |> Enum.map(&String.capitalize/1)
-        |> Enum.join(" ")
-
-      {name, folder |> Path.join("**") |> Path.wildcard()}
+  defp capitalize(string) do
+    string
+    |> String.split(" ")
+    |> Enum.map(fn string ->
+      [hd | tail] = String.graphemes(string)
+      String.capitalize(hd) <> Enum.join(tail)
     end)
+    |> Enum.join(" ")
+  end
+
+  defp groups_for_extras() do
+    [
+      Tutorials: [
+        ~r'documentation/tutorials'
+      ],
+      "How To": ~r'documentation/how_to',
+      Topics: ~r'documentation/topics',
+      DSLs: ~r'documentation/dsls'
+    ]
   end
 
   defp docs do
@@ -135,12 +142,24 @@ defmodule AshPostgres.MixProject do
           AshPostgres.Repo,
           AshPostgres.DataLayer
         ],
-        Introspection: [
-          AshPostgres.DataLayer.Info
+        Utilities: [
+          AshPostgres.ManualRelationship
         ],
-        "Postgres Expressions": [
-          AshPostgres.Functions.Fragment,
-          AshPostgres.Functions.TrigramSimilarity
+        Introspection: [
+          AshPostgres.DataLayer.Info,
+          AshPostgres.CheckConstraint,
+          AshPostgres.CustomExtension,
+          AshPostgres.CustomIndex,
+          AshPostgres.Reference,
+          AshPostgres.Statement
+        ],
+        Types: [
+          AshPostgres.Type,
+          AshPostgres.Tsquery,
+          AshPostgres.Tsvector
+        ],
+        Extensions: [
+         AshPostgres.Extensions.Vector,
         ],
         "Custom Aggregates": [
           AshPostgres.CustomAggregate
@@ -149,7 +168,13 @@ defmodule AshPostgres.MixProject do
           AshPostgres.Migration,
           EctoMigrationDefault
         ],
-        Transformers: ~r/AshPostgres\.Transformers\..*/,
+        Expressions: [
+          AshPostgres.Functions.Fragment,
+          AshPostgres.Functions.TrigramSimilarity,
+          AshPostgres.Functions.ILike,
+          AshPostgres.Functions.Like,
+          AshPostgres.Functions.VectorCosineDistance
+        ],
         Internals: ~r/.*/
       ]
     ]
@@ -197,8 +222,15 @@ defmodule AshPostgres.MixProject do
       sobelow:
         "sobelow --skip -i Config.Secrets --ignore-files lib/migration_generator/migration_generator.ex",
       credo: "credo --strict",
-      docs: ["docs", "ash.replace_doc_links"],
+      docs: [
+        "spark.cheat_sheets",
+        "docs",
+        "ash.replace_doc_links",
+        "spark.cheat_sheets_in_search"
+      ],
       "spark.formatter": "spark.formatter --extensions AshPostgres.DataLayer",
+      "spark.cheat_sheets": "spark.cheat_sheets --extensions AshPostgres.DataLayer",
+      "spark.cheat_sheets_in_search": "spark.cheat_sheets_in_search --extensions AshPostgres.DataLayer",
       "test.generate_migrations": "ash_postgres.generate_migrations",
       "test.check_migrations": "ash_postgres.generate_migrations --check",
       "test.migrate_tenants": "ash_postgres.migrate --tenants",
