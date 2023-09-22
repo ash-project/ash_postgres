@@ -92,11 +92,10 @@ defmodule AshPostgres.MixProject do
   defp capitalize(string) do
     string
     |> String.split(" ")
-    |> Enum.map(fn string ->
+    |> Enum.map_join(" ", fn string ->
       [hd | tail] = String.graphemes(string)
       String.capitalize(hd) <> Enum.join(tail)
     end)
-    |> Enum.join(" ")
   end
 
   defp groups_for_extras() do
