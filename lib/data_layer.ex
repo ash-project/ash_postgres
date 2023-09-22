@@ -311,7 +311,7 @@ defmodule AshPostgres.DataLayer do
         doc: "Skip generating unique indexes when generating migrations"
       ],
       unique_index_names: [
-        type: {:or, [{:tuple, [{:list, :atom}, :string]}, {:tuple, [{:list, :atom}, :string, :string]}]},
+        type: {:list, {:or, [{:tuple, [{:list, :atom}, :string]}, {:tuple, [{:list, :atom}, :string, :string]}]}},
         default: [],
         doc: """
         A list of unique index names that could raise errors that are not configured in identities, or an mfa to a function that takes a changeset and returns the list. In the format `{[:affected, :keys], "name_of_constraint"}` or `{[:affected, :keys], "name_of_constraint", "custom error message"}`
@@ -332,7 +332,7 @@ defmodule AshPostgres.DataLayer do
         """
       ],
       foreign_key_names: [
-        type: {:or, [{:tuple, [:atom, :string]}, {:tuple, [:string, :string]}]},
+        type: {:list, {:or, [{:tuple, [:atom, :string]}, {:tuple, [:string, :string]}]}},
         default: [],
         doc: """
         A list of foreign keys that could raise errors, or an mfa to a function that takes a changeset and returns a list. In the format: `{:key, "name_of_constraint"}` or `{:key, "name_of_constraint", "custom error message"}`
