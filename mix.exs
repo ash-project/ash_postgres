@@ -73,7 +73,7 @@ defmodule AshPostgres.MixProject do
         |> Path.basename(".livemd")
         |> Path.basename(".cheatmd")
         |> String.split(~r/[-_]/)
-        |> Enum.map(&capitalize/1)
+        |> Enum.map_join(" ", &capitalize/1)
         |> case do
           "F A Q" ->
             "FAQ"
@@ -92,7 +92,7 @@ defmodule AshPostgres.MixProject do
   defp capitalize(string) do
     string
     |> String.split(" ")
-    |> Enum.map_join(" ", fn string ->
+    |> Enum.map(fn string ->
       [hd | tail] = String.graphemes(string)
       String.capitalize(hd) <> Enum.join(tail)
     end)
