@@ -980,6 +980,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert File.read!(file) =~
                ~S[references(:users, column: :secondary_id, with: [org_id: :org_id\], match: :full, name: "user_things1_user_id_fkey", type: :uuid, prefix: "public")]
+
       assert File.read!(file) =~
                ~S[references(:users, column: :id, name: "user_things2_user_id_fkey", type: :uuid, prefix: "public")]
     end
