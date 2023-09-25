@@ -93,7 +93,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
             } = attribute
         }) do
       with_match =
-        if destination_attribute != reference_attribute do
+        if !reference.primary_key? && destination_attribute != reference_attribute do
           "with: [#{as_atom(source_attribute)}: :#{as_atom(destination_attribute)}], match: :full"
         end
 
@@ -485,7 +485,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       with_match =
-        if destination_attribute != reference_attribute do
+        if !reference.primary_key? && destination_attribute != reference_attribute do
           "with: [#{as_atom(source_attribute)}: :#{as_atom(destination_attribute)}], match: :full"
         end
 

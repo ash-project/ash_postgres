@@ -60,6 +60,29 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  defmacrop defresource(mod, table, do: body) do
+    quote do
+      Code.compiler_options(ignore_module_conflict: true)
+
+      defmodule unquote(mod) do
+        use Ash.Resource, data_layer: AshPostgres.DataLayer
+
+        postgres do
+          table unquote(table)
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        unquote(body)
+      end
+
+      Code.compiler_options(ignore_module_conflict: false)
+    end
+  end
+
   describe "creating initial snapshots" do
     setup do
       on_exit(fn ->
@@ -876,6 +899,90 @@ defmodule AshPostgres.MigrationGeneratorTest do
                String.split(down_code, "drop constraint(:posts, \"special_post_fkey\")")
 
       assert after_drop =~ ~S[references(:posts]
+    end
+
+    test "references with added only when needed on multitenant resources" do
+      defresource Org, "orgs" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:id)
+        end
+      end
+
+      defresource User, "users" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:secondary_id, :uuid)
+          attribute(:name, :string)
+          attribute(:org_id, :uuid)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, Org)
+        end
+      end
+
+      defresource UserThing1, "user_things1" do
+        attributes do
+          attribute(:id, :string, primary_key?: true, allow_nil?: false)
+          attribute(:name, :string)
+          attribute(:org_id, :uuid)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, Org)
+          belongs_to(:user, User, destination_attribute: :secondary_id)
+        end
+      end
+
+      defresource UserThing2, "user_things2" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, Org)
+          belongs_to(:user, User)
+        end
+      end
+
+      defapi([Org, User, UserThing1, UserThing2])
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+
+      assert File.read!(file) =~
+               ~S[references(:users, column: :secondary_id, with: [org_id: :org_id\], match: :full, name: "user_things1_user_id_fkey", type: :uuid, prefix: "public")]
+
+      assert File.read!(file) =~
+               ~S[references(:users, column: :id, name: "user_things2_user_id_fkey", type: :uuid, prefix: "public")]
     end
   end
 
