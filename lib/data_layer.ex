@@ -1151,8 +1151,15 @@ defmodule AshPostgres.DataLayer do
 
     opts =
       if options[:upsert?] do
+        on_conflict =
+          if options[:upsert_set] do
+            [set: options[:upsert_set]]
+          else
+            {:replace, options[:upsert_fields] || []}
+          end
+
         opts
-        |> Keyword.put(:on_conflict, {:replace, options[:upsert_fields] || []})
+        |> Keyword.put(:on_conflict, on_conflict)
         |> Keyword.put(
           :conflict_target,
           conflict_target(
@@ -1761,12 +1768,22 @@ defmodule AshPostgres.DataLayer do
         |> update_defaults()
         |> Keyword.merge(explicitly_changing_attributes)
 
+      on_conflict =
+        if changeset.context[:private][:upsert_fields] do
+          Keyword.take(
+            on_conflict,
+            changeset.context[:private][:upsert_fields]
+          )
+        else
+          on_conflict
+        end
+
       case bulk_create(resource, [changeset], %{
              single?: true,
              upsert?: true,
              tenant: changeset.tenant,
              upsert_keys: keys,
-             upsert_fields: Keyword.keys(on_conflict),
+             upsert_set: on_conflict,
              return_records?: true
            }) do
         {:ok, [result]} ->
