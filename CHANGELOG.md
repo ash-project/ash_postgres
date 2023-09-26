@@ -5,6 +5,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.52](https://github.com/ash-project/ash_postgres/compare/v1.3.51...v1.3.52) (2023-09-26)
+
+
+
+
+### Bug Fixes:
+
+* use `:wrap_list` type instead of custom validaitons (#167)
+
+### Improvements:
+
+* fix `upsert_fields` behavior for upserts
+
+* support data_layer_context option on transactions
+
 ## [v1.3.51](https://github.com/ash-project/ash_postgres/compare/v1.3.50...v1.3.51) (2023-09-20)
 
 
