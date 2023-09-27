@@ -36,8 +36,8 @@ defmodule AshPostgres.MixProject do
       docs: docs(),
       aliases: aliases(),
       package: package(),
-      source_url: "https://github.com/ash-project/ash_postgres",
-      homepage_url: "https://github.com/ash-project/ash_postgres",
+      source_url: "https://github.com/ash-project/ash_postgres/",
+      homepage_url: "https://ash-hq.org",
       consolidate_protocols: Mix.env() != :test
     ]
   end
@@ -186,9 +186,10 @@ defmodule AshPostgres.MixProject do
       {:ecto, "~> 3.9"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
+      {:spark, "~> 1.1"},
       {:ash, ash_version("~> 2.14 and >= 2.14.18")},
       {:git_ops, "~> 2.5", only: [:dev, :test]},
-      {:ex_doc, "~> 0.22", only: [:dev, :test], runtime: false},
+      {:ex_doc, github: "elixir-lang/ex_doc", only: [:dev, :test], runtime: false},
       {:ex_check, "~> 0.14", only: [:dev, :test]},
       {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:dialyxir, ">= 0.0.0", only: [:dev, :test], runtime: false},
@@ -224,7 +225,7 @@ defmodule AshPostgres.MixProject do
       docs: [
         "spark.cheat_sheets",
         "docs",
-        "ash.replace_doc_links",
+        "spark.replace_doc_links",
         "spark.cheat_sheets_in_search"
       ],
       "spark.formatter": "spark.formatter --extensions AshPostgres.DataLayer",
