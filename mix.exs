@@ -115,6 +115,13 @@ defmodule AshPostgres.MixProject do
       source_ref: "v#{@version}",
       logo: "logos/small-logo.png",
       extras: extras(),
+      before_closing_head_tag: fn type ->
+        if type == :html do
+          """
+          <script defer data-domain="ashhexdocs" src="https://plausible.io/js/script.js"></script>
+          """
+        end
+      end,
       spark: [
         mix_tasks: [
           Postgres: [
