@@ -701,7 +701,7 @@ defmodule AshPostgres.DataLayer do
     query = default_bindings(query, resource)
 
     query =
-      if query.distinct do
+      if query.distinct || query.limit do
         query =
           query
           |> Ecto.Query.exclude(:select)
