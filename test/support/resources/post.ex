@@ -238,6 +238,8 @@ defmodule AshPostgres.Test.Post do
       :string,
       CalculatePostPriceStringWithSymbol
     )
+
+    calculate(:author_first_name_calc, :string, expr(author.first_name))
   end
 
   aggregates do

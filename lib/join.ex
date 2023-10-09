@@ -40,7 +40,6 @@ defmodule AshPostgres.Join do
           filter
           |> Ash.Filter.map(fn
             %Ash.Query.Parent{} ->
-              # Removing any `This` from the filter
               nil
 
             other ->

@@ -60,6 +60,48 @@ defmodule AshPostgres.CalculationTest do
              |> Api.read!()
   end
 
+  test "calculations can refer to to_one path attributes in filters" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{
+        first_name: "Foo",
+        bio: %{title: "Mr.", bio: "Bones"}
+      })
+      |> Api.create!()
+
+    Post
+    |> Ash.Changeset.new(%{title: "match"})
+    |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+    |> Api.create!()
+
+    assert [%{author_first_name_calc: "Foo"}] =
+             Post
+             |> Ash.Query.filter(author_first_name_calc == "Foo")
+             |> Ash.Query.load(:author_first_name_calc)
+             |> Api.read!()
+  end
+
+  test "calculations can refer to to_one path attributes in sorts" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{
+        first_name: "Foo",
+        bio: %{title: "Mr.", bio: "Bones"}
+      })
+      |> Api.create!()
+
+    Post
+    |> Ash.Changeset.new(%{title: "match"})
+    |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+    |> Api.create!()
+
+    assert [%{author_first_name_calc: "Foo"}] =
+             Post
+             |> Ash.Query.sort(:author_first_name_calc)
+             |> Ash.Query.load(:author_first_name_calc)
+             |> Api.read!()
+  end
+
   test "calculations can refer to embedded attributes" do
     author =
       Author

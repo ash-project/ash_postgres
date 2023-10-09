@@ -44,6 +44,25 @@ defmodule AshPostgres.Sort do
           []
       end)
 
+    calcs =
+      Enum.flat_map(sort, fn
+        {%Ash.Query.Calculation{} = calculation, _} ->
+          [calculation]
+
+        _ ->
+          []
+      end)
+
+    {:ok, query} =
+      AshPostgres.Join.join_all_relationships(
+        query,
+        %Ash.Filter{
+          resource: resource,
+          expression: calcs
+        },
+        left_only?: true
+      )
+
     case AshPostgres.Aggregate.add_aggregates(query, used_aggregates, resource, false, 0) do
       {:error, error} ->
         {:error, error}

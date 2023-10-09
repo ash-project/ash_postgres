@@ -944,6 +944,14 @@ defmodule AshPostgres.Expr do
         end
       end)
 
+    if is_nil(binding_to_replace) do
+      raise """
+      Error building calculation reference: #{inspect(relationship_path)} is not available in bindings.
+
+      In reference: #{ref}
+      """
+    end
+
     temp_bindings =
       bindings.bindings
       |> Map.delete(0)

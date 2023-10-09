@@ -8,6 +8,16 @@ defmodule AshPostgres.Calculation do
   def add_calculations(query, calculations, resource, source_binding) do
     query = AshPostgres.DataLayer.default_bindings(query, resource)
 
+    {:ok, query} =
+      AshPostgres.Join.join_all_relationships(
+        query,
+        %Ash.Filter{
+          resource: resource,
+          expression: Enum.map(calculations, &elem(&1, 1))
+        },
+        left_only?: true
+      )
+
     aggregates =
       calculations
       |> Enum.flat_map(fn {_calculation, expression} ->
