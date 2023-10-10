@@ -335,7 +335,13 @@ defmodule AshPostgres.DataLayer do
         """
       ],
       foreign_key_names: [
-        type: {:list, {:or, [{:tuple, [:atom, :string]}, {:tuple, [:string, :string]}]}},
+        type:
+          {:list,
+           {:or,
+            [
+              {:tuple, [{:or, [:atom, :string]}, :string]},
+              {:tuple, [{:or, [:atom, :string]}, :string, :string]}
+            ]}},
         default: [],
         doc: """
         A list of foreign keys that could raise errors, or an mfa to a function that takes a changeset and returns a list. In the format: `{:key, "name_of_constraint"}` or `{:key, "name_of_constraint", "custom error message"}`
