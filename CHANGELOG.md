@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.54](https://github.com/ash-project/ash_postgres/compare/v1.3.53...v1.3.54) (2023-10-10)
+
+
+
+
+### Bug Fixes:
+
+* fix type specification for foreign_key_names
+
 ## [v1.3.53](https://github.com/ash-project/ash_postgres/compare/v1.3.52...v1.3.53) (2023-10-10)
 
 
