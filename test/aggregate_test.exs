@@ -261,9 +261,19 @@ defmodule AshPostgres.AggregateTest do
         |> Ash.Changeset.new(%{title: "title"})
         |> Api.create!()
 
+      post2 =
+        Post
+        |> Ash.Changeset.new(%{title: "title2"})
+        |> Api.create!()
+
       refute Post
              |> Ash.Query.filter(has_comment_called_match)
              |> Api.exists?()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "match"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Api.create!()
 
       Comment
       |> Ash.Changeset.new(%{title: "match"})

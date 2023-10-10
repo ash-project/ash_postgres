@@ -734,9 +734,16 @@ defmodule AshPostgres.DataLayer do
         end
       )
 
-    {:ok,
-     dynamic_repo(resource, query).one(query, repo_opts(nil, nil, resource))
-     |> add_exists_aggs(resource, query_before_select, exists)}
+    result =
+      case aggregates do
+        [] ->
+          %{}
+
+        _ ->
+          dynamic_repo(resource, query).one(query, repo_opts(nil, nil, resource))
+      end
+
+    {:ok, add_exists_aggs(result, resource, query_before_select, exists)}
   end
 
   defp add_exists_aggs(result, resource, query, exists) do
@@ -812,12 +819,19 @@ defmodule AshPostgres.DataLayer do
             end
           )
 
-        {:ok,
-         dynamic_repo(source_resource, query).one(
-           query,
-           repo_opts(nil, nil, source_resource)
-         )
-         |> add_exists_aggs(source_resource, subquery, exists)}
+        result =
+          case aggregates do
+            [] ->
+              %{}
+
+            _ ->
+              dynamic_repo(source_resource, query).one(
+                query,
+                repo_opts(nil, nil, source_resource)
+              )
+          end
+
+        {:ok, add_exists_aggs(result, source_resource, subquery, exists)}
 
       {:error, error} ->
         {:error, error}
