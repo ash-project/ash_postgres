@@ -261,10 +261,9 @@ defmodule AshPostgres.AggregateTest do
         |> Ash.Changeset.new(%{title: "title"})
         |> Api.create!()
 
-      post2 =
-        Post
-        |> Ash.Changeset.new(%{title: "title2"})
-        |> Api.create!()
+      Post
+      |> Ash.Changeset.new(%{title: "title2"})
+      |> Api.create!()
 
       refute Post
              |> Ash.Query.filter(has_comment_called_match)

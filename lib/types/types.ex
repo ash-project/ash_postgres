@@ -46,12 +46,28 @@ defmodule AshPostgres.Types do
         end
 
       if cast_in_query? do
-        parameterized_type(Ash.Type.ecto_type(type), constraints)
+        type = Ash.Type.ecto_type(type)
+
+        type =
+          if type.type(constraints) == :ci_string do
+            Ash.Type.CiStringWrapper
+          else
+            type
+          end
+
+        parameterized_type(type, constraints)
       else
         nil
       end
     else
       if is_atom(type) && :erlang.function_exported(type, :type, 1) do
+        type =
+          if type == :ci_string do
+            :citext
+          else
+            type
+          end
+
         {:parameterized, type, constraints || []}
       else
         type
