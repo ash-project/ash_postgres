@@ -5,6 +5,25 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.53](https://github.com/ash-project/ash_postgres/compare/v1.3.52...v1.3.53) (2023-10-10)
+
+
+
+
+### Bug Fixes:
+
+* don't run main query if only `exists` aggs are specified
+
+* subquery aggregate if limit is applied
+
+### Improvements:
+
+* update ash dependency
+
+* support `:ci_string` as a storage_type
+
+* support to-one references in calculations
+
 ## [v1.3.52](https://github.com/ash-project/ash_postgres/compare/v1.3.51...v1.3.52) (2023-09-26)
 
 
