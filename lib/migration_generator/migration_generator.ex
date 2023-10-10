@@ -2743,6 +2743,7 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp migration_type_from_storage_type(:string), do: :text
+  defp migration_type_from_storage_type(:ci_string), do: :citext
   defp migration_type_from_storage_type(storage_type), do: storage_type
 
   defp foreign_key?(relationship) do
