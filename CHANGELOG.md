@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.56](https://github.com/ash-project/ash_postgres/compare/v1.3.55...v1.3.56) (2023-10-11)
+
+
+
+
+### Bug Fixes:
+
+* don't raise all errors
+
 ## [v1.3.55](https://github.com/ash-project/ash_postgres/compare/v1.3.54...v1.3.55) (2023-10-11)
 
 
