@@ -1561,7 +1561,7 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp handle_raised_error(error, stacktrace, _ecto_changeset, _resource) do
-    reraise Ash.Error.to_error_class(error, stacktrace), stacktrace
+    {:error, Ash.Error.to_ash_error(error, stacktrace)}
   end
 
   defp constraints_to_errors(%{constraints: user_constraints} = changeset, action, constraints) do

@@ -401,8 +401,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
 
 
 
-
-### Options
+### Arguments
 
 <table>
   <thead>
@@ -416,7 +415,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
   <tbody>
     <tr>
   <td style="text-align: left">
-    <a id="fields-fields" href="#fields-fields">
+    <a id="postgres-custom_indexes-index-fields" href="#postgres-custom_indexes-index-fields">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         fields
       </span>
@@ -434,9 +433,23 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
   </td>
 </tr>
 
-<tr>
+  </tbody>
+</table>
+### Options
+
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Default</th>
+      <th colspan=2>Docs</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
   <td style="text-align: left">
-    <a id="fields-name" href="#fields-name">
+    <a id="postgres-custom_indexes-index-name" href="#postgres-custom_indexes-index-name">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         name
       </span>
@@ -456,7 +469,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
 
 <tr>
   <td style="text-align: left">
-    <a id="fields-unique" href="#fields-unique">
+    <a id="postgres-custom_indexes-index-unique" href="#postgres-custom_indexes-index-unique">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         unique
       </span>
@@ -476,7 +489,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
 
 <tr>
   <td style="text-align: left">
-    <a id="fields-concurrently" href="#fields-concurrently">
+    <a id="postgres-custom_indexes-index-concurrently" href="#postgres-custom_indexes-index-concurrently">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         concurrently
       </span>
@@ -496,7 +509,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
 
 <tr>
   <td style="text-align: left">
-    <a id="fields-using" href="#fields-using">
+    <a id="postgres-custom_indexes-index-using" href="#postgres-custom_indexes-index-using">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         using
       </span>
@@ -516,7 +529,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
 
 <tr>
   <td style="text-align: left">
-    <a id="fields-prefix" href="#fields-prefix">
+    <a id="postgres-custom_indexes-index-prefix" href="#postgres-custom_indexes-index-prefix">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         prefix
       </span>
@@ -536,7 +549,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
 
 <tr>
   <td style="text-align: left">
-    <a id="fields-where" href="#fields-where">
+    <a id="postgres-custom_indexes-index-where" href="#postgres-custom_indexes-index-where">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         where
       </span>
@@ -556,7 +569,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
 
 <tr>
   <td style="text-align: left">
-    <a id="fields-message" href="#fields-message">
+    <a id="postgres-custom_indexes-index-message" href="#postgres-custom_indexes-index-message">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         message
       </span>
@@ -576,7 +589,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
 
 <tr>
   <td style="text-align: left">
-    <a id="fields-include" href="#fields-include">
+    <a id="postgres-custom_indexes-index-include" href="#postgres-custom_indexes-index-include">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         include
       </span>
@@ -661,8 +674,7 @@ end
 
 
 
-
-### Options
+### Arguments
 
 <table>
   <thead>
@@ -676,7 +688,7 @@ end
   <tbody>
     <tr>
   <td style="text-align: left">
-    <a id="name-name" href="#name-name">
+    <a id="postgres-custom_statements-statement-name" href="#postgres-custom_statements-statement-name">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         name
       </span>
@@ -696,9 +708,23 @@ end
   </td>
 </tr>
 
-<tr>
+  </tbody>
+</table>
+### Options
+
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Default</th>
+      <th colspan=2>Docs</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
   <td style="text-align: left">
-    <a id="name-up" href="#name-up">
+    <a id="postgres-custom_statements-statement-up" href="#postgres-custom_statements-statement-up">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         up
       </span>
@@ -720,7 +746,7 @@ end
 
 <tr>
   <td style="text-align: left">
-    <a id="name-down" href="#name-down">
+    <a id="postgres-custom_statements-statement-down" href="#postgres-custom_statements-statement-down">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         down
       </span>
@@ -741,7 +767,7 @@ end
 
 <tr>
   <td style="text-align: left">
-    <a id="name-code?" href="#name-code?">
+    <a id="postgres-custom_statements-statement-code?" href="#postgres-custom_statements-statement-code?">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         code?
       </span>
@@ -994,8 +1020,7 @@ reference :post, on_delete: :delete, on_update: :update, name: "comments_to_post
 
 
 
-
-### Options
+### Arguments
 
 <table>
   <thead>
@@ -1009,7 +1034,7 @@ reference :post, on_delete: :delete, on_update: :update, name: "comments_to_post
   <tbody>
     <tr>
   <td style="text-align: left">
-    <a id="relationship-relationship" href="#relationship-relationship">
+    <a id="postgres-references-reference-relationship" href="#postgres-references-reference-relationship">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         relationship
       </span>
@@ -1028,9 +1053,23 @@ reference :post, on_delete: :delete, on_update: :update, name: "comments_to_post
   </td>
 </tr>
 
-<tr>
+  </tbody>
+</table>
+### Options
+
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Default</th>
+      <th colspan=2>Docs</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
   <td style="text-align: left">
-    <a id="relationship-ignore?" href="#relationship-ignore?">
+    <a id="postgres-references-reference-ignore?" href="#postgres-references-reference-ignore?">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         ignore?
       </span>
@@ -1050,7 +1089,7 @@ reference :post, on_delete: :delete, on_update: :update, name: "comments_to_post
 
 <tr>
   <td style="text-align: left">
-    <a id="relationship-on_delete" href="#relationship-on_delete">
+    <a id="postgres-references-reference-on_delete" href="#postgres-references-reference-on_delete">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         on_delete
       </span>
@@ -1071,7 +1110,7 @@ reference :post, on_delete: :delete, on_update: :update, name: "comments_to_post
 
 <tr>
   <td style="text-align: left">
-    <a id="relationship-on_update" href="#relationship-on_update">
+    <a id="postgres-references-reference-on_update" href="#postgres-references-reference-on_update">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         on_update
       </span>
@@ -1092,7 +1131,7 @@ reference :post, on_delete: :delete, on_update: :update, name: "comments_to_post
 
 <tr>
   <td style="text-align: left">
-    <a id="relationship-deferrable" href="#relationship-deferrable">
+    <a id="postgres-references-reference-deferrable" href="#postgres-references-reference-deferrable">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         deferrable
       </span>
@@ -1113,7 +1152,7 @@ reference :post, on_delete: :delete, on_update: :update, name: "comments_to_post
 
 <tr>
   <td style="text-align: left">
-    <a id="relationship-name" href="#relationship-name">
+    <a id="postgres-references-reference-name" href="#postgres-references-reference-name">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         name
       </span>
@@ -1189,8 +1228,7 @@ check_constraint :price, "price_must_be_positive", check: "price > 0", message: 
 
 
 
-
-### Options
+### Arguments
 
 <table>
   <thead>
@@ -1204,7 +1242,7 @@ check_constraint :price, "price_must_be_positive", check: "price > 0", message: 
   <tbody>
     <tr>
   <td style="text-align: left">
-    <a id="attribute-name-attribute" href="#attribute-name-attribute">
+    <a id="postgres-check_constraints-check_constraint-attribute" href="#postgres-check_constraints-check_constraint-attribute">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         attribute
       </span>
@@ -1225,7 +1263,7 @@ check_constraint :price, "price_must_be_positive", check: "price > 0", message: 
 
 <tr>
   <td style="text-align: left">
-    <a id="attribute-name-name" href="#attribute-name-name">
+    <a id="postgres-check_constraints-check_constraint-name" href="#postgres-check_constraints-check_constraint-name">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         name
       </span>
@@ -1244,9 +1282,23 @@ check_constraint :price, "price_must_be_positive", check: "price > 0", message: 
   </td>
 </tr>
 
-<tr>
+  </tbody>
+</table>
+### Options
+
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Default</th>
+      <th colspan=2>Docs</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
   <td style="text-align: left">
-    <a id="attribute-name-message" href="#attribute-name-message">
+    <a id="postgres-check_constraints-check_constraint-message" href="#postgres-check_constraints-check_constraint-message">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         message
       </span>
@@ -1266,7 +1318,7 @@ check_constraint :price, "price_must_be_positive", check: "price > 0", message: 
 
 <tr>
   <td style="text-align: left">
-    <a id="attribute-name-check" href="#attribute-name-check">
+    <a id="postgres-check_constraints-check_constraint-check" href="#postgres-check_constraints-check_constraint-check">
       <span style="font-family: Inconsolata, Menlo, Courier, monospace;">
         check
       </span>
