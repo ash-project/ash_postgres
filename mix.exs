@@ -202,7 +202,7 @@ defmodule AshPostgres.MixProject do
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
       {:spark, "~> 1.1"},
-      {:ash, ash_version("~> 2.15 and >= 2.15.12")},
+      {:ash, ash_version("~> 2.15 and >= 2.15.14")},
       {:git_ops, "~> 2.5", only: [:dev, :test]},
       {:ex_doc, github: "elixir-lang/ex_doc", only: [:dev, :test], runtime: false},
       {:ex_check, "~> 0.14", only: [:dev, :test]},

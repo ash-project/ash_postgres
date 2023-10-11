@@ -4,6 +4,22 @@ defmodule AshPostgres.AtomicsTest do
 
   import Ash.Expr
 
+  test "atomics work on upserts" do
+    id = Ash.UUID.generate()
+
+    Post
+    |> Ash.Changeset.for_create(:create, %{id: id, title: "foo", price: 1}, upsert?: true)
+    |> Ash.Changeset.atomic_update(:price, expr(price + 1))
+    |> Api.create!()
+
+    Post
+    |> Ash.Changeset.for_create(:create, %{id: id, title: "foo", price: 1}, upsert?: true)
+    |> Ash.Changeset.atomic_update(:price, expr(price + 1))
+    |> Api.create!()
+
+    assert [%{price: 2}] = Post |> Api.read!()
+  end
+
   test "a basic atomic works" do
     post =
       Post
@@ -14,6 +30,21 @@ defmodule AshPostgres.AtomicsTest do
              post
              |> Ash.Changeset.for_update(:update, %{})
              |> Ash.Changeset.atomic_update(:price, expr(price + 1))
+             |> Api.update!()
+  end
+
+  test "an atomic works with a datetime" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "foo", price: 1})
+      |> Api.create!()
+
+    now = DateTime.utc_now()
+
+    assert %{created_at: ^now} =
+             post
+             |> Ash.Changeset.for_update(:update, %{})
+             |> Ash.Changeset.atomic_update(:created_at, expr(^now))
              |> Api.update!()
   end
 

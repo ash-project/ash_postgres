@@ -53,6 +53,7 @@ defmodule AshPostgres.BulkCreateTest do
                  upsert_identity: :uniq_one_and_two,
                  upsert_fields: [:price],
                  return_stream?: true,
+                 return_errors?: true,
                  return_records?: true
                )
                |> Enum.sort_by(fn
