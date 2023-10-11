@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.55](https://github.com/ash-project/ash_postgres/compare/v1.3.54...v1.3.55) (2023-10-11)
+
+
+
+
+### Improvements:
+
+* support atomics on upserts
+
 ## [v1.3.54](https://github.com/ash-project/ash_postgres/compare/v1.3.53...v1.3.54) (2023-10-10)
 
 
