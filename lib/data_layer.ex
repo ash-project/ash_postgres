@@ -391,7 +391,6 @@ defmodule AshPostgres.DataLayer do
     sections: @sections,
     transformers: [
       AshPostgres.Transformers.ValidateReferences,
-      AshPostgres.Transformers.VerifyRepo,
       AshPostgres.Transformers.EnsureTableOrPolymorphic,
       AshPostgres.Transformers.PreventMultidimensionalArrayAggregates
     ]
@@ -502,7 +501,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :timeout), do: true
   def can?(_, {:filter_expr, _}), do: true
   def can?(_, :nested_expressions), do: true
-  def can?(_, {:query_aggregate, :count}), do: true
+  def can?(_, {:query_aggregate, _}), do: true
   def can?(_, :sort), do: true
   def can?(_, :distinct_sort), do: true
   def can?(_, :distinct), do: true

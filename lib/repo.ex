@@ -45,6 +45,11 @@ defmodule AshPostgres.Repo do
   Use this to inform the data layer about the oldest potential postgres version it will be run on.
 
   Must be an integer greater than or equal to 13.
+
+  ## Combining with other tools
+
+  For things like `Fly.Repo`, where you might need to have more fine grained control over the repo module,
+  you can use the `define_ecto_repo?: false` option to `use AshPostgres.Repo`.
   """
   @callback min_pg_version() :: integer()
 
@@ -63,11 +68,13 @@ defmodule AshPostgres.Repo do
 
   defmacro __using__(opts) do
     quote bind_quoted: [opts: opts] do
-      otp_app = opts[:otp_app] || raise("Must configure OTP app")
+      if Keyword.get(opts, :define_ecto_repo?, true) do
+        otp_app = opts[:otp_app] || raise("Must configure OTP app")
 
-      use Ecto.Repo,
-        adapter: Ecto.Adapters.Postgres,
-        otp_app: otp_app
+        use Ecto.Repo,
+          adapter: Ecto.Adapters.Postgres,
+          otp_app: otp_app
+      end
 
       @behaviour AshPostgres.Repo
 
