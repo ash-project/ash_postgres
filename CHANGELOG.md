@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.57](https://github.com/ash-project/ash_postgres/compare/v1.3.56...v1.3.57) (2023-10-17)
+
+
+
+
+### Improvements:
+
+* allow for combining `AshPostgres.Repo` with other repos
+
 ## [v1.3.56](https://github.com/ash-project/ash_postgres/compare/v1.3.55...v1.3.56) (2023-10-11)
 
 
