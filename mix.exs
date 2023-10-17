@@ -44,7 +44,10 @@ defmodule AshPostgres.MixProject do
 
   if Mix.env() == :test do
     def application() do
-      [applications: [:ecto, :ecto_sql, :jason, :ash, :postgrex], mod: {AshPostgres.TestApp, []}]
+      [
+        applications: [:ecto, :ecto_sql, :jason, :ash, :postgrex, :tools, :benchee],
+        mod: {AshPostgres.TestApp, []}
+      ]
     end
   end
 
@@ -201,8 +204,8 @@ defmodule AshPostgres.MixProject do
       {:ecto, "~> 3.9"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
-      {:spark, "~> 1.1"},
-      {:ash, ash_version("~> 2.15 and >= 2.15.14")},
+      {:ash, ash_version("~> 2.15 and >= 2.15.18")},
+      {:benchee, "~> 1.1", only: [:dev, :test]},
       {:git_ops, "~> 2.5", only: [:dev, :test]},
       {:ex_doc, github: "elixir-lang/ex_doc", only: [:dev, :test], runtime: false},
       {:ex_check, "~> 0.14", only: [:dev, :test]},
