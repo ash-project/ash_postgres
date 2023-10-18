@@ -107,7 +107,7 @@ Benchee.run(
     AshPostgres.TestRepo.query!("TRUNCATE posts CASCADE")
   end,
   inputs: %{
-    # "10 rows" => ten_rows,
+    "10 rows" => ten_rows,
     "1000 rows" => thousand_rows
   }
 )
