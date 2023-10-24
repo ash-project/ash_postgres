@@ -74,9 +74,9 @@ Define a module similar to the following:
 ```elixir
 defmodule MyApp.Release do
   @moduledoc """
-  Houses tasks that need to be executed in the released application (because mix is not present in releases).
+  Housekeeping tasks that need to be executed in the released application (because mix is not present in releases).
   """
-  @app :my_ap
+  @app :my_app
   def migrate do
     load_app()
 
@@ -150,13 +150,13 @@ defmodule MyApp.Release do
     |> Enum.flat_map(fn api ->
       api
       |> Ash.Api.Info.resources()
-      |> Enum.map(&AshPostgres.repo/1)
+      |> Enum.map(&AshPostgres.DataLayer.Info.repo/1)
     end)
     |> Enum.uniq()
   end
 
   defp apis do
-    Application.fetch_env!(:my_app, :ash_apis)
+    Application.fetch_env!(@app, :ash_apis)
   end
 
   defp load_app do
