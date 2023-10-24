@@ -127,6 +127,10 @@ defmodule AshPostgres.Test.Post do
       manual(AshPostgres.Test.Post.CommentsContainingTitle)
     end
 
+    has_many :comments_with_high_rating, AshPostgres.Test.Comment do
+      filter(expr(ratings.score > 5))
+    end
+
     has_many(:ratings, AshPostgres.Test.Rating,
       destination_attribute: :resource_id,
       relationship_context: %{data_layer: %{table: "post_ratings"}}

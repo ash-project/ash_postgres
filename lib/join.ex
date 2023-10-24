@@ -46,12 +46,12 @@ defmodule AshPostgres.Join do
               other
           end)
           |> Ash.Filter.relationship_paths()
-          |> to_joins(filter)
+          |> to_joins(filter, query.__ash_bindings__.resource)
 
         true ->
           filter
           |> Ash.Filter.relationship_paths()
-          |> to_joins(filter)
+          |> to_joins(filter, query.__ash_bindings__.resource)
       end
 
     Enum.reduce_while(relationship_paths, {:ok, query}, fn
@@ -128,24 +128,44 @@ defmodule AshPostgres.Join do
     end)
   end
 
-  defp to_joins(paths, filter) do
+  defp to_joins(paths, filter, resource) do
     paths
     |> Enum.map(fn path ->
       if can_inner_join?(path, filter) do
         {:inner,
          AshPostgres.Join.relationship_path_to_relationships(
-           filter.resource,
+           resource,
            path
          )}
       else
         {:left,
          AshPostgres.Join.relationship_path_to_relationships(
-           filter.resource,
+           resource,
            path
          )}
       end
     end)
   end
+
+  # defp expand_join_paths(joins) do
+  #   Enum.flat_map(joins, fn {type, path} ->
+  #     path
+  #     |> sub_paths()
+  #     |> Enum.map(&add_relationship_filter_paths/1)
+  #   end)
+  # end
+
+  # defp add_relationship_filter_paths(path) do
+  #   last = List.last(path)
+  #   prefix = :lists.droplast(path)
+
+  # end
+
+  # defp sub_paths(path) do
+  #   Enum.map(1..Enum.count(path), fn i ->
+  #     Enum.take(path, i)
+  #   end)
+  # end
 
   def relationship_path_to_relationships(resource, path, acc \\ [])
   def relationship_path_to_relationships(_resource, [], acc), do: Enum.reverse(acc)
@@ -304,7 +324,6 @@ defmodule AshPostgres.Join do
         AshPostgres.Expr.dynamic_expr(query, filter, bindings, true)
       end
 
-    {:ok, query} = join_all_relationships(query, filter)
     from(row in query, where: ^dynamic)
   end
 
@@ -609,6 +628,22 @@ defmodule AshPostgres.Join do
       })
       |> AshPostgres.DataLayer.add_binding(binding_data)
 
+    {:ok, related_filter} =
+      Ash.Filter.hydrate_refs(
+        relationship.filter,
+        %{
+          resource: relationship.destination,
+          aggregates: %{},
+          calculations: %{},
+          public?: false
+        }
+      )
+
+    related_filter =
+      Ash.Filter.move_to_relationship_path(related_filter, full_path)
+
+    {:ok, query} = join_all_relationships(query, related_filter)
+
     used_calculations =
       Ash.Filter.used_calculations(
         filter,
@@ -744,6 +779,22 @@ defmodule AshPostgres.Join do
     binding_data = %{type: kind, path: full_path, source: source}
 
     query = AshPostgres.DataLayer.add_binding(query, binding_data)
+
+    {:ok, related_filter} =
+      Ash.Filter.hydrate_refs(
+        relationship.filter,
+        %{
+          resource: relationship.destination,
+          aggregates: %{},
+          calculations: %{},
+          public?: false
+        }
+      )
+
+    related_filter =
+      Ash.Filter.move_to_relationship_path(related_filter, full_path)
+
+    {:ok, query} = join_all_relationships(query, related_filter)
 
     used_calculations =
       Ash.Filter.used_calculations(

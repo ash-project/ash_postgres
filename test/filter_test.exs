@@ -969,4 +969,10 @@ defmodule AshPostgres.FilterTest do
       |> Api.read!()
     end
   end
+
+  test "can reference related items from a relationship expression" do
+    Post
+    |> Ash.Query.filter(comments_with_high_rating.title == "foo")
+    |> Api.read!()
+  end
 end
