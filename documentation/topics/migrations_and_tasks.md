@@ -74,7 +74,7 @@ Define a module similar to the following:
 ```elixir
 defmodule MyApp.Release do
   @moduledoc """
-  Housekeeping tasks that need to be executed in the released application (because mix is not present in releases).
+Tasks that need to be executed in the released application (because mix is not present in releases).
   """
   @app :my_app
   def migrate do
