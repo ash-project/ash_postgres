@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.59](https://github.com/ash-project/ash_postgres/compare/v1.3.58...v1.3.59) (2023-10-25)
+
+
+
+
+### Improvements:
+
+* join relationships for aggregate filters
+
 ## [v1.3.58](https://github.com/ash-project/ash_postgres/compare/v1.3.57...v1.3.58) (2023-10-24)
 
 
