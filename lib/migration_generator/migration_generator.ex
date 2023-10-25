@@ -2732,7 +2732,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp migration_type(other, constraints) do
     type = Ash.Type.get_type(other)
 
-    migration_type_from_storage_type(Ash.Type.storage_type(other, constraints))
+    migration_type_from_storage_type(Ash.Type.storage_type(type, constraints))
   end
 
   defp migration_type_from_storage_type(:string), do: :text
