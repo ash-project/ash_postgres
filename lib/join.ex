@@ -183,7 +183,8 @@ defmodule AshPostgres.Join do
         path \\ [],
         bindings \\ nil,
         start_binding \\ nil,
-        is_subquery? \\ true
+        is_subquery? \\ true,
+        join_relationships? \\ false
       ) do
     resource
     |> Ash.Query.new(nil, base_filter?: false)
@@ -203,6 +204,25 @@ defmodule AshPostgres.Join do
                initial_query: initial_query
              ) do
           {:ok, query} ->
+            query =
+              if join_relationships? do
+                {:ok, related_filter} =
+                  Ash.Filter.hydrate_refs(
+                    relationship.filter,
+                    %{
+                      resource: relationship.destination,
+                      public?: false
+                    }
+                  )
+
+                {:ok, query} =
+                  AshPostgres.Join.join_all_relationships(query, related_filter)
+
+                query
+              else
+                query
+              end
+
             query =
               query
               |> do_base_filter(
@@ -785,8 +805,6 @@ defmodule AshPostgres.Join do
         relationship.filter,
         %{
           resource: relationship.destination,
-          aggregates: %{},
-          calculations: %{},
           public?: false
         }
       )

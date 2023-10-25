@@ -109,7 +109,11 @@ defmodule AshPostgres.Aggregate do
                            first_relationship.destination,
                            first_relationship,
                            query,
-                           [first_relationship.name]
+                           [first_relationship.name],
+                           nil,
+                           nil,
+                           true,
+                           true
                          ),
                        agg_root_query <-
                          Map.update!(
@@ -441,7 +445,9 @@ defmodule AshPostgres.Aggregate do
         query,
         [join_relationship],
         nil,
-        subquery.__ash_bindings__.current
+        subquery.__ash_bindings__.current,
+        true,
+        true
       )
 
     field = first_relationship.source_attribute_on_join_resource
