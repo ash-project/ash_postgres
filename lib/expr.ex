@@ -1055,14 +1055,15 @@ defmodule AshPostgres.Expr do
          type
        ) do
     parent? = Map.get(bindings.parent_bindings, :parent_is_parent_as?, true)
+    new_bindings = Map.put(bindings.parent_bindings, :parent?, parent?)
 
     do_dynamic_expr(
       %{
         query
-        | __ash_bindings__: Map.put(bindings.parent_bindings, :parent?, parent?)
+        | __ash_bindings__: new_bindings
       },
       expr,
-      bindings,
+      new_bindings,
       embedded?,
       type
     )
@@ -1607,7 +1608,8 @@ defmodule AshPostgres.Expr do
     end
   end
 
-  defp set_parent_path(query, parent) do
+  @doc false
+  def set_parent_path(query, parent) do
     # This is a stupid name. Its actually the path we *remove* when stepping up a level. I.e the child's path
     Map.update!(query, :__ash_bindings__, fn ash_bindings ->
       ash_bindings

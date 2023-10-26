@@ -552,11 +552,21 @@ defmodule AshPostgres.DataLayer do
       |> default_bindings(resource, context)
 
     case context[:data_layer][:lateral_join_source] do
-      {_, [{%{resource: resource}, _, _, _} | _]} ->
+      {_, [{%{resource: resource}, _, _, _} | rest]} ->
         parent =
           resource
           |> resource_to_query(nil)
           |> default_bindings(resource, context)
+
+        parent =
+          case rest do
+            [{resource, _, _, %{name: join_relationship_name}} | _] ->
+              binding_data = %{type: :inner, path: [join_relationship_name], source: resource}
+              add_binding(parent, binding_data)
+
+            _ ->
+              parent
+          end
 
         ash_bindings =
           data_layer_query.__ash_bindings__

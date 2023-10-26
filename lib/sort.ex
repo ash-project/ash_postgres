@@ -20,6 +20,7 @@ defmodule AshPostgres.Sort do
                  %{
                    resource: resource,
                    aggregates: %{},
+                   parent_stack: query.__ash_bindings__[:parent_resources] || [],
                    calculations: %{},
                    public?: false
                  }
@@ -84,14 +85,30 @@ defmodule AshPostgres.Sort do
             |> Ash.Filter.hydrate_refs(%{
               resource: resource,
               aggregates: query.__ash_bindings__.aggregate_defs,
+              parent_stack: query.__ash_bindings__[:parent_resources] || [],
               calculations: %{},
               public?: false
             })
             |> Ash.Filter.move_to_relationship_path(relationship_path)
             |> case do
               {:ok, expr} ->
+                bindings =
+                  if query.__ash_bindings__[:parent_bindings] do
+                    Map.update!(query.__ash_bindings__, :parent_bindings, fn parent ->
+                      Map.put(parent, :parent_is_parent_as?, false)
+                    end)
+                  else
+                    query.__ash_bindings__
+                  end
+
                 expr =
-                  AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__, false, type)
+                  AshPostgres.Expr.dynamic_expr(
+                    query,
+                    expr,
+                    bindings,
+                    false,
+                    type
+                  )
 
                 {:cont, {:ok, query_expr ++ [{order, expr}]}}
 

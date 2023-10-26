@@ -4,6 +4,8 @@ defmodule AshPostgres.SortTest do
   alias AshPostgres.Test.{Api, Comment, Post, PostLink}
 
   require Ash.Query
+  require Ash.Sort
+  import Ash.Expr
 
   test "multi-column sorts work" do
     Post
@@ -179,6 +181,48 @@ defmodule AshPostgres.SortTest do
     Post
     |> Ash.Query.load(:count_of_comments)
     |> Ash.Query.sort(:c_times_p)
+    |> Api.read!()
+  end
+
+  test "calculations can sort on expressions" do
+    post1 =
+      Post
+      |> Ash.Changeset.new(%{title: "aaa", score: 0})
+      |> Api.create!()
+
+    post2 =
+      Post
+      |> Ash.Changeset.new(%{title: "bbb", score: 1})
+      |> Api.create!()
+
+    post3 =
+      Post
+      |> Ash.Changeset.new(%{title: "ccc", score: 0})
+      |> Api.create!()
+
+    PostLink
+    |> Ash.Changeset.new()
+    |> Ash.Changeset.manage_relationship(:source_post, post1, type: :append)
+    |> Ash.Changeset.manage_relationship(:destination_post, post3, type: :append)
+    |> Api.create!()
+
+    PostLink
+    |> Ash.Changeset.new()
+    |> Ash.Changeset.manage_relationship(:source_post, post2, type: :append)
+    |> Ash.Changeset.manage_relationship(:destination_post, post2, type: :append)
+    |> Api.create!()
+
+    PostLink
+    |> Ash.Changeset.new()
+    |> Ash.Changeset.manage_relationship(:source_post, post3, type: :append)
+    |> Ash.Changeset.manage_relationship(:destination_post, post1, type: :append)
+    |> Api.create!()
+
+    posts_query =
+      Ash.Query.sort(Post, Ash.Sort.expr_sort(source(post_links.state)))
+
+    Post
+    |> Ash.Query.load(linked_posts: posts_query)
     |> Api.read!()
   end
 end
