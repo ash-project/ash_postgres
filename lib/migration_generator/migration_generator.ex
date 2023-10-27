@@ -2848,6 +2848,8 @@ defmodule AshPostgres.MigrationGenerator do
       |> unwrap_type()
       |> Ash.Type.get_type()
 
+    type = Code.ensure_compiled!(type)
+
     if function_exported?(type, :value_to_postgres_default, 3) do
       type.value_to_postgres_default(type, constraints, value)
     else
