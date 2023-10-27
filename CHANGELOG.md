@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.60](https://github.com/ash-project/ash_postgres/compare/v1.3.59...v1.3.60) (2023-10-27)
+
+
+
+
+### Improvements:
+
+* support `parent` in sort expressions
+
 ## [v1.3.59](https://github.com/ash-project/ash_postgres/compare/v1.3.58...v1.3.59) (2023-10-25)
 
 
