@@ -2809,6 +2809,9 @@ defmodule AshPostgres.MigrationGenerator do
         default == (&DateTime.utc_now/0) ->
           ~S[fragment("now()")]
 
+        default == (&Date.utc_today/0) ->
+          ~S[fragment("CURRENT_DATE")]
+
         true ->
           "nil"
       end
