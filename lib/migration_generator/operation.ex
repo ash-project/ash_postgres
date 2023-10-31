@@ -944,7 +944,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           option(:name, index.name),
           option(:unique, index.unique),
           option(:concurrently, index.concurrently),
-          non_nullable_option(:nulls_distinct, index.nulls_distinct),
+          non_nullable_option(:nulls_distinct, index[:nulls_distinct]),
           option(:using, index.using),
           option(:prefix, index.prefix),
           option(:where, index.where),
