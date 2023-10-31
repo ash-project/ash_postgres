@@ -6,6 +6,7 @@ defmodule AshPostgres.CustomIndex do
     :name,
     :unique,
     :concurrently,
+    :nulls_distinct,
     :using,
     :prefix,
     :where,
@@ -35,6 +36,10 @@ defmodule AshPostgres.CustomIndex do
       type: :boolean,
       doc: "indicates whether the index should be created/dropped concurrently.",
       default: false
+    ],
+    nulls_distinct: [
+      type: :boolean,
+      doc: "indicates whether the index should treat nil values as distinct or not."
     ],
     using: [
       type: :string,

@@ -298,6 +298,48 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "custom_indexes with `nulls_distinct: false`" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+
+      defposts do
+        postgres do
+          custom_indexes do
+            # need one without any opts
+            index([:title], unique: true, nulls_distinct: false)
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string)
+        end
+      end
+
+      defapi([Post])
+      Mix.shell(Mix.Shell.Process)
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+    end
+
+    test "it creates multiple migration files" do
+      assert [custom_index_migration] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+
+      file = File.read!(custom_index_migration)
+
+      assert file =~ ~S<create index(:posts, ["title"], unique: true, nulls_distinct: false)>
+    end
+  end
+
   describe "creating follow up migrations with a schema" do
     setup do
       on_exit(fn ->

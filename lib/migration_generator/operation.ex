@@ -36,6 +36,12 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       end
     end
 
+    def non_nullable_option(key, value) do
+      if not is_nil(value) do
+        "#{as_atom(key)}: #{inspect(value)}"
+      end
+    end
+
     def on_delete(%{on_delete: on_delete}) when on_delete in [:delete, :nilify] do
       "on_delete: :#{on_delete}_all"
     end
@@ -826,6 +832,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           option(:name, index.name),
           option(:unique, index.unique),
           option(:concurrently, index.concurrently),
+          non_nullable_option(:nulls_distinct, index.nulls_distinct),
           option(:using, index.using),
           option(:prefix, index.prefix),
           option(:where, index.where),
@@ -937,6 +944,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           option(:name, index.name),
           option(:unique, index.unique),
           option(:concurrently, index.concurrently),
+          non_nullable_option(:nulls_distinct, index.nulls_distinct),
           option(:using, index.using),
           option(:prefix, index.prefix),
           option(:where, index.where),
