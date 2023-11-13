@@ -1076,7 +1076,7 @@ defmodule AshPostgres.Expr do
          _embedded?,
          _type
        ) do
-    resource = Ash.Resource.Info.related(query.__ash_bindings__.resource, at_path)
+    resource = Ash.Resource.Info.related(bindings.resource, at_path)
     first_relationship = Ash.Resource.Info.relationship(resource, first)
 
     last_relationship =

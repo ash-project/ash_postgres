@@ -467,6 +467,33 @@ defmodule AshPostgres.AggregateTest do
                |> Api.read_one!()
     end
 
+    test "aggregate maintains datetime precision" do
+      author =
+        Author
+        |> Ash.Changeset.new(%{first_name: "first name"})
+        |> Api.create!()
+
+      post =
+        Post
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Api.create!()
+
+      latest_comment =
+        Comment
+        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Api.create!()
+
+      fetched_post =
+        Post
+        |> Ash.Query.filter(id == ^post.id)
+        |> Ash.Query.load(:latest_comment_created_at)
+        |> Api.read_one!()
+
+      assert latest_comment.created_at == fetched_post.latest_comment_created_at
+    end
+
     test "it can be sorted on and produces the appropriate order" do
       post1 =
         Post
