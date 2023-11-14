@@ -35,7 +35,7 @@ defmodule AshPostgres.Transformers.PreventMultidimensionalArrayAggregates do
       end
     end)
 
-    repo = Transformer.get_option(dsl, [:postgres], :repo)
+    repo = AshPostgres.DataLayer.Info.repo(dsl, :mutate)
 
     cond do
       match?({:error, _}, Code.ensure_compiled(repo)) ->
