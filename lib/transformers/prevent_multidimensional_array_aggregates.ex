@@ -35,17 +35,6 @@ defmodule AshPostgres.Transformers.PreventMultidimensionalArrayAggregates do
       end
     end)
 
-    repo = AshPostgres.DataLayer.Info.repo(dsl, :mutate)
-
-    cond do
-      match?({:error, _}, Code.ensure_compiled(repo)) ->
-        {:error, "Could not find repo module #{repo}"}
-
-      repo.__adapter__() != Ecto.Adapters.Postgres ->
-        {:error, "Expected a repo using the postgres adapter `Ecto.Adapters.Postgres`"}
-
-      true ->
-        {:ok, dsl}
-    end
+    {:ok, dsl}
   end
 end
