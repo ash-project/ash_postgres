@@ -66,7 +66,7 @@ defmodule AshPostgres.MigrationGenerator do
     all_resources
     |> Enum.filter(fn resource ->
       Ash.DataLayer.data_layer(resource) == AshPostgres.DataLayer &&
-        AshPostgres.DataLayer.Info.repo(resource) == repo &&
+        AshPostgres.DataLayer.Info.repo(resource, :mutate) == repo &&
         (is_nil(only_resources) || resource in only_resources)
     end)
     |> Enum.flat_map(&get_snapshots(&1, all_resources))
@@ -2415,7 +2415,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp pad(i), do: to_string(i)
 
   def get_snapshots(resource, all_resources) do
-    Code.ensure_compiled!(AshPostgres.DataLayer.Info.repo(resource))
+    Code.ensure_compiled!(AshPostgres.DataLayer.Info.repo(resource, :mutate))
 
     if AshPostgres.DataLayer.Info.polymorphic?(resource) do
       all_resources
@@ -2459,7 +2459,7 @@ defmodule AshPostgres.MigrationGenerator do
                   default(
                     source_attribute,
                     relationship.destination,
-                    AshPostgres.DataLayer.Info.repo(relationship.destination)
+                    AshPostgres.DataLayer.Info.repo(relationship.destination, :mutate)
                   ),
                 deferrable: false,
                 destination_attribute_generated: source_attribute.generated?,
@@ -2493,7 +2493,7 @@ defmodule AshPostgres.MigrationGenerator do
       check_constraints: check_constraints(resource),
       custom_indexes: custom_indexes(resource),
       custom_statements: custom_statements(resource),
-      repo: AshPostgres.DataLayer.Info.repo(resource),
+      repo: AshPostgres.DataLayer.Info.repo(resource, :mutate),
       multitenancy: multitenancy(resource),
       base_filter: AshPostgres.DataLayer.Info.base_filter_sql(resource),
       has_create_action: has_create_action?(resource)
@@ -2584,7 +2584,7 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp attributes(resource, table) do
-    repo = AshPostgres.DataLayer.Info.repo(resource)
+    repo = AshPostgres.DataLayer.Info.repo(resource, :mutate)
     ignored = AshPostgres.DataLayer.Info.migration_ignore_attributes(resource) || []
 
     resource
@@ -2680,7 +2680,7 @@ defmodule AshPostgres.MigrationGenerator do
             schema:
               relationship.context[:data_layer][:schema] ||
                 AshPostgres.DataLayer.Info.schema(relationship.destination) ||
-                AshPostgres.DataLayer.Info.repo(relationship.destination).config()[
+                AshPostgres.DataLayer.Info.repo(relationship.destination, :mutate).config()[
                   :default_prefix
                 ],
             table:
@@ -2704,7 +2704,9 @@ defmodule AshPostgres.MigrationGenerator do
         schema:
           relationship.context[:data_layer][:schema] ||
             AshPostgres.DataLayer.Info.schema(relationship.destination) ||
-            AshPostgres.DataLayer.Info.repo(relationship.destination).config()[:default_prefix],
+            AshPostgres.DataLayer.Info.repo(relationship.destination, :mutate).config()[
+              :default_prefix
+            ],
         name: nil,
         ignore?: false
       })
@@ -2741,8 +2743,8 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp foreign_key?(relationship) do
     Ash.DataLayer.data_layer(relationship.source) == AshPostgres.DataLayer &&
-      AshPostgres.DataLayer.Info.repo(relationship.source) ==
-        AshPostgres.DataLayer.Info.repo(relationship.destination)
+      AshPostgres.DataLayer.Info.repo(relationship.source, :mutate) ==
+        AshPostgres.DataLayer.Info.repo(relationship.destination, :mutate)
   end
 
   defp identities(resource) do

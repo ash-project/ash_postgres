@@ -386,7 +386,7 @@ defmodule AshPostgres.Join do
         join_query
         | prefix:
             AshPostgres.DataLayer.Info.schema(resource) ||
-              AshPostgres.DataLayer.Info.repo(resource).config()[:default_prefix] ||
+              AshPostgres.DataLayer.Info.repo(resource, :mutate).config()[:default_prefix] ||
               "public"
       }
     end

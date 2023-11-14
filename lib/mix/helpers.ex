@@ -57,7 +57,9 @@ defmodule AshPostgres.MixHelpers do
       end
 
     resources
-    |> Enum.map(&AshPostgres.DataLayer.Info.repo(&1))
+    |> Enum.flat_map(
+      &[AshPostgres.DataLayer.Info.repo(&1, :read), AshPostgres.DataLayer.Info.repo(&1, :mutate)]
+    )
     |> Enum.uniq()
     |> case do
       [] ->

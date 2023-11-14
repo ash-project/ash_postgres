@@ -269,10 +269,10 @@ defmodule AshPostgres.DataLayer do
     ],
     schema: [
       repo: [
-        type: :atom,
+        type: {:or, [{:behaviour, Ecto.Repo}, {:fun, 2}]},
         required: true,
         doc:
-          "The repo that will be used to fetch your data. See the `AshPostgres.Repo` documentation for more"
+          "The repo that will be used to fetch your data. See the `AshPostgres.Repo` documentation for more. Can also be a function that takes a resource and a type `:read | :mutate` and returns the repo"
       ],
       migrate?: [
         type: :boolean,
@@ -447,17 +447,18 @@ defmodule AshPostgres.DataLayer do
     other_data_layer = Ash.DataLayer.data_layer(other_resource)
 
     data_layer == other_data_layer and
-      AshPostgres.DataLayer.Info.repo(resource) == AshPostgres.DataLayer.Info.repo(other_resource)
+      AshPostgres.DataLayer.Info.repo(resource, :read) ==
+        AshPostgres.DataLayer.Info.repo(other_resource, :read)
   end
 
   def can?(resource, {:lateral_join, resources}) do
-    repo = AshPostgres.DataLayer.Info.repo(resource)
+    repo = AshPostgres.DataLayer.Info.repo(resource, :read)
     data_layer = Ash.DataLayer.data_layer(resource)
 
     data_layer == __MODULE__ &&
       Enum.all?(resources, fn resource ->
         Ash.DataLayer.data_layer(resource) == data_layer &&
-          AshPostgres.DataLayer.Info.repo(resource) == repo
+          AshPostgres.DataLayer.Info.repo(resource, :read) == repo
       end)
   end
 
@@ -510,7 +511,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def in_transaction?(resource) do
-    AshPostgres.DataLayer.Info.repo(resource).in_transaction?()
+    AshPostgres.DataLayer.Info.repo(resource, :mutate).in_transaction?()
   end
 
   @impl true
@@ -683,7 +684,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def functions(resource) do
-    config = AshPostgres.DataLayer.Info.repo(resource).config()
+    config = AshPostgres.DataLayer.Info.repo(resource, :mutate).config()
 
     functions = [
       AshPostgres.Functions.Fragment,
@@ -1131,7 +1132,7 @@ defmodule AshPostgres.DataLayer do
 
   @doc false
   def set_subquery_prefix(data_layer_query, source_query, resource) do
-    config = AshPostgres.DataLayer.Info.repo(resource).config()
+    config = AshPostgres.DataLayer.Info.repo(resource, :mutate).config()
 
     if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
       %{
@@ -1357,7 +1358,7 @@ defmodule AshPostgres.DataLayer do
 
       AshPostgres.MultiTenancy.create_tenant!(
         tenant_name,
-        AshPostgres.DataLayer.Info.repo(resource)
+        AshPostgres.DataLayer.Info.repo(resource, :read)
       )
     else
       :ok
@@ -1378,7 +1379,7 @@ defmodule AshPostgres.DataLayer do
         new_tenant_name = tenant_name(resource, result)
 
         AshPostgres.MultiTenancy.rename_tenant(
-          AshPostgres.DataLayer.Info.repo(resource),
+          AshPostgres.DataLayer.Info.repo(resource, :read),
           old_tenant_name,
           new_tenant_name
         )
@@ -2621,7 +2622,7 @@ defmodule AshPostgres.DataLayer do
           repo
 
         _ ->
-          AshPostgres.DataLayer.Info.repo(resource)
+          AshPostgres.DataLayer.Info.repo(resource, :read)
       end
 
     func = fn ->
@@ -2638,7 +2639,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def rollback(resource, term) do
-    AshPostgres.DataLayer.Info.repo(resource).rollback(term)
+    AshPostgres.DataLayer.Info.repo(resource, :mutate).rollback(term)
   end
 
   defp table(resource, changeset) do
@@ -2661,14 +2662,25 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp dynamic_repo(resource, %{__ash_bindings__: %{context: %{data_layer: %{repo: repo}}}}) do
-    repo || AshPostgres.DataLayer.Info.repo(resource)
+    repo || AshPostgres.DataLayer.Info.repo(resource, :read)
   end
 
-  defp dynamic_repo(resource, %{context: %{data_layer: %{repo: repo}}}) do
-    repo || AshPostgres.DataLayer.Info.repo(resource)
+  defp dynamic_repo(resource, %struct{context: %{data_layer: %{repo: repo}}}) do
+    type = struct_to_repo_type(struct)
+
+    repo || AshPostgres.DataLayer.Info.repo(resource, type)
   end
 
-  defp dynamic_repo(resource, _) do
-    AshPostgres.DataLayer.Info.repo(resource)
+  defp dynamic_repo(resource, %struct{}) do
+    AshPostgres.DataLayer.Info.repo(resource, struct_to_repo_type(struct))
+  end
+
+  defp struct_to_repo_type(struct) do
+    case struct do
+      Ash.Changeset -> :mutate
+      Ash.Query -> :read
+      Ecto.Query -> :read
+      Ecto.Changeset -> :mutate
+    end
   end
 end

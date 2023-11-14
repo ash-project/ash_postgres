@@ -251,7 +251,7 @@ defmodule AshPostgres.Expr do
          embedded?,
          type
        ) do
-    if "citext" in AshPostgres.DataLayer.Info.repo(query.__ash_bindings__.resource).installed_extensions() do
+    if "citext" in AshPostgres.DataLayer.Info.repo(query.__ash_bindings__.resource, :mutate).installed_extensions() do
       do_dynamic_expr(
         query,
         %Fragment{
@@ -1528,7 +1528,7 @@ defmodule AshPostgres.Expr do
 
   defp require_ash_functions!(query, operator) do
     installed_extensions =
-      AshPostgres.DataLayer.Info.repo(query.__ash_bindings__.resource).installed_extensions()
+      AshPostgres.DataLayer.Info.repo(query.__ash_bindings__.resource, :mutate).installed_extensions()
 
     unless "ash-functions" in installed_extensions do
       raise """
@@ -1540,7 +1540,7 @@ defmodule AshPostgres.Expr do
   end
 
   defp require_extension!(query, extension, context) do
-    repo = AshPostgres.DataLayer.Info.repo(query.__ash_bindings__.resource)
+    repo = AshPostgres.DataLayer.Info.repo(query.__ash_bindings__.resource, :mutate)
 
     unless extension in repo.installed_extensions() do
       raise Ash.Error.Query.InvalidExpression,

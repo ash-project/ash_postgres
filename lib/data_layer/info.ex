@@ -4,8 +4,14 @@ defmodule AshPostgres.DataLayer.Info do
   alias Spark.Dsl.Extension
 
   @doc "The configured repo for a resource"
-  def repo(resource) do
-    Extension.get_opt(resource, [:postgres], :repo, nil, true)
+  def repo(resource, type \\ :mutate) do
+    case Extension.get_opt(resource, [:postgres], :repo, nil, true) do
+      fun when is_function(fun, 2) ->
+        fun.(resource, type)
+
+      repo ->
+        repo
+    end
   end
 
   @doc "The configured table for a resource"

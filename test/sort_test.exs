@@ -5,7 +5,6 @@ defmodule AshPostgres.SortTest do
 
   require Ash.Query
   require Ash.Sort
-  import Ash.Expr
 
   test "multi-column sorts work" do
     Post
