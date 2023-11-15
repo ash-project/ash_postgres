@@ -5,6 +5,27 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.61](https://github.com/ash-project/ash_postgres/compare/v1.3.60...v1.3.61) (2023-11-15)
+
+
+
+
+### Bug Fixes:
+
+* don't append update_defaults automatically if `upsert_fields` was set
+
+* don't ensure repo compiled at compile time
+
+* handle additional case for new functional repo callback
+
+* get resource from proper bindings on `exists` query
+
+### Improvements:
+
+* support a 2 argument function for the repo option
+
+* spport `CURRENT_DATE` default
+
 ## [v1.3.60](https://github.com/ash-project/ash_postgres/compare/v1.3.59...v1.3.60) (2023-10-27)
 
 
