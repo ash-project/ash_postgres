@@ -1290,7 +1290,7 @@ defmodule AshPostgres.DataLayer do
       (options[:upsert_fields] || []) |> Enum.filter(&(&1 in attributes_changing_anywhere))
 
     fields_to_upsert =
-      (upsert_fields ++ Keyword.keys(update_defaults)) --
+      upsert_fields --
         Keyword.keys(Enum.at(changesets, 0).atomics)
 
     Enum.map(fields_to_upsert, fn upsert_field ->
@@ -1860,8 +1860,14 @@ defmodule AshPostgres.DataLayer do
     else
       keys = keys || Ash.Resource.Info.primary_key(keys)
 
+      update_defaults = update_defaults(resource)
+
       explicitly_changing_attributes =
-        Map.keys(changeset.attributes) -- Map.get(changeset, :defaults, []) -- keys
+        changeset.attributes
+        |> Map.keys()
+        |> Enum.concat(Keyword.keys(update_defaults))
+        |> Kernel.--(Map.get(changeset, :defaults, []))
+        |> Kernel.--(keys)
 
       upsert_fields =
         changeset.context[:private][:upsert_fields] || explicitly_changing_attributes
