@@ -30,6 +30,18 @@ defmodule AshPostgres.Test.Author do
   end
 
   calculations do
+    calculate(
+      :description,
+      :string,
+      expr(
+        if is_nil(^actor(:id)) do
+          "no actor"
+        else
+          "actor found"
+        end
+      )
+    )
+
     calculate(:title, :string, expr(bio[:title]))
     calculate(:full_name, :string, expr(first_name <> " " <> last_name))
     calculate(:full_name_with_nils, :string, expr(string_join([first_name, last_name], " ")))

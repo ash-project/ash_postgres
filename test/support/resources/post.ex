@@ -244,6 +244,8 @@ defmodule AshPostgres.Test.Post do
     )
 
     calculate(:author_first_name_calc, :string, expr(author.first_name))
+
+    calculate(:author_profile_description_from_agg, :string, expr(author_profile_description))
   end
 
   aggregates do
@@ -360,6 +362,8 @@ defmodule AshPostgres.Test.Post do
     first :latest_arbitrary_timestamp, :comments, :arbitrary_timestamp do
       sort(arbitrary_timestamp: :desc)
     end
+
+    first(:author_profile_description, :author, :description)
   end
 end
 
