@@ -792,6 +792,15 @@ defmodule AshPostgres.Expr do
            }
          ) do
       {:ok, expression} ->
+        expression =
+          Ash.Actions.Read.add_calc_context_to_filter(
+            expression,
+            calculation.context[:actor],
+            calculation.context[:authorize?],
+            calculation.context[:tenant],
+            calculation.context[:tracer]
+          )
+
         do_dynamic_expr(
           query,
           expression,
@@ -975,6 +984,15 @@ defmodule AshPostgres.Expr do
            }
          ) do
       {:ok, hydrated} ->
+        hydrated =
+          Ash.Actions.Read.add_calc_context_to_filter(
+            hydrated,
+            calculation.context[:actor],
+            calculation.context[:authorize?],
+            calculation.context[:tenant],
+            calculation.context[:tracer]
+          )
+
         expr =
           do_dynamic_expr(
             query,
