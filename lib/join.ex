@@ -29,11 +29,12 @@ defmodule AshPostgres.Join do
         opts \\ [],
         relationship_paths \\ nil,
         path \\ [],
-        source \\ nil
+        source \\ nil,
+        sort? \\ true
       )
 
   # simple optimization for common cases
-  def join_all_relationships(query, filter, _opts, relationship_paths, _path, _source)
+  def join_all_relationships(query, filter, _opts, relationship_paths, _path, _source, _sort?)
       when is_nil(relationship_paths) and filter in [nil, true, false] do
     {:ok, query}
   end
@@ -44,7 +45,8 @@ defmodule AshPostgres.Join do
         opts,
         relationship_paths,
         path,
-        source
+        source,
+        sort?
       ) do
     relationship_paths =
       cond do
@@ -116,7 +118,8 @@ defmodule AshPostgres.Join do
                    Enum.map(path, & &1.name),
                    current_join_type,
                    source,
-                   filter
+                   filter,
+                   sort?
                  ) do
               {:ok, joined_query} ->
                 joined_query_with_distinct = add_distinct(relationship, join_type, joined_query)
@@ -196,6 +199,7 @@ defmodule AshPostgres.Join do
         resource,
         relationship,
         root_query,
+        sort?,
         path \\ [],
         bindings \\ nil,
         start_binding \\ nil,
@@ -211,10 +215,13 @@ defmodule AshPostgres.Join do
       %{valid?: true} = query ->
         ash_query = query
 
-        initial_query = %{
-          AshPostgres.DataLayer.resource_to_query(resource, nil)
-          | prefix: Map.get(root_query, :prefix)
-        }
+        initial_query =
+          %{
+            AshPostgres.DataLayer.resource_to_query(resource, nil)
+            | prefix: Map.get(root_query, :prefix)
+          }
+
+        initial_query = do_relationship_sort(initial_query, relationship, sort?)
 
         case Ash.Query.data_layer_query(query,
                initial_query: initial_query
@@ -268,6 +275,38 @@ defmodule AshPostgres.Join do
         {:error, query}
     end
   end
+
+  defp do_relationship_sort(
+         query,
+         %{destination: destination, sort: sort, from_many?: true},
+         true
+       )
+       when sort not in [nil, []] do
+    query =
+      if query.aliases[0] do
+        query
+      else
+        from(row in query, as: ^0)
+      end
+
+    query =
+      case query do
+        %{__ash_bindings__: ash_bindings} ->
+          ash_bindings
+
+        _ ->
+          AshPostgres.DataLayer.default_bindings(query, destination)
+      end
+
+    {:ok, order_by, query} =
+      AshPostgres.Sort.sort(query, sort, query.__ash_bindings__.resource, [], 0, :return)
+
+    from(row in subquery(Ecto.Query.order_by(query, ^order_by)), [])
+    |> AshPostgres.DataLayer.default_bindings(destination)
+    |> Map.update!(:__ash_bindings__, &Map.put(&1, :current, query.__ash_bindings__.current))
+  end
+
+  defp do_relationship_sort(query, _, _), do: query
 
   defp do_relationship_filter(query, %{filter: nil}, _, _, _, _, _, _), do: query
 
@@ -500,7 +539,8 @@ defmodule AshPostgres.Join do
          path,
          join_type,
          source,
-         filter
+         filter,
+         sort?
        ) do
     case Map.get(query.__ash_bindings__.bindings, path) do
       %{type: existing_join_type} when join_type != existing_join_type ->
@@ -513,7 +553,8 @@ defmodule AshPostgres.Join do
           path,
           join_type,
           source,
-          filter
+          filter,
+          sort?
         )
 
       _ ->
@@ -527,7 +568,8 @@ defmodule AshPostgres.Join do
          path,
          kind,
          source,
-         filter
+         filter,
+         sort?
        ) do
     full_path = path ++ [relationship.name]
     initial_ash_bindings = query.__ash_bindings__
@@ -565,6 +607,7 @@ defmodule AshPostgres.Join do
            relationship.destination,
            relationship,
            query,
+           sort?,
            full_path,
            root_bindings
          ) do
@@ -596,13 +639,14 @@ defmodule AshPostgres.Join do
             end
           end)
 
-        relationship_destination =
-          case used_aggregates do
-            [] ->
-              relationship_destination
+        needs_subquery? =
+          used_aggregates != [] || Map.get(relationship, :from_many?)
 
-            _ ->
-              subquery(relationship_destination)
+        relationship_destination =
+          if needs_subquery? do
+            subquery(relationship_destination)
+          else
+            relationship_destination
           end
 
         case module.ash_postgres_join(
@@ -642,7 +686,8 @@ defmodule AshPostgres.Join do
          path,
          kind,
          source,
-         filter
+         filter,
+         sort?
        ) do
     join_relationship =
       Ash.Resource.Info.relationship(relationship.source, relationship.join_relationship)
@@ -710,6 +755,7 @@ defmodule AshPostgres.Join do
              relationship.through,
              join_relationship,
              query,
+             false,
              join_path,
              root_bindings
            ),
@@ -718,6 +764,7 @@ defmodule AshPostgres.Join do
              relationship.destination,
              relationship,
              query,
+             sort?,
              path,
              root_bindings
            ) do
@@ -750,13 +797,14 @@ defmodule AshPostgres.Join do
           end
         end)
 
-      relationship_destination =
-        case used_aggregates do
-          [] ->
-            relationship_destination
+      needs_subquery? =
+        used_aggregates != [] || Map.get(relationship, :from_many?)
 
-          _ ->
-            subquery(relationship_destination)
+      relationship_destination =
+        if needs_subquery? do
+          subquery(relationship_destination)
+        else
+          relationship_destination
         end
 
       query =
@@ -807,7 +855,8 @@ defmodule AshPostgres.Join do
          path,
          kind,
          source,
-         filter
+         filter,
+         sort?
        ) do
     full_path = path ++ [relationship.name]
     initial_ash_bindings = query.__ash_bindings__
@@ -859,6 +908,7 @@ defmodule AshPostgres.Join do
            relationship.destination,
            relationship,
            query,
+           sort?,
            full_path,
            root_bindings
          ) do
@@ -870,6 +920,15 @@ defmodule AshPostgres.Join do
           relationship_destination
           |> Ecto.Queryable.to_query()
           |> set_join_prefix(query, relationship.destination)
+
+        needs_subquery? = Map.get(relationship, :from_many?)
+
+        relationship_destination =
+          if needs_subquery? do
+            subquery(relationship_destination)
+          else
+            relationship_destination
+          end
 
         binding_kinds =
           case kind do

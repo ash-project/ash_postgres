@@ -1123,6 +1123,7 @@ defmodule AshPostgres.Expr do
         first_relationship.destination,
         first_relationship,
         query,
+        false,
         [first_relationship.name]
       )
 
@@ -1229,6 +1230,7 @@ defmodule AshPostgres.Expr do
               first_relationship.through,
               through_relationship,
               query,
+              false,
               [first_relationship.join_relationship],
               through_bindings,
               nil,

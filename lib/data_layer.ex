@@ -741,12 +741,16 @@ defmodule AshPostgres.DataLayer do
         aggregates,
         query,
         fn agg, query ->
+          first_relationship =
+            Ash.Resource.Info.relationship(resource, agg.relationship_path |> Enum.at(0))
+
           AshPostgres.Aggregate.add_subquery_aggregate_select(
             query,
             agg.relationship_path |> Enum.drop(1),
             agg,
             resource,
-            true
+            true,
+            first_relationship
           )
         end
       )
@@ -826,12 +830,19 @@ defmodule AshPostgres.DataLayer do
                   _ -> false
                 end)
 
+              first_relationship =
+                Ash.Resource.Info.relationship(
+                  source_resource,
+                  agg.relationship_path |> Enum.at(0)
+                )
+
               AshPostgres.Aggregate.add_subquery_aggregate_select(
                 subquery,
                 agg.relationship_path |> Enum.drop(1),
                 agg,
                 destination_resource,
-                has_exists?
+                has_exists?,
+                first_relationship
               )
             end
           )
@@ -2254,7 +2265,7 @@ defmodule AshPostgres.DataLayer do
         |> apply_sort(
           query.__ash_bindings__[:distinct_sort] || query.__ash_bindings__[:sort],
           resource,
-          true
+          :direct
         )
         |> case do
           {:ok, distinct_query} ->
@@ -2322,25 +2333,14 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp apply_sort(query, sort, resource, directly? \\ false)
+  defp apply_sort(query, sort, resource, type \\ :window)
 
   defp apply_sort(query, sort, _resource, _) when sort in [nil, []] do
     {:ok, query |> set_sort_applied()}
   end
 
-  defp apply_sort(query, sort, resource, directly?) do
-    query
-    |> AshPostgres.Sort.sort(sort, resource, [], 0, directly?)
-    |> case do
-      {:ok, sort} when directly? ->
-        {:ok, query |> Ecto.Query.order_by(^sort) |> set_sort_applied()}
-
-      {:ok, query} ->
-        {:ok, query |> set_sort_applied()}
-
-      {:error, error} ->
-        {:error, error}
-    end
+  defp apply_sort(query, sort, resource, type) do
+    AshPostgres.Sort.sort(query, sort, resource, [], 0, type)
   end
 
   defp set_sort_applied(query) do
@@ -2503,7 +2503,10 @@ defmodule AshPostgres.DataLayer do
   end
 
   @doc false
-  def default_bindings(query, resource, context \\ %{}) do
+  def default_bindings(query, resource, context \\ %{})
+  def default_bindings(%{__ash_bindings__: _} = query, _resource, _context), do: query
+
+  def default_bindings(query, resource, context) do
     start_bindings = context[:data_layer][:start_bindings_at] || 0
 
     Map.put_new(query, :__ash_bindings__, %{

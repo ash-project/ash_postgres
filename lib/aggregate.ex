@@ -109,6 +109,7 @@ defmodule AshPostgres.Aggregate do
                            first_relationship.destination,
                            first_relationship,
                            query,
+                           false,
                            [first_relationship.name],
                            nil,
                            nil,
@@ -148,7 +149,8 @@ defmodule AshPostgres.Aggregate do
                            Ash.Resource.Info.related(
                              first_relationship.destination,
                              relationship_path
-                           )
+                           ),
+                           first_relationship
                          ),
                        query <-
                          join_subquery(
@@ -279,7 +281,10 @@ defmodule AshPostgres.Aggregate do
                 resource,
                 path ++ aggregate.relationship_path
               )}
-           ]
+           ],
+           [],
+           nil,
+           false
          ) do
       {:ok, query} ->
         binding =
@@ -394,11 +399,17 @@ defmodule AshPostgres.Aggregate do
     field = first_relationship.destination_attribute
 
     new_subquery =
-      from(row in subquery,
-        select_merge: map(row, ^[field]),
-        group_by: field(row, ^first_relationship.destination_attribute),
-        distinct: true
-      )
+      from(row in subquery, distinct: true)
+
+    new_subquery =
+      if Map.get(first_relationship, :no_attributes?) do
+        new_subquery
+      else
+        from(row in new_subquery,
+          group_by: field(row, ^field),
+          select_merge: map(row, ^[field])
+        )
+      end
 
     {:ok, subquery} =
       module.ash_postgres_subquery(
@@ -443,6 +454,7 @@ defmodule AshPostgres.Aggregate do
         join_relationship_struct.destination,
         join_relationship_struct,
         query,
+        false,
         [join_relationship],
         nil,
         subquery.__ash_bindings__.current,
@@ -504,12 +516,20 @@ defmodule AshPostgres.Aggregate do
 
     subquery =
       from(row in subquery,
-        group_by: field(row, ^first_relationship.destination_attribute),
-        select_merge: map(row, ^[field]),
         where:
           field(parent_as(^source_binding), ^first_relationship.source_attribute) ==
             field(as(^0), ^first_relationship.destination_attribute)
       )
+
+    subquery =
+      if Map.get(first_relationship, :no_attributes?) do
+        subquery
+      else
+        from(row in subquery,
+          group_by: field(row, ^field),
+          select_merge: map(row, ^[field])
+        )
+      end
 
     subquery = AshPostgres.Join.set_join_prefix(subquery, query, first_relationship.destination)
 
@@ -548,9 +568,24 @@ defmodule AshPostgres.Aggregate do
     )
   end
 
-  defp select_all_aggregates(aggregates, joined, relationship_path, _query, is_single?, resource) do
+  defp select_all_aggregates(
+         aggregates,
+         joined,
+         relationship_path,
+         _query,
+         is_single?,
+         resource,
+         first_relationship
+       ) do
     Enum.reduce(aggregates, joined, fn aggregate, joined ->
-      add_subquery_aggregate_select(joined, relationship_path, aggregate, resource, is_single?)
+      add_subquery_aggregate_select(
+        joined,
+        relationship_path,
+        aggregate,
+        resource,
+        is_single?,
+        first_relationship
+      )
     end)
   end
 
@@ -576,7 +611,8 @@ defmodule AshPostgres.Aggregate do
            )}
         ],
         [],
-        nil
+        nil,
+        false
       )
     end
   end
@@ -760,7 +796,8 @@ defmodule AshPostgres.Aggregate do
         relationship_path,
         %{kind: :first} = aggregate,
         resource,
-        is_single?
+        is_single?,
+        first_relationship
       ) do
     query = AshPostgres.DataLayer.default_bindings(query, aggregate.resource)
 
@@ -782,19 +819,28 @@ defmodule AshPostgres.Aggregate do
 
     field = AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__, false)
 
+    has_sort? = has_sort?(aggregate.query)
+
     sorted =
-      if has_sort?(aggregate.query) do
-        {:ok, sort_expr} =
+      if has_sort? || first_relationship.sort not in [nil, []] do
+        {sort, binding} =
+          if has_sort? do
+            {aggregate.query.sort, binding}
+          else
+            {List.wrap(first_relationship.sort), 0}
+          end
+
+        {:ok, sort_expr, query} =
           AshPostgres.Sort.sort(
             query,
-            aggregate.query.sort,
+            sort,
             Ash.Resource.Info.related(
               query.__ash_bindings__.resource,
               relationship_path
             ),
             relationship_path,
             binding,
-            true
+            :return
           )
 
         question_marks = Enum.map(sort_expr, fn _ -> " ? " end)
@@ -842,7 +888,8 @@ defmodule AshPostgres.Aggregate do
         relationship_path,
         %{kind: :list} = aggregate,
         resource,
-        is_single?
+        is_single?,
+        first_relationship
       ) do
     query = AshPostgres.DataLayer.default_bindings(query, aggregate.resource)
     type = AshPostgres.Types.parameterized_type(aggregate.type, aggregate.constraints)
@@ -863,19 +910,28 @@ defmodule AshPostgres.Aggregate do
 
     field = AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__, false)
 
+    has_sort? = has_sort?(aggregate.query)
+
     sorted =
-      if has_sort?(aggregate.query) do
-        {:ok, sort_expr} =
+      if has_sort? || first_relationship.sort not in [nil, []] do
+        {sort, binding} =
+          if has_sort? do
+            {aggregate.query.sort, binding}
+          else
+            {List.wrap(first_relationship.sort), 0}
+          end
+
+        {:ok, sort_expr, query} =
           AshPostgres.Sort.sort(
             query,
-            aggregate.query.sort,
+            sort,
             Ash.Resource.Info.related(
               query.__ash_bindings__.resource,
               relationship_path
             ),
             relationship_path,
             binding,
-            true
+            :return
           )
 
         question_marks = Enum.map(sort_expr, fn _ -> " ? " end)
@@ -935,7 +991,8 @@ defmodule AshPostgres.Aggregate do
         relationship_path,
         %{kind: kind} = aggregate,
         resource,
-        is_single?
+        is_single?,
+        _first_relationship
       )
       when kind in [:count, :sum, :avg, :max, :min, :custom] do
     query = AshPostgres.DataLayer.default_bindings(query, aggregate.resource)

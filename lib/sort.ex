@@ -8,7 +8,7 @@ defmodule AshPostgres.Sort do
         resource,
         relationship_path \\ [],
         binding \\ 0,
-        return_order_by? \\ false
+        type \\ :window
       ) do
     query = AshPostgres.DataLayer.default_bindings(query, resource)
 
@@ -187,31 +187,44 @@ defmodule AshPostgres.Sort do
         end)
         |> case do
           {:ok, []} ->
-            {:ok, query}
+            if type == :return do
+              {:ok, [], query}
+            else
+              {:ok, query}
+            end
 
           {:ok, sort_exprs} ->
-            if return_order_by? do
-              {:ok, order_to_fragments(sort_exprs)}
-            else
-              new_query = Ecto.Query.order_by(query, ^sort_exprs)
+            case type do
+              :return ->
+                {:ok, order_to_fragments(sort_exprs), query}
 
-              sort_expr = List.last(new_query.order_bys)
+              :window ->
+                new_query = Ecto.Query.order_by(query, ^sort_exprs)
 
-              new_query =
-                new_query
-                |> Map.update!(:windows, fn windows ->
-                  order_by_expr = %{sort_expr | expr: [order_by: sort_expr.expr]}
-                  Keyword.put(windows, :order, order_by_expr)
-                end)
-                |> Map.update!(:__ash_bindings__, &Map.put(&1, :__order__?, true))
+                sort_expr = List.last(new_query.order_bys)
 
-              {:ok, new_query}
+                new_query =
+                  new_query
+                  |> Map.update!(:windows, fn windows ->
+                    order_by_expr = %{sort_expr | expr: [order_by: sort_expr.expr]}
+                    Keyword.put(windows, :order, order_by_expr)
+                  end)
+                  |> Map.update!(:__ash_bindings__, &Map.put(&1, :__order__?, true))
+
+                {:ok, new_query}
+
+              :direct ->
+                {:ok, query |> Ecto.Query.order_by(^sort_exprs) |> set_sort_applied()}
             end
 
           {:error, error} ->
             {:error, error}
         end
     end
+  end
+
+  defp set_sort_applied(query) do
+    Map.update!(query, :__ash_bindings__, &Map.put(&1, :sort_applied?, true))
   end
 
   def find_aggregate_binding(bindings, relationship_path, sort) do
