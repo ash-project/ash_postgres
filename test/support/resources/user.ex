@@ -9,6 +9,7 @@ defmodule AshPostgres.Test.User do
   attributes do
     uuid_primary_key(:id)
     attribute(:is_active, :boolean)
+    attribute(:name, :string)
   end
 
   postgres do
