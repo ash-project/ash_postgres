@@ -289,14 +289,7 @@ defmodule AshPostgres.Join do
         from(row in query, as: ^0)
       end
 
-    query =
-      case query do
-        %{__ash_bindings__: ash_bindings} ->
-          ash_bindings
-
-        _ ->
-          AshPostgres.DataLayer.default_bindings(query, destination)
-      end
+    query = AshPostgres.DataLayer.default_bindings(query, destination)
 
     {:ok, order_by, query} =
       AshPostgres.Sort.sort(query, sort, query.__ash_bindings__.resource, [], 0, :return)
