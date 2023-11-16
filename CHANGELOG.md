@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.62](https://github.com/ash-project/ash_postgres/compare/v1.3.61...v1.3.62) (2023-11-16)
+
+
+
+
+### Bug Fixes:
+
+* use `synonymous_relationship_path` when looking up ref bindings
+
+* add calculation context to calculation expressions
+
 ## [v1.3.61](https://github.com/ash-project/ash_postgres/compare/v1.3.60...v1.3.61) (2023-11-15)
 
 
