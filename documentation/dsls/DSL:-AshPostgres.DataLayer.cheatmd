@@ -36,7 +36,7 @@ end
 
 ### Options
 
-<table style="background-color: blue;">
+<table>
   <thead>
     <tr>
       <th>Name</th>
@@ -57,13 +57,13 @@ end
 
   </td>
   <td style="text-align: left">
-    <code class="inline">atom</code>
+    <code class="inline">module | (any, any -> any)</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
-    The repo that will be used to fetch your data. See the `AshPostgres.Repo` documentation for more
+    The repo that will be used to fetch your data. See the `AshPostgres.Repo` documentation for more. Can also be a function that takes a resource and a type `:read | :mutate` and returns the repo
   </td>
 </tr>
 
@@ -74,7 +74,7 @@ end
         migrate?
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">boolean</code>
@@ -94,7 +94,7 @@ end
         migration_types
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">Keyword.t</code>
@@ -114,7 +114,7 @@ end
         migration_defaults
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">Keyword.t</code>
@@ -135,13 +135,13 @@ end
         base_filter_sql
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">String.t</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     A raw sql version of the base_filter, e.g `representative = true`. Required if trying to create a unique constraint on a resource with a base_filter
@@ -155,7 +155,7 @@ end
         simple_join_first_aggregates
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">list(atom)</code>
@@ -176,10 +176,10 @@ end
         skip_unique_indexes
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
-    <code class="inline">list(atom) | atom</code>
+    <code class="inline">atom | list(atom)</code>
   </td>
   <td style="text-align: left">
     <code class="inline">false</code>
@@ -196,7 +196,7 @@ end
         unique_index_names
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">list({list(atom), String.t} | {list(atom), String.t, String.t})</code>
@@ -217,7 +217,7 @@ end
         exclusion_constraint_names
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">`any`</code>
@@ -238,7 +238,7 @@ end
         identity_index_names
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">`any`</code>
@@ -259,7 +259,7 @@ end
         foreign_key_names
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">list({atom | String.t, String.t} | {atom | String.t, String.t, String.t})</code>
@@ -280,7 +280,7 @@ end
         migration_ignore_attributes
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">list(atom)</code>
@@ -301,13 +301,13 @@ end
         table
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">String.t</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     The table to store and read the resource from. If this is changed, the migration generator will not remove the old table.
@@ -322,13 +322,13 @@ end
         schema
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">String.t</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     The schema that the table is located in. Schema-based multitenancy will supercede this option. If this is changed, the migration generator will not remove the old schema.
@@ -343,7 +343,7 @@ end
         polymorphic?
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">boolean</code>
@@ -420,13 +420,13 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
         fields
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
-    <code class="inline">list(atom | String.t) | atom | String.t</code>
+    <code class="inline">atom | String.t | list(atom | String.t)</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     The fields to include in the index.
@@ -454,13 +454,13 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
         name
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">String.t</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     the name of the index. Defaults to "#{table}_#{column}_index".
@@ -474,7 +474,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
         unique
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">boolean</code>
@@ -494,7 +494,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
         concurrently
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">boolean</code>
@@ -514,13 +514,13 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
         using
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">String.t</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     configures the index type.
@@ -534,13 +534,13 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
         prefix
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">String.t</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     specify an optional prefix for the index.
@@ -554,13 +554,13 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
         where
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">String.t</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     specify conditions for a partial index.
@@ -574,13 +574,13 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
         message
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">String.t</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     A custom message to use for unique indexes that have been violated
@@ -594,13 +594,13 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
         include
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">list(String.t)</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     specify fields for a covering index. This is not supported by all databases. For more information on PostgreSQL support, please read the official docs.
@@ -700,7 +700,7 @@ end
     <code class="inline">atom</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     The name of the statement, must be unique within the resource
@@ -736,7 +736,7 @@ end
     <code class="inline">String.t</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     How to create the structure of the statement
@@ -758,7 +758,7 @@ end
     <code class="inline">String.t</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     How to tear down the structure of the statement
@@ -772,7 +772,7 @@ end
         code?
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">boolean</code>
@@ -840,10 +840,10 @@ end
 
   </td>
   <td style="text-align: left">
-    <code class="inline">list(String.t | atom) | String.t | atom</code>
+    <code class="inline">String.t | atom | list(String.t | atom)</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     A template that will cause the resource to create/manage the specified schema.
@@ -858,7 +858,7 @@ end
         create?
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">boolean</code>
@@ -878,7 +878,7 @@ end
         update?
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">boolean</code>
@@ -938,13 +938,13 @@ end
         polymorphic_on_delete
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">:delete | :nilify | :nothing | :restrict</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     For polymorphic resources, configures the on_delete behavior of the automatically generated foreign keys to source tables.
@@ -958,13 +958,13 @@ end
         polymorphic_on_update
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">:update | :nilify | :nothing | :restrict</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables.
@@ -978,13 +978,13 @@ end
         polymorphic_name
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">:update | :nilify | :nothing | :restrict</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables.
@@ -1046,7 +1046,7 @@ reference :post, on_delete: :delete, on_update: :update, name: "comments_to_post
     <code class="inline">atom</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     The relationship to be configured
@@ -1074,13 +1074,13 @@ reference :post, on_delete: :delete, on_update: :update, name: "comments_to_post
         ignore?
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">boolean</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     If set to true, no reference is created for the given relationship. This is useful if you need to define it in some custom way
@@ -1094,13 +1094,13 @@ reference :post, on_delete: :delete, on_update: :update, name: "comments_to_post
         on_delete
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">:delete | :nilify | :nothing | :restrict</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     What should happen to records of this resource when the referenced record of the *destination* resource is deleted.
@@ -1115,13 +1115,13 @@ reference :post, on_delete: :delete, on_update: :update, name: "comments_to_post
         on_update
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">:update | :nilify | :nothing | :restrict</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     What should happen to records of this resource when the referenced destination_attribute of the *destination* record is update.
@@ -1136,7 +1136,7 @@ reference :post, on_delete: :delete, on_update: :update, name: "comments_to_post
         deferrable
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">false | true | :initially</code>
@@ -1157,13 +1157,13 @@ reference :post, on_delete: :delete, on_update: :update, name: "comments_to_post
         name
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">String.t</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     The name of the foreign key to generate in the database. Defaults to <table>_<source_attribute>_fkey
@@ -1254,7 +1254,7 @@ check_constraint :price, "price_must_be_positive", check: "price > 0", message: 
     <code class="inline">`any`</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     The attribute or list of attributes to which an error will be added if the check constraint fails
@@ -1275,7 +1275,7 @@ check_constraint :price, "price_must_be_positive", check: "price > 0", message: 
     <code class="inline">String.t</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     The name of the constraint
@@ -1303,13 +1303,13 @@ check_constraint :price, "price_must_be_positive", check: "price > 0", message: 
         message
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">String.t</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     The message to be added if the check constraint fails
@@ -1323,13 +1323,13 @@ check_constraint :price, "price_must_be_positive", check: "price > 0", message: 
         check
       </span>
     </a>
-
+      
   </td>
   <td style="text-align: left">
     <code class="inline">String.t</code>
   </td>
   <td style="text-align: left">
-
+    
   </td>
   <td style="text-align: left" colspan=2>
     The contents of the check. If this is set, the migration generator will include it when generating migrations
@@ -1346,3 +1346,9 @@ check_constraint :price, "price_must_be_positive", check: "price > 0", message: 
 ### Introspection
 
 Target: `AshPostgres.CheckConstraint`
+
+
+
+
+
+

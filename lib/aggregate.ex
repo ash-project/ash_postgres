@@ -515,19 +515,15 @@ defmodule AshPostgres.Aggregate do
     field = first_relationship.destination_attribute
 
     subquery =
-      from(row in subquery,
-        where:
-          field(parent_as(^source_binding), ^first_relationship.source_attribute) ==
-            field(as(^0), ^first_relationship.destination_attribute)
-      )
-
-    subquery =
       if Map.get(first_relationship, :no_attributes?) do
         subquery
       else
         from(row in subquery,
           group_by: field(row, ^field),
-          select_merge: map(row, ^[field])
+          select_merge: map(row, ^[field]),
+          where:
+            field(parent_as(^source_binding), ^first_relationship.source_attribute) ==
+              field(as(^0), ^first_relationship.destination_attribute)
         )
       end
 
