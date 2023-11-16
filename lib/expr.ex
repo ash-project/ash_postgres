@@ -1492,13 +1492,23 @@ defmodule AshPostgres.Expr do
 
   defp ref_binding(%{attribute: %Ash.Resource.Attribute{}} = ref, bindings) do
     Enum.find_value(bindings.bindings, fn {binding, data} ->
-      data.path == ref.relationship_path && data.type in [:inner, :left, :root] && binding
+      data.type in [:inner, :left, :root] &&
+        Ash.SatSolver.synonymous_relationship_paths?(
+          bindings.resource,
+          data.path,
+          ref.relationship_path
+        ) && binding
     end)
   end
 
   defp ref_binding(%{attribute: %Ash.Query.Aggregate{}} = ref, bindings) do
     Enum.find_value(bindings.bindings, fn {binding, data} ->
-      data.path == ref.relationship_path && data.type in [:inner, :left, :root] && binding
+      data.type in [:inner, :left, :root] &&
+        Ash.SatSolver.synonymous_relationship_paths?(
+          bindings.resource,
+          data.path,
+          ref.relationship_path
+        ) && binding
     end)
   end
 

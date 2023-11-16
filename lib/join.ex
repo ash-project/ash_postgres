@@ -30,6 +30,21 @@ defmodule AshPostgres.Join do
         relationship_paths \\ nil,
         path \\ [],
         source \\ nil
+      )
+
+  # simple optimization for common cases
+  def join_all_relationships(query, filter, _opts, relationship_paths, _path, _source)
+      when is_nil(relationship_paths) and filter in [nil, true, false] do
+    {:ok, query}
+  end
+
+  def join_all_relationships(
+        query,
+        filter,
+        opts,
+        relationship_paths,
+        path,
+        source
       ) do
     relationship_paths =
       cond do
@@ -49,6 +64,8 @@ defmodule AshPostgres.Join do
           |> to_joins(filter, query.__ash_bindings__.resource)
 
         true ->
+          id = System.unique_integer([:monotonic, :positive])
+
           filter
           |> Ash.Filter.relationship_paths()
           |> to_joins(filter, query.__ash_bindings__.resource)
@@ -130,6 +147,7 @@ defmodule AshPostgres.Join do
 
   defp to_joins(paths, filter, resource) do
     paths
+    |> Enum.reject(&(&1 == []))
     |> Enum.map(fn path ->
       if can_inner_join?(path, filter) do
         {:inner,

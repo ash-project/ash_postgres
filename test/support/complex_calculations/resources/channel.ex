@@ -49,10 +49,10 @@ defmodule AshPostgres.Test.ComplexCalculations.Channel do
         expr(
           cond do
             first_member.user_id == ^actor(:id) ->
-              second_member_name
+              first_member_name
 
             second_member.user_id == ^actor(:id) ->
-              first_member_name
+              second_member_name
 
             true ->
               first_member_name <> ", " <> second_member_name
