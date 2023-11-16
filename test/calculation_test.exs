@@ -661,7 +661,7 @@ defmodule AshPostgres.CalculationTest do
       |> Api.read_one!(actor: user)
 
     assert can_get_author_description_from_aggregate_post.author_profile_description ==
-             "actor found"
+             "Prolific describer of worlds..."
 
     can_get_author_description_from_calculation_of_aggregate_post =
       Post
@@ -670,6 +670,6 @@ defmodule AshPostgres.CalculationTest do
       |> Api.read_one!(actor: user)
 
     assert can_get_author_description_from_calculation_of_aggregate_post.author_profile_description_from_agg ==
-             "actor found"
+             "Prolific describer of worlds..."
   end
 end
