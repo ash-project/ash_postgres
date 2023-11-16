@@ -64,8 +64,6 @@ defmodule AshPostgres.Join do
           |> to_joins(filter, query.__ash_bindings__.resource)
 
         true ->
-          id = System.unique_integer([:monotonic, :positive])
-
           filter
           |> Ash.Filter.relationship_paths()
           |> to_joins(filter, query.__ash_bindings__.resource)
