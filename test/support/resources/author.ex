@@ -37,7 +37,7 @@ defmodule AshPostgres.Test.Author do
         if is_nil(^actor(:id)) do
           "no actor"
         else
-          "actor found"
+          profile_description
         end
       )
     )
