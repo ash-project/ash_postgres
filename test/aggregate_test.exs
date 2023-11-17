@@ -209,11 +209,16 @@ defmodule AshPostgres.AggregateTest do
   end
 
   describe "exists" do
-    test "with data and a filter, it returns the count" do
+    test "with data and a filter, it returns the correct result" do
       post =
         Post
         |> Ash.Changeset.new(%{title: "title"})
         |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "non-match"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Api.create!()
 
       assert %{has_comment_called_match: false} =
                Post
