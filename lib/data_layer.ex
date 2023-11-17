@@ -1289,6 +1289,31 @@ defmodule AshPostgres.DataLayer do
       )
   end
 
+  defp upsert_fields(fields, _, _) when is_list(fields) do
+    fields
+  end
+
+  defp upsert_fields({:replace, fields}, _, _) do
+    fields
+  end
+
+  defp upsert_fields(:replace_all, resource, _) do
+    resource
+    |> Ash.Resource.Info.attributes()
+    |> Enum.map(fn %{name: name} -> name end)
+  end
+
+  defp upsert_fields({:replace_all_except, except_fields}, resource, _) do
+    resource
+    |> Ash.Resource.Info.attributes()
+    |> Enum.map(fn %{name: name} -> name end)
+    |> Enum.reject(fn name -> name in except_fields end)
+  end
+
+  defp upsert_fields(nil, _, changesets) do
+    changesets |> Enum.flat_map(&Map.keys(&1.attributes)) |> Enum.uniq()
+  end
+
   defp upsert_set(resource, changesets, options) do
     attributes_changing_anywhere =
       changesets |> Enum.flat_map(&Map.keys(&1.attributes)) |> Enum.uniq()
@@ -1298,7 +1323,8 @@ defmodule AshPostgres.DataLayer do
     # changing the value (and we wouldn't want to even if we could as it would be unnecessary)
 
     upsert_fields =
-      (options[:upsert_fields] || []) |> Enum.filter(&(&1 in attributes_changing_anywhere))
+      upsert_fields(options[:upsert_fields] || [], resource, changesets)
+      |> Enum.filter(&(&1 in attributes_changing_anywhere))
 
     fields_to_upsert =
       upsert_fields --
