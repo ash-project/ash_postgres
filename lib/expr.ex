@@ -874,7 +874,7 @@ defmodule AshPostgres.Expr do
     first_optimized_aggregate? =
       AshPostgres.Aggregate.optimizable_first_aggregate?(related, aggregate)
 
-    {ref_binding, field_name} =
+    {ref_binding, field_name, value} =
       if first_optimized_aggregate? do
         ref = %{ref | relationship_path: ref.relationship_path ++ aggregate.relationship_path}
         ref_binding = ref_binding(ref, bindings)
@@ -883,7 +883,31 @@ defmodule AshPostgres.Expr do
           raise "Error while building reference: #{inspect(ref)}"
         end
 
-        {ref_binding, aggregate.field}
+        ref =
+          %Ash.Query.Ref{
+            attribute:
+              AshPostgres.Aggregate.aggregate_field(
+                aggregate,
+                Ash.Resource.Info.related(query.__ash_bindings__.resource, ref.relationship_path),
+                aggregate.relationship_path,
+                query
+              ),
+            relationship_path: ref.relationship_path,
+            resource: query.__ash_bindings__.resource
+          }
+
+        ref =
+          Ash.Actions.Read.add_calc_context_to_filter(
+            ref,
+            aggregate.context[:actor],
+            aggregate.context[:authorize?],
+            aggregate.context[:tenant],
+            aggregate.context[:tracer]
+          )
+
+        value = dynamic_expr(query, ref, query.__ash_bindings__, false)
+
+        {ref_binding, aggregate.field, value}
       else
         ref_binding = ref_binding(ref, bindings)
 
@@ -891,7 +915,7 @@ defmodule AshPostgres.Expr do
           raise "Error while building reference: #{inspect(ref)}"
         end
 
-        {ref_binding, aggregate.name}
+        {ref_binding, aggregate.name, nil}
       end
 
     ref_binding =
@@ -902,10 +926,14 @@ defmodule AshPostgres.Expr do
       end
 
     expr =
-      if query.__ash_bindings__[:parent?] do
-        Ecto.Query.dynamic(field(parent_as(^ref_binding), ^field_name))
+      if value do
+        value
       else
-        Ecto.Query.dynamic(field(as(^ref_binding), ^field_name))
+        if query.__ash_bindings__[:parent?] do
+          Ecto.Query.dynamic(field(parent_as(^ref_binding), ^field_name))
+        else
+          Ecto.Query.dynamic(field(as(^ref_binding), ^field_name))
+        end
       end
 
     type = AshPostgres.Types.parameterized_type(aggregate.type, aggregate.constraints)

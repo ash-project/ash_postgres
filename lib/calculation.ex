@@ -60,6 +60,15 @@ defmodule AshPostgres.Calculation do
                 Map.get(calculation, :constraints, [])
               )
 
+            expression =
+              Ash.Actions.Read.add_calc_context_to_filter(
+                expression,
+                calculation.context[:actor],
+                calculation.context[:authorize?],
+                calculation.context[:tenant],
+                calculation.context[:tracer]
+              )
+
             expr =
               AshPostgres.Expr.dynamic_expr(
                 query,

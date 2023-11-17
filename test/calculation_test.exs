@@ -613,7 +613,6 @@ defmodule AshPostgres.CalculationTest do
              |> Enum.map(&Map.get(&1, :calc_returning_json))
   end
 
-  @tag :focus
   test "calculation passes actor to aggregate from calculation on aggregate" do
     org =
       Organization
@@ -653,7 +652,7 @@ defmodule AshPostgres.CalculationTest do
       |> Ash.Query.load(author: :description)
       |> Api.read_one!(actor: user)
 
-    assert can_get_author_description_post.author.description == "actor"
+    assert can_get_author_description_post.author.description == "actor found"
 
     can_get_author_description_from_aggregate_post =
       Post
@@ -662,7 +661,7 @@ defmodule AshPostgres.CalculationTest do
       |> Api.read_one!(actor: user)
 
     assert can_get_author_description_from_aggregate_post.author_profile_description ==
-             "Prolific describer of worlds..."
+             "actor found"
 
     can_get_author_description_from_calculation_of_aggregate_post =
       Post
@@ -671,6 +670,6 @@ defmodule AshPostgres.CalculationTest do
       |> Api.read_one!(actor: user)
 
     assert can_get_author_description_from_calculation_of_aggregate_post.author_profile_description_from_agg ==
-             "Prolific describer of worlds..."
+             "actor found"
   end
 end

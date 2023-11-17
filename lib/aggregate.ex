@@ -287,15 +287,45 @@ defmodule AshPostgres.Aggregate do
            false
          ) do
       {:ok, query} ->
-        binding =
-          AshPostgres.DataLayer.get_binding(
-            resource,
-            aggregate.relationship_path,
-            query,
-            [:left, :inner]
-          )
+        ref =
+          %Ash.Query.Ref{
+            attribute:
+              aggregate_field(
+                aggregate,
+                Ash.Resource.Info.related(
+                  resource,
+                  path ++ aggregate.relationship_path
+                ),
+                path ++ aggregate.relationship_path,
+                query
+              ),
+            relationship_path: path ++ aggregate.relationship_path,
+            resource: resource
+          }
 
-        {:ok, query, Ecto.Query.dynamic(field(as(^binding), ^aggregate.field))}
+        value = AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__, false)
+
+        type = AshPostgres.Types.parameterized_type(aggregate.type, aggregate.constraints)
+
+        with_default =
+          if aggregate.default_value do
+            if type do
+              Ecto.Query.dynamic(coalesce(^value, type(^aggregate.default_value, ^type)))
+            else
+              Ecto.Query.dynamic(coalesce(^value, ^aggregate.default_value))
+            end
+          else
+            value
+          end
+
+        casted =
+          if type do
+            Ecto.Query.dynamic(type(^with_default, ^type))
+          else
+            with_default
+          end
+
+        {:ok, query, casted}
 
       {:error, error} ->
         {:error, error}
@@ -1112,7 +1142,8 @@ defmodule AshPostgres.Aggregate do
     relationship.type == :belongs_to && single_path?(relationship.destination, rest)
   end
 
-  defp aggregate_field(aggregate, resource, _relationship_path, query) do
+  @doc false
+  def aggregate_field(aggregate, resource, _relationship_path, query) do
     case Ash.Resource.Info.field(
            resource,
            aggregate.field || List.first(Ash.Resource.Info.primary_key(resource))
