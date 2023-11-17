@@ -639,7 +639,7 @@ defmodule AshPostgres.Join do
 
         relationship_destination =
           if needs_subquery? do
-            subquery(from row in relationship_destination, limit: 1)
+            subquery(from(row in relationship_destination, limit: 1))
           else
             relationship_destination
           end
@@ -797,7 +797,7 @@ defmodule AshPostgres.Join do
 
       relationship_destination =
         if needs_subquery? do
-          subquery(from row in relationship_destination, limit: 1)
+          subquery(from(row in relationship_destination, limit: 1))
         else
           relationship_destination
         end
@@ -920,7 +920,7 @@ defmodule AshPostgres.Join do
 
         relationship_destination =
           if needs_subquery? do
-            subquery(from row in relationship_destination, limit: 1)
+            subquery(from(row in relationship_destination, limit: 1))
           else
             relationship_destination
           end
