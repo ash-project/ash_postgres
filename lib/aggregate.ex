@@ -94,10 +94,17 @@ defmodule AshPostgres.Aggregate do
                 is_single? && Enum.at(aggregates, 0).kind == :exists ->
                   [aggregate] = aggregates
 
+                  expr =
+                    if is_nil(Map.get(aggregate.query, :filter)) do
+                      true
+                    else
+                      Map.get(aggregate.query, :filter)
+                    end
+
                   exists =
                     AshPostgres.Expr.dynamic_expr(
                       query,
-                      %Ash.Query.Exists{path: aggregate.relationship_path, expr: true},
+                      %Ash.Query.Exists{path: aggregate.relationship_path, expr: expr},
                       query.__ash_bindings__
                     )
 
