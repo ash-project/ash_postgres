@@ -102,7 +102,8 @@ defmodule AshPostgres.Join do
                    opts,
                    [{join_type, rest_rels}],
                    current_path,
-                   source
+                   source,
+                   sort?
                  ) do
               {:ok, query} ->
                 {:cont, {:ok, query}}
@@ -130,7 +131,8 @@ defmodule AshPostgres.Join do
                        opts,
                        [{join_type, rest_rels}],
                        current_path,
-                       source
+                       source,
+                       sort?
                      ) do
                   {:ok, query} ->
                     {:cont, {:ok, query}}
@@ -637,7 +639,7 @@ defmodule AshPostgres.Join do
 
         relationship_destination =
           if needs_subquery? do
-            subquery(relationship_destination)
+            subquery(from row in relationship_destination, limit: 1)
           else
             relationship_destination
           end
@@ -795,7 +797,7 @@ defmodule AshPostgres.Join do
 
       relationship_destination =
         if needs_subquery? do
-          subquery(relationship_destination)
+          subquery(from row in relationship_destination, limit: 1)
         else
           relationship_destination
         end
@@ -918,7 +920,7 @@ defmodule AshPostgres.Join do
 
         relationship_destination =
           if needs_subquery? do
-            subquery(relationship_destination)
+            subquery(from row in relationship_destination, limit: 1)
           else
             relationship_destination
           end
