@@ -828,6 +828,120 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[references(:posts, column: :id, name: "posts_post_id_fkey", type: :text, prefix: "public")]
     end
 
+    test "references allow passing :match_with and :match_type" do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:key_id, :uuid, allow_nil?: false)
+          attribute(:foobar, :string)
+        end
+      end
+
+      defposts Post2 do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string)
+          attribute(:related_key_id, :uuid)
+        end
+
+        relationships do
+          belongs_to(:post, Post)
+        end
+
+        postgres do
+          references do
+            reference(:post, match_with: [related_key_id: :key_id], match_type: :partial)
+          end
+        end
+      end
+
+      defapi([Post, Post2])
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+
+      assert File.read!(file) =~
+               ~S{references(:posts, column: :id, with: [related_key_id: :key_id], match: :partial, name: "posts_post_id_fkey", type: :uuid, prefix: "public")}
+    end
+
+    test "references merge :match_with and multitenancy attribute" do
+      defresource Org, "orgs" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:id)
+        end
+      end
+
+      defresource User, "users" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:secondary_id, :uuid)
+          attribute(:name, :string)
+          attribute(:org_id, :uuid)
+          attribute(:key_id, :uuid)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, Org)
+        end
+      end
+
+      defresource UserThing, "user_things" do
+        attributes do
+          attribute(:id, :string, primary_key?: true, allow_nil?: false)
+          attribute(:name, :string)
+          attribute(:org_id, :uuid)
+          attribute(:related_key_id, :uuid)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, Org)
+          belongs_to(:user, User, destination_attribute: :secondary_id)
+        end
+
+        postgres do
+          references do
+            reference(:user, match_with: [related_key_id: :key_id], match_type: :full)
+          end
+        end
+      end
+
+      defapi([Org, User, UserThing])
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+
+      assert File.read!(file) =~
+               ~S{references(:users, column: :secondary_id, with: [related_key_id: :key_id, org_id: :org_id], match: :full, name: "user_things_user_id_fkey", type: :uuid, prefix: "public")}
+    end
+
     test "when modified, the foreign key is dropped before modification" do
       defposts do
         attributes do
