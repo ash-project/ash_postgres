@@ -1,0 +1,48 @@
+{
+  "attributes": [
+    {
+      "default": "fragment(\"uuid_generate_v4()\")",
+      "size": null,
+      "type": "uuid",
+      "source": "id",
+      "references": null,
+      "allow_nil?": false,
+      "generated?": false,
+      "primary_key?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "text",
+      "source": "name",
+      "references": null,
+      "allow_nil?": false,
+      "generated?": false,
+      "primary_key?": false
+    }
+  ],
+  "table": "tags",
+  "hash": "61637330BF5FBC9CF074FDAB63DBCB94E33A0352F686A63C87C90133E651DF0E",
+  "repo": "Elixir.AshPostgres.TestRepo",
+  "identities": [
+    {
+      "name": "name",
+      "keys": [
+        "name"
+      ],
+      "base_filter": null,
+      "index_name": "tags_name_index"
+    }
+  ],
+  "schema": null,
+  "check_constraints": [],
+  "custom_indexes": [],
+  "base_filter": null,
+  "multitenancy": {
+    "global": null,
+    "attribute": null,
+    "strategy": null
+  },
+  "custom_statements": [],
+  "has_create_action": true
+}

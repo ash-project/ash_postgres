@@ -6,6 +6,8 @@ defmodule AshPostgres.Test.Post do
       Ash.Policy.Authorizer
     ]
 
+  require Ash.Sort
+
   policies do
     bypass action_type(:read) do
       # Check that the post is in the same org as actor
@@ -149,6 +151,14 @@ defmodule AshPostgres.Test.Post do
     )
 
     has_many(:views, AshPostgres.Test.PostView)
+
+    has_many(:post_tags, AshPostgres.Test.PostTag)
+
+    many_to_many(:ordered_tags, AshPostgres.Test.Tag,
+      through: AshPostgres.Test.PostTag,
+      join_relationship: :post_tags,
+      sort: Ash.Sort.expr_sort(parent(post_tags.position))
+    )
   end
 
   validations do

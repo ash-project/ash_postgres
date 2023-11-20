@@ -1,7 +1,7 @@
 defmodule AshPostgres.SortTest do
   @moduledoc false
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Comment, Post, PostLink}
+  alias AshPostgres.Test.{Api, Comment, Post, PostLink, Tag}
 
   require Ash.Query
   require Ash.Sort
@@ -223,5 +223,26 @@ defmodule AshPostgres.SortTest do
     Post
     |> Ash.Query.load(linked_posts: posts_query)
     |> Api.read!()
+  end
+
+  test "minimal failing test on expr_sort many_to_many sorting + on_lookup" do
+    Tag
+    |> Ash.Changeset.new(%{name: "foo"})
+    |> Api.create!()
+
+    tags1 = [%{name: "foo", position: 0}]
+
+    post1 =
+      Post
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.manage_relationship(:ordered_tags, tags1,
+        on_lookup: {:relate_and_update, :create, :read, [:position]}
+      )
+      |> Api.create!()
+
+    assert %{ordered_tags: [%{name: "foo"}]} =
+             Post
+             |> Api.get!(post1.id)
+             |> Api.load!(:ordered_tags)
   end
 end

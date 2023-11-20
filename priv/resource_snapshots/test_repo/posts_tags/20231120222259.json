@@ -1,0 +1,95 @@
+{
+  "attributes": [
+    {
+      "default": "nil",
+      "size": null,
+      "type": "bigint",
+      "source": "position",
+      "references": null,
+      "allow_nil?": false,
+      "generated?": false,
+      "primary_key?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "uuid",
+      "source": "post_id",
+      "references": {
+        "name": "posts_tags_post_id_fkey",
+        "table": "posts",
+        "schema": "public",
+        "on_delete": null,
+        "multitenancy": {
+          "global": null,
+          "attribute": null,
+          "strategy": null
+        },
+        "primary_key?": true,
+        "destination_attribute": "id",
+        "deferrable": false,
+        "match_type": null,
+        "match_with": null,
+        "on_update": null,
+        "destination_attribute_default": null,
+        "destination_attribute_generated": null
+      },
+      "allow_nil?": false,
+      "generated?": false,
+      "primary_key?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "uuid",
+      "source": "tag_id",
+      "references": {
+        "name": "posts_tags_tag_id_fkey",
+        "table": "tags",
+        "schema": "public",
+        "on_delete": null,
+        "multitenancy": {
+          "global": null,
+          "attribute": null,
+          "strategy": null
+        },
+        "primary_key?": true,
+        "destination_attribute": "id",
+        "deferrable": false,
+        "match_type": null,
+        "match_with": null,
+        "on_update": null,
+        "destination_attribute_default": null,
+        "destination_attribute_generated": null
+      },
+      "allow_nil?": false,
+      "generated?": false,
+      "primary_key?": true
+    }
+  ],
+  "table": "posts_tags",
+  "hash": "7F58B3E1346CD5920C87C71859A63DF08743F3B4557A96E85BD08155613DF1D2",
+  "repo": "Elixir.AshPostgres.TestRepo",
+  "identities": [
+    {
+      "name": "unique_position_per_post",
+      "keys": [
+        "position",
+        "post_id"
+      ],
+      "base_filter": null,
+      "index_name": "posts_tags_unique_position_per_post_index"
+    }
+  ],
+  "schema": null,
+  "check_constraints": [],
+  "custom_indexes": [],
+  "base_filter": null,
+  "multitenancy": {
+    "global": null,
+    "attribute": null,
+    "strategy": null
+  },
+  "custom_statements": [],
+  "has_create_action": true
+}
