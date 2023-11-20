@@ -507,7 +507,7 @@ defmodule AshPostgres.CalculationTest do
   end
 
   describe "maps" do
-    test "maps can reference filtered aggregats" do
+    test "maps can reference filtered aggregates" do
       post =
         Post
         |> Ash.Changeset.new(%{title: "match", score: 42})
