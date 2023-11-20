@@ -1,4 +1,4 @@
-defmodule AshPostgres.Test.ComplexCalculations.Channel do
+defmodule AshPostgres.Test.ComplexCalculations.DMChannel do
   @moduledoc false
   use Ash.Resource,
     data_layer: AshPostgres.DataLayer,
@@ -23,7 +23,9 @@ defmodule AshPostgres.Test.ComplexCalculations.Channel do
   end
 
   relationships do
-    has_many(:channel_members, AshPostgres.Test.ComplexCalculations.ChannelMember)
+    has_many :channel_members, AshPostgres.Test.ComplexCalculations.ChannelMember do
+      destination_attribute(:channel_id)
+    end
 
     has_one :first_member, AshPostgres.Test.ComplexCalculations.ChannelMember do
       destination_attribute(:channel_id)
@@ -36,17 +38,11 @@ defmodule AshPostgres.Test.ComplexCalculations.Channel do
       from_many?(true)
       sort(created_at: :desc)
     end
-
-    has_one :dm_channel, AshPostgres.Test.ComplexCalculations.DMChannel do
-      api(AshPostgres.Test.ComplexCalculations.Api)
-      destination_attribute(:id)
-    end
   end
 
   aggregates do
     first(:first_member_name, [:first_member, :user], :name)
     first(:second_member_name, [:second_member, :user], :name)
-    first(:dm_channel_name, [:dm_channel], :name)
   end
 
   calculations do
@@ -66,8 +62,6 @@ defmodule AshPostgres.Test.ComplexCalculations.Channel do
         )
       )
     end
-
-    calculate(:dm_name, :string, expr(dm_channel_name))
   end
 
   policies do

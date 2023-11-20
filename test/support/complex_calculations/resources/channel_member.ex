@@ -21,7 +21,8 @@ defmodule AshPostgres.Test.ComplexCalculations.ChannelMember do
   end
 
   relationships do
-    belongs_to(:user, AshPostgres.Test.User, api: AshPostgres.Test.Api)
-    belongs_to(:channel, AshPostgres.Test.ComplexCalculations.Channel)
+    belongs_to(:user, AshPostgres.Test.User, api: AshPostgres.Test.Api, attribute_writable?: true)
+
+    belongs_to(:channel, AshPostgres.Test.ComplexCalculations.Channel, attribute_writable?: true)
   end
 end

@@ -7,6 +7,7 @@ defmodule AshPostgres.Test.ComplexCalculations.Registry do
     entry(AshPostgres.Test.ComplexCalculations.Skill)
     entry(AshPostgres.Test.ComplexCalculations.Documentation)
     entry(AshPostgres.Test.ComplexCalculations.Channel)
+    entry(AshPostgres.Test.ComplexCalculations.DMChannel)
     entry(AshPostgres.Test.ComplexCalculations.ChannelMember)
   end
 end

@@ -1,4 +1,5 @@
 defmodule AshPostgres.Test.ComplexCalculationsTest do
+  alias AshPostgres.Test.ComplexCalculations.Channel
   use AshPostgres.RepoCase, async: false
 
   test "complex calculation" do
@@ -111,5 +112,77 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
       |> AshPostgres.Test.ComplexCalculations.Api.load!(:name, actor: user_2)
 
     assert channel.name == user_2.name
+  end
+
+  test "complex calculation while using actor on related resource passes reference" do
+    dm_channel =
+      AshPostgres.Test.ComplexCalculations.DMChannel
+      |> Ash.Changeset.new()
+      |> AshPostgres.Test.ComplexCalculations.Api.create!()
+
+    user_1 =
+      AshPostgres.Test.User
+      |> Ash.Changeset.for_create(:create, %{name: "User 1"})
+      |> AshPostgres.Test.Api.create!()
+
+    user_2 =
+      AshPostgres.Test.User
+      |> Ash.Changeset.for_create(:create, %{name: "User 2"})
+      |> AshPostgres.Test.Api.create!()
+
+    channel_member_1 =
+      AshPostgres.Test.ComplexCalculations.ChannelMember
+      |> Ash.Changeset.for_create(:create, %{channel_id: dm_channel.id, user_id: user_1.id})
+      |> AshPostgres.Test.ComplexCalculations.Api.create!()
+
+    channel_member_2 =
+      AshPostgres.Test.ComplexCalculations.ChannelMember
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.manage_relationship(:channel, dm_as_channel, type: :append)
+      |> Ash.Changeset.manage_relationship(:user, user_2, type: :append)
+      |> AshPostgres.Test.ComplexCalculations.Api.create!()
+
+    dm_channel =
+      dm_channel
+      |> AshPostgres.Test.ComplexCalculations.Api.load!([
+        :first_member,
+        :second_member
+      ])
+
+    assert dm_channel.first_member.id == channel_member_1.id
+    assert dm_channel.second_member.id == channel_member_2.id
+
+    dm_channel =
+      dm_channel
+      |> AshPostgres.Test.ComplexCalculations.Api.load!(:name, actor: user_1)
+
+    assert dm_channel.name == user_1.name
+
+    dm_channel =
+      dm_channel
+      |> AshPostgres.Test.ComplexCalculations.Api.load!(:name, actor: user_2)
+
+    assert dm_channel.name == user_2.name
+
+    channels =
+      AshPostgres.Test.ComplexCalculations.Channel
+      |> Ash.Query.for_read(:read)
+      |> AshPostgres.Test.ComplexCalculations.Api.read!()
+
+    channels =
+      channels
+      |> AshPostgres.Test.ComplexCalculations.Api.load!([dm_channel: :name],
+        actor: user_1
+      )
+
+    [channel | _] = channels
+
+    assert channel.dm_channel.name == user_1.name
+
+    channel =
+      channel
+      |> AshPostgres.Test.ComplexCalculations.Api.load(:dm_name, actor: user_1)
+
+    assert channel.dm_name == user_1.name
   end
 end
