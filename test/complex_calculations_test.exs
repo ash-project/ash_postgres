@@ -1,5 +1,4 @@
 defmodule AshPostgres.Test.ComplexCalculationsTest do
-  alias AshPostgres.Test.ComplexCalculations.Channel
   use AshPostgres.RepoCase, async: false
 
   test "complex calculation" do
@@ -137,9 +136,7 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
 
     channel_member_2 =
       AshPostgres.Test.ComplexCalculations.ChannelMember
-      |> Ash.Changeset.new()
-      |> Ash.Changeset.manage_relationship(:channel, dm_as_channel, type: :append)
-      |> Ash.Changeset.manage_relationship(:user, user_2, type: :append)
+      |> Ash.Changeset.for_create(:create, %{channel_id: dm_channel.id, user_id: user_2.id})
       |> AshPostgres.Test.ComplexCalculations.Api.create!()
 
     dm_channel =
@@ -181,8 +178,8 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
 
     channel =
       channel
-      |> AshPostgres.Test.ComplexCalculations.Api.load(:dm_name, actor: user_1)
+      |> AshPostgres.Test.ComplexCalculations.Api.load!(:dm_name, actor: user_2)
 
-    assert channel.dm_name == user_1.name
+    assert channel.dm_name == user_2.name
   end
 end

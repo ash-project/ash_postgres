@@ -20,7 +20,7 @@ defmodule AshPostgres.Calculation do
 
     aggregates =
       calculations
-      |> Enum.flat_map(fn {_calculation, expression} ->
+      |> Enum.flat_map(fn {calculation, expression} ->
         used_calculations =
           Ash.Filter.used_calculations(
             expression,
@@ -34,6 +34,7 @@ defmodule AshPostgres.Calculation do
           used_calculations,
           []
         )
+        |> Enum.map(&Map.put(&1, :context, calculation.context))
       end)
       |> Enum.uniq()
 

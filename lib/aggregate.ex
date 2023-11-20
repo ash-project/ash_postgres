@@ -396,6 +396,34 @@ defmodule AshPostgres.Aggregate do
             used_calculations
         end
 
+      exprs =
+        Enum.map(used_calculations, fn calculation ->
+          case Ash.Filter.hydrate_refs(
+                 calculation.module.expression(calculation.opts, calculation.context),
+                 %{
+                   resource: aggregate.query.resource,
+                   aggregates: %{},
+                   calculations: %{},
+                   public?: false
+                 }
+               ) do
+            {:ok, hydrated} ->
+              hydrated
+
+            {:error, _error} ->
+              raise """
+              Failed to hydrate references for resource #{inspect(aggregate.query.resource)} in #{inspect(calculation.module.expression(calculation.opts, calculation.context))}
+              """
+          end
+        end)
+
+      {:ok, agg_query} =
+        AshPostgres.Join.join_all_relationships(
+          agg_query,
+          exprs,
+          []
+        )
+
       used_aggregates =
         used_aggregates(
           filter,
@@ -1163,6 +1191,10 @@ defmodule AshPostgres.Aggregate do
           )
 
         AshPostgres.Expr.validate_type!(query, calc_type, "#{inspect(calculation.name)}")
+
+        if aggregate.context == %{} do
+          raise "what"
+        end
 
         {:ok, query_calc} =
           Ash.Query.Calculation.new(
