@@ -811,7 +811,7 @@ defmodule AshPostgres.Expr do
 
       {:error, error} ->
         raise """
-        Failed to hydrate references in #{inspect(calculation.module.expression(calculation.opts, calculation.context))}
+        Failed to hydrate references for resource #{inspect(resource)} in #{inspect(calculation.module.expression(calculation.opts, calculation.context))}
 
         #{inspect(error)}
         """
@@ -1039,7 +1039,7 @@ defmodule AshPostgres.Expr do
         end
 
       _ ->
-        raise "Failed to hydrate references in #{inspect(calculation.module.expression(calculation.opts, calculation.context))}"
+        raise "Failed to hydrate references for #{inspect(ref.resource)} in #{inspect(calculation.module.expression(calculation.opts, calculation.context))}"
     end
   end
 
