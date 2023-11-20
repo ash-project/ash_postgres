@@ -392,7 +392,8 @@ defmodule AshPostgres.DataLayer do
     transformers: [
       AshPostgres.Transformers.ValidateReferences,
       AshPostgres.Transformers.EnsureTableOrPolymorphic,
-      AshPostgres.Transformers.PreventMultidimensionalArrayAggregates
+      AshPostgres.Transformers.PreventMultidimensionalArrayAggregates,
+      AshPostgres.Transformers.PreventAttributeMultitenancyAndNonFullMatchType
     ]
 
   def migrate(args) do

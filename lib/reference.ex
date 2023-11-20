@@ -1,6 +1,15 @@
 defmodule AshPostgres.Reference do
   @moduledoc "Represents the configuration of a reference (i.e foreign key)."
-  defstruct [:relationship, :on_delete, :on_update, :name, :deferrable, ignore?: false]
+  defstruct [
+    :relationship,
+    :on_delete,
+    :on_update,
+    :name,
+    :match_with,
+    :match_type,
+    :deferrable,
+    ignore?: false
+  ]
 
   def schema do
     [
@@ -37,6 +46,15 @@ defmodule AshPostgres.Reference do
         type: :string,
         doc:
           "The name of the foreign key to generate in the database. Defaults to <table>_<source_attribute>_fkey"
+      ],
+      match_with: [
+        type: :non_empty_keyword_list,
+        doc:
+          "Defines additional keys to the foreign key in order to build a composite foreign key. The key should be the name of the source attribute (in the current resource), the value the name of the destination attribute."
+      ],
+      match_type: [
+        type: {:one_of, [:simple, :partial, :full]},
+        doc: "select if the match is `:simple`, `:partial`, or `:full`"
       ]
     ]
   end

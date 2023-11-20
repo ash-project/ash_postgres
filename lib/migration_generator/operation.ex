@@ -66,6 +66,53 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     def reference_type(%{type: type}, _) do
       type
     end
+
+    def with_match(reference, source_attribute \\ nil)
+
+    def with_match(
+          %{
+            primary_key?: false,
+            destination_attribute: reference_attribute,
+            multitenancy: %{strategy: :attribute, attribute: destination_attribute}
+          } = reference,
+          source_attribute
+        )
+        when not is_nil(source_attribute) and reference_attribute != destination_attribute do
+      with_targets =
+        [{as_atom(source_attribute), as_atom(destination_attribute)}]
+        |> Enum.into(reference.match_with || %{})
+        |> with_targets()
+
+      # We can only have match: :full here, this gets validated by a Transformer
+      join([with_targets, "match: :full"])
+    end
+
+    def with_match(reference, _) do
+      with_targets = with_targets(reference.match_with)
+      match_type = match_type(reference.match_type)
+
+      if with_targets != nil or match_type != nil do
+        join([with_targets, match_type])
+      else
+        nil
+      end
+    end
+
+    def with_targets(targets) when is_map(targets) do
+      targets_string =
+        targets
+        |> Enum.map_join(", ", fn {source, destination} -> "#{source}: :#{destination}" end)
+
+      "with: [#{targets_string}]"
+    end
+
+    def with_targets(_), do: nil
+
+    def match_type(type) when type in [:simple, :partial, :full] do
+      "match: :#{type}"
+    end
+
+    def match_type(_), do: nil
   end
 
   defmodule CreateTable do
@@ -88,14 +135,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                   table: table,
                   destination_attribute: reference_attribute,
                   schema: destination_schema,
-                  multitenancy: %{strategy: :attribute, attribute: destination_attribute}
+                  multitenancy: %{strategy: :attribute}
                 } = reference
             } = attribute
         }) do
-      with_match =
-        if !reference.primary_key? && destination_attribute != reference_attribute do
-          "with: [#{as_atom(source_attribute)}: :#{as_atom(destination_attribute)}], match: :full"
-        end
+      with_match = with_match(reference, source_attribute)
 
       size =
         if attribute[:size] do
@@ -136,6 +180,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                 } = reference
             } = attribute
         }) do
+      with_match = with_match(reference)
+
       size =
         if attribute[:size] do
           "size: #{attribute[:size]}"
@@ -146,6 +192,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "references(:#{as_atom(table)}",
         [
           "column: #{inspect(destination_attribute)}",
+          with_match,
           option("prefix", destination_schema),
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
@@ -198,6 +245,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                 } = reference
             } = attribute
         }) do
+      with_match = with_match(reference)
+
       size =
         if attribute[:size] do
           "size: #{attribute[:size]}"
@@ -208,6 +257,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "references(:#{as_atom(table)}",
         [
           "column: #{inspect(destination_attribute)}",
+          with_match,
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
           "prefix: prefix()",
@@ -236,6 +286,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                 } = reference
             } = attribute
         }) do
+      with_match = with_match(reference)
+
       size =
         if attribute[:size] do
           "size: #{attribute[:size]}"
@@ -251,6 +303,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "references(:#{as_atom(table)}",
         [
           "column: #{inspect(destination_attribute)}",
+          with_match,
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
           option("prefix", destination_schema),
@@ -277,6 +330,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                 } = reference
             } = attribute
         }) do
+      with_match = with_match(reference)
+
       size =
         if attribute[:size] do
           "size: #{attribute[:size]}"
@@ -287,6 +342,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "references(:#{as_atom(table)}",
         [
           "column: #{inspect(destination_attribute)}",
+          with_match,
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
           option("prefix", destination_schema),
@@ -449,6 +505,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
            } = attribute,
            _schema
          ) do
+      with_match = with_match(reference)
+
       size =
         if attribute[:size] do
           "size: #{attribute[:size]}"
@@ -456,6 +514,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       join([
         "references(:#{as_atom(table)}, column: #{inspect(destination_attribute)}",
+        with_match,
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
         size,
@@ -471,7 +530,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
            %{
              references:
                %{
-                 multitenancy: %{strategy: :attribute, attribute: destination_attribute},
+                 multitenancy: %{strategy: :attribute},
                  table: table,
                  schema: destination_schema,
                  destination_attribute: reference_attribute
@@ -484,10 +543,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           destination_schema
         end
 
-      with_match =
-        if !reference.primary_key? && destination_attribute != reference_attribute do
-          "with: [#{as_atom(source_attribute)}: :#{as_atom(destination_attribute)}], match: :full"
-        end
+      with_match = with_match(reference, source_attribute)
 
       size =
         if attribute[:size] do
@@ -519,6 +575,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
            } = attribute,
            schema
          ) do
+      with_match = with_match(reference)
+
       size =
         if attribute[:size] do
           "size: #{attribute[:size]}"
@@ -531,6 +589,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       join([
         "references(:#{as_atom(table)}, column: #{inspect(destination_attribute)}",
+        with_match,
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
         size,
@@ -553,6 +612,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
            } = attribute,
            schema
          ) do
+      with_match = with_match(reference)
+
       destination_schema =
         if schema != destination_schema do
           destination_schema
@@ -565,6 +626,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       join([
         "references(:#{as_atom(table)}, column: #{inspect(destination_attribute)}",
+        with_match,
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
         size,

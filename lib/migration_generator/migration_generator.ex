@@ -707,12 +707,17 @@ defmodule AshPostgres.MigrationGenerator do
           primary_key?: merge_uniq!(references, table, :primary_key?, name),
           on_delete: merge_uniq!(references, table, :on_delete, name),
           on_update: merge_uniq!(references, table, :on_update, name),
+          match_with: merge_uniq!(references, table, :match_with, name) |> to_map(),
+          match_type: merge_uniq!(references, table, :match_type, name),
           name: merge_uniq!(references, table, :name, name),
           table: merge_uniq!(references, table, :table, name),
           schema: merge_uniq!(references, table, :schema, name)
         }
     end
   end
+
+  defp to_map(nil), do: nil
+  defp to_map(kw_list) when is_list(kw_list), do: Map.new(kw_list)
 
   defp merge_uniq!(references, table, field, attribute) do
     references
@@ -2675,6 +2680,8 @@ defmodule AshPostgres.MigrationGenerator do
             multitenancy: multitenancy(relationship.destination),
             on_delete: configured_reference.on_delete,
             on_update: configured_reference.on_update,
+            match_with: configured_reference.match_with,
+            match_type: configured_reference.match_type,
             name: configured_reference.name,
             primary_key?: destination_attribute.primary_key?,
             schema:
@@ -2700,6 +2707,8 @@ defmodule AshPostgres.MigrationGenerator do
       |> Kernel.||(%{
         on_delete: nil,
         on_update: nil,
+        match_with: nil,
+        match_type: nil,
         deferrable: false,
         schema:
           relationship.context[:data_layer][:schema] ||
@@ -3029,6 +3038,13 @@ defmodule AshPostgres.MigrationGenerator do
         |> Map.put_new(:on_update, nil)
         |> Map.update!(:on_delete, &(&1 && String.to_atom(&1)))
         |> Map.update!(:on_update, &(&1 && String.to_atom(&1)))
+        |> Map.put_new(:match_with, nil)
+        |> Map.put_new(:match_type, nil)
+        |> Map.update!(
+          :match_with,
+          &(&1 && Enum.into(&1, %{}, fn {k, v} -> {String.to_atom(k), String.to_atom(v)} end))
+        )
+        |> Map.update!(:match_type, &(&1 && String.to_atom(&1)))
         |> Map.put(
           :name,
           Map.get(references, :name) || "#{table}_#{attribute.source}_fkey"
