@@ -1174,8 +1174,21 @@ defmodule AshPostgres.Aggregate do
 
   defp single_path?(resource, [relationship | rest]) do
     relationship = Ash.Resource.Info.relationship(resource, relationship)
-    relationship.type == :belongs_to && single_path?(relationship.destination, rest)
+
+    (relationship.type == :belongs_to ||
+       has_one_with_identity?(relationship)) &&
+      single_path?(relationship.destination, rest)
   end
+
+  defp has_one_with_identity?(%{type: :has_one} = relationship) do
+    relationship.destination
+    |> Ash.Resource.Info.identities()
+    |> Enum.any?(fn %{keys: keys} ->
+      keys == [relationship.destination_field]
+    end)
+  end
+
+  defp has_one_with_identity?(_), do: false
 
   @doc false
   def aggregate_field(aggregate, resource, _relationship_path, query) do
@@ -1191,10 +1204,6 @@ defmodule AshPostgres.Aggregate do
           )
 
         AshPostgres.Expr.validate_type!(query, calc_type, "#{inspect(calculation.name)}")
-
-        if aggregate.context == %{} do
-          raise "what"
-        end
 
         {:ok, query_calc} =
           Ash.Query.Calculation.new(
