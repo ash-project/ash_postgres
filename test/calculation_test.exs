@@ -1,6 +1,6 @@
 defmodule AshPostgres.CalculationTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Account, Api, Author, Comment, Organization, Post, Profile, User}
+  alias AshPostgres.Test.{Account, Api, Author, Comment, Post, User}
 
   require Ash.Query
   import Ash.Expr
