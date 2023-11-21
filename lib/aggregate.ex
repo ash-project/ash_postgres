@@ -1184,7 +1184,7 @@ defmodule AshPostgres.Aggregate do
     relationship.destination
     |> Ash.Resource.Info.identities()
     |> Enum.any?(fn %{keys: keys} ->
-      keys == [relationship.destination_field]
+      keys == [relationship.destination_attribute]
     end)
   end
 
