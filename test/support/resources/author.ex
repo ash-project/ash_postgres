@@ -93,6 +93,6 @@ defmodule AshPostgres.Test.Author do
       argument(:separator, :string, default: " ", constraints: [allow_empty?: true, trim?: false])
     end
 
-    calculate :has_posts, :boolean, expr(exists(posts, true))
+    calculate(:has_posts, :boolean, expr(exists(posts, true)))
   end
 end
