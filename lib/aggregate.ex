@@ -111,6 +111,15 @@ defmodule AshPostgres.Aggregate do
                   {:cont, {:ok, query, [{aggregate.load, aggregate.name, exists} | dynamics]}}
 
                 true ->
+                  root_data_path =
+                    case root_data do
+                      {_, path} ->
+                        path
+
+                      _ ->
+                        []
+                    end
+
                   with {:ok, agg_root_query} <-
                          AshPostgres.Join.maybe_get_resource_query(
                            first_relationship.destination,
@@ -166,7 +175,8 @@ defmodule AshPostgres.Aggregate do
                            first_relationship,
                            relationship_path,
                            aggregates,
-                           source_binding
+                           source_binding,
+                           root_data_path
                          ) do
                     if select? do
                       new_dynamics =
@@ -459,7 +469,8 @@ defmodule AshPostgres.Aggregate do
          %{manual: {module, opts}} = first_relationship,
          _relationship_path,
          aggregates,
-         source_binding
+         source_binding,
+         root_data_path
        ) do
     field = first_relationship.destination_attribute
 
@@ -496,7 +507,7 @@ defmodule AshPostgres.Aggregate do
     AshPostgres.DataLayer.add_binding(
       query,
       %{
-        path: [],
+        path: root_data_path,
         type: :aggregate,
         aggregates: aggregates
       }
@@ -510,7 +521,8 @@ defmodule AshPostgres.Aggregate do
            first_relationship,
          _relationship_path,
          aggregates,
-         source_binding
+         source_binding,
+         root_data_path
        ) do
     join_relationship_struct = Ash.Resource.Info.relationship(source, join_relationship)
 
@@ -562,7 +574,7 @@ defmodule AshPostgres.Aggregate do
     AshPostgres.DataLayer.add_binding(
       query,
       %{
-        path: [],
+        path: root_data_path,
         type: :aggregate,
         aggregates: aggregates
       }
@@ -575,7 +587,8 @@ defmodule AshPostgres.Aggregate do
          first_relationship,
          _relationship_path,
          aggregates,
-         source_binding
+         source_binding,
+         root_data_path
        ) do
     field = first_relationship.destination_attribute
 
@@ -604,7 +617,7 @@ defmodule AshPostgres.Aggregate do
     AshPostgres.DataLayer.add_binding(
       query,
       %{
-        path: [],
+        path: root_data_path,
         type: :aggregate,
         aggregates: aggregates
       }

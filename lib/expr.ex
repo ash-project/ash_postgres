@@ -765,8 +765,7 @@ defmodule AshPostgres.Expr do
          query,
          %Ref{
            attribute: %Ash.Query.Calculation{} = calculation,
-           relationship_path: [],
-           resource: resource
+           relationship_path: relationship_path
          } = type_expr,
          bindings,
          embedded?,
@@ -781,6 +780,7 @@ defmodule AshPostgres.Expr do
       )
 
     validate_type!(query, type, type_expr)
+    resource = Ash.Resource.Info.related(bindings.resource, relationship_path)
 
     case Ash.Filter.hydrate_refs(
            calculation.module.expression(calculation.opts, calculation.context),
@@ -792,6 +792,12 @@ defmodule AshPostgres.Expr do
            }
          ) do
       {:ok, expression} ->
+        expression =
+          Ash.Filter.move_to_relationship_path(
+            expression,
+            relationship_path
+          )
+
         expression =
           Ash.Actions.Read.add_calc_context_to_filter(
             expression,
@@ -841,18 +847,6 @@ defmodule AshPostgres.Expr do
   end
 
   defp do_dynamic_expr(
-         _query,
-         %Ref{
-           attribute: %Ash.Resource.Calculation{} = calculation
-         },
-         _bindings,
-         _embedded?,
-         _type
-       ) do
-    raise "cannot build expression from resource calculation! #{calculation.name}"
-  end
-
-  defp do_dynamic_expr(
          query,
          %Ref{attribute: %Ash.Query.Aggregate{} = aggregate} = ref,
          bindings,
@@ -876,7 +870,12 @@ defmodule AshPostgres.Expr do
 
     {ref_binding, field_name, value} =
       if first_optimized_aggregate? do
-        ref = %{ref | relationship_path: ref.relationship_path ++ aggregate.relationship_path}
+        ref = %{
+          ref
+          | attribute: %Ash.Resource.Attribute{name: :fake},
+            relationship_path: ref.relationship_path ++ aggregate.relationship_path
+        }
+
         ref_binding = ref_binding(ref, bindings)
 
         if is_nil(ref_binding) do
@@ -912,17 +911,12 @@ defmodule AshPostgres.Expr do
         ref_binding = ref_binding(ref, bindings)
 
         if is_nil(ref_binding) do
+          IO.inspect(ref)
+          IO.inspect(bindings)
           raise "Error while building reference: #{inspect(ref)}"
         end
 
         {ref_binding, aggregate.name, nil}
-      end
-
-    ref_binding =
-      if ref.relationship_path == [] || first_optimized_aggregate? do
-        ref_binding
-      else
-        ref_binding + 1
       end
 
     expr =
@@ -961,85 +955,6 @@ defmodule AshPostgres.Expr do
       Ecto.Query.dynamic(type(^coalesced, ^type))
     else
       coalesced
-    end
-  end
-
-  defp do_dynamic_expr(
-         query,
-         %Ref{
-           attribute: %Ash.Query.Calculation{} = calculation,
-           relationship_path: relationship_path
-         } = ref,
-         bindings,
-         embedded?,
-         _type
-       ) do
-    binding_to_replace =
-      Enum.find_value(bindings.bindings, fn {i, binding} ->
-        if binding.path == relationship_path do
-          i
-        end
-      end)
-
-    if is_nil(binding_to_replace) do
-      raise """
-      Error building calculation reference: #{inspect(relationship_path)} is not available in bindings.
-
-      In reference: #{ref}
-      """
-    end
-
-    temp_bindings =
-      bindings.bindings
-      |> Map.delete(0)
-      |> Map.update!(binding_to_replace, &Map.merge(&1, %{path: [], type: :root}))
-
-    type =
-      AshPostgres.Types.parameterized_type(
-        calculation.type,
-        Map.get(calculation, :constraints, [])
-      )
-
-    validate_type!(query, type, ref)
-
-    case Ash.Filter.hydrate_refs(
-           calculation.module.expression(calculation.opts, calculation.context),
-           %{
-             resource: ref.resource,
-             aggregates: %{},
-             calculations: %{},
-             public?: false
-           }
-         ) do
-      {:ok, hydrated} ->
-        hydrated =
-          Ash.Actions.Read.add_calc_context_to_filter(
-            hydrated,
-            calculation.context[:actor],
-            calculation.context[:authorize?],
-            calculation.context[:tenant],
-            calculation.context[:tracer]
-          )
-
-        expr =
-          do_dynamic_expr(
-            query,
-            Ash.Filter.update_aggregates(hydrated, fn aggregate, _ ->
-              %{aggregate | relationship_path: []}
-            end),
-            %{bindings | bindings: temp_bindings},
-            embedded?,
-            type
-          )
-
-        if type do
-          Ecto.Query.dynamic(type(^expr, ^type))
-        else
-          expr
-        end
-
-      _ ->
-        raise "Failed to hydrate references for #{inspect(ref.resource)} in #{inspect(calculation.module.expression(calculation.opts, calculation.context))}"
     end
   end
 
@@ -1511,27 +1426,17 @@ defmodule AshPostgres.Expr do
   end
 
   defp ref_binding(
-         %{attribute: %Ash.Query.Aggregate{name: name}, relationship_path: []},
+         %{attribute: %Ash.Query.Aggregate{name: name}, relationship_path: relationship_path},
          bindings
        ) do
     Enum.find_value(bindings.bindings, fn {binding, data} ->
       data.type == :aggregate &&
+        data.path == relationship_path &&
         Enum.any?(data.aggregates, &(&1.name == name)) && binding
     end)
   end
 
   defp ref_binding(%{attribute: %Ash.Resource.Attribute{}} = ref, bindings) do
-    Enum.find_value(bindings.bindings, fn {binding, data} ->
-      data.type in [:inner, :left, :root] &&
-        Ash.SatSolver.synonymous_relationship_paths?(
-          bindings.resource,
-          data.path,
-          ref.relationship_path
-        ) && binding
-    end)
-  end
-
-  defp ref_binding(%{attribute: %Ash.Query.Aggregate{}} = ref, bindings) do
     Enum.find_value(bindings.bindings, fn {binding, data} ->
       data.type in [:inner, :left, :root] &&
         Ash.SatSolver.synonymous_relationship_paths?(
