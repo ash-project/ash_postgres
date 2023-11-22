@@ -58,6 +58,11 @@ defmodule AshPostgres.CalculationTest do
              Post
              |> Ash.Query.filter(c_times_p == 6)
              |> Api.read!()
+
+    assert [] =
+             Post
+             |> Ash.Query.filter(author: [has_posts: true])
+             |> Api.read!()
   end
 
   test "calculations can refer to to_one path attributes in filters" do
