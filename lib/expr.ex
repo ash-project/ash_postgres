@@ -911,8 +911,6 @@ defmodule AshPostgres.Expr do
         ref_binding = ref_binding(ref, bindings)
 
         if is_nil(ref_binding) do
-          IO.inspect(ref)
-          IO.inspect(bindings)
           raise "Error while building reference: #{inspect(ref)}"
         end
 
