@@ -12,6 +12,9 @@ defmodule AshPostgres.Repo do
 
   To configure your list of installed extensions, define `installed_extensions/0`
 
+  Extensions can be a string, representing a standard postgres extension, or a module that implements `AshPostgres.CustomExtension`.
+  That custom extension will be called to generate migrations that serve a specific purpose.
+
   Extensions that are relevant to ash_postgres:
 
   * "ash-functions" - This isn't really an extension, but it expresses that certain functions
@@ -23,7 +26,7 @@ defmodule AshPostgres.Repo do
 
   ```
   def installed_extensions() do
-    ["pg_trgm", "uuid-ossp", "vector"]
+    ["pg_trgm", "uuid-ossp", "vector", YourCustomExtension]
   end
   ```
 

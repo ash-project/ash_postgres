@@ -1219,7 +1219,7 @@ defmodule AshPostgres.DataLayer do
                  upsert_set
                ) do
             :empty ->
-              :nothing
+              {:replace, options[:upsert_keys] || Ash.Resource.Info.primary_key(resource)}
 
             {:ok, query} ->
               query
