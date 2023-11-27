@@ -200,48 +200,19 @@ defmodule AshPostgres.Expr do
   defp do_dynamic_expr(
          query,
          %GetPath{
-           arguments: [%Ref{attribute: %{type: type}}, right]
-         } = get_path,
+           arguments: [%Ref{attribute: %{type: type, constraints: constraints}} = left, right],
+           embedded?: pred_embedded?
+         },
          bindings,
          embedded?,
-         nil
+         _
        )
-       when is_atom(type) and is_list(right) do
-    if Ash.Type.embedded_type?(type) do
-      type = determine_type_at_path(type, right)
-
-      do_get_path(query, get_path, bindings, embedded?, type)
-    else
-      do_get_path(query, get_path, bindings, embedded?)
-    end
-  end
-
-  defp do_dynamic_expr(
-         query,
-         %GetPath{
-           arguments: [%Ref{attribute: %{type: {:array, type}}}, right]
-         } = get_path,
-         bindings,
-         embedded?,
-         nil
-       )
-       when is_atom(type) and is_list(right) do
-    if Ash.Type.embedded_type?(type) do
-      type = determine_type_at_path(type, right)
-      do_get_path(query, get_path, bindings, embedded?, type)
-    else
-      do_get_path(query, get_path, bindings, embedded?)
-    end
-  end
-
-  defp do_dynamic_expr(
-         query,
-         %GetPath{} = get_path,
-         bindings,
-         embedded?,
-         type
-       ) do
-    do_get_path(query, get_path, bindings, embedded?, type)
+       when is_list(right) do
+    type
+    |> split_at_paths(constraints, right)
+    |> Enum.reduce(do_dynamic_expr(query, left, bindings, embedded?), fn data, expr ->
+      do_get_path(query, expr, data, bindings, embedded?, pred_embedded?)
+    end)
   end
 
   defp do_dynamic_expr(
@@ -1331,6 +1302,118 @@ defmodule AshPostgres.Expr do
     end
   end
 
+  defp split_at_paths(type, constraints, next, acc \\ [{:bracket, [], nil, nil}])
+
+  defp split_at_paths(_type, _constraints, [], acc) do
+    acc
+  end
+
+  defp split_at_paths({:array, type}, constraints, [next | rest], [first_acc | rest_acc])
+       when is_integer(next) do
+    case first_acc do
+      {:bracket, path, nil, nil} ->
+        split_at_paths(type, constraints[:items] || [], rest, [
+          {:bracket, [next | path], type, constraints}
+          | rest_acc
+        ])
+
+      {:dot, _field} ->
+        split_at_paths(type, constraints[:items] || [], rest, [
+          {:bracket, [next], type, constraints},
+          first_acc
+          | rest_acc
+        ])
+    end
+  end
+
+  defp split_at_paths(type, constraints, [next | rest], [first_acc | rest_acc])
+       when is_atom(next) do
+    bracket_or_dot =
+      if type && Ash.Type.composite?(type, constraints) do
+        :dot
+      else
+        :bracket
+      end
+
+    {next, type, constraints} =
+      cond do
+        type && Ash.Type.embedded_type?(type) ->
+          type =
+            if Ash.Type.NewType.new_type?(type) do
+              Ash.Type.NewType.subtype_of(type)
+            else
+              type
+            end
+
+          %{type: type, constraints: constraints} = Ash.Resource.Info.attribute(type, next)
+          {next, type, constraints}
+
+        type && Ash.Type.composite?(type, constraints) ->
+          condition =
+            if is_binary(next) do
+              fn {name, _type, _constraints} ->
+                to_string(name) == next
+              end
+            else
+              fn {name, _type, _constraints} ->
+                name == next
+              end
+            end
+
+          case Enum.find(Ash.Type.composite_types(type, constraints), condition) do
+            nil ->
+              {next, nil, nil}
+
+            {_, aliased_as, type, constraints} ->
+              {aliased_as, type, constraints}
+
+            {name, type, constraints} ->
+              {name, type, constraints}
+          end
+
+        true ->
+          {next, nil, nil}
+      end
+
+    case bracket_or_dot do
+      :dot ->
+        case first_acc do
+          {:bracket, [], _, _} ->
+            split_at_paths(type, constraints, rest, [
+              {bracket_or_dot, [next], type, constraints} | rest_acc
+            ])
+
+          {:bracket, path, nil, nil} ->
+            split_at_paths(type, constraints, rest, [
+              {bracket_or_dot, [next], type, constraints},
+              {:bracket, path, nil, nil}
+              | rest_acc
+            ])
+
+          {:dot, _path} ->
+            split_at_paths(type, constraints, rest, [
+              {bracket_or_dot, [next], nil, nil},
+              first_acc | rest_acc
+            ])
+        end
+
+      :bracket ->
+        case first_acc do
+          {:bracket, path, nil, nil} ->
+            split_at_paths(type, constraints, rest, [
+              {bracket_or_dot, [next | path], type, constraints}
+              | rest_acc
+            ])
+
+          {:dot, _path} ->
+            split_at_paths(type, constraints, rest, [
+              {bracket_or_dot, [next], nil, nil},
+              first_acc | rest_acc
+            ])
+        end
+    end
+  end
+
   defp list_expr(query, value, bindings, embedded?, type) do
     type =
       case type do
@@ -1447,12 +1530,14 @@ defmodule AshPostgres.Expr do
 
   defp do_get_path(
          query,
-         %GetPath{arguments: [left, right], embedded?: pred_embedded?} = get_path,
+         expr,
+         {:bracket, path, type, constraints},
          bindings,
          embedded?,
-         type \\ nil
+         pred_embedded?
        ) do
-    path = Enum.map(right, &to_string/1)
+    type = AshPostgres.Types.parameterized_type(type, constraints)
+    path = path |> Enum.reverse() |> Enum.map(&to_string/1)
 
     path_frags =
       path
@@ -1470,7 +1555,7 @@ defmodule AshPostgres.Expr do
           arguments:
             [
               raw: "jsonb_extract_path_text(",
-              expr: left,
+              expr: expr,
               raw: "::jsonb,"
             ] ++ path_frags
         },
@@ -1479,8 +1564,39 @@ defmodule AshPostgres.Expr do
       )
 
     if type do
-      validate_type!(query, type, get_path)
+      Ecto.Query.dynamic(type(^expr, ^type))
+    else
+      expr
+    end
+  end
 
+  defp do_get_path(
+         query,
+         expr,
+         {:dot, [field], type, constraints},
+         bindings,
+         embedded?,
+         pred_embedded?
+       )
+       when is_atom(field) do
+    type = AshPostgres.Types.parameterized_type(type, constraints)
+
+    expr =
+      do_dynamic_expr(
+        query,
+        %Fragment{
+          embedded?: pred_embedded?,
+          arguments: [
+            raw: "((",
+            expr: expr,
+            raw: ").#{field})"
+          ]
+        },
+        bindings,
+        embedded?
+      )
+
+    if type do
       Ecto.Query.dynamic(type(^expr, ^type))
     else
       expr
@@ -1508,64 +1624,6 @@ defmodule AshPostgres.Expr do
         expression: context,
         message:
           "The #{extension} extension needs to be installed before #{inspect(context)} can be used. Please add \"#{extension}\" to the list of installed_extensions in #{inspect(repo)}."
-    end
-  end
-
-  defp determine_type_at_path(type, path) do
-    path
-    |> Enum.reject(&is_integer/1)
-    |> do_determine_type_at_path(type)
-    |> case do
-      nil ->
-        nil
-
-      {type, constraints} ->
-        AshPostgres.Types.parameterized_type(type, constraints)
-    end
-  end
-
-  defp do_determine_type_at_path([], _), do: nil
-
-  defp do_determine_type_at_path([item], type) do
-    case Ash.Resource.Info.attribute(type, item) do
-      nil ->
-        nil
-
-      %{type: {:array, type}, constraints: constraints} ->
-        constraints = constraints[:items] || []
-
-        {type, constraints}
-
-      %{type: type, constraints: constraints} ->
-        {type, constraints}
-    end
-  end
-
-  defp do_determine_type_at_path([item | rest], type) do
-    case Ash.Resource.Info.attribute(type, item) do
-      nil ->
-        nil
-
-      %{type: {:array, type}} ->
-        if Ash.Type.embedded_type?(type) do
-          type
-        else
-          nil
-        end
-
-      %{type: type} ->
-        if Ash.Type.embedded_type?(type) do
-          type
-        else
-          nil
-        end
-    end
-    |> case do
-      nil ->
-        nil
-
-      type ->
-        do_determine_type_at_path(rest, type)
     end
   end
 

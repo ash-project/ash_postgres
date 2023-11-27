@@ -85,6 +85,7 @@ defmodule AshPostgres.Test.Post do
     attribute(:status_enum, AshPostgres.Test.Types.StatusEnum)
     attribute(:status_enum_no_cast, AshPostgres.Test.Types.StatusEnumNoCast, source: :status_enum)
     attribute(:point, AshPostgres.Test.Point)
+    attribute(:composite_point, AshPostgres.Test.CompositePoint)
     attribute(:stuff, :map)
     attribute(:uniq_one, :string)
     attribute(:uniq_two, :string)
