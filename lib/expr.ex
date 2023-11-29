@@ -953,20 +953,20 @@ defmodule AshPostgres.Expr do
          embedded?,
          _type
        )
-       when is_tuple(arg1) do
+       when is_map(arg1) do
     type = Ash.Type.get_type(arg2)
+
+    composite_keys = Ash.Type.composite_types(type, constraints)
 
     type = AshPostgres.Types.parameterized_type(type, constraints)
 
     values =
-      arg1
-      |> Tuple.to_list()
-      |> Enum.map(fn value ->
-        {:expr, value}
+      composite_keys
+      |> Enum.map(fn config ->
+        key = elem(config, 0)
+        {:expr, Map.get(arg1, key)}
       end)
       |> Enum.intersperse({:raw, ","})
-
-    # ROW(?, ?)::money_with_currency
 
     frag =
       %Fragment{

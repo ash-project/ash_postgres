@@ -166,7 +166,7 @@ defmodule AshPostgres.Test.Post do
     calculate(
       :composite_origin,
       AshPostgres.Test.CompositePoint,
-      expr(composite_type({0, 0}, AshPostgres.Test.CompositePoint))
+      expr(composite_type(%{x: 0, y: 0}, AshPostgres.Test.CompositePoint))
     )
 
     calculate(
