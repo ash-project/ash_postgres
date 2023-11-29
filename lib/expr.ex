@@ -1317,7 +1317,7 @@ defmodule AshPostgres.Expr do
           | rest_acc
         ])
 
-      {:dot, _field} ->
+      {:dot, _field, _, _} ->
         split_at_paths(type, constraints[:items] || [], rest, [
           {:bracket, [next], type, constraints},
           first_acc
@@ -1390,7 +1390,7 @@ defmodule AshPostgres.Expr do
               | rest_acc
             ])
 
-          {:dot, _path} ->
+          {:dot, _path, _, _} ->
             split_at_paths(type, constraints, rest, [
               {bracket_or_dot, [next], nil, nil},
               first_acc | rest_acc
@@ -1405,7 +1405,7 @@ defmodule AshPostgres.Expr do
               | rest_acc
             ])
 
-          {:dot, _path} ->
+          {:dot, _path, _, _} ->
             split_at_paths(type, constraints, rest, [
               {bracket_or_dot, [next], nil, nil},
               first_acc | rest_acc
