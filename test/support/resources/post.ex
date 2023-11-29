@@ -164,6 +164,12 @@ defmodule AshPostgres.Test.Post do
     calculate(:foo_bar_from_stuff, :string, expr(stuff[:foo][:bar]))
 
     calculate(
+      :composite_origin,
+      AshPostgres.Test.CompositePoint,
+      expr(composite_type({0, 0}, AshPostgres.Test.CompositePoint))
+    )
+
+    calculate(
       :score_map,
       :map,
       expr(%{

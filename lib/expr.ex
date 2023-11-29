@@ -8,6 +8,7 @@ defmodule AshPostgres.Expr do
   alias Ash.Query.Function.{
     Ago,
     At,
+    CompositeType,
     Contains,
     DateAdd,
     DateTimeAdd,
@@ -943,6 +944,47 @@ defmodule AshPostgres.Expr do
     else
       do_dynamic_expr(query, arg1, bindings, embedded?, type)
     end
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %CompositeType{arguments: [arg1, arg2, constraints], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         _type
+       )
+       when is_tuple(arg1) do
+    type = Ash.Type.get_type(arg2)
+
+    type = AshPostgres.Types.parameterized_type(type, constraints)
+
+    values =
+      arg1
+      |> Tuple.to_list()
+      |> Enum.map(fn value ->
+        {:expr, value}
+      end)
+      |> Enum.intersperse({:raw, ","})
+
+    # ROW(?, ?)::money_with_currency
+
+    frag =
+      %Fragment{
+        embedded?: pred_embedded?,
+        arguments:
+          [
+            raw: "ROW("
+          ] ++
+            values ++
+            [
+              raw: ")"
+            ]
+      }
+
+    frag =
+      do_dynamic_expr(query, frag, bindings, embedded?)
+
+    Ecto.Query.dynamic(type(^frag, ^type))
   end
 
   defp do_dynamic_expr(

@@ -24,4 +24,15 @@ defmodule AshPostgres.Test.CompositeTypeTest do
     assert %{id: ^post_id} = Post |> Ash.Query.filter(composite_point[:x] == 1) |> Api.read_one!()
     refute Post |> Ash.Query.filter(composite_point[:x] == 2) |> Api.read_one!()
   end
+
+  test "composite types can be constructed" do
+    Post
+    |> Ash.Changeset.for_create(:create, %{title: "locked", composite_point: %{x: 1, y: 2}})
+    |> Api.create!()
+
+    assert %{composite_origin: %{x: 0, y: 0}} =
+             Post
+             |> Ash.Query.load(:composite_origin)
+             |> Api.read_one!()
+  end
 end
