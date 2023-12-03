@@ -5,6 +5,47 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.63](https://github.com/ash-project/ash_postgres/compare/v1.3.62...v1.3.63) (2023-12-03)
+
+
+
+
+### Bug Fixes:
+
+* use maps for composite_type instead of tuples
+
+* avoid empty error on upserts with `:nothing`
+
+* simplify aggregate bindings & calculation reference building
+
+* hydrate aggregate refs when adding for calculations
+
+* apply limit to `from_many?` relationship joins
+
+* properly add filters for exists aggregates
+
+* properly expand calculation values across aggregate invocations
+
+* don't add filter for `no_attributes?` relationships
+
+* handle `no_attributes?` flag on aggregates better
+
+* properly handle sorted relationships in aggregates
+
+### Improvements:
+
+* support `composite_type/2` expression
+
+* support composite types
+
+* optimize relationships with identity on other end
+
+* allow specifying multi-column foreign keys (#180)
+
+* add match_with option on references
+
+* add match_type option on references
+
 ## [v1.3.62](https://github.com/ash-project/ash_postgres/compare/v1.3.61...v1.3.62) (2023-11-16)
 
 
