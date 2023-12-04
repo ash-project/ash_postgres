@@ -424,6 +424,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :async_engine), do: true
   def can?(_, :bulk_create), do: true
   def can?(_, {:lock, :for_update}), do: true
+  def can?(_, :composite_types), do: true
 
   def can?(_, {:lock, string}) do
     string = String.trim_trailing(string, " NOWAIT")
@@ -1951,6 +1952,9 @@ defmodule AshPostgres.DataLayer do
             apply(m, f, a)
         end
 
+      {:ok, default_value} =
+        Ash.Type.cast_input(attribute.type, default_value, attribute.constraints)
+
       {attribute.name, default_value}
     end)
   end
@@ -1958,8 +1962,8 @@ defmodule AshPostgres.DataLayer do
   defp lazy_matching_defaults(attributes) do
     attributes
     |> Enum.filter(&(&1.match_other_defaults? && get_default_fun(&1)))
-    |> Enum.group_by(& &1.update_default)
-    |> Enum.flat_map(fn {default_fun, attributes} ->
+    |> Enum.group_by(&{&1.update_default, &1.type, &1.constraints})
+    |> Enum.flat_map(fn {{default_fun, type, constraints}, attributes} ->
       default_value =
         case default_fun do
           function when is_function(function) ->
@@ -1968,6 +1972,9 @@ defmodule AshPostgres.DataLayer do
           {m, f, a} when is_atom(m) and is_atom(f) and is_list(a) ->
             apply(m, f, a)
         end
+
+      {:ok, default_value} =
+        Ash.Type.cast_input(type, default_value, constraints)
 
       Enum.map(attributes, &{&1.name, default_value})
     end)
