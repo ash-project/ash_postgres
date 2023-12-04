@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.64](https://github.com/ash-project/ash_postgres/compare/v1.3.63...v1.3.64) (2023-12-04)
+
+
+
+
+### Bug Fixes:
+
+* properly cast lazy update defaults to target type
+
 ## [v1.3.63](https://github.com/ash-project/ash_postgres/compare/v1.3.62...v1.3.63) (2023-12-03)
 
 
