@@ -53,6 +53,7 @@ defmodule Mix.Tasks.AshPostgres.Drop do
 
     rest_opts = AshPostgres.MixHelpers.delete_arg(args, "--apis")
 
+    Mix.Task.reenable("ecto.drop")
     Mix.Task.run("ecto.drop", repo_args ++ rest_opts)
   end
 end

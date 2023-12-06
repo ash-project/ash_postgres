@@ -77,6 +77,8 @@ defmodule Mix.Tasks.AshPostgres.Rollback do
       |> AshPostgres.MixHelpers.delete_flag("--only-tenants")
       |> AshPostgres.MixHelpers.delete_flag("--except-tenants")
 
+    Mix.Task.reenable("ecto.rollback")
+
     if opts[:tenants] do
       for repo <- repos do
         Ecto.Migrator.with_repo(repo, fn repo ->

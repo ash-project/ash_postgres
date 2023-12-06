@@ -43,6 +43,7 @@ defmodule Mix.Tasks.AshPostgres.Create do
 
     rest_opts = AshPostgres.MixHelpers.delete_arg(args, "--apis")
 
+    Mix.Task.reenable("ecto.create")
     Mix.Task.run("ecto.create", repo_args ++ rest_opts)
   end
 end
