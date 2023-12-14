@@ -17,6 +17,7 @@ defmodule AshPostgres.Expr do
     If,
     Length,
     Now,
+    Error,
     StringJoin,
     StringSplit,
     Today,
@@ -1039,6 +1040,37 @@ defmodule AshPostgres.Expr do
       embedded?,
       type
     )
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %Error{arguments: [exception, input]} = value,
+         _bindings,
+         _embedded?,
+         type
+       ) do
+    require_ash_functions!(query, "error/2")
+
+    unless Keyword.keyword?(input) || is_map(input) do
+      raise "Input expression to `error` must be a map or keyword list"
+    end
+
+    encoded =
+      "ash_exception: " <> Jason.encode!(%{exception: inspect(exception), input: Map.new(input)})
+
+    if type do
+      # This is a type hint, if we're raising an error, we tell it what the value
+      # type *would* be in this expression so that we can return a "NULL" of that type
+      # its weird, but there isn't any other way that I can tell :)
+      validate_type!(query, type, value)
+
+      dynamic =
+        Ecto.Query.dynamic(type(^nil, ^type))
+
+      Ecto.Query.dynamic(fragment("ash_raise_error(?::jsonb, ?)", ^encoded, ^dynamic))
+    else
+      Ecto.Query.dynamic(fragment("ash_raise_error(?::jsonb)", ^encoded))
+    end
   end
 
   defp do_dynamic_expr(

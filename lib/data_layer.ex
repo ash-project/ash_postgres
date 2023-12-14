@@ -645,7 +645,11 @@ defmodule AshPostgres.DataLayer do
         if AshPostgres.DataLayer.Info.polymorphic?(resource) && no_table?(query) do
           raise_table_error!(resource, :read)
         else
-          {:ok, dynamic_repo(resource, query).all(query, repo_opts(nil, nil, resource))}
+          repo = dynamic_repo(resource, query)
+
+          with_savepoint(repo, fn ->
+            {:ok, repo.all(query, repo_opts(nil, nil, resource))}
+          end)
         end
     end
   rescue
@@ -1195,100 +1199,138 @@ defmodule AshPostgres.DataLayer do
 
     changesets = Enum.to_list(stream)
 
-    opts =
-      if options[:upsert?] do
-        # Ash groups changesets by atomics before dispatching them to the data layer
-        # this means that all changesets have the same atomics
-        %{atomics: atomics, filters: filters} = Enum.at(changesets, 0)
-
-        query = from(row in resource, as: ^0)
-
-        query =
-          query
-          |> default_bindings(resource)
-
-        upsert_set =
-          upsert_set(resource, changesets, options)
-
-        on_conflict =
-          case query_with_atomics(
-                 resource,
-                 query,
-                 filters,
-                 atomics,
-                 %{},
-                 upsert_set
-               ) do
-            :empty ->
-              {:replace, options[:upsert_keys] || Ash.Resource.Info.primary_key(resource)}
-
-            {:ok, query} ->
-              query
-
-            {:error, error} ->
-              raise Ash.Error.to_ash_error(error)
-          end
-
-        opts
-        |> Keyword.put(:on_conflict, on_conflict)
-        |> Keyword.put(
-          :conflict_target,
-          conflict_target(
-            resource,
-            options[:upsert_keys] || Ash.Resource.Info.primary_key(resource)
-          )
-        )
-      else
-        opts
-      end
-
-    ecto_changesets = Enum.map(changesets, & &1.attributes)
-
-    source =
-      if table = Enum.at(changesets, 0).context[:data_layer][:table] do
-        {table, resource}
-      else
-        resource
-      end
-
     repo = dynamic_repo(resource, Enum.at(changesets, 0))
 
-    source
-    |> repo.insert_all(ecto_changesets, opts)
-    |> case do
-      {_, nil} ->
-        :ok
+    try do
+      opts =
+        if options[:upsert?] do
+          # Ash groups changesets by atomics before dispatching them to the data layer
+          # this means that all changesets have the same atomics
+          %{atomics: atomics, filters: filters} = Enum.at(changesets, 0)
 
-      {_, results} ->
-        if options[:single?] do
-          Enum.each(results, &maybe_create_tenant!(resource, &1))
+          query = from(row in resource, as: ^0)
 
-          {:ok, results}
+          query =
+            query
+            |> default_bindings(resource)
+
+          upsert_set =
+            upsert_set(resource, changesets, options)
+
+          on_conflict =
+            case query_with_atomics(
+                   resource,
+                   query,
+                   filters,
+                   atomics,
+                   %{},
+                   upsert_set
+                 ) do
+              :empty ->
+                {:replace, options[:upsert_keys] || Ash.Resource.Info.primary_key(resource)}
+
+              {:ok, query} ->
+                query
+
+              {:error, error} ->
+                raise Ash.Error.to_ash_error(error)
+            end
+
+          opts
+          |> Keyword.put(:on_conflict, on_conflict)
+          |> Keyword.put(
+            :conflict_target,
+            conflict_target(
+              resource,
+              options[:upsert_keys] || Ash.Resource.Info.primary_key(resource)
+            )
+          )
         else
-          {:ok,
-           Stream.zip_with(results, changesets, fn result, changeset ->
-             if !opts[:upsert?] do
-               maybe_create_tenant!(resource, result)
-             end
-
-             Ash.Resource.put_metadata(
-               result,
-               :bulk_create_index,
-               changeset.context.bulk_create.index
-             )
-           end)}
+          opts
         end
-    end
-  rescue
-    e ->
-      changeset = Ash.Changeset.new(resource)
 
-      handle_raised_error(
-        e,
-        __STACKTRACE__,
-        {:bulk_create, ecto_changeset(changeset.data, changeset, :create, false)},
-        resource
-      )
+      ecto_changesets = Enum.map(changesets, & &1.attributes)
+
+      source =
+        if table = Enum.at(changesets, 0).context[:data_layer][:table] do
+          {table, resource}
+        else
+          resource
+        end
+
+      result =
+        with_savepoint(repo, fn ->
+          repo.insert_all(source, ecto_changesets, opts)
+        end)
+
+      case result do
+        {_, nil} ->
+          :ok
+
+        {_, results} ->
+          if options[:single?] do
+            Enum.each(results, &maybe_create_tenant!(resource, &1))
+
+            {:ok, results}
+          else
+            {:ok,
+             Stream.zip_with(results, changesets, fn result, changeset ->
+               if !opts[:upsert?] do
+                 maybe_create_tenant!(resource, result)
+               end
+
+               Ash.Resource.put_metadata(
+                 result,
+                 :bulk_create_index,
+                 changeset.context.bulk_create.index
+               )
+             end)}
+          end
+      end
+    rescue
+      e ->
+        changeset = Ash.Changeset.new(resource)
+
+        handle_raised_error(
+          e,
+          __STACKTRACE__,
+          {:bulk_create, ecto_changeset(changeset.data, changeset, :create, false)},
+          resource
+        )
+    end
+  end
+
+  defp with_savepoint(repo, fun) do
+    if repo.in_transaction?() do
+      savepoint_id = "a" <> (Ash.UUID.generate() |> String.replace("-", "_"))
+
+      repo.query!("SAVEPOINT #{savepoint_id}")
+
+      result =
+        try do
+          {:ok, fun.()}
+        rescue
+          e ->
+            repo.query!("ROLLBACK TO #{savepoint_id}")
+            {:exception, e, __STACKTRACE__}
+        end
+
+      case result do
+        {:exception, e, stacktrace} ->
+          reraise e, stacktrace
+
+        {:ok, result} ->
+          repo.query!("RELEASE #{savepoint_id}")
+          result
+      end
+    else
+      try do
+        fun.()
+      rescue
+        e ->
+          reraise e, __STACKTRACE__
+      end
+    end
   end
 
   defp upsert_set(resource, changesets, options) do
@@ -1581,6 +1623,29 @@ defmodule AshPostgres.DataLayer do
       _ ->
         reraise error, stacktrace
     end
+  end
+
+  defp handle_raised_error(
+         %Postgrex.Error{
+           postgres: %{
+             code: :raise_exception,
+             message: "\"ash_exception: " <> json,
+             severity: "ERROR"
+           }
+         },
+         _,
+         _,
+         _
+       ) do
+    %{"exception" => exception, "input" => input} =
+      json
+      |> String.trim_trailing("\"")
+      |> String.replace("\\\"", "\"")
+      |> Jason.decode!()
+
+    exception = Module.concat([exception])
+
+    {:error, Ash.Error.from_json(exception, input)}
   end
 
   defp handle_raised_error(error, stacktrace, _ecto_changeset, _resource) do
@@ -2020,12 +2085,16 @@ defmodule AshPostgres.DataLayer do
           repo_opts =
             Keyword.put(repo_opts, :returning, Keyword.keys(changeset.atomics))
 
+          repo = dynamic_repo(resource, changeset)
+
           result =
-            dynamic_repo(resource, changeset).update_all(
-              query,
-              [],
-              repo_opts
-            )
+            with_savepoint(repo, fn ->
+              repo.update_all(
+                query,
+                [],
+                repo_opts
+              )
+            end)
 
           case result do
             {0, []} ->
@@ -2174,10 +2243,17 @@ defmodule AshPostgres.DataLayer do
     ecto_changeset = ecto_changeset(record, changeset, :delete)
 
     try do
-      ecto_changeset
-      |> dynamic_repo(resource, changeset).delete(
-        repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
-      )
+      repo = dynamic_repo(resource, changeset)
+
+      result =
+        with_savepoint(repo, fn ->
+          repo.delete(
+            ecto_changeset,
+            repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
+          )
+        end)
+
+      result
       |> from_ecto()
       |> case do
         {:ok, _record} ->
