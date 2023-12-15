@@ -1401,7 +1401,7 @@ defmodule AshPostgres.Expr do
   end
 
   defp split_at_paths(type, constraints, [next | rest], [first_acc | rest_acc])
-       when is_atom(next) do
+       when is_atom(next) or is_binary(next) do
     bracket_or_dot =
       if type && Ash.Type.composite?(type, constraints) do
         :dot

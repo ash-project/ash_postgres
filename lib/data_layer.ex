@@ -502,6 +502,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, {:aggregate_relationship, _}), do: true
 
   def can?(_, :timeout), do: true
+  def can?(_, :expr_error), do: true
   def can?(_, {:filter_expr, _}), do: true
   def can?(_, :nested_expressions), do: true
   def can?(_, {:query_aggregate, _}), do: true
