@@ -1,6 +1,6 @@
 defmodule AshPostgres.ErrorExprTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Author, Comment, Post}
+  alias AshPostgres.Test.{Api, Post}
 
   require Ash.Query
   import Ash.Expr

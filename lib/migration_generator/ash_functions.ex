@@ -147,7 +147,7 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     \"\"\")
 
     execute(\"\"\"
-    CREATE OR REPLACE FUNCTION ash_raise_error(json_data json, type_signal ANYCOMPATIBLE)
+    CREATE OR REPLACE FUNCTION ash_raise_error(json_data jsonb, type_signal ANYCOMPATIBLE)
     RETURNS ANYCOMPATIBLE AS $$
     BEGIN
         -- Raise an error with the provided JSON data.
