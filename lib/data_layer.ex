@@ -1387,9 +1387,7 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp get_source_for_upsert_field(field, resource) do
-    case resource
-         |> Ash.Resource.Info.attributes()
-         |> Enum.find(&(&1.name == field)) do
+    case Ash.Resource.Info.attribute(resource, field) do
       %{source: source} when not is_nil(source) ->
         source
 
