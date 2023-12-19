@@ -1365,7 +1365,7 @@ defmodule AshPostgres.DataLayer do
                [],
                fragment(
                  "COALESCE(EXCLUDED.?, ?)",
-                 literal(^to_string(upsert_field)),
+                 literal(^to_string(get_source_for_upsert_field(upsert_field, resource))),
                  ^default
                )
              )}
@@ -1377,10 +1377,23 @@ defmodule AshPostgres.DataLayer do
           {upsert_field,
            Ecto.Query.dynamic(
              [],
-             fragment("EXCLUDED.?", literal(^to_string(upsert_field)))
+             fragment(
+               "EXCLUDED.?",
+               literal(^to_string(get_source_for_upsert_field(upsert_field, resource)))
+             )
            )}
       end
     end)
+  end
+
+  defp get_source_for_upsert_field(field, resource) do
+    case Ash.Resource.Info.attribute(resource, field) do
+      %{source: source} when not is_nil(source) ->
+        source
+
+      _ ->
+        field
+    end
   end
 
   @impl true
