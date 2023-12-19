@@ -74,9 +74,11 @@ defmodule AshPostgres.Test.Post do
 
   attributes do
     uuid_primary_key(:id, writable?: true)
+
     attribute(:title, :string) do
-      source :title_column
+      source(:title_column)
     end
+
     attribute(:score, :integer)
     attribute(:public, :boolean)
     attribute(:category, :ci_string)
