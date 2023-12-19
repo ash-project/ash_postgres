@@ -2627,8 +2627,8 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def add_calculations(query, calculations, resource) do
-    AshPostgres.Calculation.add_calculations(query, calculations, resource, 0)
+  def add_calculations(query, calculations, resource, select? \\ true) do
+    AshPostgres.Calculation.add_calculations(query, calculations, resource, 0, select?)
   end
 
   @doc false

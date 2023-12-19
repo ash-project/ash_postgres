@@ -46,6 +46,8 @@ defmodule AshPostgres.Test.ComplexCalculations.DMChannel do
   end
 
   calculations do
+    calculate(:foobar, :string, expr("foobar"))
+
     calculate :name, :string do
       calculation(
         expr(

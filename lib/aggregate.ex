@@ -365,7 +365,7 @@ defmodule AshPostgres.Aggregate do
          relationship_path,
          aggregates,
          is_single?,
-         source_binding
+         _source_binding
        ) do
     Enum.reduce_while(aggregates, {:ok, agg_query}, fn aggregate, {:ok, agg_query} ->
       filter =
@@ -379,86 +379,47 @@ defmodule AshPostgres.Aggregate do
           aggregate.query.filter
         end
 
-      used_calculations =
-        Ash.Filter.used_calculations(
-          filter,
-          first_relationship.destination,
-          relationship_path
-        )
-
       related = Ash.Resource.Info.related(first_relationship.destination, relationship_path)
 
-      used_calculations =
+      agg_query =
         case Ash.Resource.Info.calculation(related, aggregate.field) do
           %{name: name, calculation: {module, opts}, type: type, constraints: constraints} ->
             {:ok, new_calc} = Ash.Query.Calculation.new(name, module, opts, {type, constraints})
+            expression = module.expression(opts, aggregate.context)
 
-            if new_calc in used_calculations do
-              used_calculations
-            else
-              [
-                new_calc
-                | used_calculations
-              ]
-            end
+            expression =
+              Ash.Filter.build_filter_from_template(
+                expression,
+                aggregate.context[:actor],
+                aggregate.context,
+                aggregate.context
+              )
+
+            {:ok, expression} =
+              Ash.Filter.hydrate_refs(expression, %{
+                resource: related,
+                public?: false
+              })
+
+            {:ok, agg_query} =
+              AshPostgres.DataLayer.add_calculations(
+                agg_query,
+                [{new_calc, expression}],
+                agg_query.__ash_bindings__.resource,
+                false
+              )
+
+            agg_query
 
           nil ->
-            used_calculations
+            agg_query
         end
 
-      exprs =
-        Enum.map(used_calculations, fn calculation ->
-          case Ash.Filter.hydrate_refs(
-                 calculation.module.expression(calculation.opts, calculation.context),
-                 %{
-                   resource: aggregate.query.resource,
-                   aggregates: %{},
-                   calculations: %{},
-                   public?: false
-                 }
-               ) do
-            {:ok, hydrated} ->
-              hydrated
-
-            {:error, _error} ->
-              raise """
-              Failed to hydrate references for resource #{inspect(aggregate.query.resource)} in #{inspect(calculation.module.expression(calculation.opts, calculation.context))}
-              """
-          end
-        end)
-
-      {:ok, agg_query} =
-        AshPostgres.Join.join_all_relationships(
-          agg_query,
-          exprs,
-          []
-        )
-
-      used_aggregates =
-        used_aggregates(
-          filter,
-          first_relationship.destination,
-          used_calculations,
-          relationship_path
-        )
-
-      case add_aggregates(
-             agg_query,
-             used_aggregates,
-             first_relationship.destination,
-             false,
-             source_binding
-           ) do
-        {:ok, agg_query} ->
-          if has_filter?(aggregate.query) && is_single? do
-            {:cont,
-             AshPostgres.DataLayer.filter(agg_query, filter, agg_query.__ash_bindings__.resource)}
-          else
-            {:cont, {:ok, agg_query}}
-          end
-
-        other ->
-          {:halt, other}
+      if has_filter?(aggregate.query) && is_single? do
+        {:cont,
+         AshPostgres.DataLayer.filter(agg_query, filter, agg_query.__ash_bindings__.resource)}
+      else
+        {:cont, {:ok, agg_query}}
       end
     end)
   end
@@ -932,7 +893,7 @@ defmodule AshPostgres.Aggregate do
         )
       end
 
-    filtered = filter_field(sorted, query, aggregate, relationship_path, is_single?)
+    {query, filtered} = filter_field(sorted, query, aggregate, relationship_path, is_single?)
 
     value = Ecto.Query.dynamic(fragment("(?)[1]", ^filtered))
 
@@ -1037,7 +998,7 @@ defmodule AshPostgres.Aggregate do
         end
       end
 
-    filtered = filter_field(sorted, query, aggregate, relationship_path, is_single?)
+    {query, filtered} = filter_field(sorted, query, aggregate, relationship_path, is_single?)
 
     with_default =
       if aggregate.default_value do
@@ -1122,7 +1083,7 @@ defmodule AshPostgres.Aggregate do
           module.dynamic(opts, binding)
       end
 
-    filtered = filter_field(field, query, aggregate, relationship_path, is_single?)
+    {query, filtered} = filter_field(field, query, aggregate, relationship_path, is_single?)
 
     with_default =
       if aggregate.default_value do
@@ -1145,8 +1106,8 @@ defmodule AshPostgres.Aggregate do
     select_or_merge(query, aggregate.name, cast)
   end
 
-  defp filter_field(field, _query, _aggregate, _relationship_path, true) do
-    field
+  defp filter_field(field, query, _aggregate, _relationship_path, true) do
+    {query, field}
   end
 
   defp filter_field(field, query, aggregate, relationship_path, _is_single?) do
@@ -1155,6 +1116,35 @@ defmodule AshPostgres.Aggregate do
         Ash.Filter.move_to_relationship_path(
           aggregate.query.filter,
           relationship_path
+        )
+
+      used_calculations =
+        Ash.Filter.used_calculations(
+          filter,
+          query.__ash_bindings__.resource
+        )
+
+      used_aggregates =
+        filter
+        |> AshPostgres.Aggregate.used_aggregates(
+          query.__ash_bindings__.resource,
+          used_calculations,
+          []
+        )
+        |> Enum.map(fn aggregate ->
+          %{aggregate | load: aggregate.name}
+        end)
+
+      {:ok, query} =
+        AshPostgres.Join.join_all_relationships(query, filter)
+
+      {:ok, query} =
+        AshPostgres.Aggregate.add_aggregates(
+          query,
+          used_aggregates,
+          query.__ash_bindings__.resource,
+          false,
+          0
         )
 
       expr =
@@ -1166,9 +1156,9 @@ defmodule AshPostgres.Aggregate do
           AshPostgres.Types.parameterized_type(aggregate.type, aggregate.constraints)
         )
 
-      Ecto.Query.dynamic(filter(^field, ^expr))
+      {query, Ecto.Query.dynamic(filter(^field, ^expr))}
     else
-      field
+      {query, field}
     end
   end
 

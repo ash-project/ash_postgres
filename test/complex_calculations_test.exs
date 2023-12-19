@@ -1,6 +1,8 @@
 defmodule AshPostgres.Test.ComplexCalculationsTest do
   use AshPostgres.RepoCase, async: false
 
+  require Ash.Query
+
   test "complex calculation" do
     certification =
       AshPostgres.Test.ComplexCalculations.Certification
@@ -178,8 +180,19 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
 
     channel =
       channel
-      |> AshPostgres.Test.ComplexCalculations.Api.load!(:dm_name, actor: user_2)
+      |> AshPostgres.Test.ComplexCalculations.Api.load!([:dm_name, :foo], actor: user_2)
 
     assert channel.dm_name == user_2.name
+  end
+
+  test "calculations with parent filters can be filtered on themselves" do
+    AshPostgres.Test.ComplexCalculations.DMChannel
+    |> Ash.Changeset.new()
+    |> AshPostgres.Test.ComplexCalculations.Api.create!()
+
+    assert [%{foo: "foobar"}] =
+             AshPostgres.Test.ComplexCalculations.Channel
+             |> Ash.Query.filter(foo == "foobar")
+             |> AshPostgres.Test.ComplexCalculations.Api.read!(load: :foo)
   end
 end

@@ -894,8 +894,10 @@ defmodule AshPostgres.Join do
 
     use_root_query_bindings? = Enum.empty?(used_aggregates)
 
+    needs_subquery? = Map.get(relationship, :from_many?, false)
+
     root_bindings =
-      if use_root_query_bindings? do
+      if use_root_query_bindings? && !needs_subquery? do
         query.__ash_bindings__
       end
 
@@ -905,7 +907,9 @@ defmodule AshPostgres.Join do
            query,
            sort?,
            full_path,
-           root_bindings
+           root_bindings,
+           nil,
+           use_root_query_bindings? && !needs_subquery?
          ) do
       {:error, error} ->
         {:error, error}
@@ -915,8 +919,6 @@ defmodule AshPostgres.Join do
           relationship_destination
           |> Ecto.Queryable.to_query()
           |> set_join_prefix(query, relationship.destination)
-
-        needs_subquery? = Map.get(relationship, :from_many?)
 
         relationship_destination =
           if needs_subquery? do
@@ -961,22 +963,22 @@ defmodule AshPostgres.Join do
           end
 
         query =
-          case {kind, Map.get(relationship, :no_attributes?)} do
-            {:inner, true} ->
+          case {kind, Map.get(relationship, :no_attributes?, false), needs_subquery?} do
+            {:inner, true, false} ->
               from([{row, current_binding}] in query,
                 join: destination in ^relationship_destination,
                 as: ^initial_ash_bindings.current,
                 on: true
               )
 
-            {_, true} ->
+            {:inner, true, true} ->
               from([{row, current_binding}] in query,
-                left_join: destination in ^relationship_destination,
+                inner_lateral_join: destination in ^relationship_destination,
                 as: ^initial_ash_bindings.current,
                 on: true
               )
 
-            {:inner, _} ->
+            {:inner, false, false} ->
               from([{row, current_binding}] in query,
                 join: destination in ^relationship_destination,
                 as: ^initial_ash_bindings.current,
@@ -988,9 +990,47 @@ defmodule AshPostgres.Join do
                     )
               )
 
-            _ ->
+            {:inner, false, true} ->
+              from([{row, current_binding}] in query,
+                inner_lateral_join: destination in ^relationship_destination,
+                as: ^initial_ash_bindings.current,
+                on:
+                  field(row, ^relationship.source_attribute) ==
+                    field(
+                      destination,
+                      ^relationship.destination_attribute
+                    )
+              )
+
+            {:left, true, false} ->
               from([{row, current_binding}] in query,
                 left_join: destination in ^relationship_destination,
+                as: ^initial_ash_bindings.current,
+                on: true
+              )
+
+            {:left, true, true} ->
+              from([{row, current_binding}] in query,
+                left_lateral_join: destination in ^relationship_destination,
+                as: ^initial_ash_bindings.current,
+                on: true
+              )
+
+            {:left, false, false} ->
+              from([{row, current_binding}] in query,
+                left_join: destination in ^relationship_destination,
+                as: ^initial_ash_bindings.current,
+                on:
+                  field(row, ^relationship.source_attribute) ==
+                    field(
+                      destination,
+                      ^relationship.destination_attribute
+                    )
+              )
+
+            {:left, false, true} ->
+              from([{row, current_binding}] in query,
+                left_lateral_join: destination in ^relationship_destination,
                 as: ^initial_ash_bindings.current,
                 on:
                   field(row, ^relationship.source_attribute) ==

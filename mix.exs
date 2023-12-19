@@ -38,7 +38,7 @@ defmodule AshPostgres.MixProject do
       package: package(),
       source_url: "https://github.com/ash-project/ash_postgres/",
       homepage_url: "https://ash-hq.org",
-      consolidate_protocols: true
+      consolidate_protocols: Mix.env() == :prod
     ]
   end
 

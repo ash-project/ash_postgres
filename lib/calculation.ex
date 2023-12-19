@@ -3,9 +3,9 @@ defmodule AshPostgres.Calculation do
 
   require Ecto.Query
 
-  def add_calculations(query, [], _, _), do: {:ok, query}
+  def add_calculations(query, [], _, _, _select?), do: {:ok, query}
 
-  def add_calculations(query, calculations, resource, source_binding) do
+  def add_calculations(query, calculations, resource, source_binding, select?) do
     query = AshPostgres.DataLayer.default_bindings(query, resource)
 
     {:ok, query} =
@@ -46,50 +46,54 @@ defmodule AshPostgres.Calculation do
            source_binding
          ) do
       {:ok, query} ->
-        query =
-          if query.select do
-            query
-          else
-            Ecto.Query.select_merge(query, %{})
-          end
+        if select? do
+          query =
+            if query.select do
+              query
+            else
+              Ecto.Query.select_merge(query, %{})
+            end
 
-        dynamics =
-          Enum.map(calculations, fn {calculation, expression} ->
-            type =
-              AshPostgres.Types.parameterized_type(
-                calculation.type,
-                Map.get(calculation, :constraints, [])
-              )
+          dynamics =
+            Enum.map(calculations, fn {calculation, expression} ->
+              type =
+                AshPostgres.Types.parameterized_type(
+                  calculation.type,
+                  Map.get(calculation, :constraints, [])
+                )
 
-            expression =
-              Ash.Actions.Read.add_calc_context_to_filter(
-                expression,
-                calculation.context[:actor],
-                calculation.context[:authorize?],
-                calculation.context[:tenant],
-                calculation.context[:tracer]
-              )
+              expression =
+                Ash.Actions.Read.add_calc_context_to_filter(
+                  expression,
+                  calculation.context[:actor],
+                  calculation.context[:authorize?],
+                  calculation.context[:tenant],
+                  calculation.context[:tracer]
+                )
 
-            expr =
-              AshPostgres.Expr.dynamic_expr(
-                query,
-                expression,
-                query.__ash_bindings__,
-                false,
-                type
-              )
+              expr =
+                AshPostgres.Expr.dynamic_expr(
+                  query,
+                  expression,
+                  query.__ash_bindings__,
+                  false,
+                  type
+                )
 
-            expr =
-              if type do
-                Ecto.Query.dynamic(type(^expr, ^type))
-              else
-                expr
-              end
+              expr =
+                if type do
+                  Ecto.Query.dynamic(type(^expr, ^type))
+                else
+                  expr
+                end
 
-            {calculation.load, calculation.name, expr}
-          end)
+              {calculation.load, calculation.name, expr}
+            end)
 
-        {:ok, add_calculation_selects(query, dynamics)}
+          {:ok, add_calculation_selects(query, dynamics)}
+        else
+          {:ok, query}
+        end
 
       {:error, error} ->
         {:error, error}

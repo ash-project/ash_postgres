@@ -41,6 +41,13 @@ defmodule AshPostgres.Test.ComplexCalculations.Channel do
       api(AshPostgres.Test.ComplexCalculations.Api)
       destination_attribute(:id)
     end
+
+    has_one :dm_channel_with_same_id, AshPostgres.Test.ComplexCalculations.DMChannel do
+      no_attributes?(true)
+      from_many?(true)
+      filter(expr(parent(id) == id))
+      api(AshPostgres.Test.ComplexCalculations.Api)
+    end
   end
 
   aggregates do
@@ -68,6 +75,8 @@ defmodule AshPostgres.Test.ComplexCalculations.Channel do
     end
 
     calculate(:dm_name, :string, expr(dm_channel_name))
+
+    calculate(:foo, :string, expr(dm_channel_with_same_id.foobar))
   end
 
   policies do
