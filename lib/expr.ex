@@ -344,28 +344,37 @@ defmodule AshPostgres.Expr do
     when_true =
       do_dynamic_expr(query, when_true, bindings, pred_embedded? || embedded?, when_true_type)
 
-    when_false =
-      do_dynamic_expr(
-        query,
-        when_false,
-        bindings,
-        pred_embedded? || embedded?,
-        when_false_type
-      )
+    {additional_cases, when_false} =
+      extract_cases(query, when_false, bindings, pred_embedded? || embedded?, when_false_type)
+
+    additional_case_fragments =
+      additional_cases
+      |> Enum.flat_map(fn {condition, when_true} ->
+        [
+          raw: " WHEN ",
+          casted_expr: condition,
+          raw: " THEN ",
+          casted_expr: when_true
+        ]
+      end)
 
     do_dynamic_expr(
       query,
       %Fragment{
         embedded?: pred_embedded?,
-        arguments: [
-          raw: "(CASE WHEN ",
-          casted_expr: condition,
-          raw: " THEN ",
-          casted_expr: when_true,
-          raw: " ELSE ",
-          casted_expr: when_false,
-          raw: " END)"
-        ]
+        arguments:
+          [
+            raw: "(CASE WHEN ",
+            casted_expr: condition,
+            raw: " THEN ",
+            casted_expr: when_true
+          ] ++
+            additional_case_fragments ++
+            [
+              raw: " ELSE ",
+              casted_expr: when_false,
+              raw: " END)"
+            ]
       },
       bindings,
       embedded?,
@@ -1374,6 +1383,81 @@ defmodule AshPostgres.Expr do
           value
       end
     end
+  end
+
+  defp extract_cases(
+         query,
+         expr,
+         bindings,
+         embedded?,
+         type,
+         acc \\ []
+       )
+
+  defp extract_cases(
+         query,
+         %If{arguments: [condition, when_true, when_false], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         type,
+         acc
+       ) do
+    [condition_type, when_true_type, when_false_type] =
+      case AshPostgres.Types.determine_types(If, [condition, when_true, when_false]) do
+        [condition_type, when_true] ->
+          [condition_type, when_true, nil]
+
+        [condition_type, when_true, when_false] ->
+          [condition_type, when_true, when_false]
+      end
+      |> case do
+        [condition_type, nil, nil] ->
+          [condition_type, type, type]
+
+        [condition_type, when_true, nil] ->
+          [condition_type, when_true, type]
+
+        [condition_type, nil, when_false] ->
+          [condition_type, type, when_false]
+
+        [condition_type, when_true, when_false] ->
+          [condition_type, when_true, when_false]
+      end
+
+    condition =
+      do_dynamic_expr(query, condition, bindings, pred_embedded? || embedded?, condition_type)
+
+    when_true =
+      do_dynamic_expr(query, when_true, bindings, pred_embedded? || embedded?, when_true_type)
+
+    extract_cases(
+      query,
+      when_false,
+      bindings,
+      embedded?,
+      when_false_type,
+      [{condition, when_true} | acc]
+    )
+  end
+
+  defp extract_cases(
+         query,
+         other,
+         bindings,
+         embedded?,
+         type,
+         acc
+       ) do
+    expr =
+      do_dynamic_expr(
+        query,
+        other,
+        bindings,
+        embedded?,
+        type
+      )
+
+    {Enum.reverse(acc), expr}
   end
 
   defp split_at_paths(type, constraints, next, acc \\ [{:bracket, [], nil, nil}])
