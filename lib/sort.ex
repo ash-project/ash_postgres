@@ -71,8 +71,8 @@ defmodule AshPostgres.Sort do
       {:ok, query} ->
         sort
         |> sanitize_sort()
-        |> Enum.reduce_while({:ok, []}, fn
-          {order, %Ash.Query.Calculation{} = calc}, {:ok, query_expr} ->
+        |> Enum.reduce_while({:ok, [], query}, fn
+          {order, %Ash.Query.Calculation{} = calc}, {:ok, query_expr, query} ->
             type =
               if calc.type do
                 AshPostgres.Types.parameterized_type(calc.type, calc.constraints)
@@ -101,7 +101,7 @@ defmodule AshPostgres.Sort do
                     query.__ash_bindings__
                   end
 
-                expr =
+                {expr, acc} =
                   AshPostgres.Expr.dynamic_expr(
                     query,
                     expr,
@@ -110,13 +110,15 @@ defmodule AshPostgres.Sort do
                     type
                   )
 
-                {:cont, {:ok, query_expr ++ [{order, expr}]}}
+                {:cont,
+                 {:ok, query_expr ++ [{order, expr}],
+                  AshPostgres.DataLayer.merge_expr_accumulator(query, acc)}}
 
               {:error, error} ->
                 {:halt, {:error, error}}
             end
 
-          {order, sort}, {:ok, query_expr} ->
+          {order, sort}, {:ok, query_expr, query} ->
             expr =
               case find_aggregate_binding(
                      query.__ash_bindings__.bindings,
@@ -183,17 +185,17 @@ defmodule AshPostgres.Sort do
                   Ecto.Query.dynamic(field(as(^binding), ^sort))
               end
 
-            {:cont, {:ok, query_expr ++ [{order, expr}]}}
+            {:cont, {:ok, query_expr ++ [{order, expr}], query}}
         end)
         |> case do
-          {:ok, []} ->
+          {:ok, [], query} ->
             if type == :return do
               {:ok, [], query}
             else
               {:ok, query}
             end
 
-          {:ok, sort_exprs} ->
+          {:ok, sort_exprs, query} ->
             case type do
               :return ->
                 {:ok, order_to_fragments(sort_exprs), query}

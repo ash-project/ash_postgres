@@ -54,8 +54,8 @@ defmodule AshPostgres.Calculation do
               Ecto.Query.select_merge(query, %{})
             end
 
-          dynamics =
-            Enum.map(calculations, fn {calculation, expression} ->
+          {dynamics, query} =
+            Enum.reduce(calculations, {[], query}, fn {calculation, expression}, {list, query} ->
               type =
                 AshPostgres.Types.parameterized_type(
                   calculation.type,
@@ -71,7 +71,7 @@ defmodule AshPostgres.Calculation do
                   calculation.context[:tracer]
                 )
 
-              expr =
+              {expr, acc} =
                 AshPostgres.Expr.dynamic_expr(
                   query,
                   expression,
@@ -87,7 +87,8 @@ defmodule AshPostgres.Calculation do
                   expr
                 end
 
-              {calculation.load, calculation.name, expr}
+              {[{calculation.load, calculation.name, expr} | list],
+               AshPostgres.DataLayer.merge_expr_accumulator(query, acc)}
             end)
 
           {:ok, add_calculation_selects(query, dynamics)}

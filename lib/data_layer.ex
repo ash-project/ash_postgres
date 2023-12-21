@@ -648,7 +648,7 @@ defmodule AshPostgres.DataLayer do
         else
           repo = dynamic_repo(resource, query)
 
-          with_savepoint(repo, fn ->
+          with_savepoint(repo, query, fn ->
             {:ok, repo.all(query, repo_opts(nil, nil, resource))}
           end)
         end
@@ -1260,7 +1260,7 @@ defmodule AshPostgres.DataLayer do
         end
 
       result =
-        with_savepoint(repo, fn ->
+        with_savepoint(repo, opts[:on_conflict], fn ->
           repo.insert_all(source, ecto_changesets, opts)
         end)
 
@@ -1301,7 +1301,15 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp with_savepoint(repo, fun) do
+  defp with_savepoint(
+         repo,
+         %{
+           __ash_bindings__: %{
+             expression_accumulator: %AshPostgres.Expr.ExprInfo{has_error?: true}
+           }
+         },
+         fun
+       ) do
     if repo.in_transaction?() do
       savepoint_id = "a" <> (Ash.UUID.generate() |> String.replace("-", "_"))
 
@@ -1325,13 +1333,12 @@ defmodule AshPostgres.DataLayer do
           result
       end
     else
-      try do
-        fun.()
-      rescue
-        e ->
-          reraise e, __STACKTRACE__
-      end
+      fun.()
     end
+  end
+
+  defp with_savepoint(_repo, _acc, fun) do
+    fun.()
   end
 
   defp upsert_set(resource, changesets, options) do
@@ -2102,7 +2109,7 @@ defmodule AshPostgres.DataLayer do
           repo = dynamic_repo(resource, changeset)
 
           result =
-            with_savepoint(repo, fn ->
+            with_savepoint(repo, query, fn ->
               repo.update_all(
                 query,
                 [],
@@ -2183,9 +2190,9 @@ defmodule AshPostgres.DataLayer do
                ),
              {:ok, query} <-
                AshPostgres.Aggregate.add_aggregates(query, used_aggregates, resource, false, 0),
-             dynamic <-
+             {dynamic, acc} <-
                AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__) do
-          {:cont, {:ok, query, Keyword.put(set, field, dynamic)}}
+          {:cont, {:ok, merge_expr_accumulator(query, acc), Keyword.put(set, field, dynamic)}}
         else
           other ->
             {:halt, other}
@@ -2201,13 +2208,13 @@ defmodule AshPostgres.DataLayer do
             {[{value, {0, key}} | params], [{key, {:^, [], [count]}} | set], count + 1}
           end)
 
-        {params, set, _} =
+        {params, set, _, query} =
           Enum.reduce(
             dynamics ++ existing_set,
-            {params, set, count},
-            fn {key, value}, {params, set, count} ->
+            {params, set, count, query},
+            fn {key, value}, {params, set, count, query} ->
               case AshPostgres.Expr.dynamic_expr(query, value, query.__ash_bindings__) do
-                %Ecto.Query.DynamicExpr{} = dynamic ->
+                {%Ecto.Query.DynamicExpr{} = dynamic, acc} ->
                   result =
                     Ecto.Query.Builder.Dynamic.partially_expand(
                       :select,
@@ -2223,10 +2230,11 @@ defmodule AshPostgres.DataLayer do
                   new_count =
                     result |> Tuple.to_list() |> List.last()
 
-                  {new_params, [{key, expr} | set], new_count}
+                  {new_params, [{key, expr} | set], new_count, merge_expr_accumulator(query, acc)}
 
-                other ->
-                  {[{other, {0, key}} | params], [{key, {:^, [], [count]}} | set], count + 1}
+                {other, acc} ->
+                  {[{other, {0, key}} | params], [{key, {:^, [], [count]}} | set], count + 1,
+                   merge_expr_accumulator(query, acc)}
               end
             end
           )
@@ -2260,12 +2268,10 @@ defmodule AshPostgres.DataLayer do
       repo = dynamic_repo(resource, changeset)
 
       result =
-        with_savepoint(repo, fn ->
-          repo.delete(
-            ecto_changeset,
-            repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
-          )
-        end)
+        repo.delete(
+          ecto_changeset,
+          repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
+        )
 
       result
       |> from_ecto()
@@ -2351,11 +2357,11 @@ defmodule AshPostgres.DataLayer do
 
   def distinct(query, distinct_on, resource) do
     case get_distinct_statement(query, distinct_on) do
-      {:ok, distinct_statement} ->
+      {:ok, distinct_statement, query} ->
         %{query | distinct: distinct_statement}
         |> apply_sort(query.__ash_bindings__[:sort], resource)
 
-      {:error, distinct_statement} ->
+      {:error, {distinct_statement, query}} ->
         query
         |> Ecto.Query.exclude(:order_by)
         |> default_bindings(resource)
@@ -2464,18 +2470,19 @@ defmodule AshPostgres.DataLayer do
         {:ok, default_distinct_statement(query, distinct_on)}
       else
         distinct_on
-        |> Enum.reduce_while({sort, [], [], Enum.count(distinct.params)}, fn
-          _, {[], _distinct_statement, _, _count} ->
+        |> Enum.reduce_while({sort, [], [], Enum.count(distinct.params), query}, fn
+          _, {[], _distinct_statement, _, _count, _query} ->
             {:halt, :error}
 
-          distinct_on, {[order_by | rest_order_by], distinct_statement, params, count} ->
+          distinct_on, {[order_by | rest_order_by], distinct_statement, params, count, query} ->
             case order_by do
               {^distinct_on, order} ->
-                {distinct_expr, params, count} =
+                {distinct_expr, params, count, query} =
                   distinct_on_expr(query, distinct_on, params, count)
 
                 {:cont,
-                 {rest_order_by, [{order, distinct_expr} | distinct_statement], params, count}}
+                 {rest_order_by, [{order, distinct_expr} | distinct_statement], params, count,
+                  query}}
 
               _ ->
                 {:halt, :error}
@@ -2485,13 +2492,13 @@ defmodule AshPostgres.DataLayer do
           :error ->
             {:error, default_distinct_statement(query, distinct_on)}
 
-          {_, result, params, _} ->
+          {_, result, params, _, query} ->
             {:ok,
              %{
                distinct
                | expr: distinct.expr ++ Enum.reverse(result),
                  params: distinct.params ++ Enum.reverse(params)
-             }}
+             }, query}
         end
       end
     end
@@ -2504,26 +2511,26 @@ defmodule AshPostgres.DataLayer do
           expr: []
         }
 
-    {expr, params, _} =
-      Enum.reduce(distinct_on, {[], [], Enum.count(distinct.params)}, fn
-        {distinct_on_field, order}, {expr, params, count} ->
-          {distinct_expr, params, count} =
+    {expr, params, _, query} =
+      Enum.reduce(distinct_on, {[], [], Enum.count(distinct.params), query}, fn
+        {distinct_on_field, order}, {expr, params, count, query} ->
+          {distinct_expr, params, count, query} =
             distinct_on_expr(query, distinct_on_field, params, count)
 
-          {[{order, distinct_expr} | expr], params, count}
+          {[{order, distinct_expr} | expr], params, count, query}
 
-        distinct_on_field, {expr, params, count} ->
-          {distinct_expr, params, count} =
+        distinct_on_field, {expr, params, count, query} ->
+          {distinct_expr, params, count, query} =
             distinct_on_expr(query, distinct_on_field, params, count)
 
-          {[{:asc, distinct_expr} | expr], params, count}
+          {[{:asc, distinct_expr} | expr], params, count, query}
       end)
 
-    %{
-      distinct
-      | expr: distinct.expr ++ Enum.reverse(expr),
-        params: distinct.params ++ Enum.reverse(params)
-    }
+    {%{
+       distinct
+       | expr: distinct.expr ++ Enum.reverse(expr),
+         params: distinct.params ++ Enum.reverse(params)
+     }, query}
   end
 
   defp distinct_on_expr(query, field, params, count) do
@@ -2542,7 +2549,7 @@ defmodule AshPostgres.DataLayer do
           }
       end
 
-    dynamic = AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__)
+    {dynamic, acc} = AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__)
 
     result =
       Ecto.Query.Builder.Dynamic.partially_expand(
@@ -2557,7 +2564,7 @@ defmodule AshPostgres.DataLayer do
     new_params = elem(result, 1)
     new_count = result |> Tuple.to_list() |> List.last()
 
-    {expr, new_params, new_count}
+    {expr, new_params, new_count, merge_expr_accumulator(query, acc)}
   end
 
   @impl true
@@ -2610,6 +2617,7 @@ defmodule AshPostgres.DataLayer do
     Map.put_new(query, :__ash_bindings__, %{
       resource: resource,
       current: Enum.count(query.joins) + 1 + start_bindings,
+      expression_accumulator: %AshPostgres.Expr.ExprInfo{},
       in_group?: false,
       calculations: %{},
       parent_resources: [],
@@ -2629,6 +2637,14 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def add_calculations(query, calculations, resource, select? \\ true) do
     AshPostgres.Calculation.add_calculations(query, calculations, resource, 0, select?)
+  end
+
+  @doc false
+  def merge_expr_accumulator(query, acc) do
+    update_in(
+      query.__ash_bindings__.expression_accumulator,
+      &AshPostgres.Expr.merge_accumulator(&1, acc)
+    )
   end
 
   @doc false
@@ -2666,9 +2682,11 @@ defmodule AshPostgres.DataLayer do
     filter
     |> split_and_statements()
     |> Enum.reduce(query, fn filter, query ->
-      dynamic = AshPostgres.Expr.dynamic_expr(query, filter, query.__ash_bindings__)
+      {dynamic, acc} = AshPostgres.Expr.dynamic_expr(query, filter, query.__ash_bindings__)
 
-      Ecto.Query.where(query, ^dynamic)
+      query
+      |> Ecto.Query.where(^dynamic)
+      |> merge_expr_accumulator(acc)
     end)
   end
 

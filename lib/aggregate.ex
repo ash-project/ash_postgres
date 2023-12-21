@@ -101,14 +101,16 @@ defmodule AshPostgres.Aggregate do
                       Map.get(aggregate.query, :filter)
                     end
 
-                  exists =
+                  {exists, acc} =
                     AshPostgres.Expr.dynamic_expr(
                       query,
                       %Ash.Query.Exists{path: aggregate.relationship_path, expr: expr},
                       query.__ash_bindings__
                     )
 
-                  {:cont, {:ok, query, [{aggregate.load, aggregate.name, exists} | dynamics]}}
+                  {:cont,
+                   {:ok, AshPostgres.DataLayer.merge_expr_accumulator(query, acc),
+                    [{aggregate.load, aggregate.name, exists} | dynamics]}}
 
                 true ->
                   root_data_path =
@@ -120,7 +122,7 @@ defmodule AshPostgres.Aggregate do
                         []
                     end
 
-                  with {:ok, agg_root_query} <-
+                  with {:ok, agg_root_query, acc} <-
                          AshPostgres.Join.maybe_get_resource_query(
                            first_relationship.destination,
                            first_relationship,
@@ -178,6 +180,8 @@ defmodule AshPostgres.Aggregate do
                            source_binding,
                            root_data_path
                          ) do
+                    query = AshPostgres.DataLayer.merge_expr_accumulator(query, acc)
+
                     if select? do
                       new_dynamics =
                         Enum.map(
@@ -320,7 +324,7 @@ defmodule AshPostgres.Aggregate do
             resource: resource
           }
 
-        value = AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__, false)
+        {value, acc} = AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__, false)
 
         type = AshPostgres.Types.parameterized_type(aggregate.type, aggregate.constraints)
 
@@ -342,7 +346,7 @@ defmodule AshPostgres.Aggregate do
             with_default
           end
 
-        {:ok, query, casted}
+        {:ok, AshPostgres.DataLayer.merge_expr_accumulator(query, acc), casted}
 
       {:error, error} ->
         {:error, error}
@@ -487,7 +491,7 @@ defmodule AshPostgres.Aggregate do
        ) do
     join_relationship_struct = Ash.Resource.Info.relationship(source, join_relationship)
 
-    {:ok, through} =
+    {:ok, through, acc} =
       AshPostgres.Join.maybe_get_resource_query(
         join_relationship_struct.destination,
         join_relationship_struct,
@@ -532,14 +536,13 @@ defmodule AshPostgres.Aggregate do
         on: true
       )
 
-    AshPostgres.DataLayer.add_binding(
-      query,
-      %{
-        path: root_data_path,
-        type: :aggregate,
-        aggregates: aggregates
-      }
-    )
+    query
+    |> AshPostgres.DataLayer.add_binding(%{
+      path: root_data_path,
+      type: :aggregate,
+      aggregates: aggregates
+    })
+    |> AshPostgres.DataLayer.merge_expr_accumulator(acc)
   end
 
   defp join_subquery(
@@ -852,11 +855,11 @@ defmodule AshPostgres.Aggregate do
         [:left, :inner, :root]
       )
 
-    field = AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__, false)
+    {field, acc} = AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__, false)
 
     has_sort? = has_sort?(aggregate.query)
 
-    sorted =
+    {sorted, query} =
       if has_sort? || first_relationship.sort not in [nil, []] do
         {sort, binding} =
           if has_sort? do
@@ -885,12 +888,18 @@ defmodule AshPostgres.Aggregate do
             ["array_agg(? ORDER BY #{question_marks})", field] ++ sort_expr
           )
 
-        AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__, false)
+        {sort_expr, acc} =
+          AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__, false)
+
+        query =
+          AshPostgres.DataLayer.merge_expr_accumulator(query, acc)
+
+        {sort_expr, query}
       else
-        Ecto.Query.dynamic(
-          [row],
-          fragment("array_agg(?)", ^field)
-        )
+        {Ecto.Query.dynamic(
+           [row],
+           fragment("array_agg(?)", ^field)
+         ), query}
       end
 
     {query, filtered} = filter_field(sorted, query, aggregate, relationship_path, is_single?)
@@ -915,7 +924,11 @@ defmodule AshPostgres.Aggregate do
         with_default
       end
 
-    select_or_merge(query, aggregate.name, casted)
+    select_or_merge(
+      AshPostgres.DataLayer.merge_expr_accumulator(query, acc),
+      aggregate.name,
+      casted
+    )
   end
 
   def add_subquery_aggregate_select(
@@ -943,11 +956,11 @@ defmodule AshPostgres.Aggregate do
       resource: query.__ash_bindings__.resource
     }
 
-    field = AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__, false)
+    {field, acc} = AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__, false)
 
     has_sort? = has_sort?(aggregate.query)
 
-    sorted =
+    {sorted, query} =
       if has_sort? || first_relationship.sort not in [nil, []] do
         {sort, binding} =
           if has_sort? do
@@ -983,18 +996,24 @@ defmodule AshPostgres.Aggregate do
             ["array_agg(#{distinct}? ORDER BY #{question_marks})", field] ++ sort_expr
           )
 
-        AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__, false)
+        {expr, acc} =
+          AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__, false)
+
+        query =
+          AshPostgres.DataLayer.merge_expr_accumulator(query, acc)
+
+        {expr, query}
       else
         if Map.get(aggregate, :uniq?) do
-          Ecto.Query.dynamic(
-            [row],
-            fragment("array_agg(DISTINCT ?)", ^field)
-          )
+          {Ecto.Query.dynamic(
+             [row],
+             fragment("array_agg(DISTINCT ?)", ^field)
+           ), query}
         else
-          Ecto.Query.dynamic(
-            [row],
-            fragment("array_agg(?)", ^field)
-          )
+          {Ecto.Query.dynamic(
+             [row],
+             fragment("array_agg(?)", ^field)
+           ), query}
         end
       end
 
@@ -1018,7 +1037,11 @@ defmodule AshPostgres.Aggregate do
         with_default
       end
 
-    select_or_merge(query, aggregate.name, cast)
+    select_or_merge(
+      AshPostgres.DataLayer.merge_expr_accumulator(query, acc),
+      aggregate.name,
+      cast
+    )
   end
 
   def add_subquery_aggregate_select(
@@ -1038,12 +1061,14 @@ defmodule AshPostgres.Aggregate do
       resource: resource
     }
 
-    field =
+    {field, query} =
       if kind == :custom do
         # we won't use this if its custom so don't try to make one
-        nil
+        {nil, query}
       else
-        AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__, false)
+        {expr, acc} = AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__, false)
+
+        {expr, AshPostgres.DataLayer.merge_expr_accumulator(query, acc)}
       end
 
     type = AshPostgres.Types.parameterized_type(aggregate.type, aggregate.constraints)
@@ -1147,7 +1172,7 @@ defmodule AshPostgres.Aggregate do
           0
         )
 
-      expr =
+      {expr, acc} =
         AshPostgres.Expr.dynamic_expr(
           query,
           filter,
@@ -1156,7 +1181,8 @@ defmodule AshPostgres.Aggregate do
           AshPostgres.Types.parameterized_type(aggregate.type, aggregate.constraints)
         )
 
-      {query, Ecto.Query.dynamic(filter(^field, ^expr))}
+      {AshPostgres.DataLayer.merge_expr_accumulator(query, acc),
+       Ecto.Query.dynamic(filter(^field, ^expr))}
     else
       {query, field}
     end

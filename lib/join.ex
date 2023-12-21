@@ -248,14 +248,15 @@ defmodule AshPostgres.Join do
                 query
               end
 
-            query =
+            {query, acc} =
               query
               |> do_base_filter(
                 root_query,
                 ash_query,
                 resource,
                 path,
-                bindings
+                bindings,
+                root_query.__ash_bindings__.expression_accumulator
               )
               |> do_relationship_filter(
                 relationship,
@@ -267,7 +268,7 @@ defmodule AshPostgres.Join do
                 is_subquery?
               )
 
-            {:ok, query}
+            {:ok, query, acc}
 
           {:error, error} ->
             {:error, error}
@@ -298,15 +299,16 @@ defmodule AshPostgres.Join do
 
     from(row in subquery(Ecto.Query.order_by(query, ^order_by)), [])
     |> AshPostgres.DataLayer.default_bindings(destination)
+    |> AshPostgres.DataLayer.merge_expr_accumulator(query.__ash_bindings__.expression_accumulator)
     |> Map.update!(:__ash_bindings__, &Map.put(&1, :current, query.__ash_bindings__.current))
   end
 
   defp do_relationship_sort(query, _, _), do: query
 
-  defp do_relationship_filter(query, %{filter: nil}, _, _, _, _, _, _), do: query
+  defp do_relationship_filter({query, acc}, %{filter: nil}, _, _, _, _, _, _), do: {query, acc}
 
   defp do_relationship_filter(
-         query,
+         {query, acc},
          relationship,
          root_query,
          ash_query,
@@ -380,7 +382,7 @@ defmodule AshPostgres.Join do
         relationship.source | parent_bindings[:parent_resources] || []
       ])
 
-    dynamic =
+    {dynamic, acc} =
       if has_bindings? do
         filter =
           if is_subquery? do
@@ -389,18 +391,18 @@ defmodule AshPostgres.Join do
             filter
           end
 
-        AshPostgres.Expr.dynamic_expr(root_query, filter, bindings, true)
+        AshPostgres.Expr.dynamic_expr(root_query, filter, bindings, true, acc)
       else
-        AshPostgres.Expr.dynamic_expr(query, filter, bindings, true)
+        AshPostgres.Expr.dynamic_expr(query, filter, bindings, true, acc)
       end
 
-    from(row in query, where: ^dynamic)
+    {from(row in query, where: ^dynamic), acc}
   end
 
-  defp do_base_filter(query, root_query, ash_query, resource, path, bindings) do
+  defp do_base_filter(query, root_query, ash_query, resource, path, bindings, acc) do
     case Ash.Resource.Info.base_filter(resource) do
       nil ->
-        query
+        {query, %AshPostgres.Expr.ExprInfo{}}
 
       filter ->
         filter =
@@ -412,16 +414,16 @@ defmodule AshPostgres.Join do
             ash_query.context
           )
 
-        dynamic =
+        {dynamic, acc} =
           if bindings do
             filter = Ash.Filter.move_to_relationship_path(filter, path)
 
-            AshPostgres.Expr.dynamic_expr(root_query, filter, bindings, true)
+            AshPostgres.Expr.dynamic_expr(root_query, filter, bindings, true, acc)
           else
-            AshPostgres.Expr.dynamic_expr(query, filter, query.__ash_bindings__, true)
+            AshPostgres.Expr.dynamic_expr(query, filter, query.__ash_bindings__, true, acc)
           end
 
-        from(row in query, where: ^dynamic)
+        {from(row in query, where: ^dynamic), acc}
     end
   end
 
@@ -609,11 +611,13 @@ defmodule AshPostgres.Join do
       {:error, error} ->
         {:error, error}
 
-      {:ok, relationship_destination} ->
+      {:ok, relationship_destination, acc} ->
         relationship_destination =
           relationship_destination
           |> Ecto.Queryable.to_query()
           |> set_join_prefix(query, relationship.destination)
+
+        query = AshPostgres.DataLayer.merge_expr_accumulator(query, acc)
 
         binding_kinds =
           case kind do
@@ -745,7 +749,7 @@ defmodule AshPostgres.Join do
         query.__ash_bindings__
       end
 
-    with {:ok, relationship_through} <-
+    with {:ok, relationship_through, through_acc} <-
            maybe_get_resource_query(
              relationship.through,
              join_relationship,
@@ -754,7 +758,7 @@ defmodule AshPostgres.Join do
              join_path,
              root_bindings
            ),
-         {:ok, relationship_destination} <-
+         {:ok, relationship_destination, dest_acc} <-
            maybe_get_resource_query(
              relationship.destination,
              relationship,
@@ -763,6 +767,11 @@ defmodule AshPostgres.Join do
              path,
              root_bindings
            ) do
+      query =
+        query
+        |> AshPostgres.DataLayer.merge_expr_accumulator(through_acc)
+        |> AshPostgres.DataLayer.merge_expr_accumulator(dest_acc)
+
       relationship_through =
         relationship_through
         |> Ecto.Queryable.to_query()
@@ -914,7 +923,9 @@ defmodule AshPostgres.Join do
       {:error, error} ->
         {:error, error}
 
-      {:ok, relationship_destination} ->
+      {:ok, relationship_destination, acc} ->
+        query = AshPostgres.DataLayer.merge_expr_accumulator(query, acc)
+
         relationship_destination =
           relationship_destination
           |> Ecto.Queryable.to_query()
