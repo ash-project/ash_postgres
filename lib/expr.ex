@@ -19,7 +19,9 @@ defmodule AshPostgres.Expr do
     Length,
     Now,
     StringJoin,
+    StringLength,
     StringSplit,
+    StringTrim,
     Today,
     Type
   }
@@ -556,6 +558,52 @@ defmodule AshPostgres.Expr do
              end)
              |> Enum.intersperse({:raw, ", "})) ++
             [raw: "))"]
+      },
+      bindings,
+      embedded?,
+      acc,
+      type
+    )
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %StringLength{arguments: [value], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         acc,
+         type
+       ) do
+    do_dynamic_expr(
+      query,
+      %Fragment{
+        embedded?: pred_embedded?,
+        arguments: [raw: "length(", expr: value, raw: ")"]
+      },
+      bindings,
+      embedded?,
+      acc,
+      type
+    )
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %StringTrim{arguments: [value], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         acc,
+         type
+       ) do
+    do_dynamic_expr(
+      query,
+      %Fragment{
+        embedded?: pred_embedded?,
+        arguments: [
+          raw: "REGEXP_REPLACE(REGEXP_REPLACE(",
+          expr: value,
+          raw: ", '\s+$', ''), '^\s+', '')"
+        ]
       },
       bindings,
       embedded?,
