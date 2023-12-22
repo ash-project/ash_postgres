@@ -402,7 +402,15 @@ defmodule AshPostgres.DataLayer do
   end
 
   def codegen(args) do
-    # TODO: take args that we care about
+    {args, _, _} = OptionParser.parse(args, strict: [name: :string])
+
+    args =
+      if args[:name] do
+        ["--name", to_string(args[:name])]
+      else
+        []
+      end
+
     Mix.Task.run("ash_postgres.generate_migrations", args)
   end
 
