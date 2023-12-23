@@ -24,15 +24,6 @@ defmodule AshPostgres.Aggregate do
       {:ok, aggregates} ->
         query = AshPostgres.DataLayer.default_bindings(query, resource)
 
-        # initial_aggregate_name_mapping =
-        #   case root_data do
-        #     {_, _, initial_aggregate_name_mapping} ->
-        #       initial_aggregate_name_mapping
-
-        #     _ ->
-        #       %{}
-        #   end
-
         {query, aggregates, aggregate_name_mapping} =
           Enum.reduce(
             aggregates,
