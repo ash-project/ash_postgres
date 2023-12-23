@@ -16,6 +16,7 @@ defmodule AshPostgres.Expr do
     FromNow,
     GetPath,
     If,
+    Lazy,
     Length,
     Now,
     StringJoin,
@@ -156,6 +157,17 @@ defmodule AshPostgres.Expr do
       do_dynamic_expr(query, right, bindings, pred_embedded? || embedded?, acc, :boolean)
 
     {Ecto.Query.dynamic(is_nil(^left_expr) == ^right_expr), acc}
+  end
+
+  defp do_dynamic_expr(
+         _query,
+         %Lazy{arguments: [{m, f, a}]},
+         _bindings,
+         _embedded?,
+         acc,
+         _type
+       ) do
+    {apply(m, f, a), acc}
   end
 
   defp do_dynamic_expr(
@@ -1063,6 +1075,20 @@ defmodule AshPostgres.Expr do
         {ref_binding, aggregate.name, nil, acc}
       end
 
+    field_name =
+      if is_binary(field_name) do
+        new_field_name =
+          query.__ash_bindings__.aggregate_names[field_name]
+
+        unless new_field_name do
+          raise "Unbound aggregate field: #{inspect(field_name)}"
+        end
+
+        new_field_name
+      else
+        field_name
+      end
+
     expr =
       if value do
         value
@@ -1301,23 +1327,7 @@ defmodule AshPostgres.Expr do
 
     acc = merge_accumulator(acc, source_acc)
 
-    used_calculations =
-      Ash.Filter.used_calculations(
-        filter,
-        first_relationship.destination,
-        []
-      )
-
-    used_aggregates =
-      filter
-      |> AshPostgres.Aggregate.used_aggregates(
-        first_relationship.destination,
-        used_calculations,
-        []
-      )
-      |> Enum.map(fn aggregate ->
-        %{aggregate | load: aggregate.name}
-      end)
+    used_aggregates = Ash.Filter.used_aggregates(filter, [])
 
     {:ok, filtered} =
       source
@@ -1894,7 +1904,15 @@ defmodule AshPostgres.Expr do
       data.type == :aggregate &&
         data.path == relationship_path &&
         Enum.any?(data.aggregates, &(&1.name == name)) && binding
-    end)
+    end) ||
+      Enum.find_value(bindings.bindings, fn {binding, data} ->
+        data.type in [:inner, :left, :root] &&
+          Ash.SatSolver.synonymous_relationship_paths?(
+            bindings.resource,
+            data.path,
+            relationship_path
+          ) && binding
+      end)
   end
 
   defp ref_binding(%{attribute: %Ash.Resource.Attribute{}} = ref, bindings) do

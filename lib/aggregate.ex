@@ -24,18 +24,30 @@ defmodule AshPostgres.Aggregate do
       {:ok, aggregates} ->
         query = AshPostgres.DataLayer.default_bindings(query, resource)
 
-        {query, aggregates, aggregate_name_mapping} =
-          Enum.reduce(aggregates, {query, [], %{}}, fn aggregate,
-                                                       {query, aggregates, aggregate_name_mapping} ->
-            if is_atom(aggregate.name) do
-              {query, [aggregate | aggregates], aggregate_name_mapping}
-            else
-              {query, name} = use_aggregate_name(query, aggregate.name)
+        # initial_aggregate_name_mapping =
+        #   case root_data do
+        #     {_, _, initial_aggregate_name_mapping} ->
+        #       initial_aggregate_name_mapping
 
-              {query, [%{aggregate | name: name} | aggregates],
-               Map.put(aggregate_name_mapping, name, aggregate.name)}
+        #     _ ->
+        #       %{}
+        #   end
+
+        {query, aggregates, aggregate_name_mapping} =
+          Enum.reduce(
+            aggregates,
+            {query, [], %{}},
+            fn aggregate, {query, aggregates, aggregate_name_mapping} ->
+              if is_atom(aggregate.name) do
+                {query, [aggregate | aggregates], aggregate_name_mapping}
+              else
+                {query, name} = use_aggregate_name(query, aggregate.name)
+
+                {query, [%{aggregate | name: name} | aggregates],
+                 Map.put(aggregate_name_mapping, name, aggregate.name)}
+              end
             end
-          end)
+          )
 
         aggregates =
           Enum.reject(aggregates, fn aggregate ->
@@ -386,8 +398,16 @@ defmodule AshPostgres.Aggregate do
       related = Ash.Resource.Info.related(first_relationship.destination, relationship_path)
 
       agg_query =
-        case Ash.Resource.Info.calculation(related, aggregate.field) do
-          %{name: name, calculation: {module, opts}, type: type, constraints: constraints} ->
+        case Ash.Resource.Info.field(related, aggregate.field) do
+          %Ash.Resource.Aggregate{} ->
+            raise "can't do this yet"
+
+          %Ash.Resource.Calculation{
+            name: name,
+            calculation: {module, opts},
+            type: type,
+            constraints: constraints
+          } ->
             {:ok, new_calc} = Ash.Query.Calculation.new(name, module, opts, {type, constraints})
             expression = module.expression(opts, aggregate.context)
 
@@ -415,7 +435,7 @@ defmodule AshPostgres.Aggregate do
 
             agg_query
 
-          nil ->
+          _ ->
             agg_query
         end
 
@@ -805,30 +825,6 @@ defmodule AshPostgres.Aggregate do
   defp has_sort?(%{sort: _}), do: true
   defp has_sort?(_), do: false
 
-  def used_aggregates(filter, resource, used_calculations, path) do
-    Ash.Filter.used_aggregates(filter, path) ++
-      Enum.flat_map(
-        used_calculations,
-        fn calculation ->
-          case Ash.Filter.hydrate_refs(
-                 calculation.module.expression(calculation.opts, calculation.context),
-                 %{
-                   resource: resource,
-                   aggregates: %{},
-                   calculations: %{},
-                   public?: false
-                 }
-               ) do
-            {:ok, hydrated} ->
-              Ash.Filter.used_aggregates(hydrated)
-
-            _ ->
-              []
-          end
-        end
-      )
-  end
-
   def add_subquery_aggregate_select(
         query,
         relationship_path,
@@ -1143,22 +1139,7 @@ defmodule AshPostgres.Aggregate do
           relationship_path
         )
 
-      used_calculations =
-        Ash.Filter.used_calculations(
-          filter,
-          query.__ash_bindings__.resource
-        )
-
-      used_aggregates =
-        filter
-        |> AshPostgres.Aggregate.used_aggregates(
-          query.__ash_bindings__.resource,
-          used_calculations,
-          []
-        )
-        |> Enum.map(fn aggregate ->
-          %{aggregate | load: aggregate.name}
-        end)
+      used_aggregates = Ash.Filter.used_aggregates(filter, [])
 
       {:ok, query} =
         AshPostgres.Join.join_all_relationships(query, filter)

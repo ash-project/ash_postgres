@@ -1,7 +1,19 @@
 defmodule AshPostgres.MultitenancyTest.Post do
   @moduledoc false
   use Ash.Resource,
-    data_layer: AshPostgres.DataLayer
+    data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer]
+
+  policies do
+    policy always() do
+      authorize_if(always())
+    end
+
+    policy action(:update_with_policy) do
+      # this is silly, but we want to force it to make a query
+      authorize_if(expr(exists(self, true)))
+    end
+  end
 
   attributes do
     uuid_primary_key(:id, writable?: true)
@@ -10,6 +22,8 @@ defmodule AshPostgres.MultitenancyTest.Post do
 
   actions do
     defaults([:create, :read, :update, :destroy])
+
+    update(:update_with_policy)
   end
 
   postgres do
@@ -26,5 +40,6 @@ defmodule AshPostgres.MultitenancyTest.Post do
   relationships do
     belongs_to(:org, AshPostgres.MultitenancyTest.Org)
     belongs_to(:user, AshPostgres.MultitenancyTest.User)
+    has_one(:self, __MODULE__, destination_attribute: :id, source_attribute: :id)
   end
 end

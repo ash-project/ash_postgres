@@ -37,6 +37,16 @@ defmodule AshPostgres.Test.MultitenancyTest do
              |> Api.read!()
   end
 
+  test "context multitenancy works with policies", %{org1: org1} do
+    Post
+    |> Ash.Changeset.new(name: "foo")
+    |> Ash.Changeset.set_tenant(tenant(org1))
+    |> Api.create!()
+    |> Ash.Changeset.for_update(:update_with_policy, %{}, authorize?: true)
+    |> Ash.Changeset.set_tenant(tenant(org1))
+    |> Api.update!()
+  end
+
   test "attribute multitenancy is set on creation" do
     uuid = Ash.UUID.generate()
 

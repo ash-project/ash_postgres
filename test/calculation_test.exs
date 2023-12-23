@@ -636,4 +636,27 @@ defmodule AshPostgres.CalculationTest do
              )
              |> Api.read_one!()
   end
+
+  test "lazy values are evaluated lazily" do
+    Author
+    |> Ash.Changeset.for_create(:create, %{
+      first_name: "Bill",
+      last_name: "Jones",
+      bio: %{title: "Mr.", bio: "Bones"}
+    })
+    |> Api.create!()
+
+    assert %{calculations: %{string: "fred"}} =
+             Author
+             |> Ash.Query.calculate(
+               :string,
+               expr(lazy({__MODULE__, :fred, []})),
+               :string
+             )
+             |> Api.read_one!()
+  end
+
+  def fred do
+    "fred"
+  end
 end

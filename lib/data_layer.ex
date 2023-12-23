@@ -1160,12 +1160,19 @@ defmodule AshPostgres.DataLayer do
   def set_subquery_prefix(data_layer_query, source_query, resource) do
     config = AshPostgres.DataLayer.Info.repo(resource, :mutate).config()
 
+    query_tenant =
+      case source_query do
+        %{__tenant__: tenant} -> tenant
+        %{tenant: tenant} -> tenant
+        _ -> nil
+      end
+
     if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
       %{
         data_layer_query
         | prefix:
             to_string(
-              source_query.tenant || AshPostgres.DataLayer.Info.schema(resource) ||
+              query_tenant || AshPostgres.DataLayer.Info.schema(resource) ||
                 config[:default_prefix] ||
                 "public"
             )
@@ -2170,22 +2177,8 @@ defmodule AshPostgres.DataLayer do
 
     atomics_result =
       Enum.reduce_while(atomics, {:ok, query, []}, fn {field, expr}, {:ok, query, set} ->
-        used_calculations =
-          Ash.Filter.used_calculations(
-            expr,
-            resource
-          )
-
         used_aggregates =
-          expr
-          |> AshPostgres.Aggregate.used_aggregates(
-            resource,
-            used_calculations,
-            []
-          )
-          |> Enum.map(fn aggregate ->
-            %{aggregate | load: aggregate.name}
-          end)
+          Ash.Filter.used_aggregates(expr, [])
 
         with {:ok, query} <-
                AshPostgres.Join.join_all_relationships(
@@ -2579,22 +2572,7 @@ defmodule AshPostgres.DataLayer do
   def filter(query, filter, resource, opts \\ []) do
     query = default_bindings(query, resource)
 
-    used_calculations =
-      Ash.Filter.used_calculations(
-        filter,
-        resource
-      )
-
-    used_aggregates =
-      filter
-      |> AshPostgres.Aggregate.used_aggregates(
-        resource,
-        used_calculations,
-        []
-      )
-      |> Enum.map(fn aggregate ->
-        %{aggregate | load: aggregate.name}
-      end)
+    used_aggregates = Ash.Filter.used_aggregates(filter, [])
 
     query
     |> AshPostgres.Join.join_all_relationships(filter, opts)

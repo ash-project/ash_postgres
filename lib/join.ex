@@ -268,7 +268,7 @@ defmodule AshPostgres.Join do
                 is_subquery?
               )
 
-            {:ok, query, acc}
+            {:ok, Map.put(query, :__tenant__, Map.get(root_query, :__tenant__)), acc}
 
           {:error, error} ->
             {:error, error}
@@ -575,23 +575,7 @@ defmodule AshPostgres.Join do
 
     query = AshPostgres.DataLayer.add_binding(query, binding_data)
 
-    used_calculations =
-      Ash.Filter.used_calculations(
-        filter,
-        relationship.destination,
-        full_path
-      )
-
-    used_aggregates =
-      filter
-      |> AshPostgres.Aggregate.used_aggregates(
-        relationship.destination,
-        used_calculations,
-        full_path
-      )
-      |> Enum.map(fn aggregate ->
-        %{aggregate | load: aggregate.name}
-      end)
+    used_aggregates = Ash.Filter.used_aggregates(filter, full_path)
 
     use_root_query_bindings? = Enum.empty?(used_aggregates)
 
@@ -724,23 +708,7 @@ defmodule AshPostgres.Join do
 
     {:ok, query} = join_all_relationships(query, related_filter)
 
-    used_calculations =
-      Ash.Filter.used_calculations(
-        filter,
-        relationship.destination,
-        full_path
-      )
-
-    used_aggregates =
-      filter
-      |> AshPostgres.Aggregate.used_aggregates(
-        relationship.destination,
-        used_calculations,
-        full_path
-      )
-      |> Enum.map(fn aggregate ->
-        %{aggregate | load: aggregate.name}
-      end)
+    used_aggregates = Ash.Filter.used_aggregates(filter, full_path)
 
     use_root_query_bindings? = Enum.empty?(used_aggregates)
 
@@ -883,24 +851,7 @@ defmodule AshPostgres.Join do
 
     {:ok, query} = join_all_relationships(query, related_filter)
 
-    used_calculations =
-      Ash.Filter.used_calculations(
-        filter,
-        relationship.destination,
-        full_path
-      )
-
-    used_aggregates =
-      filter
-      |> AshPostgres.Aggregate.used_aggregates(
-        relationship.destination,
-        used_calculations,
-        full_path
-      )
-      |> Enum.map(fn aggregate ->
-        %{aggregate | load: aggregate.name}
-      end)
-
+    used_aggregates = Ash.Filter.used_aggregates(filter, full_path)
     use_root_query_bindings? = Enum.empty?(used_aggregates)
 
     needs_subquery? = Map.get(relationship, :from_many?, false)

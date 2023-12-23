@@ -195,4 +195,31 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
              |> Ash.Query.filter(foo == "foobar")
              |> AshPostgres.Test.ComplexCalculations.Api.read!(load: :foo)
   end
+
+  test "calculations with aggregates can be referenced from aggregates" do
+    author =
+      AshPostgres.Test.Author
+      |> Ash.Changeset.new(%{first_name: "is", last_name: "match"})
+      |> AshPostgres.Test.Api.create!()
+
+    AshPostgres.Test.Post
+    |> Ash.Changeset.new(%{title: "match"})
+    |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+    |> AshPostgres.Test.Api.create!()
+
+    assert [%{author_count_of_posts: 1}] =
+             AshPostgres.Test.Post
+             |> Ash.Query.load(:author_count_of_posts)
+             |> AshPostgres.Test.Api.read!()
+
+    assert [%{author_count_of_posts: 1}] =
+             AshPostgres.Test.Post
+             |> AshPostgres.Test.Api.read!()
+             |> AshPostgres.Test.Api.load!(:author_count_of_posts)
+
+    assert [_] =
+             AshPostgres.Test.Post
+             |> Ash.Query.filter(author_count_of_posts == 1)
+             |> AshPostgres.Test.Api.read!()
+  end
 end

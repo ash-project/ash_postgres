@@ -42,6 +42,8 @@ defmodule AshPostgres.Test.Author do
       )
     )
 
+    calculate(:count_of_posts_with_calc, :integer, expr(count(posts, [])))
+
     calculate(:title, :string, expr(bio[:title]))
     calculate(:full_name, :string, expr(first_name <> " " <> last_name))
     calculate(:full_name_with_nils, :string, expr(string_join([first_name, last_name], " ")))

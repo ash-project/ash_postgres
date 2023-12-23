@@ -242,6 +242,8 @@ defmodule AshPostgres.Test.Post do
       )
     )
 
+    calculate(:author_count_of_posts, :integer, expr(author.count_of_posts_with_calc))
+
     calculate(
       :price_string,
       :string,
