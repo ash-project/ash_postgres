@@ -5,6 +5,35 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.65](https://github.com/ash-project/ash_postgres/compare/v1.3.64...v1.3.65) (2023-12-23)
+
+
+
+
+### Bug Fixes:
+
+* various fixes for unnecessary aggregate additions
+
+* use lateral joins when joining to subquery w/ parent reference
+
+* replace upsert field with source in EXCLUDED fragment (#187)
+
+* handle strings in get_path
+
+* reenable mix tasks that need calling
+
+### Improvements:
+
+* support aggregates using other aggregates
+
+* support string_length and string_trim
+
+* only start savepoints when necessary
+
+* clean up nested if statements to single case statements
+
+* support for `error/2` expression
+
 ## [v1.3.64](https://github.com/ash-project/ash_postgres/compare/v1.3.63...v1.3.64) (2023-12-04)
 
 
