@@ -266,6 +266,48 @@ defmodule AshPostgres.Expr do
   defp do_dynamic_expr(
          query,
          %GetPath{
+           arguments: [
+             %Ref{attribute: %Ash.Resource.Aggregate{} = aggregate, resource: resource} = left,
+             right
+           ],
+           embedded?: pred_embedded?
+         },
+         bindings,
+         embedded?,
+         acc,
+         _
+       )
+       when is_list(right) do
+    attribute =
+      if aggregate.field do
+        related = Ash.Resource.Info.related(resource, aggregate.relationship_path)
+        Ash.Resource.Info.attribute(related, aggregate.field)
+      end
+
+    attribute_type =
+      if attribute do
+        attribute.type
+      end
+
+    attribute_constraints =
+      if attribute do
+        attribute.constraints
+      end
+
+    {:ok, type, constraints} =
+      Ash.Query.Aggregate.kind_to_type(aggregate.kind, attribute_type, attribute_constraints)
+
+    type
+    |> Ash.Resource.Info.aggregate_type(aggregate)
+    |> split_at_paths(constraints, right)
+    |> Enum.reduce(do_dynamic_expr(query, left, bindings, embedded?, acc), fn data, {expr, acc} ->
+      do_get_path(query, expr, data, bindings, embedded?, pred_embedded?, acc)
+    end)
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %GetPath{
            arguments: [%Ref{attribute: %{type: type, constraints: constraints}} = left, right],
            embedded?: pred_embedded?
          },
