@@ -27,6 +27,7 @@ defmodule AshPostgres.Test.Author do
 
   aggregates do
     first(:profile_description, :profile, :description)
+    count(:count_of_posts, :posts)
   end
 
   calculations do

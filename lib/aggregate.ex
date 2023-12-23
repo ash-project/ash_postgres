@@ -79,7 +79,13 @@ defmodule AshPostgres.Aggregate do
               cond do
                 is_single? &&
                     optimizable_first_aggregate?(resource, Enum.at(aggregates, 0)) ->
-                  case add_first_join_aggregate(query, resource, hd(aggregates), root_data) do
+                  case add_first_join_aggregate(
+                         query,
+                         resource,
+                         hd(aggregates),
+                         root_data,
+                         first_relationship
+                       ) do
                     {:ok, query, dynamic} ->
                       query =
                         if select? do
@@ -277,6 +283,7 @@ defmodule AshPostgres.Aggregate do
         end
         |> case do
           {:ok, aggregate} ->
+            aggregate = Map.put(aggregate, :load, aggregate.name)
             {:cont, {:ok, [aggregate | aggregates]}}
 
           {:error, error} ->
@@ -285,7 +292,7 @@ defmodule AshPostgres.Aggregate do
     end)
   end
 
-  defp add_first_join_aggregate(query, resource, aggregate, root_data) do
+  defp add_first_join_aggregate(query, resource, aggregate, root_data, first_relationship) do
     {resource, path} =
       case root_data do
         {resource, path} ->
@@ -312,20 +319,13 @@ defmodule AshPostgres.Aggregate do
          ) do
       {:ok, query} ->
         ref =
-          %Ash.Query.Ref{
-            attribute:
-              aggregate_field(
-                aggregate,
-                Ash.Resource.Info.related(
-                  resource,
-                  path ++ aggregate.relationship_path
-                ),
-                path ++ aggregate.relationship_path,
-                query
-              ),
-            relationship_path: path ++ aggregate.relationship_path,
-            resource: resource
-          }
+          aggregate_field_ref(
+            aggregate,
+            Ash.Resource.Info.related(resource, path ++ aggregate.relationship_path),
+            path ++ aggregate.relationship_path,
+            query,
+            first_relationship
+          )
 
         {value, acc} = AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__, false)
 
@@ -390,8 +390,14 @@ defmodule AshPostgres.Aggregate do
 
       agg_query =
         case Ash.Resource.Info.field(related, aggregate.field) do
-          %Ash.Resource.Aggregate{} ->
-            raise "can't do this yet"
+          %Ash.Resource.Aggregate{} = aggregate ->
+            {:ok, agg_query} =
+              add_aggregates(agg_query, [aggregate], related, false, 0, {
+                first_relationship.destination,
+                [first_relationship.name]
+              })
+
+            agg_query
 
           %Ash.Resource.Calculation{
             name: name,
@@ -826,11 +832,14 @@ defmodule AshPostgres.Aggregate do
       ) do
     query = AshPostgres.DataLayer.default_bindings(query, aggregate.resource)
 
-    ref = %Ash.Query.Ref{
-      attribute: aggregate_field(aggregate, resource, relationship_path, query),
-      relationship_path: relationship_path,
-      resource: query.__ash_bindings__.resource
-    }
+    ref =
+      aggregate_field_ref(
+        aggregate,
+        resource,
+        relationship_path,
+        query,
+        first_relationship
+      )
 
     type = AshPostgres.Types.parameterized_type(aggregate.type, aggregate.constraints)
 
@@ -937,11 +946,14 @@ defmodule AshPostgres.Aggregate do
         [:left, :inner, :root]
       )
 
-    ref = %Ash.Query.Ref{
-      attribute: aggregate_field(aggregate, resource, relationship_path, query),
-      relationship_path: relationship_path,
-      resource: query.__ash_bindings__.resource
-    }
+    ref =
+      aggregate_field_ref(
+        aggregate,
+        resource,
+        relationship_path,
+        query,
+        first_relationship
+      )
 
     {field, acc} = AshPostgres.Expr.dynamic_expr(query, ref, query.__ash_bindings__, false)
 
@@ -1037,16 +1049,19 @@ defmodule AshPostgres.Aggregate do
         %{kind: kind} = aggregate,
         resource,
         is_single?,
-        _first_relationship
+        first_relationship
       )
       when kind in [:count, :sum, :avg, :max, :min, :custom] do
     query = AshPostgres.DataLayer.default_bindings(query, aggregate.resource)
 
-    ref = %Ash.Query.Ref{
-      attribute: aggregate_field(aggregate, resource, relationship_path, query),
-      relationship_path: relationship_path,
-      resource: resource
-    }
+    ref =
+      aggregate_field_ref(
+        aggregate,
+        resource,
+        relationship_path,
+        query,
+        first_relationship
+      )
 
     {field, query} =
       if kind == :custom do
@@ -1169,6 +1184,21 @@ defmodule AshPostgres.Aggregate do
       end
 
     Ecto.Query.select_merge(query, ^%{aggregate_name => casted})
+  end
+
+  def aggregate_field_ref(aggregate, resource, relationship_path, query, first_relationship) do
+    %Ash.Query.Ref{
+      attribute: aggregate_field(aggregate, resource, relationship_path, query),
+      relationship_path: relationship_path,
+      resource: query.__ash_bindings__.resource
+    }
+    |> case do
+      %{attribute: %Ash.Resource.Aggregate{}} = ref ->
+        %{ref | relationship_path: [first_relationship.name | ref.relationship_path]}
+
+      other ->
+        other
+    end
   end
 
   defp single_path?(_, []), do: true

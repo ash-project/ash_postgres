@@ -1562,6 +1562,30 @@ defmodule AshPostgres.Expr do
     {expr, acc}
   end
 
+  defp do_dynamic_expr(
+         query,
+         %Ref{attribute: %Ash.Resource.Aggregate{name: name}} = ref,
+         bindings,
+         _embedded?,
+         acc,
+         _expr_type
+       ) do
+    ref_binding = ref_binding(ref, bindings)
+
+    if is_nil(ref_binding) do
+      raise "Error while building reference: #{inspect(ref)}"
+    end
+
+    expr =
+      if query.__ash_bindings__[:parent?] do
+        Ecto.Query.dynamic(field(parent_as(^ref_binding), ^name))
+      else
+        Ecto.Query.dynamic(field(as(^ref_binding), ^name))
+      end
+
+    {expr, acc}
+  end
+
   defp do_dynamic_expr(_query, %Ash.Vector{} = value, _bindings, _embedded?, acc, _type) do
     {value, acc}
   end
@@ -1955,6 +1979,22 @@ defmodule AshPostgres.Expr do
             relationship_path
           ) && binding
       end)
+  end
+
+  defp ref_binding(
+         %{
+           attribute: %Ash.Resource.Aggregate{name: name},
+           relationship_path: relationship_path
+         },
+         bindings
+       ) do
+    IO.inspect("HERE")
+
+    Enum.find_value(bindings.bindings, fn {binding, data} ->
+      data.type == :aggregate &&
+        data.path == relationship_path &&
+        Enum.any?(data.aggregates, &(&1.name == name)) && binding
+    end)
   end
 
   defp ref_binding(%{attribute: %Ash.Resource.Attribute{}} = ref, bindings) do
