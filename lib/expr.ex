@@ -1988,8 +1988,6 @@ defmodule AshPostgres.Expr do
          },
          bindings
        ) do
-    IO.inspect("HERE")
-
     Enum.find_value(bindings.bindings, fn {binding, data} ->
       data.type == :aggregate &&
         data.path == relationship_path &&
