@@ -5,6 +5,23 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.66](https://github.com/ash-project/ash_postgres/compare/v1.3.65...v1.3.66) (2023-12-30)
+
+
+
+
+### Improvements:
+
+* support new `return_query/2` callback
+
+* support new `:no_rollback` error signal
+
+* require `name` when generating migrations
+
+* support directly referencing aggregates from aggregates
+
+* support aggregates as `get_path` subject
+
 ## [v1.3.65](https://github.com/ash-project/ash_postgres/compare/v1.3.64...v1.3.65) (2023-12-23)
 
 
