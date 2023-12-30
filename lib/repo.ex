@@ -90,6 +90,13 @@ defmodule AshPostgres.Repo do
       def override_migration_type(type), do: type
       def min_pg_version, do: 10
 
+      def transaction!(fun) do
+        case fun.() do
+          {:ok, value} -> value
+          {:error, error} -> raise Ash.Error.to_error_class(error)
+        end
+      end
+
       def all_tenants do
         raise """
         `#{inspect(__MODULE__)}.all_tenants/0` was called, but was not defined. In order to migrate tenants, you must define this function.

@@ -586,11 +586,16 @@ defmodule AshPostgres.DataLayer do
           |> Map.put(:parent_resources, [
             parent.__ash_bindings__.resource | parent.__ash_bindings__[:parent_resources] || []
           ])
+          |> Map.put(:lateral_join?, true)
 
         {:ok, %{data_layer_query | __ash_bindings__: ash_bindings}}
 
       _ ->
-        {:ok, data_layer_query}
+        ash_bindings =
+          data_layer_query.__ash_bindings__
+          |> Map.put(:lateral_join?, false)
+
+        {:ok, %{data_layer_query | __ash_bindings__: ash_bindings}}
     end
   end
 
@@ -606,7 +611,17 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def run_query(query, resource) do
+  def return_query(%{__ash_bindings__: %{lateral_join?: true}} = query, resource) do
+    query = default_bindings(query, resource)
+
+    if query.__ash_bindings__[:sort_applied?] do
+      {:ok, query}
+    else
+      apply_sort(query, query.__ash_bindings__[:sort], query.__ash_bindings__.resource)
+    end
+  end
+
+  def return_query(query, resource) do
     query = default_bindings(query, resource)
 
     with_sort_applied =
@@ -621,45 +636,49 @@ defmodule AshPostgres.DataLayer do
         {:error, error}
 
       {:ok, query} ->
-        query =
-          if query.__ash_bindings__[:__order__?] && query.windows[:order] do
-            if query.distinct do
-              query_with_order =
-                from(row in query, select_merge: %{__order__: over(row_number(), :order)})
+        if query.__ash_bindings__[:__order__?] && query.windows[:order] do
+          if query.distinct do
+            query_with_order =
+              from(row in query, select_merge: %{__order__: over(row_number(), :order)})
 
-              query_without_limit_and_offset =
-                query_with_order
-                |> Ecto.Query.exclude(:limit)
-                |> Ecto.Query.exclude(:offset)
+            query_without_limit_and_offset =
+              query_with_order
+              |> Ecto.Query.exclude(:limit)
+              |> Ecto.Query.exclude(:offset)
 
-              from(row in subquery(query_without_limit_and_offset),
-                select: row,
-                order_by: row.__order__
-              )
-              |> Map.put(:limit, query.limit)
-              |> Map.put(:offset, query.offset)
-            else
-              order_by = %{query.windows[:order] | expr: query.windows[:order].expr[:order_by]}
-
-              %{
-                query
-                | windows: Keyword.delete(query.windows, :order),
-                  order_bys: [order_by]
-              }
-            end
+            {:ok,
+             from(row in subquery(query_without_limit_and_offset),
+               select: row,
+               order_by: row.__order__
+             )
+             |> Map.put(:limit, query.limit)
+             |> Map.put(:offset, query.offset)}
           else
-            %{query | windows: Keyword.delete(query.windows, :order)}
+            order_by = %{query.windows[:order] | expr: query.windows[:order].expr[:order_by]}
+
+            {:ok,
+             %{
+               query
+               | windows: Keyword.delete(query.windows, :order),
+                 order_bys: [order_by]
+             }}
           end
-
-        if AshPostgres.DataLayer.Info.polymorphic?(resource) && no_table?(query) do
-          raise_table_error!(resource, :read)
         else
-          repo = dynamic_repo(resource, query)
-
-          with_savepoint(repo, query, fn ->
-            {:ok, repo.all(query, repo_opts(nil, nil, resource))}
-          end)
+          {:ok, %{query | windows: Keyword.delete(query.windows, :order)}}
         end
+    end
+  end
+
+  @impl true
+  def run_query(query, resource) do
+    if AshPostgres.DataLayer.Info.polymorphic?(resource) && no_table?(query) do
+      raise_table_error!(resource, :read)
+    else
+      repo = dynamic_repo(resource, query)
+
+      with_savepoint(repo, query, fn ->
+        {:ok, repo.all(query, repo_opts(nil, nil, resource))}
+      end)
     end
   rescue
     e ->
@@ -888,39 +907,26 @@ defmodule AshPostgres.DataLayer do
         _destination_resource,
         path
       ) do
-    with_sort_applied =
-      if query.__ash_bindings__[:sort_applied?] do
-        {:ok, query}
-      else
-        apply_sort(query, query.__ash_bindings__[:sort], query.__ash_bindings__.resource)
-      end
+    case lateral_join_query(
+           query,
+           root_data,
+           path
+         ) do
+      {:ok, query} ->
+        source_resource =
+          path
+          |> Enum.at(0)
+          |> elem(0)
+          |> Map.get(:resource)
 
-    case with_sort_applied do
+        {:ok,
+         dynamic_repo(source_resource, query).all(
+           query,
+           repo_opts(nil, nil, source_resource)
+         )}
+
       {:error, error} ->
         {:error, error}
-
-      {:ok, query} ->
-        case lateral_join_query(
-               query,
-               root_data,
-               path
-             ) do
-          {:ok, query} ->
-            source_resource =
-              path
-              |> Enum.at(0)
-              |> elem(0)
-              |> Map.get(:resource)
-
-            {:ok,
-             dynamic_repo(source_resource, query).all(
-               query,
-               repo_opts(nil, nil, source_resource)
-             )}
-
-          {:error, error} ->
-            {:error, error}
-        end
     end
   end
 
@@ -2326,7 +2332,12 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def sort(query, sort, _resource) do
-    {:ok, Map.update!(query, :__ash_bindings__, &Map.put(&1, :sort, sort))}
+    {:ok,
+     Map.update!(
+       query,
+       :__ash_bindings__,
+       &Map.put(&1, :sort, sort)
+     )}
   end
 
   @impl true

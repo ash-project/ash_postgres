@@ -42,7 +42,7 @@ defmodule AshPostgres.ErrorExprTest do
     |> Api.create!()
 
     assert_raise Ash.Error.Invalid, ~r/this is bad!/, fn ->
-      AshPostgres.TestRepo.transaction(fn ->
+      AshPostgres.TestRepo.transaction!(fn ->
         Post
         |> Ash.Query.calculate(
           :test,
