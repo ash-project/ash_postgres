@@ -431,6 +431,15 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def can?(_, :async_engine), do: true
   def can?(_, :bulk_create), do: true
+
+  def can?(resource, :update_query) do
+    # We can't currently support updating a record from a query
+    # if that record manages a tenant on update
+    !AshPostgres.DataLayer.Info.manage_tenant_update?(resource)
+  end
+
+  def can?(_, :destroy_query), do: true
+
   def can?(_, {:lock, :for_update}), do: true
   def can?(_, :composite_types), do: true
 
@@ -1209,6 +1218,117 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
+  def update_query(query, changeset, resource, options) do
+    ecto_changeset =
+      changeset.data
+      |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
+      |> ecto_changeset(changeset, :update, true, true)
+
+    try do
+      query =
+        query
+        |> default_bindings(resource, changeset.context)
+
+      query =
+        if options[:return_records?] do
+          attrs = resource |> Ash.Resource.Info.attributes() |> Enum.map(& &1.name)
+
+          Ecto.Query.select(query, ^attrs)
+        else
+          query
+        end
+
+      case query_with_atomics(
+             resource,
+             query,
+             ecto_changeset.filters,
+             changeset.atomics,
+             ecto_changeset.changes,
+             []
+           ) do
+        :empty ->
+          {:ok, changeset.data}
+
+        {:ok, query} ->
+          repo_opts = repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
+
+          repo_opts =
+            Keyword.put(repo_opts, :returning, Keyword.keys(changeset.atomics))
+
+          repo = dynamic_repo(resource, changeset)
+
+          {_, results} =
+            with_savepoint(repo, query, fn ->
+              repo.update_all(
+                query,
+                [],
+                repo_opts
+              )
+            end)
+
+          if options[:return_records?] do
+            {:ok, results}
+          else
+            :ok
+          end
+
+        {:error, error} ->
+          {:error, error}
+      end
+    rescue
+      e ->
+        handle_raised_error(e, __STACKTRACE__, ecto_changeset, resource)
+    end
+  end
+
+  @impl true
+  def destroy_query(query, changeset, resource, options) do
+    ecto_changeset =
+      changeset.data
+      |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
+      |> ecto_changeset(changeset, :update, true, true)
+
+    try do
+      query =
+        query
+        |> default_bindings(resource, changeset.context)
+
+      query =
+        if options[:return_records?] do
+          attrs = resource |> Ash.Resource.Info.attributes() |> Enum.map(& &1.name)
+
+          Ecto.Query.select(query, ^attrs)
+        else
+          query
+        end
+
+      repo_opts = repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
+
+      repo_opts =
+        Keyword.put(repo_opts, :returning, Keyword.keys(changeset.atomics))
+
+      repo = dynamic_repo(resource, changeset)
+
+      {_, results} =
+        with_savepoint(repo, query, fn ->
+          repo.delete_all(
+            query,
+            repo_opts
+          )
+        end)
+
+      if options[:return_records?] do
+        {:ok, results}
+      else
+        :ok
+      end
+    rescue
+      e ->
+        handle_raised_error(e, __STACKTRACE__, ecto_changeset, resource)
+    end
+  end
+
+  @impl true
   def bulk_create(resource, stream, options) do
     opts = repo_opts(nil, options[:tenant], resource)
 
@@ -1512,7 +1632,7 @@ defmodule AshPostgres.DataLayer do
     )
   end
 
-  defp ecto_changeset(record, changeset, type, table_error? \\ true) do
+  defp ecto_changeset(record, changeset, type, table_error? \\ true, bulk_update? \\ false) do
     filters =
       if changeset.action_type == :create do
         %{}
@@ -1521,7 +1641,7 @@ defmodule AshPostgres.DataLayer do
       end
 
     filters =
-      if changeset.action_type == :create do
+      if changeset.action_type == :create || bulk_update? do
         filters
       else
         changeset.resource
@@ -1633,6 +1753,49 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp handle_raised_error(
+         %Postgrex.Error{
+           postgres: %{
+             code: :raise_exception,
+             message: "ash_error: \"" <> json,
+             severity: "ERROR"
+           }
+         },
+         _,
+         _,
+         _
+       ) do
+    %{"exception" => exception, "input" => input} =
+      json
+      |> String.trim_trailing("\"")
+      |> String.replace("\\\"", "\"")
+      |> Jason.decode!()
+
+    exception = Module.concat([exception])
+
+    {:error, Ash.Error.from_json(exception, input)}
+  end
+
+  defp handle_raised_error(
+         %Postgrex.Error{
+           postgres: %{
+             code: :raise_exception,
+             message: "ash_error: " <> json,
+             severity: "ERROR"
+           }
+         },
+         _,
+         _,
+         _
+       ) do
+    %{"exception" => exception, "input" => input} =
+      Jason.decode!(json)
+
+    exception = Module.concat([exception])
+
+    {:error, Ash.Error.from_json(exception, input)}
+  end
+
+  defp handle_raised_error(
          %Postgrex.Error{} = error,
          stacktrace,
          %{constraints: user_constraints},
@@ -1665,29 +1828,6 @@ defmodule AshPostgres.DataLayer do
       _ ->
         reraise error, stacktrace
     end
-  end
-
-  defp handle_raised_error(
-         %Postgrex.Error{
-           postgres: %{
-             code: :raise_exception,
-             message: "\"ash_exception: " <> json,
-             severity: "ERROR"
-           }
-         },
-         _,
-         _,
-         _
-       ) do
-    %{"exception" => exception, "input" => input} =
-      json
-      |> String.trim_trailing("\"")
-      |> String.replace("\\\"", "\"")
-      |> Jason.decode!()
-
-    exception = Module.concat([exception])
-
-    {:error, Ash.Error.from_json(exception, input)}
   end
 
   defp handle_raised_error(error, stacktrace, _ecto_changeset, _resource) do
@@ -2186,6 +2326,10 @@ defmodule AshPostgres.DataLayer do
         used_aggregates =
           Ash.Filter.used_aggregates(expr, [])
 
+        attribute = Ash.Resource.Info.attribute(resource, field)
+
+        type = AshPostgres.Types.parameterized_type(attribute.type, attribute.constraints)
+
         with {:ok, query} <-
                AshPostgres.Join.join_all_relationships(
                  query,
@@ -2198,7 +2342,13 @@ defmodule AshPostgres.DataLayer do
              {:ok, query} <-
                AshPostgres.Aggregate.add_aggregates(query, used_aggregates, resource, false, 0),
              {dynamic, acc} <-
-               AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__) do
+               AshPostgres.Expr.dynamic_expr(
+                 query,
+                 expr,
+                 query.__ash_bindings__,
+                 false,
+                 type
+               ) do
           {:cont, {:ok, merge_expr_accumulator(query, acc), Keyword.put(set, field, dynamic)}}
         else
           other ->

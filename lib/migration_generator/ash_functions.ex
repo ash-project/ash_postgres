@@ -1,5 +1,5 @@
 defmodule AshPostgres.MigrationGenerator.AshFunctions do
-  @latest_version 2
+  @latest_version 3
 
   def latest_version, do: @latest_version
 
@@ -120,6 +120,14 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     ash_raise_error()
   end
 
+  def install(2) do
+    ash_raise_error()
+  end
+
+  def drop(2) do
+    ash_raise_error(false)
+  end
+
   def drop(1) do
     "execute(\"DROP FUNCTION IF EXISTS ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE)\")"
   end
@@ -132,7 +140,14 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     "execute(\"DROP FUNCTION IF EXISTS ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_elixir_and(BOOLEAN, ANYCOMPATIBLE), ash_elixir_and(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(BOOLEAN, ANYCOMPATIBLE) ash_trim_whitespace(text[])\")"
   end
 
-  defp ash_raise_error do
+  defp ash_raise_error(prefix? \\ true) do
+    prefix =
+      if prefix? do
+        "ash_error: "
+      else
+        ""
+      end
+
     """
     execute(\"\"\"
     CREATE OR REPLACE FUNCTION ash_raise_error(json_data jsonb)
@@ -140,7 +155,7 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     BEGIN
         -- Raise an error with the provided JSON data.
         -- The JSON object is converted to text for inclusion in the error message.
-        RAISE EXCEPTION '%', json_data::text;
+        RAISE EXCEPTION '#{prefix}%', json_data::text;
         RETURN NULL;
     END;
     $$ LANGUAGE plpgsql;
@@ -152,7 +167,7 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     BEGIN
         -- Raise an error with the provided JSON data.
         -- The JSON object is converted to text for inclusion in the error message.
-        RAISE EXCEPTION '%', json_data::text;
+        RAISE EXCEPTION '#{prefix}%', json_data::text;
         RETURN NULL;
     END;
     $$ LANGUAGE plpgsql;

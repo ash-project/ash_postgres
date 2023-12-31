@@ -1295,8 +1295,8 @@ defmodule AshPostgres.Expr do
   defp do_dynamic_expr(
          query,
          %Error{arguments: [exception, input]} = value,
-         _bindings,
-         _embedded?,
+         bindings,
+         embedded?,
          acc,
          type
        ) do
@@ -1308,8 +1308,48 @@ defmodule AshPostgres.Expr do
       raise "Input expression to `error` must be a map or keyword list"
     end
 
-    encoded =
-      "ash_exception: " <> Jason.encode!(%{exception: inspect(exception), input: Map.new(input)})
+    {encoded, acc} =
+      if Ash.Filter.TemplateHelpers.expr?(input) do
+        frag_parts =
+          Enum.map(input, fn {key, value} ->
+            if Ash.Filter.TemplateHelpers.expr?(value) do
+              [
+                expr: to_string(key),
+                raw: "::text, ",
+                expr: value
+              ]
+            else
+              [
+                expr: to_string(key),
+                raw: "::text, ",
+                expr: value,
+                raw: "::jsonb"
+              ]
+            end
+          end)
+          |> Enum.intersperse(raw: ", ")
+          |> List.flatten()
+
+        do_dynamic_expr(
+          query,
+          %Fragment{
+            embedded?: false,
+            arguments:
+              [
+                raw: "jsonb_build_object('exception', ",
+                expr: inspect(exception),
+                raw: "::text, 'input', jsonb_build_object("
+              ] ++
+                frag_parts ++
+                [raw: "))"]
+          },
+          bindings,
+          embedded?,
+          acc
+        )
+      else
+        {Jason.encode!(%{exception: inspect(exception), input: Map.new(input)}), acc}
+      end
 
     if type do
       # This is a type hint, if we're raising an error, we tell it what the value
