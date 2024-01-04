@@ -79,8 +79,15 @@ defmodule AshPostgres.Types do
     Code.ensure_compiled(mod)
 
     name =
-      if function_exported?(mod, :name, 0) do
-        mod.name
+      cond do
+        function_exported?(mod, :operator, 0) ->
+          mod.operator()
+
+        function_exported?(mod, :name, 0) ->
+          mod.name()
+
+        true ->
+          nil
       end
 
     cond do
@@ -93,7 +100,7 @@ defmodule AshPostgres.Types do
       true ->
         [:any]
     end
-    |> Enum.concat(Ash.Query.Operator.operator_overloads(name))
+    |> Enum.concat(Map.keys(Ash.Query.Operator.operator_overloads(name) || %{}))
     |> Enum.map(fn types ->
       case types do
         :same ->
