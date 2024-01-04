@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.68](https://github.com/ash-project/ash_postgres/compare/v1.3.67...v1.3.68) (2024-01-04)
+
+
+
+
+### Bug Fixes:
+
+* properly gather types for operator & function overloads
+
 ## [v1.3.67](https://github.com/ash-project/ash_postgres/compare/v1.3.66...v1.3.67) (2024-01-04)
 
 
