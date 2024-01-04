@@ -5,6 +5,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.3.67](https://github.com/ash-project/ash_postgres/compare/v1.3.66...v1.3.67) (2024-01-04)
+
+
+
+
+### Bug Fixes:
+
+* support encoding errors with expressions in them
+
+### Improvements:
+
+* support latest ash version & operator overrides
+
+* support new bulk operations
+
 ## [v1.3.66](https://github.com/ash-project/ash_postgres/compare/v1.3.65...v1.3.66) (2023-12-30)
 
 
