@@ -1400,6 +1400,13 @@ defmodule AshPostgres.DataLayer do
           resource
         end
 
+      opts =
+        if schema = Enum.at(changesets, 0).context[:data_layer][:schema] do
+          Keyword.put(opts, :prefix, schema)
+        else
+          opts
+        end
+
       result =
         with_savepoint(repo, opts[:on_conflict], fn ->
           repo.insert_all(source, ecto_changesets, opts)
