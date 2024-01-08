@@ -257,7 +257,6 @@ end
 |------|------|---------|------|
 | [`polymorphic_on_delete`](#postgres-references-polymorphic_on_delete){: #postgres-references-polymorphic_on_delete } | `:delete \| :nilify \| :nothing \| :restrict` |  | For polymorphic resources, configures the on_delete behavior of the automatically generated foreign keys to source tables. |
 | [`polymorphic_on_update`](#postgres-references-polymorphic_on_update){: #postgres-references-polymorphic_on_update } | `:update \| :nilify \| :nothing \| :restrict` |  | For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables. |
-| [`polymorphic_name`](#postgres-references-polymorphic_name){: #postgres-references-polymorphic_name } | `:update \| :nilify \| :nothing \| :restrict` |  | For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables. |
 
 
 

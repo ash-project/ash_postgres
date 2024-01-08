@@ -241,7 +241,7 @@ defmodule AshPostgres.MixProject do
         "sobelow --skip -i Config.Secrets --ignore-files lib/migration_generator/migration_generator.ex",
       credo: "credo --strict",
       docs: [
-        # "spark.cheat_sheets",
+        "spark.cheat_sheets",
         "docs",
         "spark.replace_doc_links",
         "spark.cheat_sheets_in_search"
