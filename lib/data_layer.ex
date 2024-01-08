@@ -164,9 +164,9 @@ defmodule AshPostgres.DataLayer do
           "For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables."
       ],
       polymorphic_name: [
-        type: {:one_of, [:update, :nilify, :nothing, :restrict]},
+        type: :string,
         doc:
-          "For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables."
+          "For polymorphic resources, then index name to use for the foreign key to the source table."
       ]
     ]
   }
@@ -232,11 +232,6 @@ defmodule AshPostgres.DataLayer do
           "For polymorphic resources, configures the on_delete behavior of the automatically generated foreign keys to source tables."
       ],
       polymorphic_on_update: [
-        type: {:one_of, [:update, :nilify, :nothing, :restrict]},
-        doc:
-          "For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables."
-      ],
-      polymorphic_name: [
         type: {:one_of, [:update, :nilify, :nothing, :restrict]},
         doc:
           "For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables."
