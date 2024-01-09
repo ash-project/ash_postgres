@@ -208,11 +208,21 @@ defmodule AshPostgres.Join do
         is_subquery? \\ true,
         join_relationships? \\ false
       ) do
+    read_action =
+      relationship.read_action ||
+        Ash.Resource.Info.primary_action!(relationship.destination, :read).name
+
+    context = (bindings || root_query.__ash_bindings__).context
+
     resource
     |> Ash.Query.new(nil, base_filter?: false)
     |> Ash.Query.set_context(%{data_layer: %{start_bindings_at: start_binding}})
-    |> Ash.Query.set_context((bindings || root_query.__ash_bindings__).context)
+    |> Ash.Query.set_context(context)
     |> Ash.Query.set_context(relationship.context)
+    |> Ash.Query.for_read(read_action, %{},
+      actor: context[:private][:actor],
+      tenant: context[:private][:tenant]
+    )
     |> case do
       %{valid?: true} = query ->
         ash_query = query
