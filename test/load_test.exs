@@ -1,6 +1,6 @@
 defmodule AshPostgres.Test.LoadTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Comment, Post}
+  alias AshPostgres.Test.{Api, Comment, Post, TempEntity, Record}
 
   require Ash.Query
 
@@ -333,6 +333,15 @@ defmodule AshPostgres.Test.LoadTest do
         |> Api.load!(linked_posts: linked_posts_query)
 
       assert %{linked_posts: [%{title: "abc"}, %{title: "def"}]} = results
+    end
+
+    test "lateral join loads with read action from a custom table and schema" do
+      record = Record |> Ash.Changeset.new(%{full_name: "name"}) |> Api.create!()
+      temp_entity = TempEntity |> Ash.Changeset.new(%{full_name: "name"}) |> Api.create!()
+
+      assert %{entity: entity} = Api.load!(record, :entity)
+
+      assert temp_entity.id == entity.id
     end
   end
 end
