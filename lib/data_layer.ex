@@ -1170,32 +1170,36 @@ defmodule AshPostgres.DataLayer do
   def set_subquery_prefix(data_layer_query, source_query, resource) do
     config = AshPostgres.DataLayer.Info.repo(resource, :mutate).config()
 
-    query_tenant =
-      case source_query do
-        %{__tenant__: tenant} -> tenant
-        %{tenant: tenant} -> tenant
-        _ -> nil
-      end
-
-    if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
-      %{
-        data_layer_query
-        | prefix:
-            to_string(
-              query_tenant || AshPostgres.DataLayer.Info.schema(resource) ||
-                config[:default_prefix] ||
-                "public"
-            )
-      }
+    if data_layer_query.__ash_bindings__.context[:data_layer][:schema] do
+      data_layer_query
     else
-      %{
-        data_layer_query
-        | prefix:
-            to_string(
-              AshPostgres.DataLayer.Info.schema(resource) || config[:default_prefix] ||
-                "public"
-            )
-      }
+      query_tenant =
+        case source_query do
+          %{__tenant__: tenant} -> tenant
+          %{tenant: tenant} -> tenant
+          _ -> nil
+        end
+
+      if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
+        %{
+          data_layer_query
+          | prefix:
+              to_string(
+                query_tenant || AshPostgres.DataLayer.Info.schema(resource) ||
+                  config[:default_prefix] ||
+                  "public"
+              )
+        }
+      else
+        %{
+          data_layer_query
+          | prefix:
+              to_string(
+                AshPostgres.DataLayer.Info.schema(resource) || config[:default_prefix] ||
+                  "public"
+              )
+        }
+      end
     end
   end
 
