@@ -1170,36 +1170,38 @@ defmodule AshPostgres.DataLayer do
   def set_subquery_prefix(data_layer_query, source_query, resource) do
     config = AshPostgres.DataLayer.Info.repo(resource, :mutate).config()
 
-    if data_layer_query.__ash_bindings__.context[:data_layer][:schema] do
-      data_layer_query
-    else
-      query_tenant =
-        case source_query do
-          %{__tenant__: tenant} -> tenant
-          %{tenant: tenant} -> tenant
-          _ -> nil
-        end
+    case data_layer_query do
+      %{__ash_bindings__: %{context: %{data_layer: %{schema: schema}}}} when not is_nil(schema) ->
+        data_layer_query
 
-      if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
-        %{
-          data_layer_query
-          | prefix:
-              to_string(
-                query_tenant || AshPostgres.DataLayer.Info.schema(resource) ||
-                  config[:default_prefix] ||
-                  "public"
-              )
-        }
-      else
-        %{
-          data_layer_query
-          | prefix:
-              to_string(
-                AshPostgres.DataLayer.Info.schema(resource) || config[:default_prefix] ||
-                  "public"
-              )
-        }
-      end
+      _ ->
+        query_tenant =
+          case source_query do
+            %{__tenant__: tenant} -> tenant
+            %{tenant: tenant} -> tenant
+            _ -> nil
+          end
+
+        if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
+          %{
+            data_layer_query
+            | prefix:
+                to_string(
+                  query_tenant || AshPostgres.DataLayer.Info.schema(resource) ||
+                    config[:default_prefix] ||
+                    "public"
+                )
+          }
+        else
+          %{
+            data_layer_query
+            | prefix:
+                to_string(
+                  AshPostgres.DataLayer.Info.schema(resource) || config[:default_prefix] ||
+                    "public"
+                )
+          }
+        end
     end
   end
 

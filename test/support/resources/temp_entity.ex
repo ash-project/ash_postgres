@@ -5,9 +5,9 @@ defmodule AshPostgres.Test.TempEntity do
     data_layer: AshPostgres.DataLayer
 
   attributes do
-    uuid_primary_key :id
+    uuid_primary_key(:id)
 
-    attribute :full_name, :string, allow_nil?: false
+    attribute(:full_name, :string, allow_nil?: false)
 
     timestamps(private?: false)
   end
@@ -19,6 +19,6 @@ defmodule AshPostgres.Test.TempEntity do
   end
 
   actions do
-    defaults [:create, :read]
+    defaults([:create, :read])
   end
 end

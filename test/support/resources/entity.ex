@@ -5,9 +5,9 @@ defmodule AshPostgres.Test.Entity do
     data_layer: AshPostgres.DataLayer
 
   attributes do
-    uuid_primary_key :id
+    uuid_primary_key(:id)
 
-    attribute :full_name, :string, allow_nil?: false
+    attribute(:full_name, :string, allow_nil?: false)
 
     timestamps(private?: false)
   end
@@ -18,12 +18,12 @@ defmodule AshPostgres.Test.Entity do
   end
 
   actions do
-    defaults [:create, :read]
+    defaults([:create, :read])
 
     read :read_from_temp do
-      prepare fn query, _ ->
+      prepare(fn query, _ ->
         Ash.Query.set_context(query, %{data_layer: %{table: "temp_entities", schema: "temp"}})
-      end
+      end)
     end
   end
 end

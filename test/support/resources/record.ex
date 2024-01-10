@@ -5,9 +5,9 @@ defmodule AshPostgres.Test.Record do
     data_layer: AshPostgres.DataLayer
 
   attributes do
-    uuid_primary_key :id
+    uuid_primary_key(:id)
 
-    attribute :full_name, :string, allow_nil?: false
+    attribute(:full_name, :string, allow_nil?: false)
 
     timestamps(private?: false)
   end
@@ -16,11 +16,11 @@ defmodule AshPostgres.Test.Record do
     alias AshPostgres.Test.Entity
 
     has_one :entity, Entity do
-      no_attributes? true
+      no_attributes?(true)
 
-      read_action :read_from_temp
+      read_action(:read_from_temp)
 
-      filter expr(full_name == parent(full_name))
+      filter(expr(full_name == parent(full_name)))
     end
   end
 
@@ -30,6 +30,6 @@ defmodule AshPostgres.Test.Record do
   end
 
   actions do
-    defaults [:create, :read]
+    defaults([:create, :read])
   end
 end
