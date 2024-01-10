@@ -11,6 +11,10 @@ defmodule AshPostgres.Test.Post do
       # Check that the post is in the same org as actor
       authorize_if(relates_to_actor_via([:organization, :users]))
     end
+
+    policy action(:allow_any) do
+      authorize_if(always())
+    end
   end
 
   postgres do
@@ -44,6 +48,8 @@ defmodule AshPostgres.Test.Post do
     read :read do
       primary?(true)
     end
+
+    read(:allow_any)
 
     read :paginated do
       pagination(offset?: true, required?: true, countable: true)
@@ -227,7 +233,11 @@ defmodule AshPostgres.Test.Post do
       expr(latest_arbitrary_timestamp > fragment("now()"))
     )
 
-    calculate(:has_future_comment, :boolean, expr(latest_comment_created_at > fragment("now()")))
+    calculate(
+      :has_future_comment,
+      :boolean,
+      expr(latest_comment_created_at > fragment("now()") || type(false, :boolean))
+    )
 
     calculate(
       :was_created_in_the_last_month,

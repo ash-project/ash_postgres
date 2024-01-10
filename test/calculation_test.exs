@@ -244,6 +244,42 @@ defmodule AshPostgres.CalculationTest do
     |> Api.read!()
   end
 
+  test "calculations that refer to aggregates can be authorized" do
+    post =
+      Post
+      |> Ash.Changeset.new(%{title: "title"})
+      |> Api.create!()
+
+    Comment
+    |> Ash.Changeset.new(%{title: "comment"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Api.create!()
+
+    assert %{has_future_comment: false} =
+             Post
+             |> Ash.Query.load([:has_future_comment, :latest_comment_created_at])
+             |> Ash.Query.for_read(:allow_any, %{})
+             |> Api.read_one!(authorize?: true)
+
+    assert %{has_future_comment: true} =
+             Post
+             |> Ash.Query.load([:has_future_comment, :latest_comment_created_at])
+             |> Ash.Query.for_read(:allow_any, %{})
+             |> Api.read_one!(authorize?: false)
+
+    assert %{has_future_comment: false} =
+             Post
+             |> Ash.Query.for_read(:allow_any, %{})
+             |> Api.read_one!()
+             |> Api.load!([:has_future_comment, :latest_comment_created_at], authorize?: true)
+
+    assert %{has_future_comment: true} =
+             Post
+             |> Ash.Query.for_read(:allow_any, %{})
+             |> Api.read_one!()
+             |> Api.load!([:has_future_comment, :latest_comment_created_at], authorize?: false)
+  end
+
   test "conditional calculations can be filtered on" do
     author =
       Author
