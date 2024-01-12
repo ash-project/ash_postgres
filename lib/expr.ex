@@ -1388,7 +1388,7 @@ defmodule AshPostgres.Expr do
         aggregates: %{},
         parent_stack: [
           query.__ash_bindings__.resource
-          | query.__ash_bindings__[:parent_resources] || []
+          | query.__ash_bindings__[:parent_resource] || []
         ],
         calculations: %{},
         public?: false
@@ -2150,11 +2150,14 @@ defmodule AshPostgres.Expr do
   end
 
   @doc false
-  def set_parent_path(query, parent) do
+  def set_parent_path(query, parent, parent_is_parent_as? \\ true) do
     # This is a stupid name. Its actually the path we *remove* when stepping up a level. I.e the child's path
     Map.update!(query, :__ash_bindings__, fn ash_bindings ->
       ash_bindings
-      |> Map.put(:parent_bindings, parent.__ash_bindings__)
+      |> Map.put(
+        :parent_bindings,
+        parent.__ash_bindings__ |> Map.put(:parent_is_parent_as?, parent_is_parent_as?)
+      )
       |> Map.put(:parent_resources, [
         parent.__ash_bindings__.resource | parent.__ash_bindings__[:parent_resources] || []
       ])

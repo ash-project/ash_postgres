@@ -57,11 +57,12 @@ defmodule AshPostgres.Aggregate do
         result =
           aggregates
           |> Enum.reject(&already_added?(&1, query.__ash_bindings__))
-          |> Enum.group_by(& &1.relationship_path)
-          |> Enum.flat_map(fn {path, aggregates} ->
+          |> Enum.group_by(&{&1.relationship_path, &1.join_filters})
+          |> Enum.flat_map(fn {{path, join_filters}, aggregates} ->
             {can_group, cant_group} = Enum.split_with(aggregates, &can_group?(resource, &1))
 
-            [{path, can_group}] ++ Enum.map(cant_group, &{path, [&1]})
+            [{{path, join_filters}, can_group}] ++
+              Enum.map(cant_group, &{{path, join_filters}, [&1]})
           end)
           |> Enum.filter(fn
             {_, []} ->
@@ -72,7 +73,8 @@ defmodule AshPostgres.Aggregate do
           end)
           |> Enum.reduce_while(
             {:ok, query, []},
-            fn {[first_relationship | relationship_path], aggregates}, {:ok, query, dynamics} ->
+            fn {{[first_relationship | relationship_path], join_filters}, aggregates},
+               {:ok, query, dynamics} ->
               first_relationship = Ash.Resource.Info.relationship(resource, first_relationship)
               is_single? = match?([_], aggregates)
 
@@ -143,6 +145,14 @@ defmodule AshPostgres.Aggregate do
                            true,
                            true
                          ),
+                       {:ok, agg_root_query, acc} <-
+                         apply_first_relationship_join_filters(
+                           agg_root_query,
+                           query,
+                           acc,
+                           first_relationship,
+                           join_filters
+                         ),
                        agg_root_query <-
                          Map.update!(
                            agg_root_query,
@@ -155,7 +165,8 @@ defmodule AshPostgres.Aggregate do
                            aggregates,
                            relationship_path,
                            first_relationship,
-                           is_single?
+                           is_single?,
+                           join_filters
                          ),
                        {:ok, filtered} <-
                          maybe_filter_subquery(
@@ -218,6 +229,40 @@ defmodule AshPostgres.Aggregate do
 
       {:error, error} ->
         {:error, error}
+    end
+  end
+
+  defp apply_first_relationship_join_filters(
+         agg_root_query,
+         query,
+         acc,
+         first_relationship,
+         join_filters
+       ) do
+    case join_filters[[first_relationship]] do
+      nil ->
+        {:ok, agg_root_query, acc}
+
+      filter ->
+        with {:ok, agg_root_query} <-
+               AshPostgres.Join.join_all_relationships(agg_root_query, filter) do
+          agg_root_query =
+            AshPostgres.Expr.set_parent_path(
+              agg_root_query,
+              query
+            )
+
+          {query, acc} =
+            AshPostgres.Join.maybe_apply_filter(
+              agg_root_query,
+              agg_root_query,
+              agg_root_query.__ash_bindings__,
+              filter,
+              acc
+            )
+
+          {:ok, query, acc}
+        end
     end
   end
 
@@ -649,14 +694,24 @@ defmodule AshPostgres.Aggregate do
          _aggregates,
          relationship_path,
          first_relationship,
-         _is_single?
+         _is_single?,
+         join_filters
        ) do
     if Enum.empty?(relationship_path) do
       {:ok, agg_root_query}
     else
+      join_filters =
+        Enum.reduce(join_filters, %{}, fn {key, value}, acc ->
+          if List.starts_with?(key, [first_relationship.name]) do
+            Map.put(acc, Enum.drop(key, 1), value)
+          else
+            acc
+          end
+        end)
+
       AshPostgres.Join.join_all_relationships(
         agg_root_query,
-        nil,
+        Map.values(join_filters),
         [],
         [
           {:inner,
@@ -667,7 +722,9 @@ defmodule AshPostgres.Aggregate do
         ],
         [],
         nil,
-        false
+        false,
+        join_filters,
+        agg_root_query
       )
     end
   end
@@ -711,10 +768,12 @@ defmodule AshPostgres.Aggregate do
   def optimizable_first_aggregate?(resource, %{
         name: name,
         kind: :first,
-        relationship_path: relationship_path
+        relationship_path: relationship_path,
+        join_filters: join_filters
       }) do
     name in AshPostgres.DataLayer.Info.simple_join_first_aggregates(resource) ||
-      single_path?(resource, relationship_path)
+      (join_filters in [nil, %{}, []] &&
+         single_path?(resource, relationship_path))
   end
 
   def optimizable_first_aggregate?(_, _), do: false

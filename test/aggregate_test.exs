@@ -49,6 +49,53 @@ defmodule AshPostgres.AggregateTest do
     assert read_post.count_of_comments == 1
   end
 
+  describe "join filters" do
+    test "with no data, it does not effect the behavior" do
+      Author
+      |> Ash.Changeset.new(%{})
+      |> Api.create!()
+
+      assert [%{count_of_posts_with_better_comment: 0}] =
+               Author
+               |> Ash.Query.load(:count_of_posts_with_better_comment)
+               |> Api.read!()
+    end
+
+    test "it properly applies join criteria" do
+      author =
+        Author
+        |> Ash.Changeset.new(%{})
+        |> Api.create!()
+
+      matching_post =
+        Post
+        |> Ash.Changeset.new(%{title: "match", score: 10})
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Api.create!()
+
+      non_matching_post =
+        Post
+        |> Ash.Changeset.new(%{title: "non_match", score: 100})
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "match", likes: 100})
+      |> Ash.Changeset.manage_relationship(:post, matching_post, type: :append_and_remove)
+      |> Api.create!()
+
+      Comment
+      |> Ash.Changeset.new(%{title: "non_match", likes: 0})
+      |> Ash.Changeset.manage_relationship(:post, non_matching_post, type: :append_and_remove)
+      |> Api.create!()
+
+      assert [%{count_of_posts_with_better_comment: 1}] =
+               Author
+               |> Ash.Query.load(:count_of_posts_with_better_comment)
+               |> Api.read!()
+    end
+  end
+
   describe "count" do
     test "with no related data it returns 0" do
       post =

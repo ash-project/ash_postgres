@@ -98,4 +98,10 @@ defmodule AshPostgres.Test.Author do
 
     calculate(:has_posts, :boolean, expr(exists(posts, true)))
   end
+
+  aggregates do
+    count :count_of_posts_with_better_comment, [:posts, :comments] do
+      join_filter([:posts, :comments], expr(parent(score) < likes))
+    end
+  end
 end
