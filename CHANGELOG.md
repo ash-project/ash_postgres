@@ -5,6 +5,37 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.4.0](https://github.com/ash-project/ash_postgres/compare/v1.3.68...v1.4.0) (2024-01-12)
+
+
+
+
+### Features:
+
+* Add unit test to check lateral joins
+
+### Bug Fixes:
+
+* unset sort/distinct on related queries
+
+* subquery relationships that have filters
+
+* don't overwrite manually set schema on lateral join query
+
+* properly configure `polymorphic_name` option
+
+* honor configured schema on bulk create
+
+### Improvements:
+
+* support `all_tenants?` option for identities
+
+* support `all_tenants?` option for custom indexes
+
+* support join_filters on aggregates
+
+* use the target action when generating related queries
+
 ## [v1.3.68](https://github.com/ash-project/ash_postgres/compare/v1.3.67...v1.3.68) (2024-01-04)
 
 
