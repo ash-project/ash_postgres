@@ -1,4 +1,5 @@
 spark_locals_without_parens = [
+  all_tenants?: 1,
   base_filter_sql: 1,
   check: 1,
   check_constraint: 2,

@@ -1697,7 +1697,7 @@ defmodule AshPostgres.MigrationGenerator do
 
     custom_indexes_to_remove =
       Enum.filter(old_snapshot.custom_indexes, fn old_custom_index ->
-        rewrite_all_identities? ||
+        (rewrite_all_identities? && !old_custom_index.all_tenants?) ||
           !Enum.find(snapshot.custom_indexes, fn index ->
             indexes_match?(snapshot.table, old_custom_index, index)
           end)
@@ -1714,13 +1714,14 @@ defmodule AshPostgres.MigrationGenerator do
 
     unique_indexes_to_remove =
       if rewrite_all_identities? do
-        old_snapshot.identities
+        Enum.reject(old_snapshot.identities, & &1.all_tenants?)
       else
         Enum.reject(old_snapshot.identities, fn old_identity ->
           Enum.find(snapshot.identities, fn identity ->
             identity.name == old_identity.name &&
               Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
-              old_identity.base_filter == identity.base_filter
+              old_identity.base_filter == identity.base_filter &&
+              old_identity.all_tenants? == identity.all_tenants?
           end)
         end)
       end
@@ -1734,7 +1735,17 @@ defmodule AshPostgres.MigrationGenerator do
 
     unique_indexes_to_rename =
       if rewrite_all_identities? do
-        []
+        snapshot.identities
+        |> Enum.filter(& &1.all_tenants?)
+        |> Enum.map(fn identity ->
+          Enum.find_value(old_snapshot.identities, fn old_identity ->
+            if old_identity.name == identity.name &&
+                 old_identity.index_name != identity.index_name do
+              {old_identity, identity}
+            end
+          end)
+        end)
+        |> Enum.filter(& &1)
       else
         snapshot.identities
         |> Enum.map(fn identity ->
@@ -1759,12 +1770,25 @@ defmodule AshPostgres.MigrationGenerator do
     unique_indexes_to_add =
       if rewrite_all_identities? do
         snapshot.identities
+        |> Enum.reject(fn identity ->
+          if identity.all_tenants? do
+            Enum.find(old_snapshot.identities, fn old_identity ->
+              old_identity.name == identity.name &&
+                Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
+                old_identity.base_filter == identity.base_filter &&
+                old_identity.all_tenants? == identity.all_tenants?
+            end)
+          else
+            false
+          end
+        end)
       else
         Enum.reject(snapshot.identities, fn identity ->
           Enum.find(old_snapshot.identities, fn old_identity ->
             old_identity.name == identity.name &&
               Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
-              old_identity.base_filter == identity.base_filter
+              old_identity.base_filter == identity.base_filter &&
+              old_identity.all_tenants? == identity.all_tenants?
           end)
         end)
       end
@@ -2684,7 +2708,7 @@ defmodule AshPostgres.MigrationGenerator do
       end)
     end)
     |> Enum.sort_by(& &1.name)
-    |> Enum.map(&Map.take(&1, [:name, :keys]))
+    |> Enum.map(&Map.take(&1, [:name, :keys, :all_tenants?]))
     |> Enum.map(fn %{keys: keys} = identity ->
       %{
         identity
@@ -2864,6 +2888,7 @@ defmodule AshPostgres.MigrationGenerator do
       |> Map.put_new(:fields, [])
       |> Map.put_new(:include, [])
       |> Map.put_new(:message, nil)
+      |> Map.put_new(:all_tenants?, false)
     end)
   end
 
@@ -3010,6 +3035,7 @@ defmodule AshPostgres.MigrationGenerator do
     end)
     |> add_index_name(table)
     |> Map.put_new(:base_filter, nil)
+    |> Map.put_new(:all_tenants?, false)
   end
 
   defp add_index_name(%{name: name} = index, table) do

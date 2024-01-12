@@ -769,18 +769,28 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     import Helper
 
     def up(%{
-          identity: %{name: name, keys: keys, base_filter: base_filter, index_name: index_name},
+          identity: %{
+            name: name,
+            keys: keys,
+            base_filter: base_filter,
+            index_name: index_name,
+            all_tenants?: all_tenants?
+          },
           table: table,
           schema: schema,
           multitenancy: multitenancy
         }) do
       keys =
-        case multitenancy.strategy do
-          :attribute ->
-            [multitenancy.attribute | keys]
+        if all_tenants? do
+          keys
+        else
+          case multitenancy.strategy do
+            :attribute ->
+              [multitenancy.attribute | keys]
 
-          _ ->
-            keys
+            _ ->
+              keys
+          end
         end
 
       index_name = index_name || "#{table}_#{name}_index"

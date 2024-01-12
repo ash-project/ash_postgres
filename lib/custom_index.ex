@@ -10,7 +10,8 @@ defmodule AshPostgres.CustomIndex do
     :prefix,
     :where,
     :include,
-    :message
+    :message,
+    :all_tenants?
   ]
 
   defstruct @fields
@@ -56,6 +57,11 @@ defmodule AshPostgres.CustomIndex do
       type: {:list, :string},
       doc:
         "specify fields for a covering index. This is not supported by all databases. For more information on PostgreSQL support, please read the official docs."
+    ],
+    all_tenants?: [
+      type: :boolean,
+      default: false,
+      doc: "Whether or not the index should factor in the multitenancy attribute or not."
     ]
   ]
 

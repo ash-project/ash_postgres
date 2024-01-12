@@ -112,6 +112,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
 | [`where`](#postgres-custom_indexes-index-where){: #postgres-custom_indexes-index-where } | `String.t` |  | specify conditions for a partial index. |
 | [`message`](#postgres-custom_indexes-index-message){: #postgres-custom_indexes-index-message } | `String.t` |  | A custom message to use for unique indexes that have been violated |
 | [`include`](#postgres-custom_indexes-index-include){: #postgres-custom_indexes-index-include } | `list(String.t)` |  | specify fields for a covering index. This is not supported by all databases. For more information on PostgreSQL support, please read the official docs. |
+| [`all_tenants?`](#postgres-custom_indexes-index-all_tenants?){: #postgres-custom_indexes-index-all_tenants? } | `boolean` | `false` | Whether or not the index should factor in the multitenancy attribute or not. |
 
 
 

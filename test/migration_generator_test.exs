@@ -942,6 +942,57 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S{references(:users, column: :secondary_id, with: [related_key_id: :key_id, org_id: :org_id], match: :full, name: "user_things_user_id_fkey", type: :uuid, prefix: "public")}
     end
 
+    test "identities using `all_tenants?: true` will not have the condition on multitenancy attribtue added" do
+      defresource Org, "orgs" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:id)
+        end
+      end
+
+      defresource User, "users" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:secondary_id, :uuid)
+          attribute(:name, :string)
+          attribute(:org_id, :uuid)
+          attribute(:key_id, :uuid)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        identities do
+          identity(:unique_name, [:name], all_tenants?: true)
+        end
+
+        relationships do
+          belongs_to(:org, Org)
+        end
+      end
+
+      defapi([Org, User])
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+
+      assert File.read!(file) =~
+               ~S{create unique_index(:users, [:name], name: "users_unique_name_index")}
+    end
+
     test "when modified, the foreign key is dropped before modification" do
       defposts do
         attributes do
