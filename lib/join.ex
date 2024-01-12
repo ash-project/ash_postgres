@@ -253,6 +253,7 @@ defmodule AshPostgres.Join do
       actor: context[:private][:actor],
       tenant: context[:private][:tenant]
     )
+    |> Ash.Query.unset([:sort, :distinct, :select, :limit, :offset])
     |> case do
       %{valid?: true} = query ->
         ash_query = query
