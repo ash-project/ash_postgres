@@ -133,26 +133,10 @@ defmodule AshPostgres.MixProject do
           """
         end
       end,
-      spark: [
-        mix_tasks: [
-          Postgres: [
-            Mix.Tasks.AshPostgres.GenerateMigrations,
-            Mix.Tasks.AshPostgres.Create,
-            Mix.Tasks.AshPostgres.Drop,
-            Mix.Tasks.AshPostgres.Migrate,
-            Mix.Tasks.AshPostgres.Rollback
-          ]
-        ],
-        extensions: [
-          %{
-            module: AshPostgres.DataLayer,
-            name: "AshPostgres",
-            target: "Ash.Resource",
-            type: "DataLayer"
-          }
-        ]
-      ],
       groups_for_extras: groups_for_extras(),
+      nest_modules_by_prefix: [
+        AshPostgres.Functions
+      ],
       groups_for_modules: [
         AshPostgres: [
           AshPostgres,
@@ -191,8 +175,7 @@ defmodule AshPostgres.MixProject do
           AshPostgres.Functions.ILike,
           AshPostgres.Functions.Like,
           AshPostgres.Functions.VectorCosineDistance
-        ],
-        Internals: ~r/.*/
+        ]
       ]
     ]
   end
