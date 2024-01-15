@@ -877,13 +877,19 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           base_filter: base_filter,
           multitenancy: multitenancy
         }) do
-      keys =
-        case multitenancy.strategy do
-          :attribute ->
-            [to_string(multitenancy.attribute) | Enum.map(index.fields, &to_string/1)]
+      keys = Enum.map(index.fields, &to_string/1)
 
-          _ ->
-            Enum.map(index.fields, &to_string/1)
+      keys =
+        if index.all_tenants? do
+          keys
+        else
+          case multitenancy.strategy do
+            :attribute ->
+              [to_string(multitenancy.attribute) | keys]
+
+            _ ->
+              keys
+          end
         end
 
       index =
