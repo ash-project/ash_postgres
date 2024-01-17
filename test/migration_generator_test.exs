@@ -222,7 +222,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
     test "the migration sets up resources correctly" do
       # the snapshot exists and contains valid json
-      assert File.read!(Path.wildcard("test_snapshots_path/test_repo/posts/*.json"))
+      assert File.read!(Path.wildcard("test_snapshots_path/test_repo/example.posts/*.json"))
              |> Jason.decode!(keys: :atoms!)
 
       assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")

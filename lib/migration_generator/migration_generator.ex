@@ -474,7 +474,10 @@ defmodule AshPostgres.MigrationGenerator do
       |> Enum.uniq_by(&{&1.table, &1.schema})
       |> Enum.map(fn snapshot ->
         if opts.no_shell? do
-          Enum.find(existing_snapshots, &(&1.table == snapshot.table))
+          Enum.find(
+            existing_snapshots,
+            &(&1.table == snapshot.table && &1.schema == snapshot.schema)
+          )
         else
           get_existing_snapshot(snapshot, opts)
         end
@@ -910,7 +913,12 @@ defmodule AshPostgres.MigrationGenerator do
             |> Path.join(repo_name)
           end
 
-        snapshot_file = Path.join(snapshot_folder, "#{snapshot.table}/#{timestamp()}.json")
+        snapshot_file =
+          if snapshot.schema do
+            Path.join(snapshot_folder, "#{snapshot.schema}.#{snapshot.table}/#{timestamp()}.json")
+          else
+            Path.join(snapshot_folder, "#{snapshot.table}/#{timestamp()}.json")
+          end
 
         File.mkdir_p(Path.dirname(snapshot_file))
         File.write!(snapshot_file, snapshot_binary, [])
@@ -2212,7 +2220,18 @@ defmodule AshPostgres.MigrationGenerator do
         |> Path.join(repo_name)
       end
 
-    snapshot_folder = Path.join(folder, snapshot.table)
+    snapshot_folder =
+      if snapshot.schema do
+        schema_dir = Path.join(folder, "#{snapshot.schema}.#{snapshot.table}")
+
+        if File.dir?(schema_dir) do
+          schema_dir
+        else
+          Path.join(folder, snapshot.table)
+        end
+      else
+        Path.join(folder, snapshot.table)
+      end
 
     if File.exists?(snapshot_folder) do
       snapshot_folder
@@ -2246,12 +2265,27 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp get_old_snapshot(folder, snapshot) do
-    old_snapshot_file = Path.join(folder, "#{snapshot.table}.json")
-    # This is adapter code for the old version, where migrations were stored in a flat directory
-    if File.exists?(old_snapshot_file) do
-      old_snapshot_file
-      |> File.read!()
-      |> load_snapshot()
+    schema_file =
+      if snapshot.schema do
+        old_snapshot_file = Path.join(folder, "#{snapshot.schema}.#{snapshot.table}.json")
+
+        if File.exists?(old_snapshot_file) do
+          old_snapshot_file
+          |> File.read!()
+          |> load_snapshot()
+        end
+      end
+
+    if schema_file do
+      schema_file
+    else
+      old_snapshot_file = Path.join(folder, "#{snapshot.table}.json")
+      # This is adapter code for the old version, where migrations were stored in a flat directory
+      if File.exists?(old_snapshot_file) do
+        old_snapshot_file
+        |> File.read!()
+        |> load_snapshot()
+      end
     end
   end
 
