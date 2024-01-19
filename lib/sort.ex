@@ -48,7 +48,16 @@ defmodule AshPostgres.Sort do
     calcs =
       Enum.flat_map(sort, fn
         {%Ash.Query.Calculation{} = calculation, _} ->
-          [calculation]
+          {:ok, expression} =
+            calculation.opts
+            |> calculation.module.expression(calculation.context)
+            |> Ash.Filter.hydrate_refs(%{
+              resource: resource,
+              parent_stack: query.__ash_bindings__[:parent_resources] || [],
+              public?: false
+            })
+
+          [{calculation, Ash.Filter.move_to_relationship_path(expression, relationship_path)}]
 
         _ ->
           []
@@ -59,7 +68,7 @@ defmodule AshPostgres.Sort do
         query,
         %Ash.Filter{
           resource: resource,
-          expression: calcs
+          expression: Enum.map(calcs, &elem(&1, 1))
         },
         left_only?: true
       )
@@ -84,9 +93,7 @@ defmodule AshPostgres.Sort do
             |> calc.module.expression(calc.context)
             |> Ash.Filter.hydrate_refs(%{
               resource: resource,
-              aggregates: query.__ash_bindings__.aggregate_defs,
               parent_stack: query.__ash_bindings__[:parent_resources] || [],
-              calculations: %{},
               public?: false
             })
             |> Ash.Filter.move_to_relationship_path(relationship_path)

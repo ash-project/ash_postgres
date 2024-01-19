@@ -239,6 +239,8 @@ defmodule AshPostgres.Test.Post do
       expr(latest_comment_created_at > fragment("now()") || type(false, :boolean))
     )
 
+    calculate(:price_times_2, :integer, expr(price * 2))
+
     calculate(
       :was_created_in_the_last_month,
       :boolean,
@@ -332,6 +334,8 @@ defmodule AshPostgres.Test.Post do
       field(:title)
       uniq?(true)
     end
+
+    count(:count_of_ratings, :ratings)
 
     list :comment_titles_with_5_likes, :comments, :title do
       sort(title: :asc_nils_last)
