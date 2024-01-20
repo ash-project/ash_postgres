@@ -3,6 +3,10 @@ defmodule AshPostgres.Calculation do
 
   require Ecto.Query
 
+  @next_calculation_names Enum.reduce(0..999, %{}, fn i, acc ->
+                            Map.put(acc, :"calculation_#{i}", :"calculation_#{i + 1}")
+                          end)
+
   def add_calculations(query, [], _, _, _select?), do: {:ok, query}
 
   def add_calculations(query, calculations, resource, source_binding, select?) do
@@ -26,6 +30,21 @@ defmodule AshPostgres.Calculation do
         |> Enum.map(&Map.put(&1, :context, calculation.context))
       end)
       |> Enum.uniq()
+
+    {query, calculations} =
+      Enum.reduce(
+        calculations,
+        {query, []},
+        fn {calculation, expression}, {query, calculations} ->
+          if is_atom(calculation.name) do
+            {query, [{calculation, expression} | calculations]}
+          else
+            {query, name} = use_calculation_name(query, calculation.name)
+
+            {query, [{%{calculation | name: name}, expression} | calculations]}
+          end
+        end
+      )
 
     case AshPostgres.Aggregate.add_aggregates(
            query,
@@ -88,6 +107,33 @@ defmodule AshPostgres.Calculation do
       {:error, error} ->
         {:error, error}
     end
+  end
+
+  def next_calculation_name(i) do
+    @next_calculation_names[i] ||
+      raise Ash.Error.Framework.AssumptionFailed,
+        message: """
+        All 1000 static names for calculations have been used in a single query.
+        Congratulations, this means that you have gone so wildly beyond our imagination
+        of how much can fit into a single quer. Please file an issue and we will raise the limit.
+        """
+  end
+
+  defp use_calculation_name(query, aggregate_name) do
+    {%{
+       query
+       | __ash_bindings__: %{
+           query.__ash_bindings__
+           | current_calculation_name:
+               next_calculation_name(query.__ash_bindings__.current_calculation_name),
+             calculation_names:
+               Map.put(
+                 query.__ash_bindings__.calculation_names,
+                 aggregate_name,
+                 query.__ash_bindings__.current_calculation_name
+               )
+         }
+     }, query.__ash_bindings__.current_calculation_name}
   end
 
   defp add_calculation_selects(query, dynamics) do

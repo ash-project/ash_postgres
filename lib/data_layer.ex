@@ -675,13 +675,15 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def run_query(query, resource) do
+    query = default_bindings(query, resource)
+
     if AshPostgres.DataLayer.Info.polymorphic?(resource) && no_table?(query) do
       raise_table_error!(resource, :read)
     else
       repo = dynamic_repo(resource, query)
 
       with_savepoint(repo, query, fn ->
-        {:ok, repo.all(query, repo_opts(nil, nil, resource))}
+        {:ok, repo.all(query, repo_opts(nil, nil, resource)) |> remap_mapped_fields(query)}
       end)
     end
   rescue
@@ -916,7 +918,7 @@ defmodule AshPostgres.DataLayer do
            root_data,
            path
          ) do
-      {:ok, query} ->
+      {:ok, lateral_join_query} ->
         source_resource =
           path
           |> Enum.at(0)
@@ -924,14 +926,44 @@ defmodule AshPostgres.DataLayer do
           |> Map.get(:resource)
 
         {:ok,
-         dynamic_repo(source_resource, query).all(
-           query,
+         dynamic_repo(source_resource, lateral_join_query).all(
+           lateral_join_query,
            repo_opts(nil, nil, source_resource)
-         )}
+         )
+         |> remap_mapped_fields(query)}
 
       {:error, error} ->
         {:error, error}
     end
+  end
+
+  defp remap_mapped_fields(results, query) do
+    calculation_names = query.__ash_bindings__.calculation_names
+    aggregate_names = query.__ash_bindings__.aggregate_names
+
+    if Enum.empty?(calculation_names) and Enum.empty?(aggregate_names) do
+      results
+    else
+      Enum.map(results, fn result ->
+        result
+        |> remap(:calculations, calculation_names)
+        |> remap(:aggregates, aggregate_names)
+      end)
+    end
+  end
+
+  defp remap(record, _subfield, mapping) when mapping == %{} do
+    record
+  end
+
+  defp remap(record, subfield, mapping) do
+    Map.update!(record, subfield, fn subfield_values ->
+      Enum.reduce(mapping, subfield_values, fn {dest, source}, subfield_values ->
+        subfield_values
+        |> Map.put(dest, Map.get(subfield_values, source))
+        |> Map.delete(source)
+      end)
+    end)
   end
 
   defp lateral_join_query(
@@ -2778,7 +2810,9 @@ defmodule AshPostgres.DataLayer do
       parent_resources: [],
       aggregate_defs: %{},
       current_aggregate_name: :aggregate_0,
+      current_calculation_name: :calculation_0,
       aggregate_names: %{},
+      calculation_names: %{},
       context: context,
       bindings: %{start_bindings => %{path: [], type: :root, source: resource}}
     })

@@ -198,31 +198,15 @@ defmodule AshPostgres.Join do
     end)
   end
 
-  # defp expand_join_paths(joins) do
-  #   Enum.flat_map(joins, fn {type, path} ->
-  #     path
-  #     |> sub_paths()
-  #     |> Enum.map(&add_relationship_filter_paths/1)
-  #   end)
-  # end
-
-  # defp add_relationship_filter_paths(path) do
-  #   last = List.last(path)
-  #   prefix = :lists.droplast(path)
-
-  # end
-
-  # defp sub_paths(path) do
-  #   Enum.map(1..Enum.count(path), fn i ->
-  #     Enum.take(path, i)
-  #   end)
-  # end
-
   def relationship_path_to_relationships(resource, path, acc \\ [])
   def relationship_path_to_relationships(_resource, [], acc), do: Enum.reverse(acc)
 
-  def relationship_path_to_relationships(resource, [relationship | rest], acc) do
-    relationship = Ash.Resource.Info.relationship(resource, relationship)
+  def relationship_path_to_relationships(resource, [name | rest], acc) do
+    relationship = Ash.Resource.Info.relationship(resource, name)
+
+    if !relationship do
+      raise "no such relationship #{inspect resource}.#{name}"
+    end
 
     relationship_path_to_relationships(relationship.destination, rest, [relationship | acc])
   end
@@ -320,10 +304,10 @@ defmodule AshPostgres.Join do
     end
     |> case do
       {:ok, query, acc} ->
-        if Enum.empty?(query.joins) do
+        if Enum.empty?(query.joins) || is_subquery? do
           {:ok, query, acc}
         else
-          {:ok, subquery(query), acc}
+          {:ok, (from row in subquery(query), []) |> Map.put(:__ash_bindings__, query.__ash_bindings__), acc}
         end
 
       {:error, error} ->

@@ -19,6 +19,7 @@ defmodule AshPostgres.Expr do
     Lazy,
     Length,
     Now,
+    Round,
     StringJoin,
     StringLength,
     StringSplit,
@@ -1172,6 +1173,31 @@ defmodule AshPostgres.Expr do
 
   defp do_dynamic_expr(
          query,
+         %Round{arguments: [num | rest], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         acc,
+         _type
+       ) do
+    precision = Enum.at(rest, 0) || 1
+
+    frag =
+      %Fragment{
+        embedded?: pred_embedded?,
+        arguments: [
+          raw: "ROUND(",
+          expr: num,
+          raw: ", ",
+          expr: precision,
+          raw: ")"
+        ]
+      }
+
+    do_dynamic_expr(query, frag, bindings, pred_embedded? || embedded?, acc)
+  end
+
+  defp do_dynamic_expr(
+         query,
          %Type{arguments: [arg1, arg2, constraints]},
          bindings,
          embedded?,
@@ -1646,7 +1672,7 @@ defmodule AshPostgres.Expr do
         if is_list(other) do
           list_expr(query, other, bindings, true, acc, type)
         else
-          raise "Unsupported expression in AshPostgres query: #{inspect(other)}"
+          raise "Unsupported expression in AshPostgres query: #{inspect(other, structs: false)}"
         end
       else
         maybe_sanitize_list(query, other, bindings, true, acc, type)
@@ -1677,7 +1703,7 @@ defmodule AshPostgres.Expr do
       if is_list(value) do
         list_expr(query, value, bindings, false, acc, type)
       else
-        raise "Unsupported expression in AshPostgres query: #{inspect(value)}"
+        raise "Unsupported expression in AshPostgres query: #{inspect(value, structs: false)}"
       end
     else
       case maybe_sanitize_list(query, value, bindings, true, acc, type) do

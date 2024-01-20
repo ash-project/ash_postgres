@@ -24,18 +24,17 @@ defmodule AshPostgres.Aggregate do
       {:ok, aggregates} ->
         query = AshPostgres.DataLayer.default_bindings(query, resource)
 
-        {query, aggregates, aggregate_name_mapping} =
+        {query, aggregates} =
           Enum.reduce(
             aggregates,
-            {query, [], %{}},
-            fn aggregate, {query, aggregates, aggregate_name_mapping} ->
+            {query, []},
+            fn aggregate, {query, aggregates} ->
               if is_atom(aggregate.name) do
-                {query, [aggregate | aggregates], aggregate_name_mapping}
+                {query, [aggregate | aggregates]}
               else
                 {query, name} = use_aggregate_name(query, aggregate.name)
 
-                {query, [%{aggregate | name: name} | aggregates],
-                 Map.put(aggregate_name_mapping, name, aggregate.name)}
+                {query, [%{aggregate | name: name} | aggregates]}
               end
             end
           )
@@ -75,7 +74,15 @@ defmodule AshPostgres.Aggregate do
             {:ok, query, []},
             fn {{[first_relationship | relationship_path], join_filters}, aggregates},
                {:ok, query, dynamics} ->
-              first_relationship = Ash.Resource.Info.relationship(resource, first_relationship)
+              first_relationship =
+                case Ash.Resource.Info.relationship(resource, first_relationship) do
+                  nil ->
+                    raise "No such relationship for #{inspect(first_relationship)} aggregates #{inspect aggregates}"
+
+                  first_relationship ->
+                    first_relationship
+                end
+
               is_single? = match?([_], aggregates)
 
               cond do
@@ -154,10 +161,9 @@ defmodule AshPostgres.Aggregate do
                            join_filters
                          ),
                        agg_root_query <-
-                         Map.update!(
+                         set_in_group(
                            agg_root_query,
-                           :__ash_bindings__,
-                           &Map.put(&1, :in_group?, true)
+                           resource
                          ),
                        {:ok, joined} <-
                          join_all_relationships(
@@ -221,7 +227,7 @@ defmodule AshPostgres.Aggregate do
 
         case result do
           {:ok, query, dynamics} ->
-            {:ok, add_aggregate_selects(query, dynamics, aggregate_name_mapping)}
+            {:ok, add_aggregate_selects(query, dynamics)}
 
           {:error, error} ->
             {:error, error}
@@ -230,6 +236,25 @@ defmodule AshPostgres.Aggregate do
       {:error, error} ->
         {:error, error}
     end
+  end
+
+  defp set_in_group(%{__ash_bindings__: _} = query, _resource) do
+    Map.update!(
+      query,
+      :__ash_bindings__,
+      &Map.put(&1, :in_group?, true)
+    )
+  end
+
+  defp set_in_group(%Ecto.SubQuery{} = subquery, resource) do
+    subquery = from(row in subquery, [])
+
+    subquery
+    |> AshPostgres.DataLayer.default_bindings(resource)
+    |> Map.update!(
+      :__ash_bindings__,
+      &Map.put(&1, :in_group?, true)
+    )
   end
 
   defp apply_first_relationship_join_filters(
@@ -797,7 +822,7 @@ defmodule AshPostgres.Aggregate do
     end)
   end
 
-  defp add_aggregate_selects(query, dynamics, name_mapping) do
+  defp add_aggregate_selects(query, dynamics) do
     {in_aggregates, in_body} =
       Enum.split_with(dynamics, fn {load, _name, _dynamic} -> is_nil(load) end)
 
@@ -815,7 +840,7 @@ defmodule AshPostgres.Aggregate do
           aggs,
           :aggregates,
           Map.new(in_aggregates, fn {_, name, dynamic} ->
-            {name_mapping[name] || name, dynamic}
+            {name, dynamic}
           end)
         )
       end
