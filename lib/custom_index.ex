@@ -67,20 +67,7 @@ defmodule AshPostgres.CustomIndex do
 
   def schema, do: @schema
 
-  # sobelow_skip ["DOS.StringToAtom"]
-  def transform(%__MODULE__{fields: fields} = index) do
-    index = %{
-      index
-      | fields:
-          Enum.map(fields, fn field ->
-            if is_atom(field) do
-              field
-            else
-              String.to_atom(field)
-            end
-          end)
-    }
-
+  def transform(index) do
     cond do
       index.name ->
         if Regex.match?(~r/^[0-9a-zA-Z_]+$/, index.name) do

@@ -877,19 +877,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           base_filter: base_filter,
           multitenancy: multitenancy
         }) do
-      keys = Enum.map(index.fields, &to_string/1)
-
       keys =
-        if index.all_tenants? do
-          keys
+        if !index.all_tenants? and multitenancy.strategy == :attribute do
+          [multitenancy.attribute | index.fields]
         else
-          case multitenancy.strategy do
-            :attribute ->
-              [to_string(multitenancy.attribute) | keys]
-
-            _ ->
-              keys
-          end
+          index.fields
         end
 
       index =
@@ -921,12 +913,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       index_name = AshPostgres.CustomIndex.name(table, index)
 
       keys =
-        case multitenancy.strategy do
-          :attribute ->
-            [to_string(multitenancy.attribute) | Enum.map(index.fields, &to_string/1)]
-
-          _ ->
-            Enum.map(index.fields, &to_string/1)
+        if !index.all_tenants? and multitenancy.strategy == :attribute do
+          [multitenancy.attribute | index.fields]
+        else
+          index.fields
         end
 
       "drop_if_exists index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
@@ -972,61 +962,12 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     defstruct [:schema, :table, :index, :base_filter, :multitenancy, no_phase: true]
     import Helper
 
-    def up(%{index: index, table: table, multitenancy: multitenancy, schema: schema}) do
-      index_name = AshPostgres.CustomIndex.name(table, index)
-
-      keys =
-        case multitenancy.strategy do
-          :attribute ->
-            [to_string(multitenancy.attribute) | Enum.map(index.fields, &to_string/1)]
-
-          _ ->
-            Enum.map(index.fields, &to_string/1)
-        end
-
-      "drop_if_exists index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
+    def up(operation) do
+      AddCustomIndex.down(operation)
     end
 
-    def down(%{
-          index: index,
-          table: table,
-          schema: schema,
-          base_filter: base_filter,
-          multitenancy: multitenancy
-        }) do
-      keys =
-        case multitenancy.strategy do
-          :attribute ->
-            [to_string(multitenancy.attribute) | Enum.map(index.fields, &to_string/1)]
-
-          _ ->
-            Enum.map(index.fields, &to_string/1)
-        end
-
-      index =
-        if index.where && base_filter do
-          %{index | where: base_filter <> " AND " <> index.where}
-        else
-          index
-        end
-
-      opts =
-        join([
-          option(:name, index.name),
-          option(:unique, index.unique),
-          option(:concurrently, index.concurrently),
-          option(:using, index.using),
-          option(:prefix, index.prefix),
-          option(:where, index.where),
-          option(:include, index.include),
-          option(:prefix, schema)
-        ])
-
-      if opts == "" do
-        "create index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}])"
-      else
-        "create index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{opts})"
-      end
+    def down(operation) do
+      AddCustomIndex.up(operation)
     end
   end
 

@@ -2840,6 +2840,17 @@ defmodule AshPostgres.MigrationGenerator do
         %{attribute | type: sanitize_type(attribute.type, attribute[:size])}
       end)
     end)
+    |> Map.update!(:custom_indexes, fn indexes ->
+      Enum.map(indexes, fn index ->
+        fields =
+          Enum.map(index.fields, fn
+            field when is_atom(field) -> %{type: "atom", value: field}
+            field when is_binary(field) -> %{type: "string", value: field}
+          end)
+
+        %{index | fields: fields}
+      end)
+    end)
     |> Jason.encode!(pretty: true)
   end
 
@@ -2919,7 +2930,13 @@ defmodule AshPostgres.MigrationGenerator do
   defp load_custom_indexes(custom_indexes) do
     Enum.map(custom_indexes || [], fn custom_index ->
       custom_index
-      |> Map.put_new(:fields, [])
+      |> Map.update(:fields, [], fn fields ->
+        Enum.map(fields, fn
+          %{type: "atom", value: field} -> String.to_atom(field)
+          %{type: "string", value: field} -> field
+          field -> field
+        end)
+      end)
       |> Map.put_new(:include, [])
       |> Map.put_new(:message, nil)
       |> Map.put_new(:all_tenants?, false)

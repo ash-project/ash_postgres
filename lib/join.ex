@@ -205,7 +205,7 @@ defmodule AshPostgres.Join do
     relationship = Ash.Resource.Info.relationship(resource, name)
 
     if !relationship do
-      raise "no such relationship #{inspect resource}.#{name}"
+      raise "no such relationship #{inspect(resource)}.#{name}"
     end
 
     relationship_path_to_relationships(relationship.destination, rest, [relationship | acc])
@@ -307,7 +307,9 @@ defmodule AshPostgres.Join do
         if Enum.empty?(query.joins) || is_subquery? do
           {:ok, query, acc}
         else
-          {:ok, (from row in subquery(query), []) |> Map.put(:__ash_bindings__, query.__ash_bindings__), acc}
+          {:ok,
+           from(row in subquery(query), []) |> Map.put(:__ash_bindings__, query.__ash_bindings__),
+           acc}
         end
 
       {:error, error} ->

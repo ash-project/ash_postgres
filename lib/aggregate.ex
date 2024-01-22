@@ -77,7 +77,7 @@ defmodule AshPostgres.Aggregate do
               first_relationship =
                 case Ash.Resource.Info.relationship(resource, first_relationship) do
                   nil ->
-                    raise "No such relationship for #{inspect(first_relationship)} aggregates #{inspect aggregates}"
+                    raise "No such relationship for #{inspect(first_relationship)} aggregates #{inspect(aggregates)}"
 
                   first_relationship ->
                     first_relationship

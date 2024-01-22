@@ -294,7 +294,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert file =~ ~S[@disable_ddl_transaction true]
 
-      assert file =~ ~S<create index(:posts, ["title"], concurrently: true)>
+      assert file =~ ~S<create index(:posts, [:title], concurrently: true)>
     end
   end
 
