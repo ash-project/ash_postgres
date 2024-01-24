@@ -1500,9 +1500,22 @@ defmodule AshPostgres.DataLayer do
         try do
           {:ok, fun.()}
         rescue
-          e ->
-            repo.query!("ROLLBACK TO #{savepoint_id}")
-            {:exception, e, __STACKTRACE__}
+          e in Postgrex.Error ->
+            case e do
+              %Postgrex.Error{
+                postgres: %{
+                  code: :raise_exception,
+                  message: "ash_error:" <> _,
+                  severity: "ERROR"
+                }
+              } ->
+                repo.query!("ROLLBACK TO #{savepoint_id}")
+                # This kind of exception won't trigger
+                # a rollback
+                {:exception, e, __STACKTRACE__}
+              _ ->
+                {:exception, e, __STACKTRACE__}
+            end
         end
 
       case result do
@@ -1812,7 +1825,7 @@ defmodule AshPostgres.DataLayer do
 
     exception = Module.concat([exception])
 
-    {:error, Ash.Error.from_json(exception, input)}
+    {:error, :no_rollback, Ash.Error.from_json(exception, input)}
   end
 
   defp handle_raised_error(
@@ -1832,7 +1845,7 @@ defmodule AshPostgres.DataLayer do
 
     exception = Module.concat([exception])
 
-    {:error, Ash.Error.from_json(exception, input)}
+    {:error, :no_rollback, Ash.Error.from_json(exception, input)}
   end
 
   defp handle_raised_error(
