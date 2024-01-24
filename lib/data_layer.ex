@@ -1513,6 +1513,7 @@ defmodule AshPostgres.DataLayer do
                 # This kind of exception won't trigger
                 # a rollback
                 {:exception, e, __STACKTRACE__}
+
               _ ->
                 {:exception, e, __STACKTRACE__}
             end
