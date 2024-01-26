@@ -168,4 +168,13 @@ defmodule AshPostgres.DistinctTest do
              %{title: "title", negative_score: -1}
            ] = results
   end
+
+  test "distinct used on it's own" do
+    results =
+      Post
+      |> Ash.Query.distinct(:title)
+      |> Api.read!()
+
+    assert [_, _] = results
+  end
 end

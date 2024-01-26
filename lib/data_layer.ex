@@ -2573,7 +2573,7 @@ defmodule AshPostgres.DataLayer do
 
   def distinct(query, distinct_on, resource) do
     case get_distinct_statement(query, distinct_on) do
-      {:ok, distinct_statement, query} ->
+      {:ok, {distinct_statement, query}} ->
         %{query | distinct: distinct_statement}
         |> apply_sort(query.__ash_bindings__[:sort], resource)
 
@@ -2692,7 +2692,7 @@ defmodule AshPostgres.DataLayer do
 
           distinct_on, {[order_by | rest_order_by], distinct_statement, params, count, query} ->
             case order_by do
-              {^distinct_on, order} ->
+              {distinct_on, order} = ^distinct_on ->
                 {distinct_expr, params, count, query} =
                   distinct_on_expr(query, distinct_on, params, count)
 
@@ -2710,11 +2710,11 @@ defmodule AshPostgres.DataLayer do
 
           {_, result, params, _, query} ->
             {:ok,
-             %{
-               distinct
-               | expr: distinct.expr ++ Enum.reverse(result),
-                 params: distinct.params ++ Enum.reverse(params)
-             }, query}
+             {%{
+                distinct
+                | expr: distinct.expr ++ Enum.reverse(result),
+                  params: distinct.params ++ Enum.reverse(params)
+              }, query}}
         end
       end
     end
