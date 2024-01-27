@@ -1271,6 +1271,9 @@ defmodule AshPostgres.DataLayer do
           query
         end
 
+      repo = dynamic_repo(resource, changeset)
+      repo_opts = repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
+
       case query_with_atomics(
              resource,
              query,
@@ -1280,16 +1283,17 @@ defmodule AshPostgres.DataLayer do
              []
            ) do
         :empty ->
-          {:ok, changeset.data}
+          if options[:return_records?] do
+            if changeset.context[:data_layer][:use_atomic_update_data?] do
+              {:ok, [changeset.data]}
+            else
+              {:ok, repo.all(query)}
+            end
+          else
+            :ok
+          end
 
         {:ok, query} ->
-          repo_opts = repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
-
-          repo_opts =
-            Keyword.put(repo_opts, :returning, Keyword.keys(changeset.atomics))
-
-          repo = dynamic_repo(resource, changeset)
-
           {_, results} =
             with_savepoint(repo, query, fn ->
               repo.update_all(
@@ -2105,13 +2109,14 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp add_unique_indexes(changeset, resource, ash_changeset) do
+    table = table(resource, ash_changeset)
     changeset =
       resource
       |> Ash.Resource.Info.identities()
       |> Enum.reduce(changeset, fn identity, changeset ->
         name =
           AshPostgres.DataLayer.Info.identity_index_names(resource)[identity.name] ||
-            "#{table(resource, ash_changeset)}_#{identity.name}_index"
+            "#{table}_#{identity.name}_index"
 
         opts =
           if Map.get(identity, :message) do
@@ -2127,14 +2132,26 @@ defmodule AshPostgres.DataLayer do
       resource
       |> AshPostgres.DataLayer.Info.custom_indexes()
       |> Enum.reduce(changeset, fn index, changeset ->
+        name = index.name || AshPostgres.CustomIndex.name(table, index)
+
         opts =
           if index.message do
-            [name: index.name, message: index.message]
+            [name: name, message: index.message]
           else
-            [name: index.name]
+            [name: name]
           end
 
-        Ecto.Changeset.unique_constraint(changeset, index.fields, opts)
+        fields =
+          if index.error_fields do
+            index.error_fields
+          else
+            case Enum.filter(index.fields, &is_atom/1) do
+              [] -> Ash.Resource.Info.primary_key(resource)
+              fields -> fields
+            end
+          end
+
+        Ecto.Changeset.unique_constraint(changeset, fields, opts)
       end)
 
     names =

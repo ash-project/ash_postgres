@@ -39,15 +39,16 @@ defmodule AshPostgres.Expr do
 
   def dynamic_expr(query, expr, bindings, embedded? \\ false, type \\ nil, acc \\ %ExprInfo{})
 
+  def dynamic_expr(_query, %Filter{expression: nil}, _bindings, _embedded?, _type, acc) do
+    # a nil filter means everything
+    {true, acc}
+  end
+
   def dynamic_expr(query, %Filter{expression: expression}, bindings, embedded?, type, acc) do
     dynamic_expr(query, expression, bindings, embedded?, type, acc)
   end
 
-  # A nil filter means "everything"
-  def dynamic_expr(_, nil, _, _, _, acc), do: {true, acc}
-  # A true filter means "everything"
   def dynamic_expr(_, true, _, _, _, acc), do: {true, acc}
-  # A false filter means "nothing"
   def dynamic_expr(_, false, _, _, _, acc), do: {false, acc}
 
   def dynamic_expr(query, expression, bindings, embedded?, type, acc) do

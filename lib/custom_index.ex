@@ -3,6 +3,7 @@ defmodule AshPostgres.CustomIndex do
   @fields [
     :table,
     :fields,
+    :error_fields,
     :name,
     :unique,
     :concurrently,
@@ -22,6 +23,10 @@ defmodule AshPostgres.CustomIndex do
     fields: [
       type: {:wrap_list, {:or, [:atom, :string]}},
       doc: "The fields to include in the index."
+    ],
+    error_fields: [
+      type: {:list, :atom},
+      doc: "The fields to attach the error to."
     ],
     name: [
       type: :string,
@@ -68,6 +73,30 @@ defmodule AshPostgres.CustomIndex do
   def schema, do: @schema
 
   def transform(index) do
+    with {:ok, index} <- set_name(index) do
+      set_error_fields(index)
+    end
+  end
+
+  defp set_error_fields(index) do
+    if index.error_fields do
+      {:ok, index}
+    else
+      {:ok, %{index | error_fields: Enum.flat_map(index.fields, fn field ->
+          if Regex.match?(~r/^[0-9a-zA-Z_]+$/, to_string(field)) do
+            if is_binary(field) do
+              [String.to_atom(field)]
+            else
+              [field]
+            end
+            else
+            []
+          end
+        end)}}
+    end
+  end
+
+  defp set_name(index) do
     cond do
       index.name ->
         if Regex.match?(~r/^[0-9a-zA-Z_]+$/, index.name) do
