@@ -357,6 +357,7 @@ defmodule AshPostgres.MigrationGenerator do
           end
 
           operations
+          |> IO.inspect()
           |> split_into_migrations()
           |> Enum.each(fn operations ->
             run_without_transaction? =
@@ -1865,6 +1866,7 @@ defmodule AshPostgres.MigrationGenerator do
         Enum.map(fields, &to_string/1)
       end)
       |> add_custom_index_name(table)
+      |> Map.delete(:error_fields)
 
     right =
       right
@@ -1872,6 +1874,7 @@ defmodule AshPostgres.MigrationGenerator do
         Enum.map(fields, &to_string/1)
       end)
       |> add_custom_index_name(table)
+      |> Map.delete(:error_fields)
 
     left == right
   end
