@@ -138,7 +138,7 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
           "ecto.migrate",
           ["-r", to_string(repo)] ++
             rest_opts ++
-            ["--migrations-path", migrations_path(opts, repo) |> IO.inspect(label: "flubber")]
+            ["--migrations-path", migrations_path(opts, repo)]
         )
 
         Mix.Task.reenable("ecto.migrate")
