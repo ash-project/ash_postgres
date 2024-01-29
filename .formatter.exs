@@ -9,6 +9,7 @@ spark_locals_without_parens = [
   create?: 1,
   deferrable: 1,
   down: 1,
+  error_fields: 1,
   exclusion_constraint_names: 1,
   foreign_key_names: 1,
   identity_index_names: 1,

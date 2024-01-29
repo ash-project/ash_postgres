@@ -104,6 +104,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
+| [`error_fields`](#postgres-custom_indexes-index-error_fields){: #postgres-custom_indexes-index-error_fields } | `list(atom)` |  | The fields to attach the error to. |
 | [`name`](#postgres-custom_indexes-index-name){: #postgres-custom_indexes-index-name } | `String.t` |  | the name of the index. Defaults to "#{table}_#{column}_index". |
 | [`unique`](#postgres-custom_indexes-index-unique){: #postgres-custom_indexes-index-unique } | `boolean` | `false` | indicates whether the index should be unique. |
 | [`concurrently`](#postgres-custom_indexes-index-concurrently){: #postgres-custom_indexes-index-concurrently } | `boolean` | `false` | indicates whether the index should be created/dropped concurrently. |
