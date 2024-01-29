@@ -105,11 +105,6 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
 
     repos = AshPostgres.MixHelpers.repos!(opts, args)
 
-    repo_args =
-      Enum.flat_map(repos, fn repo ->
-        ["-r", to_string(repo)]
-      end)
-
     rest_opts =
       args
       |> AshPostgres.MixHelpers.delete_arg("--apis")
@@ -128,7 +123,7 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
 
             Mix.Task.run(
               "ecto.migrate",
-              repo_args ++
+              ["-r", to_string(repo)] ++
                 rest_opts ++
                 ["--prefix", tenant, "--migrations-path", tenant_migrations_path(opts, repo)]
             )
@@ -141,7 +136,9 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
       for repo <- repos do
         Mix.Task.run(
           "ecto.migrate",
-          repo_args ++ rest_opts ++ ["--migrations-path", migrations_path(opts, repo)]
+          ["-r", to_string(repo)] ++
+            rest_opts ++
+            ["--migrations-path", migrations_path(opts, repo) |> IO.inspect(label: "flubber")]
         )
 
         Mix.Task.reenable("ecto.migrate")
