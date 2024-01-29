@@ -72,6 +72,7 @@ defmodule AshPostgres.CustomIndex do
 
   def schema, do: @schema
 
+  # sobelow_skip ["DOS.StringToAtom"]
   def transform(index) do
     with {:ok, index} <- set_name(index) do
       set_error_fields(index)
