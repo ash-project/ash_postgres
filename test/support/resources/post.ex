@@ -101,6 +101,11 @@ defmodule AshPostgres.Test.Post do
     attribute(:uniq_two, :string)
     attribute(:uniq_custom_one, :string)
     attribute(:uniq_custom_two, :string)
+
+    attribute :list_containing_nils, {:array, :string} do
+      constraints(nil_items?: true)
+    end
+
     create_timestamp(:created_at)
     update_timestamp(:updated_at)
   end

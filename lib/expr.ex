@@ -10,6 +10,7 @@ defmodule AshPostgres.Expr do
     At,
     CompositeType,
     Contains,
+    CountNils,
     DateAdd,
     DateTimeAdd,
     Error,
@@ -371,6 +372,31 @@ defmodule AshPostgres.Expr do
         type
       )
     end
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %CountNils{arguments: [list], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         acc,
+         type
+       ) do
+    do_dynamic_expr(
+      query,
+      %Fragment{
+        embedded?: pred_embedded?,
+        arguments: [
+          raw: "(SELECT COUNT(*) FROM unnest(",
+          expr: list,
+          raw: ") AS item WHERE item IS NULL)"
+        ]
+      },
+      bindings,
+      embedded?,
+      acc,
+      type
+    )
   end
 
   defp do_dynamic_expr(

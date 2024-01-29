@@ -534,6 +534,23 @@ defmodule AshPostgres.CalculationTest do
     end
   end
 
+  describe "count_nils/1" do
+    test "counts nil values" do
+      Post
+      |> Ash.Changeset.new(%{list_containing_nils: ["a", nil, "b", nil, "c"]})
+      |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{list_containing_nils: ["a", nil, "b", "c"]})
+      |> Api.create!()
+
+      assert [_] =
+               Post
+               |> Ash.Query.filter(count_nils(list_containing_nils) == 2)
+               |> Api.read!()
+    end
+  end
+
   describe "-/1" do
     test "makes numbers negative" do
       Post
