@@ -82,17 +82,22 @@ defmodule AshPostgres.CustomIndex do
     if index.error_fields do
       {:ok, index}
     else
-      {:ok, %{index | error_fields: Enum.flat_map(index.fields, fn field ->
-          if Regex.match?(~r/^[0-9a-zA-Z_]+$/, to_string(field)) do
-            if is_binary(field) do
-              [String.to_atom(field)]
-            else
-              [field]
-            end
-            else
-            []
-          end
-        end)}}
+      {:ok,
+       %{
+         index
+         | error_fields:
+             Enum.flat_map(index.fields, fn field ->
+               if Regex.match?(~r/^[0-9a-zA-Z_]+$/, to_string(field)) do
+                 if is_binary(field) do
+                   [String.to_atom(field)]
+                 else
+                   [field]
+                 end
+               else
+                 []
+               end
+             end)
+       }}
     end
   end
 

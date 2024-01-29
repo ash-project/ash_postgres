@@ -2110,6 +2110,7 @@ defmodule AshPostgres.DataLayer do
 
   defp add_unique_indexes(changeset, resource, ash_changeset) do
     table = table(resource, ash_changeset)
+
     changeset =
       resource
       |> Ash.Resource.Info.identities()
