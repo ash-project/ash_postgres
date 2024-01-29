@@ -357,7 +357,6 @@ defmodule AshPostgres.MigrationGenerator do
           end
 
           operations
-          |> IO.inspect()
           |> split_into_migrations()
           |> Enum.each(fn operations ->
             run_without_transaction? =
