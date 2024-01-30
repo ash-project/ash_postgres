@@ -444,6 +444,7 @@ defmodule CalculatePostPriceStringWithSymbol do
 end
 
 defmodule AshPostgres.Test.Post.ManualUpdate do
+  @moduledoc false
   use Ash.Resource.ManualUpdate
 
   def update(changeset, _opts, _context) do
