@@ -3,7 +3,7 @@ defmodule AshPostgres.SubqueryTest do
 
   alias AshPostgres.Test.Subquery.{Access, Child, Parent, Through}
 
-  test "joins are wrapped correctly wrapped in subqueries" do
+  test "joins are correctly wrapped in subqueries" do
     {:ok, child} = Child.create(%{})
 
     {:ok, parent} =

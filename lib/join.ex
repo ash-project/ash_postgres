@@ -293,6 +293,21 @@ defmodule AshPostgres.Join do
                 is_subquery?
               )
 
+            query =
+              if Enum.empty?(List.wrap(query.order_bys)) && Enum.empty?(query.joins) do
+                query
+              else
+                from(row in subquery(query), [])
+                |> AshPostgres.DataLayer.default_bindings(relationship.destination)
+                |> AshPostgres.DataLayer.merge_expr_accumulator(
+                  query.__ash_bindings__.expression_accumulator
+                )
+                |> Map.update!(
+                  :__ash_bindings__,
+                  &Map.put(&1, :current, query.__ash_bindings__.current)
+                )
+              end
+
             {:ok, Map.put(query, :__tenant__, Map.get(root_query, :__tenant__)), acc}
 
           {:error, error} ->
@@ -323,22 +338,12 @@ defmodule AshPostgres.Join do
          true
        )
        when sort not in [nil, []] do
-    query =
-      if query.aliases[0] do
-        query
-      else
-        from(row in query, as: ^0)
-      end
-
     query = AshPostgres.DataLayer.default_bindings(query, destination)
 
     {:ok, order_by, query} =
       AshPostgres.Sort.sort(query, sort, query.__ash_bindings__.resource, [], 0, :return)
 
-    from(row in subquery(Ecto.Query.order_by(query, ^order_by)), [])
-    |> AshPostgres.DataLayer.default_bindings(destination)
-    |> AshPostgres.DataLayer.merge_expr_accumulator(query.__ash_bindings__.expression_accumulator)
-    |> Map.update!(:__ash_bindings__, &Map.put(&1, :current, query.__ash_bindings__.current))
+    from(row in query, order_by: ^order_by)
   end
 
   defp do_relationship_sort(query, _, _), do: query
