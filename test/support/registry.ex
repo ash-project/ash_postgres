@@ -18,5 +18,9 @@ defmodule AshPostgres.Test.Registry do
     entry(AshPostgres.Test.Entity)
     entry(AshPostgres.Test.TempEntity)
     entry(AshPostgres.Test.Record)
+    entry(AshPostgres.Test.Subquery.Access)
+    entry(AshPostgres.Test.Subquery.Child)
+    entry(AshPostgres.Test.Subquery.Parent)
+    entry(AshPostgres.Test.Subquery.Through)
   end
 end
