@@ -7,11 +7,21 @@ defmodule AshPostgres.ManualUpdateTest do
       |> Ash.Changeset.new(%{title: "match"})
       |> AshPostgres.Test.Api.create!()
 
+    AshPostgres.Test.Comment
+    |> Ash.Changeset.new(%{title: "_"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> AshPostgres.Test.Api.create!()
+
     post =
       post
       |> Ash.Changeset.for_update(:manual_update)
       |> AshPostgres.Test.Api.update!()
 
     assert post.title == "manual"
+
+    # The manual update has a call to Ash.Changeset.load that should
+    # cause the comments to be loaded
+    assert Ash.Resource.loaded?(post, :comments)
+    assert Enum.count(post.comments) == 1
   end
 end

@@ -453,6 +453,7 @@ defmodule AshPostgres.Test.Post.ManualUpdate do
       changeset.data
       |> Ash.Changeset.for_update(:update, changeset.attributes)
       |> Ash.Changeset.force_change_attribute(:title, "manual")
+      |> Ash.Changeset.load(:comments)
       |> AshPostgres.Test.Api.update!()
     }
   end
