@@ -1,5 +1,5 @@
 defmodule AshPostgres.ManualUpdateTest do
-  use AshPostgres.RepoCase, async: false
+  use AshPostgres.RepoCase, async: true
 
   test "Manual update defined in a module to update an attribute" do
     post =
