@@ -5,11 +5,15 @@ defmodule AshPostgres.SubqueryTest do
 
   test "joins are wrapped correctly wrapped in subqueries" do
     {:ok, child} = Child.create(%{})
-    {:ok, parent} = Parent.create(%{visible: true})
-    {:ok, access} = Access.create(%{parent_id: parent.id, email: "foo@bar.com"})
+
+    {:ok, parent} =
+      Parent.create(%{visible: true})
+
+    Access.create(%{parent_id: parent.id, email: "foo@bar.com"})
+
     Through.create(%{parent_id: parent.id, child_id: child.id})
 
-    {:ok, children} =
-      Child.read(actor: %{email: "foo@bar.com"})
+    assert {:ok, _} =
+             Child.read(actor: %{email: "foo@bar.com"})
   end
 end
