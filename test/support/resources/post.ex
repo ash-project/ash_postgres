@@ -72,6 +72,10 @@ defmodule AshPostgres.Test.Post do
       argument(:amount, :integer, default: 1)
       change(atomic_update(:score, expr((score || 0) + ^arg(:amount))))
     end
+
+    update :manual_update do
+      manual(AshPostgres.Test.Post.ManualUpdate)
+    end
   end
 
   identities do
@@ -436,5 +440,19 @@ defmodule CalculatePostPriceStringWithSymbol do
     Enum.map(records, fn %{price_string: price_string} ->
       "#{price_string}$"
     end)
+  end
+end
+
+defmodule AshPostgres.Test.Post.ManualUpdate do
+  use Ash.Resource.ManualUpdate
+
+  def update(changeset, _opts, _context) do
+    {
+      :ok,
+      changeset.data
+      |> Ash.Changeset.for_update(:update, changeset.attributes)
+      |> Ash.Changeset.force_change_attribute(:title, "manual")
+      |> AshPostgres.Test.Api.update!()
+    }
   end
 end
