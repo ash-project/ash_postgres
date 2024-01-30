@@ -1,4 +1,4 @@
-defmodule AshPostgres.TestRepo.Migrations.MigrateResources15 do
+defmodule AshPostgres.TestRepo.Migrations.AddResourcesForSubqueryTest do
   @moduledoc """
   Updates resources based on their most recent snapshots.
 
