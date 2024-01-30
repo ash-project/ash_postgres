@@ -690,6 +690,21 @@ defmodule AshPostgres.CalculationTest do
              |> Api.read_one!()
   end
 
+  test "an expression calculation that loads a runtime calculation works" do
+    Author
+    |> Ash.Changeset.for_create(:create, %{
+      first_name: "Bill",
+      last_name: "Jones",
+      bio: %{title: "Mr.", bio: "Bones"}
+    })
+    |> Api.create!()
+
+    assert [%{expr_referencing_runtime: "Bill Jones Bill Jones"}] =
+             Author
+             |> Ash.Query.load(:expr_referencing_runtime)
+             |> Api.read!()
+  end
+
   test "lazy values are evaluated lazily" do
     Author
     |> Ash.Changeset.for_create(:create, %{

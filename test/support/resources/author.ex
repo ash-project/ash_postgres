@@ -3,6 +3,16 @@ defmodule AshPostgres.Test.Author do
   use Ash.Resource,
     data_layer: AshPostgres.DataLayer
 
+  defmodule RuntimeFullName do
+    use Ash.Calculation
+
+    def calculate(records, _, _) do
+      Enum.map(records, fn record ->
+        record.first_name <> " " <> record.last_name
+      end)
+    end
+  end
+
   postgres do
     table("authors")
     repo(AshPostgres.TestRepo)
@@ -47,6 +57,14 @@ defmodule AshPostgres.Test.Author do
 
     calculate(:title, :string, expr(bio[:title]))
     calculate(:full_name, :string, expr(first_name <> " " <> last_name))
+    calculate(:runtime_full_name, :string, RuntimeFullName)
+
+    calculate(
+      :expr_referencing_runtime,
+      :string,
+      expr(runtime_full_name <> " " <> runtime_full_name)
+    )
+
     calculate(:full_name_with_nils, :string, expr(string_join([first_name, last_name], " ")))
     calculate(:full_name_with_nils_no_joiner, :string, expr(string_join([first_name, last_name])))
     calculate(:split_full_name, {:array, :string}, expr(string_split(full_name)))
