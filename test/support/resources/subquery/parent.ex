@@ -6,7 +6,7 @@ defmodule AshPostgres.Test.Subquery.Parent do
       Ash.Policy.Authorizer
     ]
 
-  alias AshPostgres.Test.Subquery.{Child, Through, Access}
+  alias AshPostgres.Test.Subquery.{Access, Child, Through}
 
   postgres do
     repo AshPostgres.TestRepo
