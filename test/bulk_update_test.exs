@@ -35,4 +35,23 @@ defmodule AshPostgres.BulkUpdateTest do
 
     assert titles == ["fred_stuff", "george"]
   end
+
+  test "bulk updates can be done even on stream inputs" do
+    Api.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
+
+    Post
+    |> Api.read!()
+    |> Api.bulk_update!(:update, %{},
+      atomic_update: %{title: Ash.Expr.expr(title <> "_stuff")},
+      return_records?: true
+    )
+
+    titles =
+      Post
+      |> Api.read!()
+      |> Enum.map(& &1.title)
+      |> Enum.sort()
+
+    assert titles == ["fred_stuff", "george_stuff"]
+  end
 end

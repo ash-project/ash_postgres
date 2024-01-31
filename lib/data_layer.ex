@@ -1267,6 +1267,7 @@ defmodule AshPostgres.DataLayer do
       query =
         query
         |> default_bindings(resource, changeset.context)
+        |> Ecto.Query.exclude(:select)
 
       query =
         if options[:return_records?] do
