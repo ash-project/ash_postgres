@@ -4,6 +4,7 @@ defmodule AshPostgres.Test.Author do
     data_layer: AshPostgres.DataLayer
 
   defmodule RuntimeFullName do
+    @moduledoc false
     use Ash.Calculation
 
     def calculate(records, _, _) do
