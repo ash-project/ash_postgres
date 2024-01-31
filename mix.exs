@@ -158,7 +158,7 @@ defmodule AshPostgres.MixProject do
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
       {:ash,
-       ash_version(github: "ash-project/ash", ref: "9e02b0d0c7cad6be4bd84ca58f3452aa8ab7f0c3")},
+       ash_version(github: "ash-project/ash", ref: "7811dfaa1165404ec6e7dccb6f3b2e0c93065292")},
       {:benchee, "~> 1.1", only: [:dev, :test]},
       {:git_ops, "~> 2.5", only: [:dev, :test]},
       {:ex_doc, github: "elixir-lang/ex_doc", only: [:dev, :test], runtime: false},
