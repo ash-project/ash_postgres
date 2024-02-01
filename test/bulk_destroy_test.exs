@@ -17,7 +17,7 @@ defmodule AshPostgres.BulkDestroyTest do
     assert Api.read!(Post) == []
   end
 
-  test "bulk updates only apply to things that the query produces" do
+  test "bulk destroys only apply to things that the query produces" do
     Api.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
 
     Post
@@ -26,5 +26,15 @@ defmodule AshPostgres.BulkDestroyTest do
 
     # 😢 sad
     assert [%{title: "george"}] = Api.read!(Post)
+  end
+
+  test "bulk destroys can be done even on stream inputs" do
+    Api.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
+
+    Post
+    |> Api.read!()
+    |> Api.bulk_destroy!(:destroy, %{})
+
+    assert [] = Api.read!(Post)
   end
 end
