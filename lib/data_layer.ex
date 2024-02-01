@@ -2117,7 +2117,7 @@ defmodule AshPostgres.DataLayer do
 
   defp add_unique_indexes(changeset, resource, ash_changeset) do
     table = table(resource, ash_changeset)
-    pkey = Ash.Resource.Info.primary_key(changeset.resource)
+    pkey = Ash.Resource.Info.primary_key(resource)
 
     changeset =
       resource
