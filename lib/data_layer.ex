@@ -2134,7 +2134,7 @@ defmodule AshPostgres.DataLayer do
             [name: name]
           end
 
-        keys =
+        fields =
           case identity.keys do
             [] ->
               pkey
@@ -2143,7 +2143,7 @@ defmodule AshPostgres.DataLayer do
               keys
           end
 
-        Ecto.Changeset.unique_constraint(changeset, keys, opts)
+        Ecto.Changeset.unique_constraint(changeset, fields, opts)
       end)
 
     changeset =
@@ -2161,10 +2161,13 @@ defmodule AshPostgres.DataLayer do
 
         fields =
           if index.error_fields do
-            index.error_fields
+            case index.error_fields do
+              [] -> pkey
+              fields -> fields
+            end
           else
             case Enum.filter(index.fields, &is_atom/1) do
-              [] -> Ash.Resource.Info.primary_key(resource)
+              [] -> pkey
               fields -> fields
             end
           end
