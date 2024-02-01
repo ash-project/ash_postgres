@@ -2117,6 +2117,7 @@ defmodule AshPostgres.DataLayer do
 
   defp add_unique_indexes(changeset, resource, ash_changeset) do
     table = table(resource, ash_changeset)
+    pkey = Ash.Resource.Info.primary_key(changeset.resource)
 
     changeset =
       resource
@@ -2133,7 +2134,15 @@ defmodule AshPostgres.DataLayer do
             [name: name]
           end
 
-        Ecto.Changeset.unique_constraint(changeset, identity.keys, opts)
+        case identity.keys do
+          [] ->
+            pkey
+
+          keys ->
+            keys
+        end
+
+        Ecto.Changeset.unique_constraint(changeset, keys, opts)
       end)
 
     changeset =
