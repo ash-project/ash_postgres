@@ -2134,13 +2134,14 @@ defmodule AshPostgres.DataLayer do
             [name: name]
           end
 
-        case identity.keys do
-          [] ->
-            pkey
+        keys =
+          case identity.keys do
+            [] ->
+              pkey
 
-          keys ->
-            keys
-        end
+            keys ->
+              keys
+          end
 
         Ecto.Changeset.unique_constraint(changeset, keys, opts)
       end)
