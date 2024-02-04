@@ -1652,7 +1652,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp do_fetch_operations(snapshot, old_snapshot, opts, acc) do
     attribute_operations = attribute_operations(snapshot, old_snapshot, opts)
-    pkey_operations = pkey_operations(snapshot, old_snapshot, attribute_operations)
+    pkey_operations = pkey_operations(snapshot, old_snapshot, attribute_operations, opts)
 
     rewrite_all_identities? = changing_multitenancy_affects_identities?(snapshot, old_snapshot)
 
@@ -1889,7 +1889,7 @@ defmodule AshPostgres.MigrationGenerator do
     )
   end
 
-  defp pkey_operations(snapshot, old_snapshot, attribute_operations) do
+  defp pkey_operations(snapshot, old_snapshot, attribute_operations, opts) do
     if old_snapshot[:empty?] do
       []
     else
@@ -1914,14 +1914,45 @@ defmodule AshPostgres.MigrationGenerator do
           end
         )
 
-      if must_drop_pkey? do
-        [
+      drop_in_down? =
+        Enum.any?(attribute_operations, fn
+          %Operation.AlterAttribute{
+            new_attribute: %{primary_key?: true}
+          } ->
+            true
+
+          %Operation.AddAttribute{
+            attribute: %{primary_key?: true}
+          } ->
+            true
+
+          _ ->
+            false
+        end)
+
+      drop_in_down_commented? =
+        Enum.any?(attribute_operations, fn
+          %Operation.RemoveAttribute{
+            commented?: true,
+            attribute: %{primary_key?: true}
+          } ->
+            true
+
+          _ ->
+            false
+        end)
+
+      [
+        must_drop_pkey? &&
           %Operation.RemovePrimaryKey{schema: snapshot.schema, table: snapshot.table},
-          %Operation.RemovePrimaryKeyDown{schema: snapshot.schema, table: snapshot.table}
-        ]
-      else
-        []
-      end
+        must_drop_pkey? && drop_in_down? &&
+          %Operation.RemovePrimaryKeyDown{
+            commented?: !opts.drop_columns && drop_in_down_commented?,
+            schema: snapshot.schema,
+            table: snapshot.table
+          }
+      ]
+      |> Enum.filter(& &1)
     end
   end
 

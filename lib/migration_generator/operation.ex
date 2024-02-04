@@ -942,17 +942,27 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule RemovePrimaryKeyDown do
     @moduledoc false
-    defstruct [:schema, :table, no_phase: true]
+    defstruct [:schema, :table, commented?: false, no_phase: true]
 
     def up(_) do
       ""
     end
 
-    def down(%{schema: schema, table: table}) do
+    def down(%{schema: schema, table: table, commented?: commented?}) do
+      comment =
+        if commented? do
+          """
+          # Primary key removal is dropped because a corresponding attribute removal
+          # has been commented out. If you uncomment this, uncomment the attribute removal and vice versa.
+          """
+        else
+          ""
+        end
+
       if schema do
-        "drop constraint(#{inspect(table)}, \"#{table}_pkey\", prefix: \"#{schema}\")"
+        "#{comment}drop constraint(#{inspect(table)}, \"#{table}_pkey\", prefix: \"#{schema}\")"
       else
-        "drop constraint(#{inspect(table)}, \"#{table}_pkey\")"
+        "#{comment}drop constraint(#{inspect(table)}, \"#{table}_pkey\")"
       end
     end
   end
