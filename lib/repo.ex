@@ -42,7 +42,7 @@ defmodule AshPostgres.Repo do
   """
 
   @doc "Use this to inform the data layer about what extensions are installed"
-  @callback installed_extensions() :: [String.t()]
+  @callback installed_extensions() :: [String.t() | module()]
 
   @doc """
   Use this to inform the data layer about the oldest potential postgres version it will be run on.
