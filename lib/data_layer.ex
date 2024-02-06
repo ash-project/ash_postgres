@@ -925,12 +925,14 @@ defmodule AshPostgres.DataLayer do
           |> elem(0)
           |> Map.get(:resource)
 
-        {:ok,
-         dynamic_repo(source_resource, lateral_join_query).all(
-           lateral_join_query,
-           repo_opts(nil, nil, source_resource)
-         )
-         |> remap_mapped_fields(query)}
+        results =
+          dynamic_repo(source_resource, lateral_join_query).all(
+            lateral_join_query,
+            repo_opts(nil, nil, source_resource)
+          )
+          |> remap_mapped_fields(query)
+
+        {:ok, results}
 
       {:error, error} ->
         {:error, error}
@@ -1010,6 +1012,8 @@ defmodule AshPostgres.DataLayer do
       |> set_subquery_prefix(source_query, relationship.destination)
       |> subquery()
 
+    source_pkey = Ash.Resource.Info.primary_key(source_query.resource)
+
     source_query.resource
     |> Ash.Query.set_context(%{:data_layer => source_query.context[:data_layer]})
     |> Ash.Query.set_tenant(source_query.tenant)
@@ -1037,7 +1041,7 @@ defmodule AshPostgres.DataLayer do
              on: true,
              order_by: destination.__order__,
              select: destination,
-             select_merge: %{__lateral_join_source__: field(source, ^source_attribute)},
+             select_merge: %{__lateral_join_source__: map(source, ^source_pkey)},
              distinct: true
            )}
         else
@@ -1046,7 +1050,7 @@ defmodule AshPostgres.DataLayer do
              inner_lateral_join: destination in ^subquery,
              on: true,
              select: destination,
-             select_merge: %{__lateral_join_source__: field(source, ^source_attribute)},
+             select_merge: %{__lateral_join_source__: map(source, ^source_pkey)},
              distinct: true
            )}
         end
@@ -1067,6 +1071,7 @@ defmodule AshPostgres.DataLayer do
        ) do
     source_query = Ash.Query.new(source_query)
     source_values = Enum.map(root_data, &Map.get(&1, source_attribute))
+    source_pkey = Ash.Resource.Info.primary_key(source_query.resource)
 
     through_resource
     |> Ash.Query.new()
@@ -1128,10 +1133,7 @@ defmodule AshPostgres.DataLayer do
                         field(
                           parent_as(^through_query.__ash_bindings__.current),
                           ^source_attribute
-                        ),
-                    select_merge: %{
-                      __lateral_join_source__: field(through, ^source_attribute_on_join_resource)
-                    }
+                        )
                   )
                   |> set_subquery_prefix(
                     source_query,
@@ -1145,6 +1147,7 @@ defmodule AshPostgres.DataLayer do
                  inner_lateral_join: destination in ^subquery,
                  on: true,
                  select: destination,
+                 select_merge: %{__lateral_join_source__: map(source, ^source_pkey)},
                  order_by: destination.__order__,
                  distinct: true
                )}
@@ -1168,10 +1171,7 @@ defmodule AshPostgres.DataLayer do
                         field(
                           parent_as(^through_query.__ash_bindings__.current),
                           ^source_attribute
-                        ),
-                    select_merge: %{
-                      __lateral_join_source__: field(through, ^source_attribute_on_join_resource)
-                    }
+                        )
                   )
                   |> set_subquery_prefix(
                     source_query,
@@ -1185,6 +1185,7 @@ defmodule AshPostgres.DataLayer do
                  inner_lateral_join: destination in ^subquery,
                  on: true,
                  select: destination,
+                 select_merge: %{__lateral_join_source__: map(source, ^source_pkey)},
                  distinct: true
                )}
             end
