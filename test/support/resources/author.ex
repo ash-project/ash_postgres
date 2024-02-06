@@ -34,6 +34,12 @@ defmodule AshPostgres.Test.Author do
   relationships do
     has_one(:profile, AshPostgres.Test.Profile)
     has_many(:posts, AshPostgres.Test.Post)
+
+    has_many :authors_with_same_first_name, __MODULE__ do
+      source_attribute(:first_name)
+      destination_attribute(:first_name)
+      filter(expr(parent(id) != id))
+    end
   end
 
   aggregates do
@@ -122,5 +128,7 @@ defmodule AshPostgres.Test.Author do
     count :count_of_posts_with_better_comment, [:posts, :comments] do
       join_filter([:posts, :comments], expr(parent(score) < likes))
     end
+
+    count(:num_of_authors_with_same_first_name, :authors_with_same_first_name)
   end
 end
