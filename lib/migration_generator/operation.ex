@@ -63,6 +63,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       :bigint
     end
 
+    def reference_type(%{type: :integer, default: "nil", generated?: true}, _) do
+      ":bigserial"
+    end
+
     def reference_type(%{type: type}, _) do
       type
     end
@@ -487,7 +491,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
              Map.get(old_attribute, :references) != Map.get(attribute, :references) do
           reference(multitenancy, attribute, schema)
         else
-          inspect(attribute.type)
+          if attribute.type == :biging and attribute.default == "nil" and attribute.generated? do
+            ":bigserial"
+          else
+            inspect(attribute.type)
+          end
         end
 
       "modify #{inspect(attribute.source)}, #{type_or_reference}#{alter_opts(attribute, old_attribute)}"
