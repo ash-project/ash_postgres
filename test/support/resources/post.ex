@@ -1,3 +1,17 @@
+defmodule PassIfOriginalDataPresent do
+  use Ash.Policy.SimpleCheck
+
+  def describe(_options), do: "original data present"
+
+  def match?(_, _, _) do
+    true
+  end
+
+  def requires_original_data?(_, _) do
+    true
+  end
+end
+
 defmodule AshPostgres.Test.Post do
   @moduledoc false
   use Ash.Resource,
@@ -14,6 +28,10 @@ defmodule AshPostgres.Test.Post do
 
     policy action(:allow_any) do
       authorize_if(always())
+    end
+
+    policy action(:requires_initial_data) do
+      authorize_if(PassIfOriginalDataPresent)
     end
   end
 
@@ -69,6 +87,11 @@ defmodule AshPostgres.Test.Post do
     end
 
     update :increment_score do
+      argument(:amount, :integer, default: 1)
+      change(atomic_update(:score, expr((score || 0) + ^arg(:amount))))
+    end
+
+    update :requires_initial_data do
       argument(:amount, :integer, default: 1)
       change(atomic_update(:score, expr((score || 0) + ^arg(:amount))))
     end

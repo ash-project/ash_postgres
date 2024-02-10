@@ -54,4 +54,16 @@ defmodule AshPostgres.BulkUpdateTest do
 
     assert titles == ["fred_stuff", "george_stuff"]
   end
+
+  test "bulk updates that require initial data must use streaming" do
+    Api.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
+
+    Post
+    |> Ash.Query.for_read(:paginated, authorize?: true)
+    |> Api.bulk_update!(:requires_initial_data, %{},
+      authorize?: true,
+      allow_stream_with: :full_read,
+      authorize_query?: false
+    )
+  end
 end

@@ -15,8 +15,6 @@ defmodule AshPostgres.RelWithParentFilterTest do
     |> Ash.Changeset.for_create(:create, %{first_name: "John"})
     |> Api.create!()
 
-    Logger.configure(level: :debug)
-
     # here we get the expected result of 1 because it is done in the same query
     assert %{num_of_authors_with_same_first_name: 1} =
              Author
