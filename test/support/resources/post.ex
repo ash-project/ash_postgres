@@ -1,4 +1,5 @@
 defmodule PassIfOriginalDataPresent do
+  @moduledoc false
   use Ash.Policy.SimpleCheck
 
   def describe(_options), do: "original data present"
