@@ -1329,7 +1329,13 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def destroy_query(query, changeset, resource, options) do
     ecto_changeset =
-      changeset.data
+      case changeset.data do
+        %Ash.Changeset.OriginalDataNotAvailable{} ->
+          changeset.resource.__struct__
+
+        data ->
+          data
+      end
       |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
       |> ecto_changeset(changeset, :update, true, true)
 
