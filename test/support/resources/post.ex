@@ -36,6 +36,12 @@ defmodule AshPostgres.Test.Post do
     end
   end
 
+  field_policies do
+    field_policy :* do
+      authorize_if(always())
+    end
+  end
+
   postgres do
     table("posts")
     repo(AshPostgres.TestRepo)

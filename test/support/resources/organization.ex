@@ -1,11 +1,26 @@
 defmodule AshPostgres.Test.Organization do
   @moduledoc false
   use Ash.Resource,
-    data_layer: AshPostgres.DataLayer
+    data_layer: AshPostgres.DataLayer,
+    authorizers: [
+      Ash.Policy.Authorizer
+    ]
 
   postgres do
     table("orgs")
     repo(AshPostgres.TestRepo)
+  end
+
+  policies do
+    policy always() do
+      authorize_if(always())
+    end
+  end
+
+  field_policies do
+    field_policy :* do
+      authorize_if(always())
+    end
   end
 
   actions do
