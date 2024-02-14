@@ -18,8 +18,15 @@ defmodule AshPostgresTest do
       |> Ash.Changeset.new(%{title: "good"})
       |> AshPostgres.Test.Api.create!()
 
+    assert_raise Ash.Error.Forbidden, fn ->
+      post
+      |> Ash.Changeset.for_update(:update, %{title: "bad"}, authorize?: true)
+      |> AshPostgres.Test.Api.update!()
+      |> Map.get(:title)
+    end
+
     post
-    |> Ash.Changeset.for_update(:update, %{title: "bad"}, authorize?: true)
+    |> Ash.Changeset.for_update(:update, %{title: "okay"}, authorize?: true)
     |> AshPostgres.Test.Api.update!()
     |> Map.get(:title)
   end
