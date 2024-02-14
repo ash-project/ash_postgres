@@ -30,7 +30,7 @@ defmodule FilterFieldPolicyTest do
     end)
   end
 
-  test "filter uses the correct field policies when epanding refs" do
+  test "filter uses the correct field policies when exanding refs" do
     organization =
       Organization
       |> Ash.Changeset.for_create(:create, %{name: "test_org"})
