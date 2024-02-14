@@ -504,8 +504,7 @@ defmodule AshPostgres.MigrationGenerator do
 
       count_with_create =
         snapshots
-        |> Enum.filter(& &1.has_create_action)
-        |> Enum.count()
+        |> Enum.count(& &1.has_create_action)
 
       new_snapshot = %{
         snapshot
