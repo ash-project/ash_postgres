@@ -18,7 +18,10 @@ defmodule AshPostgres.Test.User do
   end
 
   relationships do
-    belongs_to(:organization, AshPostgres.Test.Organization)
+    belongs_to :organization, AshPostgres.Test.Organization do
+      attribute_writable?(true)
+    end
+
     has_many(:accounts, AshPostgres.Test.Account)
   end
 end
