@@ -11,4 +11,16 @@ defmodule AshPostgresTest do
       metadata: %{action: :create, actor: nil, resource: AshPostgres.Test.Post}
     }
   end
+
+  test "filter policies are are applied" do
+    post =
+      AshPostgres.Test.Post
+      |> Ash.Changeset.new(%{title: "good"})
+      |> AshPostgres.Test.Api.create!()
+
+    post
+    |> Ash.Changeset.for_update(:update, %{title: "bad"}, authorize?: true)
+    |> AshPostgres.Test.Api.update!()
+    |> Map.get(:title)
+  end
 end

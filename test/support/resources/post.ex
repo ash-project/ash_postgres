@@ -34,6 +34,10 @@ defmodule AshPostgres.Test.Post do
     policy action(:requires_initial_data) do
       authorize_if(PassIfOriginalDataPresent)
     end
+
+    policy action_type(:update) do
+      authorize_unless(changing_attributes(title: [from: "good", to: "bad"]))
+    end
   end
 
   field_policies do
