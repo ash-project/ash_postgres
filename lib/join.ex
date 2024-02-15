@@ -297,7 +297,7 @@ defmodule AshPostgres.Join do
               if Enum.empty?(List.wrap(query.order_bys)) && Enum.empty?(query.joins) do
                 query
               else
-                from(row in subquery(query), [])
+                from(row in subquery(query), as: ^0)
                 |> AshPostgres.DataLayer.default_bindings(relationship.destination)
                 |> AshPostgres.DataLayer.merge_expr_accumulator(
                   query.__ash_bindings__.expression_accumulator
