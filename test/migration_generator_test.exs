@@ -358,6 +358,36 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert File.read!(file2) =~ ~S[rename table(:posts, prefix: "example"), :title, to: :name]
     end
+
+    test "renaming a field honors additional changes" do
+      defposts do
+        postgres do
+          schema("example")
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string, allow_nil?: false, default: "fred")
+        end
+      end
+
+      defapi([Post])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Api,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+
+      assert File.read!(file2) =~ ~S[rename table(:posts, prefix: "example"), :title, to: :name]
+      assert File.read!(file2) =~ ~S[modify :title, :text, null: true, default: nil]
+    end
   end
 
   describe "creating follow up migrations" do

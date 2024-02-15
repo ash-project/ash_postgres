@@ -1975,8 +1975,24 @@ defmodule AshPostgres.MigrationGenerator do
         {attribute,
          Enum.find(
            old_snapshot.attributes,
-           &(&1.source == attribute.source &&
-               attributes_unequal?(&1, attribute, snapshot.repo, old_snapshot, snapshot))
+           fn old_attribute ->
+             source_match =
+               Enum.find_value(attributes_to_rename, old_attribute.source, fn {new, old} ->
+                 if old.source == old_attribute.source do
+                   new.source
+                 end
+               end)
+
+             source_match ==
+               attribute.source &&
+               attributes_unequal?(
+                 old_attribute,
+                 attribute,
+                 snapshot.repo,
+                 old_snapshot,
+                 snapshot
+               )
+           end
          )}
       end)
       |> Enum.filter(&elem(&1, 1))
@@ -2343,7 +2359,8 @@ defmodule AshPostgres.MigrationGenerator do
             get_new_attribute(adding)
           end
 
-        {adding -- [new_attribute], [], [{new_attribute, removing}]}
+        {Enum.reject(adding, &(&1.source == new_attribute.source)), [],
+         [{new_attribute, removing}]}
       else
         {adding, [removing], []}
       end
