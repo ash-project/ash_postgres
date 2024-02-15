@@ -12,7 +12,7 @@ defmodule AshPostgresTest do
     }
   end
 
-  test "filter policies are are applied" do
+  test "filter policies are applied" do
     post =
       AshPostgres.Test.Post
       |> Ash.Changeset.new(%{title: "good"})
@@ -20,7 +20,10 @@ defmodule AshPostgresTest do
 
     assert_raise Ash.Error.Forbidden, fn ->
       post
-      |> Ash.Changeset.for_update(:update, %{title: "bad"}, authorize?: true)
+      |> Ash.Changeset.for_update(:update, %{title: "bad"},
+        authorize?: true,
+        actor: %{id: Ash.UUID.generate()}
+      )
       |> AshPostgres.Test.Api.update!()
       |> Map.get(:title)
     end
