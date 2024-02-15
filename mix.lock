@@ -1,5 +1,5 @@
 %{
-  "ash": {:git, "https://github.com/ash-project/ash.git", "dcbccec7c36e2cad9d8366fa797b617e043b7b28", [ref: "dcbccec7c36e2cad9d8366fa797b617e043b7b28"]},
+  "ash": {:git, "https://github.com/ash-project/ash.git", "52e0fb8ba6226ae204db45b8cb5bffb2f6afb506", [ref: "52e0fb8ba6226ae204db45b8cb5bffb2f6afb506"]},
   "benchee": {:hex, :benchee, "1.1.0", "f3a43817209a92a1fade36ef36b86e1052627fd8934a8b937ac9ab3a76c43062", [:mix], [{:deep_merge, "~> 1.0", [hex: :deep_merge, repo: "hexpm", optional: false]}, {:statistex, "~> 1.0", [hex: :statistex, repo: "hexpm", optional: false]}], "hexpm", "7da57d545003165a012b587077f6ba90b89210fd88074ce3c60ce239eb5e6d93"},
   "bunt": {:hex, :bunt, "1.0.0", "081c2c665f086849e6d57900292b3a161727ab40431219529f13c4ddcf3e7a44", [:mix], [], "hexpm", "dc5f86aa08a5f6fa6b8096f0735c4e76d54ae5c9fa2c143e5a1fc7c1cd9bb6b5"},
   "certifi": {:hex, :certifi, "2.9.0", "6f2a475689dd47f19fb74334859d460a2dc4e3252a3324bd2111b8f0429e7e21", [:rebar3], [], "hexpm", "266da46bdb06d6c6d35fde799bcb28d36d985d424ad7c08b5bb48f5b5cdd4641"},
