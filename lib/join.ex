@@ -317,19 +317,6 @@ defmodule AshPostgres.Join do
       query ->
         {:error, query}
     end
-    |> case do
-      {:ok, query, acc} ->
-        if Enum.empty?(query.joins) || is_subquery? do
-          {:ok, query, acc}
-        else
-          {:ok,
-           from(row in subquery(query), []) |> Map.put(:__ash_bindings__, query.__ash_bindings__),
-           acc}
-        end
-
-      {:error, error} ->
-        {:error, error}
-    end
   end
 
   defp do_relationship_sort(
@@ -640,7 +627,11 @@ defmodule AshPostgres.Join do
 
       relationship_destination =
         if needs_subquery? do
-          subquery(from(row in relationship_destination, limit: 1))
+          if Map.get(relationship, :from_many?) do
+            subquery(from(row in relationship_destination, limit: 1))
+          else
+            subquery(relationship_destination)
+          end
         else
           relationship_destination
         end
@@ -785,11 +776,11 @@ defmodule AshPostgres.Join do
         end)
 
       needs_subquery? =
-        used_aggregates != [] || Map.get(relationship, :from_many?)
+        used_aggregates != []
 
       relationship_destination =
         if needs_subquery? do
-          subquery(from(row in relationship_destination, limit: 1))
+          subquery(relationship_destination)
         else
           relationship_destination
         end
@@ -870,7 +861,9 @@ defmodule AshPostgres.Join do
     used_aggregates = Ash.Filter.used_aggregates(filter, full_path)
     use_root_query_bindings? = Enum.empty?(used_aggregates)
 
-    needs_subquery? = Map.get(relationship, :from_many?, false)
+    needs_subquery? =
+      Map.get(relationship, :from_many?, false) ||
+        (relationship.cardinality == :many && !Enum.empty?(used_aggregates))
 
     root_bindings =
       if use_root_query_bindings? && !needs_subquery? do
@@ -901,7 +894,11 @@ defmodule AshPostgres.Join do
 
         relationship_destination =
           if needs_subquery? do
-            subquery(from(row in relationship_destination, limit: 1))
+            if Map.get(relationship, :from_many?) do
+              subquery(from(row in relationship_destination, limit: 1))
+            else
+              subquery(relationship_destination)
+            end
           else
             relationship_destination
           end
