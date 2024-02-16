@@ -294,7 +294,8 @@ defmodule AshPostgres.Join do
               )
 
             query =
-              if Enum.empty?(List.wrap(query.order_bys)) && Enum.empty?(query.joins) do
+              if !is_subquery? ||
+                   (Enum.empty?(List.wrap(query.order_bys)) && Enum.empty?(query.joins)) do
                 query
               else
                 from(row in subquery(query), as: ^0)
