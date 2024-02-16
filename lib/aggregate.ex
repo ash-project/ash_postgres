@@ -587,7 +587,7 @@ defmodule AshPostgres.Aggregate do
         [join_relationship],
         nil,
         subquery.__ash_bindings__.current,
-        true,
+        false,
         true
       )
 
