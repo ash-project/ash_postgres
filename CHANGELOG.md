@@ -5,6 +5,79 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.0](https://github.com/ash-project/ash_postgres/compare/v1.4.0...v1.5.0) (2024-02-16)
+
+
+
+
+### Features:
+
+* Make MigrationGenerator accept atoms (#201)
+
+### Bug Fixes:
+
+* allow subquerying a `through` while aggregating a many to many
+
+* don't subquery if we need to reference `parent_as`
+
+* avoid double wrapping in subqueries
+
+* properly set 0 binding on joined subquery creation
+
+* properly alter renaming attributes in migration generator
+
+* handle original data not available in destroy_query
+
+* use primary key of source as join key
+
+* use pkey if error fields is empty
+
+* forgot to bind keys to a variable ð¤¦ð»
+
+* ensure identity keys is never missing
+
+* properly build subqueries when required for relationship queries
+
+* only migrate/rollback one repo at a time
+
+* proper return types for updates from queries
+
+* allow atomics to return `nil`
+
+* Correct the matching used in building a distinct expression (#196)
+
+* only rollback to savepoint on specific errors
+
+* keep fields of `custom_index` in format that they were provided (#195)
+
+* remap selected fields, don't subquery in aggregate joins
+
+* include explicit schema in snapshot folder name
+
+* Support all_tenants? in custom index (#194)
+
+### Improvements:
+
+* update to latest ash
+
+* mark (i)like functions as predicates (#205)
+
+* detect bigserial when altering attributes
+
+* Include modules in installed_extensions return type (#202)
+
+* don't drop primary key in case of removal
+
+* handle if select is present on query
+
+* support `Ash.Changeset.OriginalDataNotAvailable`
+
+* support `count_nils` expression
+
+* `error_fields` for `custom_index`
+
+* support latest ash changes
+
 ## [v1.4.0](https://github.com/ash-project/ash_postgres/compare/v1.3.68...v1.4.0) (2024-01-12)
 
 
