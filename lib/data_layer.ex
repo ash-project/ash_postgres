@@ -1266,9 +1266,61 @@ defmodule AshPostgres.DataLayer do
 
     try do
       query =
-        query
-        |> default_bindings(resource, changeset.context)
-        |> Ecto.Query.exclude(:select)
+        case Enum.at(query.joins, 0) do
+          nil ->
+            query
+            |> default_bindings(resource, changeset.context)
+            |> Ecto.Query.exclude(:select)
+
+          %{qual: :inner} = join ->
+            query
+            |> default_bindings(resource, changeset.context)
+            |> Ecto.Query.exclude(:select)
+
+          _other_type_of_join ->
+            root_query =
+              from(
+                row in resource,
+                []
+              )
+              |> default_bindings(resource, changeset.context)
+              |> Ecto.Query.exclude(:select)
+
+            dynamic =
+              Enum.reduce(Ash.Resource.Info.primary_key(resource), nil, fn pkey, dynamic ->
+                if dynamic do
+                  Ecto.Query.dynamic(
+                    [row, joining],
+                    field(row, ^pkey) == field(joining, ^pkey) and ^dynamic
+                  )
+                else
+                  Ecto.Query.dynamic([row, joining], field(row, ^pkey) == field(joining, ^pkey))
+                end
+              end)
+
+            faked_query =
+              from(row in root_query,
+                inner_join: limiter in ^root_query,
+                as: ^0,
+                on: ^dynamic
+              )
+
+            joins_to_add =
+              for {%{on: on} = join, ix} <- Enum.with_index(query.joins) do
+                %{join | on: Ecto.Query.Planner.rewrite_sources(on, &(&1 + 1)), ix: ix + 1}
+              end
+
+            %{
+              faked_query
+              | joins: faked_query.joins ++ joins_to_add,
+                aliases: Map.new(query.aliases, fn {key, val} -> {key, val + 1} end),
+                wheres:
+                  faked_query.wheres ++
+                    Enum.map(query.wheres, fn where ->
+                      Ecto.Query.Planner.rewrite_sources(where, &(&1 + 1))
+                    end)
+            }
+        end
 
       query =
         if options[:return_records?] do

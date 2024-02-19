@@ -1364,24 +1364,28 @@ defmodule AshPostgres.Expr do
     {encoded, acc} =
       if Ash.Filter.TemplateHelpers.expr?(input) do
         frag_parts =
-          Enum.map(input, fn {key, value} ->
+          Enum.flat_map(input, fn {key, value} ->
             if Ash.Filter.TemplateHelpers.expr?(value) do
               [
                 expr: to_string(key),
                 raw: "::text, ",
-                expr: value
+                expr: value,
+                raw: ", "
               ]
             else
               [
                 expr: to_string(key),
                 raw: "::text, ",
                 expr: value,
-                raw: "::jsonb"
+                raw: "::jsonb, "
               ]
             end
           end)
-          |> Enum.intersperse(raw: ", ")
-          |> List.flatten()
+
+        frag_parts =
+          List.update_at(frag_parts, -1, fn {:raw, text} ->
+            {:raw, String.trim_trailing(text, ", ") <> "))"}
+          end)
 
         do_dynamic_expr(
           query,
@@ -1393,8 +1397,7 @@ defmodule AshPostgres.Expr do
                 expr: inspect(exception),
                 raw: "::text, 'input', jsonb_build_object("
               ] ++
-                frag_parts ++
-                [raw: "))"]
+                frag_parts
           },
           bindings,
           embedded?,
