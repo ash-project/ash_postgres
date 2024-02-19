@@ -968,15 +968,25 @@ defmodule AshPostgres.Join do
               )
 
             {:inner, false, true} ->
+              %Ecto.SubQuery{query: inner_query} = sub = relationship_destination
+
+              new_inner_query =
+                from(row in inner_query,
+                  where:
+                    field(parent_as(^current_binding), ^relationship.source_attribute) ==
+                      field(
+                        row,
+                        ^relationship.destination_attribute
+                      )
+                )
+
+              relationship_destination =
+                %{sub | query: new_inner_query}
+
               from([{row, current_binding}] in query,
                 inner_lateral_join: destination in ^relationship_destination,
                 as: ^initial_ash_bindings.current,
-                on:
-                  field(row, ^relationship.source_attribute) ==
-                    field(
-                      destination,
-                      ^relationship.destination_attribute
-                    )
+                on: true
               )
 
             {:left, true, false} ->
