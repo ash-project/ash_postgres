@@ -975,4 +975,21 @@ defmodule AshPostgres.FilterTest do
     |> Ash.Query.filter(comments_with_high_rating.title == "foo")
     |> Api.read!()
   end
+
+  test "filter by has_one from_many?" do
+    alias Ash.Changeset
+    alias AshPostgres.Test.ComplexCalculations.{Api, Channel, ChannelMember}
+
+    [_cm1, cm2 | _] =
+      for _ <- 1..5 do
+        c = Changeset.for_create(Channel, :create, %{}) |> Api.create!()
+        Changeset.for_create(ChannelMember, :create, %{channel_id: c.id}) |> Api.create!()
+      end
+
+    assert Channel
+           |> Ash.Query.for_read(:read)
+           |> Ash.Query.filter(first_member.id != ^cm2.id)
+           |> Api.read!()
+           |> length == 4
+  end
 end
