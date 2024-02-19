@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.1](https://github.com/ash-project/ash_postgres/compare/v1.5.0...v1.5.1) (2024-02-19)
+
+
+
+
+### Bug Fixes:
+
+* joining to `from_many?: true` relationships not honoring limit
+
 ## [v1.5.0](https://github.com/ash-project/ash_postgres/compare/v1.4.0...v1.5.0) (2024-02-16)
 
 
