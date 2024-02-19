@@ -1370,7 +1370,7 @@ defmodule AshPostgres.DataLayer do
                 row in resource,
                 []
               )
-              |> default_bindings(resource, context)
+              |> Map.put(:__ash_bindings__, query.__ash_bindings__)
               |> Ecto.Query.exclude(:select)
 
             dynamic =
