@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.3](https://github.com/ash-project/ash_postgres/compare/v1.5.2...v1.5.3) (2024-02-19)
+
+
+
+
+### Bug Fixes:
+
+* handle non-inner joins in delete_all
+
+* handle non-inner joins in update
+
 ## [v1.5.2](https://github.com/ash-project/ash_postgres/compare/v1.5.1...v1.5.2) (2024-02-19)
 
 
