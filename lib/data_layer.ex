@@ -1264,18 +1264,105 @@ defmodule AshPostgres.DataLayer do
       |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
       |> ecto_changeset(changeset, :update, true, true)
 
-    try do
-      query =
+    case bulk_updatable_query(query, resource, changeset.atomics, changeset.context) do
+      {:error, error} ->
+        {:error, error}
+
+      {:ok, query} ->
+        try do
+          query =
+            if options[:return_records?] do
+              attrs = resource |> Ash.Resource.Info.attributes() |> Enum.map(& &1.name)
+
+              Ecto.Query.select(query, ^attrs)
+            else
+              query
+            end
+
+          repo = dynamic_repo(resource, changeset)
+          repo_opts = repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
+
+          case query_with_atomics(
+                 resource,
+                 query,
+                 ecto_changeset.filters,
+                 changeset.atomics,
+                 ecto_changeset.changes,
+                 []
+               ) do
+            :empty ->
+              if options[:return_records?] do
+                if changeset.context[:data_layer][:use_atomic_update_data?] do
+                  {:ok, [changeset.data]}
+                else
+                  {:ok, repo.all(query)}
+                end
+              else
+                :ok
+              end
+
+            {:ok, query} ->
+              {_, results} =
+                with_savepoint(repo, query, fn ->
+                  repo.update_all(
+                    query,
+                    [],
+                    repo_opts
+                  )
+                end)
+
+              if options[:return_records?] do
+                {:ok, results}
+              else
+                :ok
+              end
+
+            {:error, error} ->
+              {:error, error}
+          end
+        rescue
+          e ->
+            handle_raised_error(e, __STACKTRACE__, ecto_changeset, resource)
+        end
+    end
+  end
+
+  defp bulk_updatable_query(query, resource, atomics, context) do
+    Enum.reduce_while(atomics, {:ok, query}, fn {_, expr}, {:ok, query} ->
+      used_aggregates =
+        Ash.Filter.used_aggregates(expr, [])
+
+      with {:ok, query} <-
+             AshPostgres.Join.join_all_relationships(
+               query,
+               %Ash.Filter{
+                 resource: resource,
+                 expression: expr
+               },
+               left_only?: true
+             ),
+           {:ok, query} <-
+             AshPostgres.Aggregate.add_aggregates(query, used_aggregates, resource, false, 0) do
+        {:cont, {:ok, Ecto.Query.exclude(query, :order_by)}}
+      else
+        {:error, error} ->
+          {:halt, {:error, error}}
+      end
+    end)
+    |> case do
+      {:ok, query} ->
         case Enum.at(query.joins, 0) do
           nil ->
-            query
-            |> default_bindings(resource, changeset.context)
-            |> Ecto.Query.exclude(:select)
+            {:ok,
+             query
+             |> default_bindings(resource, context)
+             |> Ecto.Query.exclude(:select)}
 
           %{qual: :inner} ->
-            query
-            |> default_bindings(resource, changeset.context)
-            |> Ecto.Query.exclude(:select)
+            {:ok,
+             query
+             |> default_bindings(resource, context)
+             |> Ecto.Query.exclude(:select)}
 
           _other_type_of_join ->
             root_query =
@@ -1283,7 +1370,7 @@ defmodule AshPostgres.DataLayer do
                 row in resource,
                 []
               )
-              |> default_bindings(resource, changeset.context)
+              |> default_bindings(resource, context)
               |> Ecto.Query.exclude(:select)
 
             dynamic =
@@ -1310,71 +1397,21 @@ defmodule AshPostgres.DataLayer do
                 %{join | on: Ecto.Query.Planner.rewrite_sources(on, &(&1 + 1)), ix: ix + 1}
               end
 
-            %{
-              faked_query
-              | joins: faked_query.joins ++ joins_to_add,
-                aliases: Map.new(query.aliases, fn {key, val} -> {key, val + 1} end),
-                wheres:
-                  faked_query.wheres ++
-                    Enum.map(query.wheres, fn where ->
-                      Ecto.Query.Planner.rewrite_sources(where, &(&1 + 1))
-                    end)
-            }
+            {:ok,
+             %{
+               faked_query
+               | joins: faked_query.joins ++ joins_to_add,
+                 aliases: Map.new(query.aliases, fn {key, val} -> {key, val + 1} end),
+                 wheres:
+                   faked_query.wheres ++
+                     Enum.map(query.wheres, fn where ->
+                       Ecto.Query.Planner.rewrite_sources(where, &(&1 + 1))
+                     end)
+             }}
         end
 
-      query =
-        if options[:return_records?] do
-          attrs = resource |> Ash.Resource.Info.attributes() |> Enum.map(& &1.name)
-
-          Ecto.Query.select(query, ^attrs)
-        else
-          query
-        end
-
-      repo = dynamic_repo(resource, changeset)
-      repo_opts = repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
-
-      case query_with_atomics(
-             resource,
-             query,
-             ecto_changeset.filters,
-             changeset.atomics,
-             ecto_changeset.changes,
-             []
-           ) do
-        :empty ->
-          if options[:return_records?] do
-            if changeset.context[:data_layer][:use_atomic_update_data?] do
-              {:ok, [changeset.data]}
-            else
-              {:ok, repo.all(query)}
-            end
-          else
-            :ok
-          end
-
-        {:ok, query} ->
-          {_, results} =
-            with_savepoint(repo, query, fn ->
-              repo.update_all(
-                query,
-                [],
-                repo_opts
-              )
-            end)
-
-          if options[:return_records?] do
-            {:ok, results}
-          else
-            :ok
-          end
-
-        {:error, error} ->
-          {:error, error}
-      end
-    rescue
-      e ->
-        handle_raised_error(e, __STACKTRACE__, ecto_changeset, resource)
+      {:error, error} ->
+        {:error, error}
     end
   end
 
@@ -1412,6 +1449,36 @@ defmodule AshPostgres.DataLayer do
         Keyword.put(repo_opts, :returning, Keyword.keys(changeset.atomics))
 
       repo = dynamic_repo(resource, changeset)
+
+      query =
+        if Enum.any?(query.joins, &(&1.qual != :inner)) do
+          root_query =
+            from(
+              row in resource,
+              []
+            )
+            |> default_bindings(resource, changeset.context)
+            |> Ecto.Query.exclude(:select)
+
+          on =
+            Enum.reduce(Ash.Resource.Info.primary_key(resource), nil, fn key, dynamic ->
+              if dynamic do
+                Ecto.Query.dynamic(
+                  [row, distinct],
+                  ^dynamic and field(row, ^key) == field(distinct, ^key)
+                )
+              else
+                Ecto.Query.dynamic([row, distinct], field(row, ^key) == field(distinct, ^key))
+              end
+            end)
+
+          from(row in root_query,
+            join: subquery(query),
+            on: ^on
+          )
+        else
+          query
+        end
 
       {_, results} =
         with_savepoint(repo, query, fn ->
@@ -2392,69 +2459,72 @@ defmodule AshPostgres.DataLayer do
       |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
       |> ecto_changeset(changeset, :update)
 
-    try do
-      query = from(row in resource, as: ^0)
+    query = from(row in resource, as: ^0) |> default_bindings(resource, changeset.context)
 
-      select = Keyword.keys(changeset.atomics) ++ Ash.Resource.Info.primary_key(resource)
+    select = Keyword.keys(changeset.atomics) ++ Ash.Resource.Info.primary_key(resource)
 
-      query =
-        query
-        |> default_bindings(resource, changeset.context)
-        |> Ecto.Query.select(^select)
+    case bulk_updatable_query(query, resource, changeset.atomics, changeset.context) do
+      {:error, error} ->
+        {:error, error}
 
-      case query_with_atomics(
-             resource,
-             query,
-             ecto_changeset.filters,
-             changeset.atomics,
-             ecto_changeset.changes,
-             []
-           ) do
-        :empty ->
-          {:ok, changeset.data}
+      {:ok, query} ->
+        query = Ecto.Query.select(query, ^select)
 
-        {:ok, query} ->
-          repo_opts = repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
+        try do
+          case query_with_atomics(
+                 resource,
+                 query,
+                 ecto_changeset.filters,
+                 changeset.atomics,
+                 ecto_changeset.changes,
+                 []
+               ) do
+            :empty ->
+              {:ok, changeset.data}
 
-          repo_opts =
-            Keyword.put(repo_opts, :returning, Keyword.keys(changeset.atomics))
+            {:ok, query} ->
+              repo_opts = repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
 
-          repo = dynamic_repo(resource, changeset)
+              repo_opts =
+                Keyword.put(repo_opts, :returning, Keyword.keys(changeset.atomics))
 
-          result =
-            with_savepoint(repo, query, fn ->
-              repo.update_all(
-                Ecto.Query.exclude(query, :order_by),
-                [],
-                repo_opts
-              )
-            end)
+              repo = dynamic_repo(resource, changeset)
 
-          case result do
-            {0, []} ->
-              {:error,
-               Ash.Error.Changes.StaleRecord.exception(
-                 resource: resource,
-                 filters: ecto_changeset.filters
-               )}
+              result =
+                with_savepoint(repo, query, fn ->
+                  repo.update_all(
+                    query,
+                    [],
+                    repo_opts
+                  )
+                end)
 
-            {1, [result]} ->
-              record =
-                changeset.data
-                |> Map.merge(changeset.attributes)
-                |> Map.merge(Map.take(result, Keyword.keys(changeset.atomics)))
+              case result do
+                {0, []} ->
+                  {:error,
+                   Ash.Error.Changes.StaleRecord.exception(
+                     resource: resource,
+                     filters: ecto_changeset.filters
+                   )}
 
-              maybe_update_tenant(resource, changeset, record)
+                {1, [result]} ->
+                  record =
+                    changeset.data
+                    |> Map.merge(changeset.attributes)
+                    |> Map.merge(Map.take(result, Keyword.keys(changeset.atomics)))
 
-              {:ok, record}
+                  maybe_update_tenant(resource, changeset, record)
+
+                  {:ok, record}
+              end
+
+            {:error, error} ->
+              {:error, error}
           end
-
-        {:error, error} ->
-          {:error, error}
-      end
-    rescue
-      e ->
-        handle_raised_error(e, __STACKTRACE__, ecto_changeset, resource)
+        rescue
+          e ->
+            handle_raised_error(e, __STACKTRACE__, ecto_changeset, resource)
+        end
     end
   end
 
@@ -2475,25 +2545,11 @@ defmodule AshPostgres.DataLayer do
 
     atomics_result =
       Enum.reduce_while(atomics, {:ok, query, []}, fn {field, expr}, {:ok, query, set} ->
-        used_aggregates =
-          Ash.Filter.used_aggregates(expr, [])
-
         attribute = Ash.Resource.Info.attribute(resource, field)
 
         type = AshPostgres.Types.parameterized_type(attribute.type, attribute.constraints)
 
-        with {:ok, query} <-
-               AshPostgres.Join.join_all_relationships(
-                 query,
-                 %Ash.Filter{
-                   resource: resource,
-                   expression: expr
-                 },
-                 left_only?: true
-               ),
-             {:ok, query} <-
-               AshPostgres.Aggregate.add_aggregates(query, used_aggregates, resource, false, 0),
-             {dynamic, acc} <-
+        with {dynamic, acc} <-
                AshPostgres.Expr.dynamic_expr(
                  query,
                  expr,
