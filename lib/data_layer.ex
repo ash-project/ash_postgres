@@ -1272,7 +1272,7 @@ defmodule AshPostgres.DataLayer do
             |> default_bindings(resource, changeset.context)
             |> Ecto.Query.exclude(:select)
 
-          %{qual: :inner} = join ->
+          %{qual: :inner} ->
             query
             |> default_bindings(resource, changeset.context)
             |> Ecto.Query.exclude(:select)
@@ -1404,6 +1404,7 @@ defmodule AshPostgres.DataLayer do
         else
           query
         end
+        |> Ecto.Query.exclude(:order_by)
 
       repo_opts = repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
 
@@ -2423,7 +2424,7 @@ defmodule AshPostgres.DataLayer do
           result =
             with_savepoint(repo, query, fn ->
               repo.update_all(
-                query,
+                Ecto.Query.exclude(query, :order_by),
                 [],
                 repo_opts
               )

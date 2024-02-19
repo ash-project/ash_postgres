@@ -39,8 +39,6 @@ defmodule AshPostgres.BulkUpdateTest do
   test "the query can join to related tables when necessary" do
     Api.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
 
-    Logger.configure(level: :debug)
-
     Post
     |> Ash.Query.filter(author.first_name == "fred" or title == "fred")
     |> Api.bulk_update!(:update, %{}, atomic_update: %{title: Ash.Expr.expr(title <> "_stuff")})
