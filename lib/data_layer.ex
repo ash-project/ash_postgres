@@ -2549,16 +2549,16 @@ defmodule AshPostgres.DataLayer do
 
         type = AshPostgres.Types.parameterized_type(attribute.type, attribute.constraints)
 
-        with {dynamic, acc} <-
-               AshPostgres.Expr.dynamic_expr(
-                 query,
-                 expr,
-                 query.__ash_bindings__,
-                 false,
-                 type
-               ) do
-          {:cont, {:ok, merge_expr_accumulator(query, acc), Keyword.put(set, field, dynamic)}}
-        else
+        case AshPostgres.Expr.dynamic_expr(
+               query,
+               expr,
+               query.__ash_bindings__,
+               false,
+               type
+             ) do
+          {dynamic, acc} ->
+            {:cont, {:ok, merge_expr_accumulator(query, acc), Keyword.put(set, field, dynamic)}}
+
           other ->
             {:halt, other}
         end
