@@ -754,7 +754,14 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def run_aggregate_query(query, aggregates, resource) do
-    {exists, aggregates} = Enum.split_with(aggregates, &(&1.kind == :exists))
+    {can_group, cant_group} =
+      aggregates
+      |> Enum.split_with(&AshPostgres.Aggregate.can_group?(resource, &1))
+      |> case do
+        {[one], cant_group} -> {[], [one | cant_group]}
+        {can_group, cant_group} -> {can_group, cant_group}
+      end
+
     query = default_bindings(query, resource)
 
     query =
@@ -778,7 +785,7 @@ defmodule AshPostgres.DataLayer do
 
     query =
       Enum.reduce(
-        aggregates,
+        can_group,
         query,
         fn agg, query ->
           first_relationship =
@@ -789,14 +796,14 @@ defmodule AshPostgres.DataLayer do
             agg.relationship_path |> Enum.drop(1),
             agg,
             resource,
-            true,
+            false,
             first_relationship
           )
         end
       )
 
     result =
-      case aggregates do
+      case can_group do
         [] ->
           %{}
 
@@ -804,14 +811,11 @@ defmodule AshPostgres.DataLayer do
           dynamic_repo(resource, query).one(query, repo_opts(nil, nil, resource))
       end
 
-    {:ok, add_exists_aggs(result, resource, query_before_select, exists)}
+    {:ok, add_single_aggs(result, resource, query_before_select, cant_group)}
   end
 
-  defp add_exists_aggs(result, resource, query, exists) do
-    repo = dynamic_repo(resource, query)
-    repo_opts = repo_opts(nil, nil, resource)
-
-    Enum.reduce(exists, result, fn agg, result ->
+  defp add_single_aggs(result, resource, query, cant_group) do
+    Enum.reduce(cant_group, result, fn agg, result ->
       {:ok, filtered} =
         case agg do
           %{query: %{filter: filter}} when not is_nil(filter) ->
@@ -821,10 +825,50 @@ defmodule AshPostgres.DataLayer do
             {:ok, query}
         end
 
+      filtered =
+        if filtered.distinct do
+          in_query = filtered |> Ecto.Query.exclude(:distinct) |> Ecto.Query.exclude(:select)
+
+          dynamic =
+            Enum.reduce(Ash.Resource.Info.primary_key(resource), nil, fn key, dynamic ->
+              if dynamic do
+                Ecto.Query.dynamic(
+                  [row],
+                  ^dynamic and field(parent_as(^0), ^key) == field(row, ^key)
+                )
+              else
+                Ecto.Query.dynamic(
+                  [row],
+                  field(parent_as(^0), ^key) == field(row, ^key)
+                )
+              end
+            end)
+
+          in_query =
+            from(row in in_query, where: ^dynamic)
+
+          from(row in query.from.source, as: ^0, where: exists(in_query))
+        else
+          filtered
+        end
+
+      first_relationship =
+        Ash.Resource.Info.relationship(resource, agg.relationship_path |> Enum.at(0))
+
+      query =
+        AshPostgres.Aggregate.add_subquery_aggregate_select(
+          filtered,
+          agg.relationship_path |> Enum.drop(1),
+          %{agg | query: %{agg.query | filter: nil}},
+          resource,
+          true,
+          first_relationship
+        )
+
       Map.put(
         result || %{},
         agg.name,
-        repo.exists?(filtered, repo_opts)
+        dynamic_repo(resource, query).one(query, repo_opts(nil, nil, resource))
       )
     end)
   end
@@ -842,7 +886,13 @@ defmodule AshPostgres.DataLayer do
         destination_resource,
         path
       ) do
-    {exists, aggregates} = Enum.split_with(aggregates, &(&1.kind == :exists))
+    {can_group, cant_group} =
+      aggregates
+      |> Enum.split_with(&AshPostgres.Aggregate.can_group?(destination_resource, &1))
+      |> case do
+        {[one], cant_group} -> {[], [one | cant_group]}
+        {can_group, cant_group} -> {can_group, cant_group}
+      end
 
     case lateral_join_query(
            query,
@@ -861,7 +911,7 @@ defmodule AshPostgres.DataLayer do
 
         query =
           Enum.reduce(
-            aggregates,
+            can_group,
             subquery,
             fn agg, subquery ->
               has_exists? =
@@ -888,7 +938,7 @@ defmodule AshPostgres.DataLayer do
           )
 
         result =
-          case aggregates do
+          case can_group do
             [] ->
               %{}
 
@@ -899,7 +949,7 @@ defmodule AshPostgres.DataLayer do
               )
           end
 
-        {:ok, add_exists_aggs(result, source_resource, subquery, exists)}
+        {:ok, add_single_aggs(result, source_resource, subquery, cant_group)}
 
       {:error, error} ->
         {:error, error}

@@ -32,7 +32,8 @@ defmodule AshPostgres.Join do
         source \\ nil,
         sort? \\ true,
         join_filters \\ nil,
-        parent_bindings \\ nil
+        parent_bindings \\ nil,
+        no_inner_join? \\ false
       )
 
   # simple optimization for common cases
@@ -45,7 +46,8 @@ defmodule AshPostgres.Join do
         _source,
         _sort?,
         _join_filters,
-        _parent_bindings
+        _parent_bindings,
+        _no_inner_join?
       )
       when is_nil(relationship_paths) and filter in [nil, true, false] do
     {:ok, query}
@@ -60,7 +62,8 @@ defmodule AshPostgres.Join do
         source,
         sort?,
         join_filters,
-        parent_query
+        parent_query,
+        no_inner_join?
       ) do
     relationship_paths =
       cond do
@@ -90,6 +93,13 @@ defmodule AshPostgres.Join do
         {:cont, {:ok, query}}
 
       {join_type, [relationship | rest_rels]}, {:ok, query} ->
+        join_type =
+          if no_inner_join? do
+            :left
+          else
+            join_type
+          end
+
         source = source || relationship.source
 
         current_path = path ++ [relationship]

@@ -3,6 +3,7 @@ defmodule AshPostgres.AggregateTest do
   alias AshPostgres.Test.{Api, Author, Comment, Organization, Post, Rating, User}
 
   require Ash.Query
+  require Ash.Expr
 
   test "relates to actor via has_many and with an aggregate" do
     org =
@@ -1161,6 +1162,18 @@ defmodule AshPostgres.AggregateTest do
       Post
       |> Ash.Query.filter(comments.likes > 10)
       |> Api.count!()
+    end
+
+    test "a count can filter independently of the query" do
+      Post
+      |> Api.aggregate([
+        Ash.Query.Aggregate.new!(Post, :count, :count,
+          query: [filter: Ash.Expr.expr(comments.likes > 10)]
+        ),
+        Ash.Query.Aggregate.new!(Post, :count2, :count,
+          query: [filter: Ash.Expr.expr(comments.likes < 10)]
+        )
+      ])
     end
 
     test "a count with a filter that references a relationship combined with another" do

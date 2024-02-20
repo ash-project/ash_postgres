@@ -754,10 +754,11 @@ defmodule AshPostgres.Aggregate do
     end
   end
 
-  defp can_group?(_, %{kind: :exists}), do: false
-  defp can_group?(_, %{kind: :list}), do: false
+  @doc false
+  def can_group?(_, %{kind: :exists}), do: false
+  def can_group?(_, %{kind: :list}), do: false
 
-  defp can_group?(resource, aggregate) do
+  def can_group?(resource, aggregate) do
     can_group_kind?(aggregate, resource) && !has_exists?(aggregate) &&
       !references_relationships?(aggregate)
   end
@@ -768,13 +769,30 @@ defmodule AshPostgres.Aggregate do
   # 2. potentially group them all up that join to relationships and just join to all the relationships
   # but this method is predictable and easy so we're starting by just not grouping them
   defp references_relationships?(aggregate) do
-    !!Ash.Filter.find(aggregate.query && aggregate.query.filter, fn
-      %Ash.Query.Ref{relationship_path: relationship_path} when relationship_path != [] ->
+    if aggregate.query do
+      aggregate.query.filter
+      |> Ash.Filter.relationship_paths()
+      |> Enum.any?(&to_many_path?(aggregate.query.resource, &1))
+    else
+      false
+    end
+  end
+
+  defp to_many_path?(_resource, []), do: false
+
+  defp to_many_path?(resource, [rel | rest]) do
+    case Ash.Resource.Info.relationship(resource, rel) do
+      %{cardinality: :many} ->
         true
 
-      _ ->
-        false
-    end)
+      nil ->
+        raise """
+        No such relationship #{inspect(rel)} for resource #{inspect(resource)}
+        """
+
+      rel ->
+        to_many_path?(rel.destination, [rest])
+    end
   end
 
   defp can_group_kind?(aggregate, resource) do
@@ -982,7 +1000,8 @@ defmodule AshPostgres.Aggregate do
          ), query}
       end
 
-    {query, filtered} = filter_field(sorted, query, aggregate, relationship_path, is_single?)
+    {query, filtered} =
+      filter_field(sorted, query, aggregate, relationship_path, is_single?)
 
     value = Ecto.Query.dynamic(fragment("(?)[1]", ^filtered))
 
@@ -1004,8 +1023,10 @@ defmodule AshPostgres.Aggregate do
         with_default
       end
 
+    query = AshPostgres.DataLayer.merge_expr_accumulator(query, acc)
+
     select_or_merge(
-      AshPostgres.DataLayer.merge_expr_accumulator(query, acc),
+      query,
       aggregate.name,
       casted
     )
@@ -1100,7 +1121,8 @@ defmodule AshPostgres.Aggregate do
         end
       end
 
-    {query, filtered} = filter_field(sorted, query, aggregate, relationship_path, is_single?)
+    {query, filtered} =
+      filter_field(sorted, query, aggregate, relationship_path, is_single?)
 
     with_default =
       if aggregate.default_value do
@@ -1120,8 +1142,10 @@ defmodule AshPostgres.Aggregate do
         with_default
       end
 
+    query = AshPostgres.DataLayer.merge_expr_accumulator(query, acc)
+
     select_or_merge(
-      AshPostgres.DataLayer.merge_expr_accumulator(query, acc),
+      query,
       aggregate.name,
       cast
     )
@@ -1231,8 +1255,22 @@ defmodule AshPostgres.Aggregate do
 
       used_aggregates = Ash.Filter.used_aggregates(filter, [])
 
+      # here we bypass an inner join.
+      # Really, we should check if all aggs in a group
+      # could do the same inner join, then do an inner join
       {:ok, query} =
-        AshPostgres.Join.join_all_relationships(query, filter)
+        AshPostgres.Join.join_all_relationships(
+          query,
+          filter,
+          [],
+          nil,
+          [],
+          nil,
+          true,
+          nil,
+          nil,
+          true
+        )
 
       {:ok, query} =
         AshPostgres.Aggregate.add_aggregates(
