@@ -1366,10 +1366,7 @@ defmodule AshPostgres.DataLayer do
 
           _other_type_of_join ->
             root_query =
-              from(
-                row in resource,
-                []
-              )
+              from(row in query.from.source, [])
               |> Map.put(:__ash_bindings__, query.__ash_bindings__)
               |> Ecto.Query.exclude(:select)
 
@@ -1453,10 +1450,7 @@ defmodule AshPostgres.DataLayer do
       query =
         if Enum.any?(query.joins, &(&1.qual != :inner)) do
           root_query =
-            from(
-              row in resource,
-              []
-            )
+            from(row in query.from.source, [])
             |> default_bindings(resource, changeset.context)
             |> Ecto.Query.exclude(:select)
 
@@ -1511,8 +1505,8 @@ defmodule AshPostgres.DataLayer do
       end
 
     changesets = Enum.to_list(stream)
-
     repo = dynamic_repo(resource, Enum.at(changesets, 0))
+    source = resolve_source(resource, Enum.at(changesets, 0))
 
     try do
       opts =
@@ -1521,7 +1515,7 @@ defmodule AshPostgres.DataLayer do
           # this means that all changesets have the same atomics
           %{atomics: atomics, filters: filters} = Enum.at(changesets, 0)
 
-          query = from(row in resource, as: ^0)
+          query = from(row in source, as: ^0)
 
           query =
             query
@@ -1563,13 +1557,6 @@ defmodule AshPostgres.DataLayer do
         end
 
       ecto_changesets = Enum.map(changesets, & &1.attributes)
-
-      source =
-        if table = Enum.at(changesets, 0).context[:data_layer][:table] do
-          {table, resource}
-        else
-          resource
-        end
 
       opts =
         if schema = Enum.at(changesets, 0).context[:data_layer][:schema] do
@@ -2459,7 +2446,8 @@ defmodule AshPostgres.DataLayer do
       |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
       |> ecto_changeset(changeset, :update)
 
-    query = from(row in resource, as: ^0) |> default_bindings(resource, changeset.context)
+    source = resolve_source(resource, changeset)
+    query = from(row in source, as: ^0) |> default_bindings(resource, changeset.context)
 
     select = Keyword.keys(changeset.atomics) ++ Ash.Resource.Info.primary_key(resource)
 
@@ -3163,6 +3151,14 @@ defmodule AshPostgres.DataLayer do
       Ash.Query -> :read
       Ecto.Query -> :read
       Ecto.Changeset -> :mutate
+    end
+  end
+
+  defp resolve_source(resource, changeset) do
+    if table = changeset.context[:data_layer][:table] do
+      {table, resource}
+    else
+      resource
     end
   end
 end
