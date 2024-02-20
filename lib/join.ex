@@ -232,6 +232,7 @@ defmodule AshPostgres.Join do
     |> Ash.Query.new(nil, base_filter?: false)
     |> Ash.Query.set_context(%{data_layer: %{start_bindings_at: start_binding}})
     |> Ash.Query.set_context(context)
+    |> Ash.Query.set_context(%{data_layer: %{table: nil}})
     |> Ash.Query.set_context(relationship.context)
     |> Ash.Query.for_read(read_action, %{},
       actor: context[:private][:actor],
