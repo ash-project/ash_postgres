@@ -33,7 +33,7 @@ defmodule AshPostgres.BulkDestroyTest do
 
     Post
     |> Ash.Query.filter(author.first_name == "fred" or title == "fred")
-    |> Api.bulk_destroy!(:update, %{})
+    |> Api.bulk_destroy!(:update, %{}, return_records?: true)
 
     assert [%{title: "george"}] = Api.read!(Post)
   end

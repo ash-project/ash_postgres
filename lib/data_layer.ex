@@ -1557,6 +1557,7 @@ defmodule AshPostgres.DataLayer do
             from(row in query.from.source, [])
             |> default_bindings(resource, changeset.context)
             |> Ecto.Query.exclude(:select)
+            |> Ecto.Query.exclude(:order_by)
 
           on =
             Enum.reduce(Ash.Resource.Info.primary_key(resource), nil, fn key, dynamic ->
@@ -1571,11 +1572,12 @@ defmodule AshPostgres.DataLayer do
             end)
 
           from(row in root_query,
+            select: row,
             join: subquery(query),
             on: ^on
           )
         else
-          Ecto.Query.exclude(query, :select)
+          Ecto.Query.exclude(query, :order_by)
         end
 
       {_, results} =
