@@ -5,6 +5,25 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.4](https://github.com/ash-project/ash_postgres/compare/v1.5.3...v1.5.4) (2024-02-21)
+
+
+
+
+### Bug Fixes:
+
+* don't sort a query that will be used with `delete_all`
+
+* ensure that `exists?` aggregates use `repo.exists?`
+
+* properly handle to_many joins in aggregates
+
+* honor aggregate query filters
+
+* use proper tables in joins originating from polymorphic resource (#211)
+
+* properly transfer table names to non-inner wrapper queries (#210)
+
 ## [v1.5.3](https://github.com/ash-project/ash_postgres/compare/v1.5.2...v1.5.3) (2024-02-19)
 
 
