@@ -884,9 +884,8 @@ defmodule AshPostgres.DataLayer do
             first_relationship
           )
 
-        Map.put(
+        Map.merge(
           result || %{},
-          agg.name,
           dynamic_repo(resource, query).one(query, repo_opts(nil, nil, resource))
         )
     end)

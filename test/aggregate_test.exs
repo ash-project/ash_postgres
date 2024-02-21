@@ -1165,11 +1165,12 @@ defmodule AshPostgres.AggregateTest do
     end
 
     test "a count can filter independently of the query" do
-      Post
-      |> Api.aggregate([
-        {:count, :count, query: [filter: Ash.Expr.expr(comments.likes > 10)]},
-        {:count2, :count, query: [filter: Ash.Expr.expr(comments.likes < 10)]}
-      ])
+      assert {:ok, %{count: 0, count2: 0}} =
+               Post
+               |> Api.aggregate([
+                 {:count, :count, query: [filter: Ash.Expr.expr(comments.likes > 10)]},
+                 {:count2, :count, query: [filter: Ash.Expr.expr(comments.likes < 10)]}
+               ])
     end
 
     test "a count with a filter that references a relationship combined with another" do
