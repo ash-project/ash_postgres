@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.5](https://github.com/ash-project/ash_postgres/compare/v1.5.4...v1.5.5) (2024-02-21)
+
+
+
+
+### Bug Fixes:
+
+* ensure proper return value for single aggregate runs
+
 ## [v1.5.4](https://github.com/ash-project/ash_postgres/compare/v1.5.3...v1.5.4) (2024-02-21)
 
 
