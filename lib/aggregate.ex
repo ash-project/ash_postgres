@@ -257,6 +257,63 @@ defmodule AshPostgres.Aggregate do
     )
   end
 
+  @doc false
+  def extract_shared_filters(aggregates) do
+    aggregates
+    |> Enum.reduce_while({nil, []}, fn
+      %{query: %{filter: filter}} = agg, {global_filters, aggs} when not is_nil(filter) ->
+        and_statements =
+          AshPostgres.DataLayer.split_and_statements(filter)
+
+        global_filters =
+          if global_filters do
+            Enum.filter(global_filters, &(&1 in and_statements))
+          else
+            and_statements
+          end
+
+        {:cont, {global_filters, [{agg, and_statements} | aggs]}}
+
+      _, _ ->
+        {:halt, {:error, aggregates}}
+    end)
+    |> case do
+      {:error, aggregates} ->
+        {:error, aggregates}
+
+      {[], _} ->
+        {:error, aggregates}
+
+      {nil, _} ->
+        {:error, aggregates}
+
+      {global_filters, aggregates} ->
+        global_filter = and_filters(Enum.uniq(global_filters))
+
+        aggregates =
+          Enum.map(aggregates, fn {agg, and_statements} ->
+            applicable_and_statements =
+              and_statements
+              |> Enum.reject(&(&1 in global_filters))
+              |> and_filters()
+
+            %{agg | query: %{agg.query | filter: applicable_and_statements}}
+          end)
+
+        {{:ok, global_filter}, aggregates}
+    end
+  end
+
+  defp and_filters(filters) do
+    Enum.reduce(filters, nil, fn expr, acc ->
+      if is_nil(acc) do
+        expr
+      else
+        Ash.Query.BooleanExpression.new(:and, expr, acc)
+      end
+    end)
+  end
+
   defp apply_first_relationship_join_filters(
          agg_root_query,
          query,
@@ -760,7 +817,7 @@ defmodule AshPostgres.Aggregate do
 
   def can_group?(resource, aggregate) do
     can_group_kind?(aggregate, resource) && !has_exists?(aggregate) &&
-      !references_relationships?(aggregate)
+      !references_to_many_relationships?(aggregate)
   end
 
   # We can potentially optimize this. We don't have to prevent aggregates that reference
@@ -768,7 +825,7 @@ defmodule AshPostgres.Aggregate do
   # 1. group up the ones that do join relationships by the relationships they join
   # 2. potentially group them all up that join to relationships and just join to all the relationships
   # but this method is predictable and easy so we're starting by just not grouping them
-  defp references_relationships?(aggregate) do
+  defp references_to_many_relationships?(aggregate) do
     if aggregate.query do
       aggregate.query.filter
       |> Ash.Filter.relationship_paths()

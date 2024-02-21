@@ -1173,6 +1173,25 @@ defmodule AshPostgres.AggregateTest do
                ])
     end
 
+    test "multiple aggregates will be grouped up if possible" do
+      assert {:ok, %{count: 0, count2: 0}} =
+               Post
+               |> Api.aggregate([
+                 {:count, :count,
+                  query: [
+                    filter:
+                      Ash.Expr.expr(author.first_name == "fred" and author.last_name == "weasley")
+                  ]},
+                 {:count2, :count,
+                  query: [
+                    filter:
+                      Ash.Expr.expr(
+                        author.first_name == "george" and author.last_name == "weasley"
+                      )
+                  ]}
+               ])
+    end
+
     test "a count with a filter that references a relationship combined with another" do
       post =
         Post

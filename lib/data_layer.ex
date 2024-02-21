@@ -783,35 +783,53 @@ defmodule AshPostgres.DataLayer do
 
     query_before_select = query
 
+    {global_filter, can_group} =
+      AshPostgres.Aggregate.extract_shared_filters(can_group)
+
     query =
-      Enum.reduce(
-        can_group,
-        query,
-        fn agg, query ->
-          first_relationship =
-            Ash.Resource.Info.relationship(resource, agg.relationship_path |> Enum.at(0))
+      case global_filter do
+        {:ok, global_filter} ->
+          filter(query, global_filter, resource)
 
-          AshPostgres.Aggregate.add_subquery_aggregate_select(
-            query,
-            agg.relationship_path |> Enum.drop(1),
-            agg,
-            resource,
-            false,
-            first_relationship
-          )
-        end
-      )
-
-    result =
-      case can_group do
-        [] ->
-          %{}
-
-        _ ->
-          dynamic_repo(resource, query).one(query, repo_opts(nil, nil, resource))
+        :error ->
+          {:ok, query}
       end
 
-    {:ok, add_single_aggs(result, resource, query_before_select, cant_group)}
+    case query do
+      {:error, error} ->
+        {:error, error}
+
+      {:ok, query} ->
+        query =
+          Enum.reduce(
+            can_group,
+            query,
+            fn agg, query ->
+              first_relationship =
+                Ash.Resource.Info.relationship(resource, agg.relationship_path |> Enum.at(0))
+
+              AshPostgres.Aggregate.add_subquery_aggregate_select(
+                query,
+                agg.relationship_path |> Enum.drop(1),
+                agg,
+                resource,
+                false,
+                first_relationship
+              )
+            end
+          )
+
+        result =
+          case can_group do
+            [] ->
+              %{}
+
+            _ ->
+              dynamic_repo(resource, query).one(query, repo_opts(nil, nil, resource))
+          end
+
+        {:ok, add_single_aggs(result, resource, query_before_select, cant_group)}
+    end
   end
 
   defp add_single_aggs(result, resource, query, cant_group) do
@@ -927,47 +945,65 @@ defmodule AshPostgres.DataLayer do
         subquery = from(row in subquery(lateral_join_query), as: ^0, select: %{})
         subquery = default_bindings(subquery, source_resource)
 
-        query =
-          Enum.reduce(
-            can_group,
-            subquery,
-            fn agg, subquery ->
-              has_exists? =
-                Ash.Filter.find(agg.query && agg.query.filter, fn
-                  %Ash.Query.Exists{} -> true
-                  _ -> false
-                end)
+        {global_filter, can_group} =
+          AshPostgres.Aggregate.extract_shared_filters(can_group)
 
-              first_relationship =
-                Ash.Resource.Info.relationship(
-                  source_resource,
-                  agg.relationship_path |> Enum.at(0)
-                )
+        subquery =
+          case global_filter do
+            {:ok, global_filter} ->
+              filter(subquery, global_filter, destination_resource)
 
-              AshPostgres.Aggregate.add_subquery_aggregate_select(
-                subquery,
-                agg.relationship_path |> Enum.drop(1),
-                agg,
-                destination_resource,
-                has_exists?,
-                first_relationship
-              )
-            end
-          )
-
-        result =
-          case can_group do
-            [] ->
-              %{}
-
-            _ ->
-              dynamic_repo(source_resource, query).one(
-                query,
-                repo_opts(nil, nil, source_resource)
-              )
+            :error ->
+              {:ok, subquery}
           end
 
-        {:ok, add_single_aggs(result, source_resource, subquery, cant_group)}
+        case subquery do
+          {:error, error} ->
+            {:error, error}
+
+          {:ok, subquery} ->
+            query =
+              Enum.reduce(
+                can_group,
+                subquery,
+                fn agg, subquery ->
+                  has_exists? =
+                    Ash.Filter.find(agg.query && agg.query.filter, fn
+                      %Ash.Query.Exists{} -> true
+                      _ -> false
+                    end)
+
+                  first_relationship =
+                    Ash.Resource.Info.relationship(
+                      source_resource,
+                      agg.relationship_path |> Enum.at(0)
+                    )
+
+                  AshPostgres.Aggregate.add_subquery_aggregate_select(
+                    subquery,
+                    agg.relationship_path |> Enum.drop(1),
+                    agg,
+                    destination_resource,
+                    has_exists?,
+                    first_relationship
+                  )
+                end
+              )
+
+            result =
+              case can_group do
+                [] ->
+                  %{}
+
+                _ ->
+                  dynamic_repo(source_resource, query).one(
+                    query,
+                    repo_opts(nil, nil, source_resource)
+                  )
+              end
+
+            {:ok, add_single_aggs(result, source_resource, subquery, cant_group)}
+        end
 
       {:error, error} ->
         {:error, error}
@@ -3103,21 +3139,22 @@ defmodule AshPostgres.DataLayer do
     end)
   end
 
-  defp split_and_statements(%Filter{expression: expression}) do
+  @doc false
+  def split_and_statements(%Filter{expression: expression}) do
     split_and_statements(expression)
   end
 
-  defp split_and_statements(%BooleanExpression{op: :and, left: left, right: right}) do
+  def split_and_statements(%BooleanExpression{op: :and, left: left, right: right}) do
     split_and_statements(left) ++ split_and_statements(right)
   end
 
-  defp split_and_statements(%Not{expression: %Not{expression: expression}}) do
+  def split_and_statements(%Not{expression: %Not{expression: expression}}) do
     split_and_statements(expression)
   end
 
-  defp split_and_statements(%Not{
-         expression: %BooleanExpression{op: :or, left: left, right: right}
-       }) do
+  def split_and_statements(%Not{
+        expression: %BooleanExpression{op: :or, left: left, right: right}
+      }) do
     split_and_statements(%BooleanExpression{
       op: :and,
       left: %Not{expression: left},
@@ -3125,7 +3162,7 @@ defmodule AshPostgres.DataLayer do
     })
   end
 
-  defp split_and_statements(other), do: [other]
+  def split_and_statements(other), do: [other]
 
   @doc false
   def add_binding(query, data, additional_bindings \\ 0) do
