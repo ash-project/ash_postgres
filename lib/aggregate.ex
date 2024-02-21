@@ -791,7 +791,7 @@ defmodule AshPostgres.Aggregate do
         """
 
       rel ->
-        to_many_path?(rel.destination, [rest])
+        to_many_path?(rel.destination, rest)
     end
   end
 

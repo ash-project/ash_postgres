@@ -1167,12 +1167,8 @@ defmodule AshPostgres.AggregateTest do
     test "a count can filter independently of the query" do
       Post
       |> Api.aggregate([
-        Ash.Query.Aggregate.new!(Post, :count, :count,
-          query: [filter: Ash.Expr.expr(comments.likes > 10)]
-        ),
-        Ash.Query.Aggregate.new!(Post, :count2, :count,
-          query: [filter: Ash.Expr.expr(comments.likes < 10)]
-        )
+        {:count, :count, query: [filter: Ash.Expr.expr(comments.likes > 10)]},
+        {:count2, :count, query: [filter: Ash.Expr.expr(comments.likes < 10)]}
       ])
     end
 
