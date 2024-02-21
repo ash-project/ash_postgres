@@ -815,61 +815,80 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp add_single_aggs(result, resource, query, cant_group) do
-    Enum.reduce(cant_group, result, fn agg, result ->
-      {:ok, filtered} =
-        case agg do
-          %{query: %{filter: filter}} when not is_nil(filter) ->
-            filter(query, filter, resource)
+    Enum.reduce(cant_group, result, fn
+      %{kind: :exists} = agg, result ->
+        {:ok, filtered} =
+          case agg do
+            %{query: %{filter: filter}} when not is_nil(filter) ->
+              filter(query, filter, resource)
 
-          _ ->
-            {:ok, query}
-        end
+            _ ->
+              {:ok, query}
+          end
 
-      filtered =
-        if filtered.distinct do
-          in_query = filtered |> Ecto.Query.exclude(:distinct) |> Ecto.Query.exclude(:select)
+        filtered = Ecto.Query.exclude(filtered, :distinct)
 
-          dynamic =
-            Enum.reduce(Ash.Resource.Info.primary_key(resource), nil, fn key, dynamic ->
-              if dynamic do
-                Ecto.Query.dynamic(
-                  [row],
-                  ^dynamic and field(parent_as(^0), ^key) == field(row, ^key)
-                )
-              else
-                Ecto.Query.dynamic(
-                  [row],
-                  field(parent_as(^0), ^key) == field(row, ^key)
-                )
-              end
-            end)
-
-          in_query =
-            from(row in in_query, where: ^dynamic)
-
-          from(row in query.from.source, as: ^0, where: exists(in_query))
-        else
-          filtered
-        end
-
-      first_relationship =
-        Ash.Resource.Info.relationship(resource, agg.relationship_path |> Enum.at(0))
-
-      query =
-        AshPostgres.Aggregate.add_subquery_aggregate_select(
-          filtered,
-          agg.relationship_path |> Enum.drop(1),
-          %{agg | query: %{agg.query | filter: nil}},
-          resource,
-          true,
-          first_relationship
+        Map.put(
+          result || %{},
+          agg.name,
+          dynamic_repo(resource, filtered).exists?(filtered, repo_opts(nil, nil, resource))
         )
 
-      Map.put(
-        result || %{},
-        agg.name,
-        dynamic_repo(resource, query).one(query, repo_opts(nil, nil, resource))
-      )
+      agg, result ->
+        {:ok, filtered} =
+          case agg do
+            %{query: %{filter: filter}} when not is_nil(filter) ->
+              filter(query, filter, resource)
+
+            _ ->
+              {:ok, query}
+          end
+
+        filtered =
+          if filtered.distinct do
+            in_query = filtered |> Ecto.Query.exclude(:distinct) |> Ecto.Query.exclude(:select)
+
+            dynamic =
+              Enum.reduce(Ash.Resource.Info.primary_key(resource), nil, fn key, dynamic ->
+                if dynamic do
+                  Ecto.Query.dynamic(
+                    [row],
+                    ^dynamic and field(parent_as(^0), ^key) == field(row, ^key)
+                  )
+                else
+                  Ecto.Query.dynamic(
+                    [row],
+                    field(parent_as(^0), ^key) == field(row, ^key)
+                  )
+                end
+              end)
+
+            in_query =
+              from(row in in_query, where: ^dynamic)
+
+            from(row in query.from.source, as: ^0, where: exists(in_query))
+          else
+            filtered
+          end
+
+        first_relationship =
+          Ash.Resource.Info.relationship(resource, agg.relationship_path |> Enum.at(0))
+
+        query =
+          AshPostgres.Aggregate.add_subquery_aggregate_select(
+            filtered,
+            agg.relationship_path |> Enum.drop(1),
+            %{agg | query: %{agg.query | filter: nil}},
+            resource,
+            true,
+            first_relationship
+          )
+
+        Map.put(
+          result || %{},
+          agg.name,
+          dynamic_repo(resource, query).one(query, repo_opts(nil, nil, resource))
+        )
     end)
   end
 
@@ -1521,7 +1540,7 @@ defmodule AshPostgres.DataLayer do
             on: ^on
           )
         else
-          query
+          Ecto.Query.exclude(query, :select)
         end
 
       {_, results} =
