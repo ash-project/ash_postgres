@@ -5,6 +5,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.6](https://github.com/ash-project/ash_postgres/compare/v1.5.5...v1.5.6) (2024-02-21)
+
+
+
+
+### Bug Fixes:
+
+* ensure select is properly set on delete_all
+
+### Improvements:
+
+* optimize aggregate query filtering
+
 ## [v1.5.5](https://github.com/ash-project/ash_postgres/compare/v1.5.4...v1.5.5) (2024-02-21)
 
 
