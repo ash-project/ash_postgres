@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.7](https://github.com/ash-project/ash_postgres/compare/v1.5.6...v1.5.7) (2024-02-22)
+
+
+
+
+### Bug Fixes:
+
+* properly apply lateral join conditions to left lateral joins
+
 ## [v1.5.6](https://github.com/ash-project/ash_postgres/compare/v1.5.5...v1.5.6) (2024-02-21)
 
 
