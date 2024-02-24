@@ -753,8 +753,9 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def run_aggregate_query(original_query, aggregates, resource) do
-    original_query = default_bindings(original_query, resource)
+  def run_aggregate_query(query, aggregates, resource) do
+    query = default_bindings(query, resource)
+    original_query = query
 
     {can_group, cant_group} =
       aggregates
@@ -764,70 +765,52 @@ defmodule AshPostgres.DataLayer do
         {can_group, cant_group} -> {can_group, cant_group}
       end
 
-    {global_filter, can_group} =
-      AshPostgres.Aggregate.extract_shared_filters(can_group)
-
     query =
-      case global_filter do
-        {:ok, global_filter} ->
-          filter(original_query, global_filter, resource)
+      if query.distinct || query.limit do
+        query =
+          query
+          |> Ecto.Query.exclude(:select)
+          |> Ecto.Query.exclude(:order_by)
+          |> Map.put(:windows, [])
 
-        :error ->
-          {:ok, original_query}
+        from(row in subquery(query), as: ^0, select: %{})
+      else
+        query
+        |> Ecto.Query.exclude(:select)
+        |> Ecto.Query.exclude(:order_by)
+        |> Map.put(:windows, [])
+        |> Ecto.Query.select(%{})
       end
 
-    case query do
-      {:error, error} ->
-        {:error, error}
+    query =
+      Enum.reduce(
+        can_group,
+        query,
+        fn agg, query ->
+          first_relationship =
+            Ash.Resource.Info.relationship(resource, agg.relationship_path |> Enum.at(0))
 
-      {:ok, query} ->
-        query =
-          if query.distinct || query.limit do
-            query =
-              query
-              |> Ecto.Query.exclude(:select)
-              |> Ecto.Query.exclude(:order_by)
-              |> Map.put(:windows, [])
-
-            from(row in subquery(query), as: ^0, select: %{})
-          else
-            query
-            |> Ecto.Query.exclude(:select)
-            |> Ecto.Query.exclude(:order_by)
-            |> Map.put(:windows, [])
-            |> Ecto.Query.select(%{})
-          end
-
-        query =
-          Enum.reduce(
-            can_group,
+          AshPostgres.Aggregate.add_subquery_aggregate_select(
             query,
-            fn agg, query ->
-              first_relationship =
-                Ash.Resource.Info.relationship(resource, agg.relationship_path |> Enum.at(0))
-
-              AshPostgres.Aggregate.add_subquery_aggregate_select(
-                query,
-                agg.relationship_path |> Enum.drop(1),
-                agg,
-                resource,
-                false,
-                first_relationship
-              )
-            end
+            agg.relationship_path |> Enum.drop(1),
+            agg,
+            resource,
+            false,
+            first_relationship
           )
+        end
+      )
 
-        result =
-          case can_group do
-            [] ->
-              %{}
+    result =
+      case can_group do
+        [] ->
+          %{}
 
-            _ ->
-              dynamic_repo(resource, query).one(query, repo_opts(nil, nil, resource))
-          end
+        _ ->
+          dynamic_repo(resource, query).one(query, repo_opts(nil, nil, resource))
+      end
 
-        {:ok, add_single_aggs(result, resource, original_query, cant_group)}
-    end
+    {:ok, add_single_aggs(result, resource, original_query, cant_group)}
   end
 
   defp add_single_aggs(result, resource, query, cant_group) do
@@ -960,67 +943,49 @@ defmodule AshPostgres.DataLayer do
         subquery = from(row in subquery(lateral_join_query), as: ^0, select: %{})
         subquery = default_bindings(subquery, source_resource)
 
-        {global_filter, can_group} =
-          AshPostgres.Aggregate.extract_shared_filters(can_group)
-
         original_subquery = subquery
 
-        subquery =
-          case global_filter do
-            {:ok, global_filter} ->
-              filter(subquery, global_filter, destination_resource)
+        query =
+          Enum.reduce(
+            can_group,
+            subquery,
+            fn agg, subquery ->
+              has_exists? =
+                Ash.Filter.find(agg.query && agg.query.filter, fn
+                  %Ash.Query.Exists{} -> true
+                  _ -> false
+                end)
 
-            :error ->
-              {:ok, subquery}
+              first_relationship =
+                Ash.Resource.Info.relationship(
+                  source_resource,
+                  agg.relationship_path |> Enum.at(0)
+                )
+
+              AshPostgres.Aggregate.add_subquery_aggregate_select(
+                subquery,
+                agg.relationship_path |> Enum.drop(1),
+                agg,
+                destination_resource,
+                has_exists?,
+                first_relationship
+              )
+            end
+          )
+
+        result =
+          case can_group do
+            [] ->
+              %{}
+
+            _ ->
+              dynamic_repo(source_resource, query).one(
+                query,
+                repo_opts(nil, nil, source_resource)
+              )
           end
 
-        case subquery do
-          {:error, error} ->
-            {:error, error}
-
-          {:ok, subquery} ->
-            query =
-              Enum.reduce(
-                can_group,
-                subquery,
-                fn agg, subquery ->
-                  has_exists? =
-                    Ash.Filter.find(agg.query && agg.query.filter, fn
-                      %Ash.Query.Exists{} -> true
-                      _ -> false
-                    end)
-
-                  first_relationship =
-                    Ash.Resource.Info.relationship(
-                      source_resource,
-                      agg.relationship_path |> Enum.at(0)
-                    )
-
-                  AshPostgres.Aggregate.add_subquery_aggregate_select(
-                    subquery,
-                    agg.relationship_path |> Enum.drop(1),
-                    agg,
-                    destination_resource,
-                    has_exists?,
-                    first_relationship
-                  )
-                end
-              )
-
-            result =
-              case can_group do
-                [] ->
-                  %{}
-
-                _ ->
-                  dynamic_repo(source_resource, query).one(
-                    query,
-                    repo_opts(nil, nil, source_resource)
-                  )
-              end
-
-            {:ok, add_single_aggs(result, source_resource, original_subquery, cant_group)}
-        end
+        {:ok, add_single_aggs(result, source_resource, original_subquery, cant_group)}
 
       {:error, error} ->
         {:error, error}
