@@ -2641,7 +2641,11 @@ defmodule AshPostgres.DataLayer do
       Enum.reduce_while(atomics, {:ok, query, []}, fn {field, expr}, {:ok, query, set} ->
         attribute = Ash.Resource.Info.attribute(resource, field)
 
-        type = AshPostgres.Types.parameterized_type(attribute.type, attribute.constraints)
+        type =
+          AshPostgres.Types.parameterized_type(
+            attribute.type,
+            attribute.constraints
+          )
 
         case AshPostgres.Expr.dynamic_expr(
                query,

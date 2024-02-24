@@ -3,16 +3,18 @@ defmodule AshPostgres.Types do
 
   alias Ash.Query.Ref
 
-  def parameterized_type({:parameterized, _, _} = type, _) do
+  def parameterized_type(type, constraints, no_maps? \\ true)
+
+  def parameterized_type({:parameterized, _, _} = type, _, _) do
     type
   end
 
-  def parameterized_type({:in, type}, constraints) do
-    parameterized_type({:array, type}, constraints)
+  def parameterized_type({:in, type}, constraints, no_maps?) do
+    parameterized_type({:array, type}, constraints, no_maps?)
   end
 
-  def parameterized_type({:array, type}, constraints) do
-    case parameterized_type(type, constraints[:items] || []) do
+  def parameterized_type({:array, type}, constraints, _) do
+    case parameterized_type(type, constraints[:items] || [], false) do
       nil ->
         nil
 
@@ -21,22 +23,27 @@ defmodule AshPostgres.Types do
     end
   end
 
-  def parameterized_type(Ash.Type.CiString, constraints) do
-    parameterized_type(Ash.Type.CiStringWrapper, constraints)
+  def parameterized_type(Ash.Type.CiString, constraints, no_maps?) do
+    parameterized_type(Ash.Type.CiStringWrapper, constraints, no_maps?)
   end
 
-  def parameterized_type(Ash.Type.String.EctoType, constraints) do
-    parameterized_type(Ash.Type.StringWrapper, constraints)
+  def parameterized_type(Ash.Type.String.EctoType, constraints, no_maps?) do
+    parameterized_type(Ash.Type.StringWrapper, constraints, no_maps?)
   end
 
-  def parameterized_type(:tsquery, constraints) do
-    parameterized_type(AshPostgres.Tsquery, constraints)
+  def parameterized_type(:tsquery, constraints, no_maps?) do
+    parameterized_type(AshPostgres.Tsquery, constraints, no_maps?)
   end
 
-  def parameterized_type(type, _constraints) when type in [Ash.Type.Map, Ash.Type.Map.EctoType],
-    do: nil
+  def parameterized_type(type, _constraints, false)
+      when type in [Ash.Type.Map, Ash.Type.Map.EctoType],
+      do: :map
 
-  def parameterized_type(type, constraints) do
+  def parameterized_type(type, _constraints, true)
+      when type in [Ash.Type.Map, Ash.Type.Map.EctoType],
+      do: nil
+
+  def parameterized_type(type, constraints, no_maps?) do
     if Ash.Type.ash_type?(type) do
       cast_in_query? =
         if function_exported?(Ash.Type, :cast_in_query?, 2) do
@@ -55,7 +62,7 @@ defmodule AshPostgres.Types do
             type
           end
 
-        parameterized_type(type, constraints)
+        parameterized_type(type, constraints, no_maps?)
       else
         nil
       end

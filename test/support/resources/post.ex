@@ -136,6 +136,7 @@ defmodule AshPostgres.Test.Post do
     attribute(:point, AshPostgres.Test.Point)
     attribute(:composite_point, AshPostgres.Test.CompositePoint)
     attribute(:stuff, :map)
+    attribute(:list_of_stuff, {:array, :map})
     attribute(:uniq_one, :string)
     attribute(:uniq_two, :string)
     attribute(:uniq_custom_one, :string)

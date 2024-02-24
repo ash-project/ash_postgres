@@ -740,15 +740,8 @@ defmodule AshPostgres.Expr do
           {dynamic, acc} =
             do_dynamic_expr(query, expr, bindings, pred_embedded? || embedded?, acc)
 
-          type =
-            if is_binary(expr) do
-              :string
-            else
-              :any
-            end
-
           {item, params, count} =
-            {{:^, [], [count]}, [{dynamic, type} | params], count + 1}
+            {{:^, [], [count]}, [{dynamic, :any} | params], count + 1}
 
           {params, [{:expr, item} | fragment_data], count, acc}
       end)
@@ -1237,7 +1230,14 @@ defmodule AshPostgres.Expr do
 
     if type do
       {expr, acc} = do_dynamic_expr(query, arg1, bindings, embedded?, acc, type)
-      {Ecto.Query.dynamic(type(^expr, ^type)), acc}
+
+      case {type, expr} do
+        {{:parameterized, Ash.Type.Map.EctoType, []}, %Ecto.Query.DynamicExpr{}} ->
+          {expr, acc}
+
+        _ ->
+          {Ecto.Query.dynamic(type(^expr, ^type)), acc}
+      end
     else
       do_dynamic_expr(query, arg1, bindings, embedded?, acc, type)
     end
@@ -1959,45 +1959,82 @@ defmodule AshPostgres.Expr do
   end
 
   defp list_expr(query, value, bindings, embedded?, acc, type) do
-    type =
-      case type do
-        {:array, type} -> type
-        {:in, type} -> type
-        _ -> nil
-      end
-
-    {params, exprs, _, acc} =
-      Enum.reduce(value, {[], [], 0, acc}, fn value, {params, data, count, acc} ->
-        case do_dynamic_expr(query, value, bindings, embedded?, acc, type) do
-          {%Ecto.Query.DynamicExpr{} = dynamic, acc} ->
-            result =
-              Ecto.Query.Builder.Dynamic.partially_expand(
-                :select,
-                query,
-                dynamic,
-                params,
-                count
-              )
-
-            expr = elem(result, 0)
-            new_params = elem(result, 1)
-            new_count = result |> Tuple.to_list() |> List.last()
-
-            {new_params, [expr | data], new_count, acc}
-
-          {other, acc} ->
-            {params, [other | data], count, acc}
+    if !Enum.empty?(value) &&
+         Enum.any?(value, fn value ->
+           Ash.Filter.TemplateHelpers.expr?(value) || is_map(value) || is_list(value)
+         end) do
+      type =
+        case type do
+          {:array, type} -> type
+          {:in, type} -> type
+          _ -> nil
         end
-      end)
 
-    {%Ecto.Query.DynamicExpr{
-       fun: fn _query ->
-         {Enum.reverse(exprs), Enum.reverse(params), [], []}
-       end,
-       binding: [],
-       file: __ENV__.file,
-       line: __ENV__.line
-     }, acc}
+      elements =
+        Enum.map(value, fn list_item ->
+          if type do
+            {:expr, %Ash.Query.Function.Type{arguments: [list_item, type, []]}}
+          else
+            {:expr, list_item}
+          end
+        end)
+        |> Enum.intersperse({:raw, ","})
+
+      do_dynamic_expr(
+        query,
+        %Fragment{
+          embedded?: embedded?,
+          arguments:
+            [
+              raw: "ARRAY["
+            ] ++ elements ++ [raw: "]"]
+        },
+        bindings,
+        embedded?,
+        acc,
+        type
+      )
+    else
+      type =
+        case type do
+          {:array, type} -> type
+          {:in, type} -> type
+          _ -> nil
+        end
+
+      {params, exprs, _, acc} =
+        Enum.reduce(value, {[], [], 0, acc}, fn value, {params, data, count, acc} ->
+          case do_dynamic_expr(query, value, bindings, embedded?, acc, type) do
+            {%Ecto.Query.DynamicExpr{} = dynamic, acc} ->
+              result =
+                Ecto.Query.Builder.Dynamic.partially_expand(
+                  :select,
+                  query,
+                  dynamic,
+                  params,
+                  count
+                )
+
+              expr = elem(result, 0)
+              new_params = elem(result, 1)
+              new_count = result |> Tuple.to_list() |> List.last()
+
+              {new_params, [expr | data], new_count, acc}
+
+            {other, acc} ->
+              {params, [other | data], count, acc}
+          end
+        end)
+
+      {%Ecto.Query.DynamicExpr{
+         fun: fn _query ->
+           {Enum.reverse(exprs), Enum.reverse(params), [], []}
+         end,
+         binding: [],
+         file: __ENV__.file,
+         line: __ENV__.line
+       }, acc}
+    end
   end
 
   defp maybe_uuid_to_binary({:array, type}, value, _original_value) when is_list(value) do

@@ -20,6 +20,20 @@ defmodule AshPostgres.BulkUpdateTest do
     assert Enum.all?(posts, &String.ends_with?(&1.title, "_stuff"))
   end
 
+  test "a map can be given as input" do
+    Api.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
+
+    Post
+    |> Api.bulk_update!(
+      :update,
+      %{list_of_stuff: [%{a: 1}]},
+      return_records?: true,
+      strategy: [:atomic]
+    )
+    |> Map.get(:records)
+    |> Enum.map(& &1.list_of_stuff)
+  end
+
   test "bulk updates only apply to things that the query produces" do
     Api.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
 
