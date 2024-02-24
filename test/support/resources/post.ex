@@ -75,6 +75,10 @@ defmodule AshPostgres.Test.Post do
   actions do
     defaults([:update, :destroy])
 
+    read :title_is_foo do
+      filter(expr(title == "foo"))
+    end
+
     read :read do
       primary?(true)
     end

@@ -1164,6 +1164,22 @@ defmodule AshPostgres.AggregateTest do
       |> Api.count!()
     end
 
+    test "a count with a limit and a filter can be aggregated at the query level" do
+      Post
+      |> Ash.Changeset.new(%{title: "foo"})
+      |> Api.create!()
+
+      Post
+      |> Ash.Changeset.new(%{title: "bar"})
+      |> Api.create!()
+
+      assert 1 ==
+               Post
+               |> Ash.Query.for_read(:title_is_foo)
+               |> Ash.Query.limit(1)
+               |> Api.count!()
+    end
+
     test "a count can filter independently of the query" do
       assert {:ok, %{count: 0, count2: 0}} =
                Post
