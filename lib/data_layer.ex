@@ -753,7 +753,9 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def run_aggregate_query(query, aggregates, resource) do
+  def run_aggregate_query(original_query, aggregates, resource) do
+    original_query = default_bindings(original_query, resource)
+
     {can_group, cant_group} =
       aggregates
       |> Enum.split_with(&AshPostgres.Aggregate.can_group?(resource, &1))
@@ -762,37 +764,16 @@ defmodule AshPostgres.DataLayer do
         {can_group, cant_group} -> {can_group, cant_group}
       end
 
-    query = default_bindings(query, resource)
-
-    query =
-      if query.distinct || query.limit do
-        query =
-          query
-          |> Ecto.Query.exclude(:select)
-          |> Ecto.Query.exclude(:order_by)
-          |> Map.put(:windows, [])
-
-        from(row in subquery(query), as: ^0, select: %{})
-      else
-        query
-        |> Ecto.Query.exclude(:select)
-        |> Ecto.Query.exclude(:order_by)
-        |> Map.put(:windows, [])
-        |> Ecto.Query.select(%{})
-      end
-
-    query_before_select = query
-
     {global_filter, can_group} =
       AshPostgres.Aggregate.extract_shared_filters(can_group)
 
     query =
       case global_filter do
         {:ok, global_filter} ->
-          filter(query, global_filter, resource)
+          filter(original_query, global_filter, resource)
 
         :error ->
-          {:ok, query}
+          {:ok, original_query}
       end
 
     case query do
@@ -800,6 +781,23 @@ defmodule AshPostgres.DataLayer do
         {:error, error}
 
       {:ok, query} ->
+        query =
+          if query.distinct || query.limit do
+            query =
+              query
+              |> Ecto.Query.exclude(:select)
+              |> Ecto.Query.exclude(:order_by)
+              |> Map.put(:windows, [])
+
+            from(row in subquery(query), as: ^0, select: %{})
+          else
+            query
+            |> Ecto.Query.exclude(:select)
+            |> Ecto.Query.exclude(:order_by)
+            |> Map.put(:windows, [])
+            |> Ecto.Query.select(%{})
+          end
+
         query =
           Enum.reduce(
             can_group,
@@ -828,11 +826,28 @@ defmodule AshPostgres.DataLayer do
               dynamic_repo(resource, query).one(query, repo_opts(nil, nil, resource))
           end
 
-        {:ok, add_single_aggs(result, resource, query_before_select, cant_group)}
+        {:ok, add_single_aggs(result, resource, original_query, cant_group)}
     end
   end
 
   defp add_single_aggs(result, resource, query, cant_group) do
+    query =
+      if query.distinct || query.limit do
+        query =
+          query
+          |> Ecto.Query.exclude(:select)
+          |> Ecto.Query.exclude(:order_by)
+          |> Map.put(:windows, [])
+
+        from(row in subquery(query), as: ^0, select: %{})
+      else
+        query
+        |> Ecto.Query.exclude(:select)
+        |> Ecto.Query.exclude(:order_by)
+        |> Map.put(:windows, [])
+        |> Ecto.Query.select(%{})
+      end
+
     Enum.reduce(cant_group, result, fn
       %{kind: :exists} = agg, result ->
         {:ok, filtered} =
@@ -948,6 +963,8 @@ defmodule AshPostgres.DataLayer do
         {global_filter, can_group} =
           AshPostgres.Aggregate.extract_shared_filters(can_group)
 
+        original_subquery = subquery
+
         subquery =
           case global_filter do
             {:ok, global_filter} ->
@@ -1002,7 +1019,7 @@ defmodule AshPostgres.DataLayer do
                   )
               end
 
-            {:ok, add_single_aggs(result, source_resource, subquery, cant_group)}
+            {:ok, add_single_aggs(result, source_resource, original_subquery, cant_group)}
         end
 
       {:error, error} ->
