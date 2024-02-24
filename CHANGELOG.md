@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.8](https://github.com/ash-project/ash_postgres/compare/v1.5.7...v1.5.8) (2024-02-24)
+
+
+
+
+### Bug Fixes:
+
+* properly handle complex types in lists
+
 ## [v1.5.7](https://github.com/ash-project/ash_postgres/compare/v1.5.6...v1.5.7) (2024-02-22)
 
 
