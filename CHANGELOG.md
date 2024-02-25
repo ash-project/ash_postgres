@@ -14,8 +14,6 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 * handle more subquery filter cases for aggregates
 
-* remove buggy global filter extraction
-
 * only apply filters inside aggregate subquery
 
 ### Improvements:
