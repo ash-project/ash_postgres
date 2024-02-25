@@ -5,6 +5,23 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.9](https://github.com/ash-project/ash_postgres/compare/v1.5.8...v1.5.9) (2024-02-25)
+
+
+
+
+### Bug Fixes:
+
+* handle more subquery filter cases for aggregates
+
+* remove buggy global filter extraction
+
+* only apply filters inside aggregate subquery
+
+### Improvements:
+
+* add test for aggregates
+
 ## [v1.5.8](https://github.com/ash-project/ash_postgres/compare/v1.5.7...v1.5.8) (2024-02-24)
 
 
