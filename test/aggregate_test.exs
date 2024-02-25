@@ -1170,10 +1170,10 @@ defmodule AshPostgres.AggregateTest do
       |> Api.create!()
 
       Post
-      |> Ash.Changeset.new(%{title: "bar"})
+      |> Ash.Changeset.new(%{title: "foo"})
       |> Api.create!()
 
-      assert 1 ==
+      assert 1 =
                Post
                |> Ash.Query.for_read(:title_is_foo)
                |> Ash.Query.limit(1)

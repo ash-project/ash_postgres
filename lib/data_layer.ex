@@ -831,23 +831,6 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp add_single_aggs(result, resource, query, cant_group) do
-    query =
-      if query.distinct || query.limit do
-        query =
-          query
-          |> Ecto.Query.exclude(:select)
-          |> Ecto.Query.exclude(:order_by)
-          |> Map.put(:windows, [])
-
-        from(row in subquery(query), as: ^0, select: %{})
-      else
-        query
-        |> Ecto.Query.exclude(:select)
-        |> Ecto.Query.exclude(:order_by)
-        |> Map.put(:windows, [])
-        |> Ecto.Query.select(%{})
-      end
-
     Enum.reduce(cant_group, result, fn
       %{kind: :exists} = agg, result ->
         {:ok, filtered} =
@@ -859,7 +842,22 @@ defmodule AshPostgres.DataLayer do
               {:ok, query}
           end
 
-        filtered = Ecto.Query.exclude(filtered, :distinct)
+        filtered =
+          if filtered.distinct || filtered.limit do
+            filtered =
+              filtered
+              |> Ecto.Query.exclude(:select)
+              |> Ecto.Query.exclude(:order_by)
+              |> Map.put(:windows, [])
+
+            from(row in subquery(filtered), as: ^0, select: %{})
+          else
+            filtered
+            |> Ecto.Query.exclude(:select)
+            |> Ecto.Query.exclude(:order_by)
+            |> Map.put(:windows, [])
+            |> Ecto.Query.select(%{})
+          end
 
         Map.put(
           result || %{},
@@ -902,6 +900,23 @@ defmodule AshPostgres.DataLayer do
             from(row in query.from.source, as: ^0, where: exists(in_query))
           else
             filtered
+          end
+
+        filtered =
+          if filtered.limit do
+            filtered =
+              filtered
+              |> Ecto.Query.exclude(:select)
+              |> Ecto.Query.exclude(:order_by)
+              |> Map.put(:windows, [])
+
+            from(row in subquery(filtered), as: ^0, select: %{})
+          else
+            filtered
+            |> Ecto.Query.exclude(:select)
+            |> Ecto.Query.exclude(:order_by)
+            |> Map.put(:windows, [])
+            |> Ecto.Query.select(%{})
           end
 
         first_relationship =
