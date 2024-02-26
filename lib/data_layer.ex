@@ -1406,15 +1406,6 @@ defmodule AshPostgres.DataLayer do
 
       {:ok, query} ->
         try do
-          query =
-            if options[:return_records?] do
-              attrs = resource |> Ash.Resource.Info.attributes() |> Enum.map(& &1.name)
-
-              Ecto.Query.select(query, ^attrs)
-            else
-              query
-            end
-
           repo = dynamic_repo(resource, changeset)
           repo_opts = repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
 
@@ -1438,6 +1429,15 @@ defmodule AshPostgres.DataLayer do
               end
 
             {:ok, query} ->
+              query =
+                if options[:return_records?] do
+                  query
+                  |> Ecto.Query.exclude(:select)
+                  |> Ecto.Query.select([row], row)
+                else
+                  Ecto.Query.exclude(query, :select)
+                end
+
               {_, results} =
                 with_savepoint(repo, query, fn ->
                   repo.update_all(
@@ -1578,9 +1578,6 @@ defmodule AshPostgres.DataLayer do
 
       repo_opts = repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
 
-      repo_opts =
-        Keyword.put(repo_opts, :returning, Keyword.keys(changeset.atomics))
-
       repo = dynamic_repo(resource, changeset)
 
       query =
@@ -1610,6 +1607,16 @@ defmodule AshPostgres.DataLayer do
           )
         else
           Ecto.Query.exclude(query, :order_by)
+        end
+
+      query =
+        if options[:return_records?] do
+          query
+          |> Ecto.Query.exclude(:select)
+          |> Ecto.Query.select([row], row)
+        else
+          query
+          |> Ecto.Query.exclude(:select)
         end
 
       {_, results} =
