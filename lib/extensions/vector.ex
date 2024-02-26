@@ -32,7 +32,8 @@ defmodule AshPostgres.Extensions.Vector do
       vec ->
         case Ash.Vector.new(vec) do
           {:ok, vector} ->
-            [<<IO.iodata_length(data)::int32()>> | Ash.Vector.to_binary(vector)]
+            data = Ash.Vector.to_binary(vector)
+            [<<IO.iodata_length(data)::int32()>> | data]
 
           {:error, error} ->
             raise """
