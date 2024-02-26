@@ -30,8 +30,19 @@ defmodule AshPostgres.Extensions.Vector do
         [<<IO.iodata_length(data)::int32()>> | data]
 
       vec ->
-        data = vec |> Ash.Vector.new() |> Ash.Vector.to_binary()
-        [<<IO.iodata_length(data)::int32()>> | data]
+        case Ash.Vector.new(vec) do
+          {:ok, vector} ->
+            [<<IO.iodata_length(data)::int32()>> | Ash.Vector.to_binary(vector)]
+
+          {:error, error} ->
+            raise """
+            Attempting to encode invalid vector, error: #{inspect(error)}
+
+            Vector:
+
+            #{inspect(vec)}
+            """
+        end
     end
   end
 
