@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.10](https://github.com/ash-project/ash_postgres/compare/v1.5.9...v1.5.10) (2024-02-26)
+
+
+
+
+### Bug Fixes:
+
+* fix error when encoding vectors
+
+* ensure select is applied (or not) properly in bulk update/destroys
+
 ## [v1.5.9](https://github.com/ash-project/ash_postgres/compare/v1.5.8...v1.5.9) (2024-02-25)
 
 
