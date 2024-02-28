@@ -749,7 +749,7 @@ defmodule AshPostgres.Join do
              relationship,
              query,
              sort?,
-             path,
+             full_path,
              root_bindings
            ) do
       relationship_through =
