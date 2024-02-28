@@ -165,7 +165,9 @@ defmodule AshPostgres.MigrationGenerator do
         |> Path.join(repo_name)
         |> Path.join("extensions.json")
 
-      File.rename(legacy_snapshot_file, snapshot_file)
+      unless opts.dry_run do
+        File.rename(legacy_snapshot_file, snapshot_file)
+      end
 
       installed_extensions =
         if File.exists?(snapshot_file) do
