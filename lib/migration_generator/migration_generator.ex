@@ -43,7 +43,7 @@ defmodule AshPostgres.MigrationGenerator do
     snapshots = snapshots ++ tenant_snapshots_to_include_in_global
 
     repos =
-      snapshots
+      (snapshots ++ tenant_snapshots)
       |> Enum.map(& &1.repo)
       |> Enum.uniq()
 
@@ -156,7 +156,16 @@ defmodule AshPostgres.MigrationGenerator do
   defp create_extension_migrations(repos, opts) do
     for repo <- repos do
       snapshot_path = snapshot_path(opts, repo)
-      snapshot_file = Path.join(snapshot_path, "extensions.json")
+      repo_name = repo_name(repo)
+
+      legacy_snapshot_file = Path.join(snapshot_path, "extensions.json")
+
+      snapshot_file =
+        snapshot_path
+        |> Path.join(repo_name)
+        |> Path.join("extensions.json")
+
+      File.rename(legacy_snapshot_file, snapshot_file)
 
       installed_extensions =
         if File.exists?(snapshot_file) do
