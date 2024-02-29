@@ -9,6 +9,7 @@ on:
 jobs:
   ash-ci:
     strategy:
+      fail-fast: false
       matrix:
         postgres-version: ["10", "12", "14", "16"]
     uses: ash-project/ash/.github/workflows/ash-ci.yml@main
