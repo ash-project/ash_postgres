@@ -379,7 +379,7 @@ defmodule AshPostgres.Test.Post do
     end
 
     first :last_comment, :comments, :title do
-      sort(title: :desc)
+      sort(title: :desc, title: :asc)
     end
 
     first(:author_first_name, :author, :first_name)

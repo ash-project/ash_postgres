@@ -254,29 +254,52 @@ defmodule AshPostgres.Sort do
 
   def order_to_fragments([]), do: []
 
-  def order_to_fragments(order) when is_list(order) do
-    Enum.map(order, &do_order_to_fragments(&1))
+  def order_to_fragments([last]) do
+    [do_order_to_fragments(last, false)]
   end
 
-  def do_order_to_fragments({order, sort}) do
-    case order do
-      :asc ->
+  def order_to_fragments([first | rest]) do
+    [do_order_to_fragments(first, true) | order_to_fragments(rest)]
+  end
+
+  def do_order_to_fragments({order, sort}, comma?) do
+    case {order, comma?} do
+      {:asc, false} ->
         Ecto.Query.dynamic([row], fragment("? ASC", ^sort))
 
-      :desc ->
+      {:desc, false} ->
         Ecto.Query.dynamic([row], fragment("? DESC", ^sort))
 
-      :asc_nulls_last ->
+      {:asc_nulls_last, false} ->
         Ecto.Query.dynamic([row], fragment("? ASC NULLS LAST", ^sort))
 
-      :asc_nulls_first ->
+      {:asc_nulls_first, false} ->
         Ecto.Query.dynamic([row], fragment("? ASC NULLS FIRST", ^sort))
 
-      :desc_nulls_first ->
+      {:desc_nulls_first, false} ->
         Ecto.Query.dynamic([row], fragment("? DESC NULLS FIRST", ^sort))
 
-      :desc_nulls_last ->
+      {:desc_nulls_last, false} ->
         Ecto.Query.dynamic([row], fragment("? DESC NULLS LAST", ^sort))
+        "DESC NULLS LAST"
+
+      {:asc, true} ->
+        Ecto.Query.dynamic([row], fragment("? ASC, ", ^sort))
+
+      {:desc, true} ->
+        Ecto.Query.dynamic([row], fragment("? DESC, ", ^sort))
+
+      {:asc_nulls_last, true} ->
+        Ecto.Query.dynamic([row], fragment("? ASC NULLS LAST, ", ^sort))
+
+      {:asc_nulls_first, true} ->
+        Ecto.Query.dynamic([row], fragment("? ASC NULLS FIRST, ", ^sort))
+
+      {:desc_nulls_first, true} ->
+        Ecto.Query.dynamic([row], fragment("? DESC NULLS FIRST, ", ^sort))
+
+      {:desc_nulls_last, true} ->
+        Ecto.Query.dynamic([row], fragment("? DESC NULLS LAST, ", ^sort))
         "DESC NULLS LAST"
     end
   end
