@@ -230,7 +230,9 @@ defmodule AshPostgres.Join do
     on_subquery = Keyword.get(opts, :on_subquery, & &1)
 
     with {:ok, query} <- related_query(relationship, root_query, opts) do
-      has_parent_expr? = !!query.__ash_bindings__.context[:data_layer][:has_parent_expr?]
+      has_parent_expr? =
+        !!query.__ash_bindings__.context[:data_layer][:has_parent_expr?] ||
+          not is_nil(query.limit)
 
       query =
         if has_parent_expr? do
@@ -289,6 +291,7 @@ defmodule AshPostgres.Join do
       tenant: context[:private][:tenant]
     )
     |> Ash.Query.unset([:sort, :distinct, :select, :limit, :offset])
+    |> limit_from_many(relationship)
     |> then(fn query ->
       if sort? do
         Ash.Query.sort(query, relationship.sort)
@@ -319,6 +322,12 @@ defmodule AshPostgres.Join do
         {:error, errors}
     end
   end
+
+  defp limit_from_many(query, %{from_many?: true}) do
+    Ash.Query.limit(query, 1)
+  end
+
+  defp limit_from_many(query, _), do: query
 
   defp set_has_parent_expr_context(query, relationship) do
     has_parent_expr? =
@@ -656,15 +665,19 @@ defmodule AshPostgres.Join do
 
     case related_subquery(relationship, query,
            sort?: sort?,
-           on_parent_reference: fn subquery ->
-             from(row in subquery,
-               where:
-                 field(parent_as(^current_binding), ^relationship.source_attribute) ==
-                   field(
-                     row,
-                     ^relationship.destination_attribute
-                   )
-             )
+           on_parent_expr: fn subquery ->
+             if Map.get(relationship, :no_attributes?) do
+               subquery
+             else
+               from(row in subquery,
+                 where:
+                   field(parent_as(^current_binding), ^relationship.source_attribute) ==
+                     field(
+                       row,
+                       ^relationship.destination_attribute
+                     )
+               )
+             end
            end
          ) do
       {:error, error} ->
