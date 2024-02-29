@@ -566,6 +566,7 @@ defmodule AshPostgres.DataLayer do
     data_layer_query =
       data_layer_query
       |> default_bindings(resource, context)
+      |> add_parent_bindings(context)
 
     case context[:data_layer][:lateral_join_source] do
       {_, [{%{resource: resource}, _, _, _} | rest]} ->
@@ -584,15 +585,12 @@ defmodule AshPostgres.DataLayer do
               parent
           end
 
-        ash_bindings =
-          data_layer_query.__ash_bindings__
-          |> Map.put(:parent_bindings, Map.put(parent.__ash_bindings__, :parent?, true))
-          |> Map.put(:parent_resources, [
-            parent.__ash_bindings__.resource | parent.__ash_bindings__[:parent_resources] || []
-          ])
-          |> Map.put(:lateral_join?, true)
+        query_with_ash_bindings =
+          data_layer_query
+          |> add_parent_bindings(%{data_layer: %{parent_bindings: parent.__ash_bindings__}})
+          |> Map.update!(:__ash_bindings__, &Map.put(&1, :lateral_join?, true))
 
-        {:ok, %{data_layer_query | __ash_bindings__: ash_bindings}}
+        {:ok, query_with_ash_bindings}
 
       _ ->
         ash_bindings =
@@ -601,6 +599,23 @@ defmodule AshPostgres.DataLayer do
 
         {:ok, %{data_layer_query | __ash_bindings__: ash_bindings}}
     end
+  end
+
+  defp add_parent_bindings(data_layer_query, %{data_layer: %{parent_bindings: parent_bindings}})
+       when not is_nil(parent_bindings) do
+    new_bindings =
+      data_layer_query.__ash_bindings__
+      |> Map.put(:parent_bindings, Map.put(parent_bindings, :parent?, true))
+      |> Map.put(:parent_resources, [
+        parent_bindings.resource | parent_bindings[:parent_resources] || []
+      ])
+      |> Map.put(:lateral_join?, true)
+
+    %{data_layer_query | __ash_bindings__: new_bindings}
+  end
+
+  defp add_parent_bindings(data_layer_query, _context) do
+    data_layer_query
   end
 
   @impl true

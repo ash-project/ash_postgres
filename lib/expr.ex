@@ -1454,16 +1454,8 @@ defmodule AshPostgres.Expr do
       %Ash.Filter{expression: expr, resource: first_relationship.destination}
       |> nest_expression(rest)
 
-    {:ok, source, source_acc} =
-      AshPostgres.Join.maybe_get_resource_query(
-        first_relationship.destination,
-        first_relationship,
-        query,
-        false,
-        [first_relationship.name]
-      )
-
-    acc = merge_accumulator(acc, source_acc)
+    {:ok, source} =
+      AshPostgres.Join.related_subquery(first_relationship, query)
 
     used_aggregates = Ash.Filter.used_aggregates(filter, [])
 
@@ -1537,31 +1529,8 @@ defmodule AshPostgres.Expr do
           through_relationship =
             Ash.Resource.Info.relationship(resource, first_relationship.join_relationship)
 
-          through_bindings =
-            query
-            |> Map.delete(:__ash_bindings__)
-            |> AshPostgres.DataLayer.default_bindings(
-              query.__ash_bindings__.resource,
-              query.__ash_bindings__.context
-            )
-            |> Map.get(:__ash_bindings__)
-            |> Map.put(:bindings, %{
-              free_binding => %{path: [], source: first_relationship.through, type: :root}
-            })
-
-          {:ok, through, through_acc} =
-            AshPostgres.Join.maybe_get_resource_query(
-              first_relationship.through,
-              through_relationship,
-              query,
-              false,
-              [first_relationship.join_relationship],
-              through_bindings,
-              nil,
-              false
-            )
-
-          acc = merge_accumulator(acc, through_acc)
+          {:ok, through} =
+            AshPostgres.Join.related_subquery(through_relationship, query)
 
           query =
             Ecto.Query.from(destination in filtered,

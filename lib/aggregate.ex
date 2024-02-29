@@ -1,7 +1,6 @@
 defmodule AshPostgres.Aggregate do
   @moduledoc false
 
-  import Ecto.Query, only: [from: 2, subquery: 1]
   require Ecto.Query
 
   @next_aggregate_names Enum.reduce(0..999, %{}, fn i, acc ->
@@ -140,80 +139,194 @@ defmodule AshPostgres.Aggregate do
                         []
                     end
 
-                  with {:ok, agg_root_query, acc} <-
-                         AshPostgres.Join.maybe_get_resource_query(
-                           first_relationship.destination,
+                  with {:ok, subquery} <-
+                         AshPostgres.Join.related_subquery(
                            first_relationship,
                            query,
-                           false,
-                           [first_relationship.name],
-                           nil,
-                           nil,
-                           true,
-                           true
-                         ),
-                       {:ok, agg_root_query, acc} <-
-                         apply_first_relationship_join_filters(
-                           agg_root_query,
-                           query,
-                           acc,
-                           first_relationship,
-                           join_filters
-                         ),
-                       agg_root_query <-
-                         set_in_group(
-                           agg_root_query,
-                           resource
-                         ),
-                       {:ok, joined} <-
-                         join_all_relationships(
-                           agg_root_query,
-                           aggregates,
-                           relationship_path,
-                           first_relationship,
-                           is_single?,
-                           join_filters
-                         ),
-                       {:ok, filtered} <-
-                         maybe_filter_subquery(
-                           joined,
-                           first_relationship,
-                           relationship_path,
-                           aggregates,
-                           is_single?,
-                           source_binding
-                         ),
-                       with_subquery_select <-
-                         select_all_aggregates(
-                           aggregates,
-                           filtered,
-                           relationship_path,
-                           query,
-                           is_single?,
-                           Ash.Resource.Info.related(
-                             first_relationship.destination,
-                             relationship_path
-                           ),
-                           first_relationship
+                           on_subquery: fn subquery ->
+                             subquery =
+                               subquery
+                               |> Ecto.Query.exclude(:select)
+                               |> Ecto.Query.select(%{})
+
+                             subquery =
+                               if Map.get(first_relationship, :no_attributes?) do
+                                 subquery
+                               else
+                                 if first_relationship.type == :many_to_many do
+                                   join_relationship_struct =
+                                     Ash.Resource.Info.relationship(
+                                       first_relationship.source,
+                                       first_relationship.join_relationship
+                                     )
+
+                                   {:ok, through} =
+                                     AshPostgres.Join.related_subquery(
+                                       join_relationship_struct,
+                                       query
+                                     )
+
+                                   field = first_relationship.source_attribute_on_join_resource
+
+                                   subquery =
+                                     from(sub in subquery,
+                                       join: through in ^through,
+                                       as: ^subquery.__ash_bindings__.current,
+                                       on:
+                                         field(
+                                           through,
+                                           ^first_relationship.destination_attribute_on_join_resource
+                                         ) ==
+                                           field(sub, ^first_relationship.destination_attribute),
+                                       select_merge: map(through, ^[field]),
+                                       group_by:
+                                         field(
+                                           through,
+                                           ^first_relationship.source_attribute_on_join_resource
+                                         ),
+                                       distinct:
+                                         field(
+                                           through,
+                                           ^first_relationship.source_attribute_on_join_resource
+                                         ),
+                                       where:
+                                         field(
+                                           parent_as(^source_binding),
+                                           ^first_relationship.source_attribute
+                                         ) ==
+                                           field(
+                                             through,
+                                             ^first_relationship.source_attribute_on_join_resource
+                                           )
+                                     )
+
+                                   AshPostgres.Join.set_join_prefix(
+                                     subquery,
+                                     query,
+                                     first_relationship.destination
+                                   )
+                                 else
+                                   field = first_relationship.destination_attribute
+
+                                   if Map.get(first_relationship, :manual) do
+                                     {module, opts} = first_relationship.manual
+
+                                     from(row in subquery,
+                                       group_by: field(row, ^field),
+                                       select_merge: map(row, ^[field])
+                                     )
+
+                                     subquery =
+                                       from(row in subquery, distinct: true)
+
+                                     {:ok, subquery} =
+                                       module.ash_postgres_subquery(
+                                         opts,
+                                         source_binding,
+                                         subquery.__ash_bindings__.current - 1,
+                                         subquery
+                                       )
+
+                                     AshPostgres.Join.set_join_prefix(
+                                       subquery,
+                                       query,
+                                       first_relationship.destination
+                                     )
+                                   else
+                                     from(row in subquery,
+                                       group_by: field(row, ^field),
+                                       select_merge: map(row, ^[field]),
+                                       where:
+                                         field(
+                                           parent_as(^source_binding),
+                                           ^first_relationship.source_attribute
+                                         ) ==
+                                           field(
+                                             as(^0),
+                                             ^first_relationship.destination_attribute
+                                           )
+                                     )
+                                   end
+                                 end
+                               end
+
+                             subquery =
+                               AshPostgres.Join.set_join_prefix(
+                                 subquery,
+                                 query,
+                                 first_relationship.destination
+                               )
+
+                             {:ok, subquery, _} =
+                               apply_first_relationship_join_filters(
+                                 subquery,
+                                 query,
+                                 %AshPostgres.Expr.ExprInfo{},
+                                 first_relationship,
+                                 join_filters
+                               )
+
+                             subquery =
+                               set_in_group(
+                                 subquery,
+                                 resource
+                               )
+
+                             {:ok, joined} =
+                               join_all_relationships(
+                                 subquery,
+                                 aggregates,
+                                 relationship_path,
+                                 first_relationship,
+                                 is_single?,
+                                 join_filters
+                               )
+
+                             {:ok, filtered} =
+                               maybe_filter_subquery(
+                                 joined,
+                                 first_relationship,
+                                 relationship_path,
+                                 aggregates,
+                                 is_single?,
+                                 source_binding
+                               )
+
+                             select_all_aggregates(
+                               aggregates,
+                               filtered,
+                               relationship_path,
+                               query,
+                               is_single?,
+                               Ash.Resource.Info.related(
+                                 first_relationship.destination,
+                                 relationship_path
+                               ),
+                               first_relationship
+                             )
+                           end
                          ),
                        query <-
                          join_subquery(
                            query,
-                           with_subquery_select,
+                           subquery,
                            first_relationship,
                            relationship_path,
                            aggregates,
                            source_binding,
                            root_data_path
                          ) do
-                    query = AshPostgres.DataLayer.merge_expr_accumulator(query, acc)
-
                     if select? do
                       new_dynamics =
                         Enum.map(
                           aggregates,
                           &{&1.load, &1.name,
-                           select_dynamic(resource, query, &1, query.__ash_bindings__.current - 1)}
+                           select_dynamic(
+                             resource,
+                             query,
+                             &1,
+                             query.__ash_bindings__.current - 1
+                           )}
                         )
 
                       {:cont, {:ok, query, new_dynamics ++ dynamics}}
@@ -339,8 +452,7 @@ defmodule AshPostgres.Aggregate do
               agg_root_query,
               agg_root_query,
               agg_root_query.__ash_bindings__,
-              filter,
-              acc
+              filter
             )
 
           {:ok, query, acc}
@@ -575,40 +687,15 @@ defmodule AshPostgres.Aggregate do
   defp join_subquery(
          query,
          subquery,
-         %{manual: {module, opts}} = first_relationship,
+         %{manual: {_, _}},
          _relationship_path,
          aggregates,
-         source_binding,
+         _source_binding,
          root_data_path
        ) do
-    field = first_relationship.destination_attribute
-
-    new_subquery =
-      from(row in subquery, distinct: true)
-
-    new_subquery =
-      if Map.get(first_relationship, :no_attributes?) do
-        new_subquery
-      else
-        from(row in new_subquery,
-          group_by: field(row, ^field),
-          select_merge: map(row, ^[field])
-        )
-      end
-
-    {:ok, subquery} =
-      module.ash_postgres_subquery(
-        opts,
-        source_binding,
-        subquery.__ash_bindings__.current - 1,
-        new_subquery
-      )
-
-    subquery = AshPostgres.Join.set_join_prefix(subquery, query, first_relationship.destination)
-
     query =
       from(row in query,
-        left_lateral_join: sub in subquery(subquery_if_distinct(subquery)),
+        left_lateral_join: sub in ^subquery,
         as: ^query.__ash_bindings__.current,
         on: true
       )
@@ -626,56 +713,15 @@ defmodule AshPostgres.Aggregate do
   defp join_subquery(
          query,
          subquery,
-         %{type: :many_to_many, join_relationship: join_relationship, source: source} =
-           first_relationship,
+         %{type: :many_to_many},
          _relationship_path,
          aggregates,
-         source_binding,
+         _source_binding,
          root_data_path
        ) do
-    join_relationship_struct = Ash.Resource.Info.relationship(source, join_relationship)
-
-    {:ok, through, acc} =
-      AshPostgres.Join.maybe_get_resource_query(
-        join_relationship_struct.destination,
-        join_relationship_struct,
-        query,
-        false,
-        [join_relationship],
-        nil,
-        subquery.__ash_bindings__.current,
-        false,
-        true
-      )
-
-    field = first_relationship.source_attribute_on_join_resource
-
-    subquery =
-      from(sub in subquery,
-        join: through in ^through,
-        as: ^subquery.__ash_bindings__.current,
-        on:
-          field(through, ^first_relationship.destination_attribute_on_join_resource) ==
-            field(sub, ^first_relationship.destination_attribute),
-        select_merge: map(through, ^[field]),
-        group_by: field(through, ^first_relationship.source_attribute_on_join_resource),
-        distinct: field(through, ^first_relationship.source_attribute_on_join_resource),
-        where:
-          field(
-            parent_as(^source_binding),
-            ^first_relationship.source_attribute
-          ) ==
-            field(
-              through,
-              ^first_relationship.source_attribute_on_join_resource
-            )
-      )
-
-    subquery = AshPostgres.Join.set_join_prefix(subquery, query, first_relationship.destination)
-
     query =
       from(row in query,
-        left_lateral_join: agg in subquery(subquery_if_distinct(subquery)),
+        left_lateral_join: agg in ^subquery,
         as: ^query.__ash_bindings__.current,
         on: true
       )
@@ -686,38 +732,21 @@ defmodule AshPostgres.Aggregate do
       type: :aggregate,
       aggregates: aggregates
     })
-    |> AshPostgres.DataLayer.merge_expr_accumulator(acc)
+    |> AshPostgres.DataLayer.merge_expr_accumulator(%AshPostgres.Expr.ExprInfo{})
   end
 
   defp join_subquery(
          query,
          subquery,
-         first_relationship,
+         _first_relationship,
          _relationship_path,
          aggregates,
-         source_binding,
+         _source_binding,
          root_data_path
        ) do
-    field = first_relationship.destination_attribute
-
-    subquery =
-      if Map.get(first_relationship, :no_attributes?) do
-        subquery
-      else
-        from(row in subquery,
-          group_by: field(row, ^field),
-          select_merge: map(row, ^[field]),
-          where:
-            field(parent_as(^source_binding), ^first_relationship.source_attribute) ==
-              field(as(^0), ^first_relationship.destination_attribute)
-        )
-      end
-
-    subquery = AshPostgres.Join.set_join_prefix(subquery, query, first_relationship.destination)
-
     query =
       from(row in query,
-        left_lateral_join: agg in subquery(subquery_if_distinct(subquery)),
+        left_lateral_join: agg in ^subquery,
         as: ^query.__ash_bindings__.current,
         on: true
       )
@@ -740,14 +769,6 @@ defmodule AshPostgres.Aggregate do
         Congratulations, this means that you have gone so wildly beyond our imagination
         of how much can fit into a single quer. Please file an issue and we will raise the limit.
         """
-  end
-
-  defp subquery_if_distinct(%{distinct: nil} = query), do: query
-
-  defp subquery_if_distinct(subquery) do
-    from(row in subquery(subquery),
-      select: row
-    )
   end
 
   defp select_all_aggregates(

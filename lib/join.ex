@@ -221,252 +221,104 @@ defmodule AshPostgres.Join do
     relationship_path_to_relationships(relationship.destination, rest, [relationship | acc])
   end
 
-  def maybe_get_resource_query(
-        resource,
+  def related_subquery(
         relationship,
         root_query,
-        sort?,
-        path \\ [],
-        bindings \\ nil,
-        start_binding \\ nil,
-        is_subquery? \\ true,
-        join_relationships? \\ false
+        opts \\ []
       ) do
+    on_parent_expr = Keyword.get(opts, :on_parent_expr, & &1)
+    on_subquery = Keyword.get(opts, :on_subquery, & &1)
+
+    with {:ok, query} <- related_query(relationship, root_query, opts) do
+      has_parent_expr? = !!query.__ash_bindings__.context[:data_layer][:has_parent_expr?]
+
+      query =
+        if has_parent_expr? do
+          on_parent_expr.(query)
+        else
+          query
+        end
+
+      query = on_subquery.(query)
+
+      query =
+        from(row in subquery(query), as: ^0)
+        |> AshPostgres.DataLayer.default_bindings(relationship.destination)
+        |> AshPostgres.DataLayer.merge_expr_accumulator(
+          query.__ash_bindings__.expression_accumulator
+        )
+        |> Map.update!(
+          :__ash_bindings__,
+          fn bindings ->
+            bindings
+            |> Map.put(:current, query.__ash_bindings__.current)
+            |> put_in([:context, :data_layer], %{
+              has_parent_expr?: has_parent_expr?
+            })
+          end
+        )
+
+      {:ok, query}
+    end
+  end
+
+  def related_query(relationship, query, opts \\ []) do
+    sort? = Keyword.get(opts, :sort?, false)
+
     read_action =
       relationship.read_action ||
         Ash.Resource.Info.primary_action!(relationship.destination, :read).name
 
-    context = (bindings || root_query.__ash_bindings__).context
+    context = query.__ash_bindings__.context
 
-    resource
-    |> Ash.Query.new(nil, base_filter?: false)
-    |> Ash.Query.set_context(%{data_layer: %{start_bindings_at: start_binding}})
+    relationship.destination
+    |> Ash.Query.new()
     |> Ash.Query.set_context(context)
     |> Ash.Query.set_context(%{data_layer: %{table: nil}})
     |> Ash.Query.set_context(relationship.context)
+    |> Ash.Query.do_filter(relationship.filter, parent_stack: [relationship.source])
     |> Ash.Query.for_read(read_action, %{},
       actor: context[:private][:actor],
       tenant: context[:private][:tenant]
     )
     |> Ash.Query.unset([:sort, :distinct, :select, :limit, :offset])
+    |> then(fn query ->
+      if sort? do
+        Ash.Query.sort(query, relationship.sort)
+      else
+        Ash.Query.unset(query, :sort)
+      end
+    end)
+    |> set_has_parent_expr_context(relationship)
     |> case do
-      %{valid?: true} = query ->
-        ash_query = query
-
-        initial_query =
-          %{
-            AshPostgres.DataLayer.resource_to_query(resource, nil)
-            | prefix: Map.get(root_query, :prefix)
-          }
-
-        initial_query = do_relationship_sort(initial_query, relationship, sort?)
-
-        case Ash.Query.data_layer_query(query,
-               initial_query: initial_query
-             ) do
-          {:ok, query} ->
-            query =
-              if join_relationships? do
-                {:ok, related_filter} =
-                  Ash.Filter.hydrate_refs(
-                    relationship.filter,
-                    %{
-                      resource: relationship.destination,
-                      public?: false
-                    }
-                  )
-
-                {:ok, query} =
-                  AshPostgres.Join.join_all_relationships(query, related_filter)
-
-                query
-              else
-                query
-              end
-
-            {query, acc} =
-              query
-              |> do_base_filter(
-                root_query,
-                ash_query,
-                resource,
-                path,
-                bindings,
-                root_query.__ash_bindings__.expression_accumulator
-              )
-              |> do_relationship_filter(
-                relationship,
-                root_query,
-                ash_query,
-                resource,
-                path,
-                bindings,
-                is_subquery?
-              )
-
-            query =
-              if !is_subquery? ||
-                   (Enum.empty?(List.wrap(query.order_bys)) && Enum.empty?(query.joins)) do
-                query
-              else
-                from(row in subquery(query), as: ^0)
-                |> AshPostgres.DataLayer.default_bindings(relationship.destination)
-                |> AshPostgres.DataLayer.merge_expr_accumulator(
-                  query.__ash_bindings__.expression_accumulator
-                )
-                |> Map.update!(
-                  :__ash_bindings__,
-                  &Map.put(&1, :current, query.__ash_bindings__.current)
-                )
-              end
-
-            {:ok, Map.put(query, :__tenant__, Map.get(root_query, :__tenant__)), acc}
+      %{valid?: true} = related_query ->
+        Ash.Query.data_layer_query(
+          Ash.Query.set_context(related_query, %{
+            data_layer: %{parent_bindings: query.__ash_bindings__}
+          })
+        )
+        |> case do
+          {:ok, ecto_query} ->
+            {:ok, Ecto.Query.exclude(ecto_query, :select)}
 
           {:error, error} ->
             {:error, error}
         end
 
-      query ->
-        {:error, query}
+      %{errors: errors} ->
+        {:error, errors}
     end
   end
 
-  defp do_relationship_sort(
-         query,
-         %{destination: destination, sort: sort, from_many?: true},
-         true
-       )
-       when sort not in [nil, []] do
-    query = AshPostgres.DataLayer.default_bindings(query, destination)
+  defp set_has_parent_expr_context(query, relationship) do
+    has_parent_expr? =
+      Ash.Actions.Read.Relationships.has_parent_expr?(%{
+        relationship
+        | filter: query.filter,
+          sort: query.sort
+      })
 
-    {:ok, order_by, query} =
-      AshPostgres.Sort.sort(query, sort, query.__ash_bindings__.resource, [], 0, :return)
-
-    from(row in query, order_by: ^order_by)
-  end
-
-  defp do_relationship_sort(query, _, _), do: query
-
-  defp do_relationship_filter({query, acc}, %{filter: nil}, _, _, _, _, _, _), do: {query, acc}
-
-  defp do_relationship_filter(
-         {query, acc},
-         relationship,
-         root_query,
-         ash_query,
-         resource,
-         path,
-         bindings,
-         is_subquery?
-       ) do
-    filter =
-      resource
-      |> Ash.Filter.parse!(
-        relationship.filter,
-        ash_query.aggregates,
-        ash_query.calculations,
-        Map.update(
-          ash_query.context,
-          :parent_stack,
-          [relationship.source],
-          &[&1 | relationship.source]
-        )
-      )
-
-    base_bindings = bindings || query.__ash_bindings__
-
-    parent_binding =
-      case :lists.droplast(path) do
-        [] ->
-          base_bindings.bindings
-          |> Enum.find_value(fn {key, %{type: type}} ->
-            if type == :root do
-              key
-            end
-          end)
-
-        path ->
-          get_binding(
-            root_query.__ash_bindings__.resource,
-            path,
-            %{query | __ash_bindings__: base_bindings},
-            [
-              :inner,
-              :left
-            ]
-          )
-      end
-
-    parent_bindings = %{
-      base_bindings
-      | resource: relationship.source,
-        calculations: %{},
-        parent_resources: [],
-        aggregate_defs: %{},
-        context: relationship.context,
-        current: parent_binding + 1
-    }
-
-    parent_bindings =
-      if bindings do
-        Map.put(parent_bindings, :parent_is_parent_as?, !is_subquery?)
-      else
-        parent_bindings
-        |> Map.update!(:bindings, &Map.take(&1, [parent_binding]))
-      end
-
-    has_bindings? = not is_nil(bindings)
-
-    bindings =
-      base_bindings
-      |> Map.put(:parent_bindings, parent_bindings)
-      |> Map.put(:parent_resources, [
-        relationship.source | parent_bindings[:parent_resources] || []
-      ])
-
-    {dynamic, acc} =
-      if has_bindings? do
-        filter =
-          if is_subquery? do
-            Ash.Filter.move_to_relationship_path(filter, path)
-          else
-            filter
-          end
-
-        AshPostgres.Expr.dynamic_expr(root_query, filter, bindings, true, acc)
-      else
-        AshPostgres.Expr.dynamic_expr(query, filter, bindings, true, acc)
-      end
-
-    {from(row in query, where: ^dynamic), acc}
-  end
-
-  defp do_base_filter(query, root_query, ash_query, resource, path, bindings, acc) do
-    case Ash.Resource.Info.base_filter(resource) do
-      nil ->
-        {query, %AshPostgres.Expr.ExprInfo{}}
-
-      filter ->
-        filter =
-          resource
-          |> Ash.Filter.parse!(
-            filter,
-            ash_query.aggregates,
-            ash_query.calculations,
-            ash_query.context
-          )
-
-        {dynamic, acc} =
-          if bindings do
-            filter = Ash.Filter.move_to_relationship_path(filter, path)
-
-            AshPostgres.Expr.dynamic_expr(root_query, filter, bindings, true, acc)
-          else
-            AshPostgres.Expr.dynamic_expr(query, filter, query.__ash_bindings__, true, acc)
-          end
-
-        {from(row in query, where: ^dynamic), acc}
-    end
+    Ash.Query.set_context(query, %{data_layer: %{has_parent_expr?: has_parent_expr?}})
   end
 
   def set_join_prefix(join_query, query, resource) do
@@ -591,27 +443,13 @@ defmodule AshPostgres.Join do
 
     used_aggregates = Ash.Filter.used_aggregates(filter, full_path)
 
-    use_root_query_bindings? = Enum.empty?(used_aggregates)
-
-    root_bindings =
-      if use_root_query_bindings? do
-        query.__ash_bindings__
-      end
-
-    with {:ok, relationship_destination, acc} <-
-           maybe_get_resource_query(
-             relationship.destination,
-             relationship,
-             query,
-             sort?,
-             full_path,
-             root_bindings
-           ) do
+    with {:ok, relationship_destination} <-
+           related_subquery(relationship, query, sort?: sort?) do
       {relationship_destination, acc} =
         relationship_destination
         |> Ecto.Queryable.to_query()
         |> set_join_prefix(query, relationship.destination)
-        |> maybe_apply_filter(query, root_bindings, apply_filter, acc)
+        |> maybe_apply_filter(query, query.__ash_bindings__, apply_filter)
 
       query = AshPostgres.DataLayer.merge_expr_accumulator(query, acc)
 
@@ -634,20 +472,6 @@ defmodule AshPostgres.Join do
           end
         end)
 
-      needs_subquery? =
-        used_aggregates != [] || Map.get(relationship, :from_many?)
-
-      relationship_destination =
-        if needs_subquery? do
-          if Map.get(relationship, :from_many?) do
-            subquery(from(row in relationship_destination, limit: 1))
-          else
-            subquery(relationship_destination)
-          end
-        else
-          relationship_destination
-        end
-
       case module.ash_postgres_join(
              query,
              opts,
@@ -665,6 +489,9 @@ defmodule AshPostgres.Join do
             initial_ash_bindings.current,
             {query.__ash_bindings__.resource, full_path}
           )
+
+        {:error, query} ->
+          {:error, query}
       end
     end
   rescue
@@ -700,6 +527,8 @@ defmodule AshPostgres.Join do
 
     binding_data = %{type: kind, path: full_path, source: source}
 
+    used_aggregates = Ash.Filter.used_aggregates(filter, full_path)
+
     query =
       query
       |> AshPostgres.DataLayer.add_binding(%{
@@ -709,49 +538,9 @@ defmodule AshPostgres.Join do
       })
       |> AshPostgres.DataLayer.add_binding(binding_data)
 
-    {:ok, related_filter} =
-      Ash.Filter.hydrate_refs(
-        relationship.filter,
-        %{
-          resource: relationship.destination,
-          aggregates: %{},
-          calculations: %{},
-          public?: false
-        }
-      )
-
-    related_filter =
-      Ash.Filter.move_to_relationship_path(related_filter, full_path)
-
-    {:ok, query} = join_all_relationships(query, related_filter)
-
-    used_aggregates = Ash.Filter.used_aggregates(filter, full_path)
-
-    use_root_query_bindings? = Enum.empty?(used_aggregates)
-
-    root_bindings =
-      if use_root_query_bindings? do
-        query.__ash_bindings__
-      end
-
-    with {:ok, relationship_through, through_acc} <-
-           maybe_get_resource_query(
-             relationship.through,
-             join_relationship,
-             query,
-             false,
-             join_path,
-             root_bindings
-           ),
-         {:ok, relationship_destination, dest_acc} <-
-           maybe_get_resource_query(
-             relationship.destination,
-             relationship,
-             query,
-             sort?,
-             full_path,
-             root_bindings
-           ) do
+    with {:ok, relationship_through} <- related_subquery(join_relationship, query),
+         {:ok, relationship_destination} <-
+           related_subquery(relationship, query, sort?: sort?) do
       relationship_through =
         relationship_through
         |> Ecto.Queryable.to_query()
@@ -761,11 +550,10 @@ defmodule AshPostgres.Join do
         relationship_destination
         |> Ecto.Queryable.to_query()
         |> set_join_prefix(query, relationship.destination)
-        |> maybe_apply_filter(query, root_bindings, apply_filter, dest_acc)
+        |> maybe_apply_filter(query, query.__ash_bindings__, apply_filter)
 
       query =
         query
-        |> AshPostgres.DataLayer.merge_expr_accumulator(through_acc)
         |> AshPostgres.DataLayer.merge_expr_accumulator(dest_acc)
 
       binding_kinds =
@@ -787,24 +575,14 @@ defmodule AshPostgres.Join do
           end
         end)
 
-      needs_subquery? =
-        used_aggregates != []
-
-      relationship_destination =
-        if needs_subquery? do
-          subquery(relationship_destination)
-        else
-          relationship_destination
-        end
-
       query =
         case kind do
           :inner ->
-            from([{row, current_binding}] in query,
+            from(_ in query,
               join: through in ^relationship_through,
               as: ^initial_ash_bindings.current,
               on:
-                field(row, ^relationship.source_attribute) ==
+                field(as(^current_binding), ^relationship.source_attribute) ==
                   field(through, ^relationship.source_attribute_on_join_resource),
               join: destination in ^relationship_destination,
               as: ^(initial_ash_bindings.current + 1),
@@ -814,11 +592,11 @@ defmodule AshPostgres.Join do
             )
 
           _ ->
-            from([{row, current_binding}] in query,
+            from(_ in query,
               left_join: through in ^relationship_through,
               as: ^initial_ash_bindings.current,
               on:
-                field(row, ^relationship.source_attribute) ==
+                field(as(^current_binding), ^relationship.source_attribute) ==
                   field(through, ^relationship.source_attribute_on_join_resource),
               left_join: destination in ^relationship_destination,
               as: ^(initial_ash_bindings.current + 1),
@@ -856,122 +634,76 @@ defmodule AshPostgres.Join do
 
     query = AshPostgres.DataLayer.add_binding(query, binding_data)
 
-    {:ok, related_filter} =
-      Ash.Filter.hydrate_refs(
-        relationship.filter,
-        %{
-          resource: relationship.destination,
-          public?: false
-        }
-      )
-
-    related_filter =
-      Ash.Filter.move_to_relationship_path(related_filter, full_path)
-
-    {:ok, query} = join_all_relationships(query, related_filter)
-
     used_aggregates = Ash.Filter.used_aggregates(filter, full_path)
-    use_root_query_bindings? = Enum.empty?(used_aggregates)
 
-    needs_subquery? =
-      Map.get(relationship, :from_many?, false) ||
-        (relationship.cardinality == :many && !Enum.empty?(used_aggregates))
+    binding_kinds =
+      case kind do
+        :left ->
+          [:left, :inner]
 
-    root_bindings =
-      if use_root_query_bindings? && !needs_subquery? do
-        query.__ash_bindings__
+        :inner ->
+          [:left, :inner]
+
+        other ->
+          [other]
       end
 
-    case maybe_get_resource_query(
-           relationship.destination,
-           relationship,
-           query,
-           sort?,
-           full_path,
-           root_bindings,
-           nil,
-           use_root_query_bindings? && !needs_subquery?
+    current_binding =
+      Enum.find_value(initial_ash_bindings.bindings, 0, fn {binding, data} ->
+        if data.type in binding_kinds && data.path == path do
+          binding
+        end
+      end)
+
+    case related_subquery(relationship, query,
+           sort?: sort?,
+           on_parent_reference: fn subquery ->
+             from(row in subquery,
+               where:
+                 field(parent_as(^current_binding), ^relationship.source_attribute) ==
+                   field(
+                     row,
+                     ^relationship.destination_attribute
+                   )
+             )
+           end
          ) do
       {:error, error} ->
         {:error, error}
 
-      {:ok, relationship_destination, acc} ->
+      {:ok, relationship_destination} ->
         {relationship_destination, acc} =
           relationship_destination
-          |> Ecto.Queryable.to_query()
           |> set_join_prefix(query, relationship.destination)
-          |> maybe_apply_filter(query, root_bindings, apply_filter, acc)
+          |> maybe_apply_filter(query, query.__ash_bindings__, apply_filter)
 
         query = AshPostgres.DataLayer.merge_expr_accumulator(query, acc)
 
-        relationship_destination =
-          if needs_subquery? do
-            if Map.get(relationship, :from_many?) do
-              subquery(from(row in relationship_destination, limit: 1))
-            else
-              subquery(relationship_destination)
-            end
-          else
-            relationship_destination
-          end
-
-        binding_kinds =
-          case kind do
-            :left ->
-              [:left, :inner]
-
-            :inner ->
-              [:left, :inner]
-
-            other ->
-              [other]
-          end
-
-        current_binding =
-          Enum.find_value(initial_ash_bindings.bindings, 0, fn {binding, data} ->
-            if data.type in binding_kinds && data.path == path do
-              binding
-            end
-          end)
-
-        relationship_destination =
-          used_aggregates
-          |> Enum.reject(fn aggregate ->
-            AshPostgres.Aggregate.optimizable_first_aggregate?(
-              relationship.destination,
-              aggregate
-            )
-          end)
-          |> case do
-            [] ->
-              relationship_destination
-
-            _ ->
-              subquery(relationship_destination)
-          end
-
         query =
-          case {kind, Map.get(relationship, :no_attributes?, false), needs_subquery?} do
+          case {kind, Map.get(relationship, :no_attributes?, false),
+                relationship_destination.__ash_bindings__.context[:data_layer][
+                  :has_parent_expr?
+                ]} do
             {:inner, true, false} ->
-              from([{row, current_binding}] in query,
+              from(_ in query,
                 join: destination in ^relationship_destination,
                 as: ^initial_ash_bindings.current,
                 on: true
               )
 
             {:inner, true, true} ->
-              from([{row, current_binding}] in query,
+              from(_ in query,
                 inner_lateral_join: destination in ^relationship_destination,
                 as: ^initial_ash_bindings.current,
                 on: true
               )
 
             {:inner, false, false} ->
-              from([{row, current_binding}] in query,
+              from(_ in query,
                 join: destination in ^relationship_destination,
                 as: ^initial_ash_bindings.current,
                 on:
-                  field(row, ^relationship.source_attribute) ==
+                  field(as(^current_binding), ^relationship.source_attribute) ==
                     field(
                       destination,
                       ^relationship.destination_attribute
@@ -979,47 +711,32 @@ defmodule AshPostgres.Join do
               )
 
             {:inner, false, true} ->
-              %Ecto.SubQuery{query: inner_query} = sub = relationship_destination
-
-              new_inner_query =
-                from(row in inner_query,
-                  where:
-                    field(parent_as(^current_binding), ^relationship.source_attribute) ==
-                      field(
-                        row,
-                        ^relationship.destination_attribute
-                      )
-                )
-
-              relationship_destination =
-                %{sub | query: new_inner_query}
-
-              from([{row, current_binding}] in query,
+              from(_ in query,
                 inner_lateral_join: destination in ^relationship_destination,
                 as: ^initial_ash_bindings.current,
                 on: true
               )
 
             {:left, true, false} ->
-              from([{row, current_binding}] in query,
+              from(_ in query,
                 left_join: destination in ^relationship_destination,
                 as: ^initial_ash_bindings.current,
                 on: true
               )
 
             {:left, true, true} ->
-              from([{row, current_binding}] in query,
+              from(_ in query,
                 left_lateral_join: destination in ^relationship_destination,
                 as: ^initial_ash_bindings.current,
                 on: true
               )
 
             {:left, false, false} ->
-              from([{row, current_binding}] in query,
+              from(_ in query,
                 left_join: destination in ^relationship_destination,
                 as: ^initial_ash_bindings.current,
                 on:
-                  field(row, ^relationship.source_attribute) ==
+                  field(as(^current_binding), ^relationship.source_attribute) ==
                     field(
                       destination,
                       ^relationship.destination_attribute
@@ -1027,22 +744,7 @@ defmodule AshPostgres.Join do
               )
 
             {:left, false, true} ->
-              %Ecto.SubQuery{query: inner_query} = sub = relationship_destination
-
-              new_inner_query =
-                from(row in inner_query,
-                  where:
-                    field(parent_as(^current_binding), ^relationship.source_attribute) ==
-                      field(
-                        row,
-                        ^relationship.destination_attribute
-                      )
-                )
-
-              relationship_destination =
-                %{sub | query: new_inner_query}
-
-              from([{row, current_binding}] in query,
+              from(_ in query,
                 left_lateral_join: destination in ^relationship_destination,
                 as: ^initial_ash_bindings.current,
                 on: true
@@ -1061,10 +763,11 @@ defmodule AshPostgres.Join do
   end
 
   @doc false
-  def maybe_apply_filter(query, _root_query, _bindings, nil, acc), do: {query, acc}
+  def maybe_apply_filter(query, _root_query, _bindings, nil),
+    do: {query, %AshPostgres.Expr.ExprInfo{}}
 
-  def maybe_apply_filter(query, root_query, bindings, filter, acc) do
-    {dynamic, acc} = AshPostgres.Expr.dynamic_expr(root_query, filter, bindings, true, acc)
+  def maybe_apply_filter(query, root_query, bindings, filter) do
+    {dynamic, acc} = AshPostgres.Expr.dynamic_expr(root_query, filter, bindings, true)
     {from(row in query, where: ^dynamic), acc}
   end
 end
