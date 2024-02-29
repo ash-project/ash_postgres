@@ -10,7 +10,7 @@ jobs:
   ash-ci:
     strategy:
       matrix:
-        postgres_version: ["10", "12", "14", "16"]
+        postgres_version: ["12", "14", "16"]
     uses: ash-project/ash/.github/workflows/ash-ci.yml@main
     with:
       postgres: true
