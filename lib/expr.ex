@@ -958,7 +958,7 @@ defmodule AshPostgres.Expr do
        ) do
     {string, acc} = do_dynamic_expr(query, string, bindings, embedded?, acc)
 
-    require_extension!(query, "citext", expression)
+    require_extension!(query.__ash_bindings__.resource, "citext", expression)
 
     do_dynamic_expr(
       query,
@@ -1108,9 +1108,7 @@ defmodule AshPostgres.Expr do
             attribute:
               AshPostgres.Aggregate.aggregate_field(
                 aggregate,
-                Ash.Resource.Info.related(query.__ash_bindings__.resource, ref.relationship_path),
-                aggregate.relationship_path,
-                query
+                Ash.Resource.Info.related(query.__ash_bindings__.resource, ref.relationship_path)
               ),
             relationship_path: ref.relationship_path,
             resource: query.__ash_bindings__.resource
@@ -1946,16 +1944,20 @@ defmodule AshPostgres.Expr do
   defp maybe_uuid_to_binary(_type, _value, original_value), do: original_value
 
   @doc false
-  def validate_type!(query, type, context) do
+  def validate_type!(%{__ash_bindings__: %{resource: resource}}, type, context) do
+    validate_type!(resource, type, context)
+  end
+
+  def validate_type!(resource, type, context) do
     case type do
       {:parameterized, Ash.Type.CiStringWrapper.EctoType, _} ->
-        require_extension!(query, "citext", context)
+        require_extension!(resource, "citext", context)
 
       :ci_string ->
-        require_extension!(query, "citext", context)
+        require_extension!(resource, "citext", context)
 
       :citext ->
-        require_extension!(query, "citext", context)
+        require_extension!(resource, "citext", context)
 
       _ ->
         :ok
@@ -2122,8 +2124,8 @@ defmodule AshPostgres.Expr do
     end
   end
 
-  defp require_extension!(query, extension, context) do
-    repo = AshPostgres.DataLayer.Info.repo(query.__ash_bindings__.resource, :mutate)
+  defp require_extension!(resource, extension, context) do
+    repo = AshPostgres.DataLayer.Info.repo(resource, :mutate)
 
     unless extension in repo.installed_extensions() do
       raise Ash.Error.Query.InvalidExpression,
