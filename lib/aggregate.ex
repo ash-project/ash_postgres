@@ -30,7 +30,14 @@ defmodule AshPostgres.Aggregate do
             {query, []},
             fn aggregate, {query, aggregates} ->
               if is_atom(aggregate.name) do
-                {query, [aggregate | aggregates]}
+                existing_agg = query.__ash_bindings__.aggregate_defs[aggregate.name]
+
+                if existing_agg && different_queries?(existing_agg.query, aggregate.query) do
+                  {query, name} = use_aggregate_name(query, aggregate.name)
+                  {query, [%{aggregate | name: name} | aggregates]}
+                else
+                  {query, [aggregate | aggregates]}
+                end
               else
                 {query, name} = use_aggregate_name(query, aggregate.name)
 
@@ -56,7 +63,7 @@ defmodule AshPostgres.Aggregate do
         result =
           aggregates
           |> Enum.reject(&already_added?(&1, query.__ash_bindings__))
-          |> Enum.group_by(&{&1.relationship_path, &1.join_filters})
+          |> Enum.group_by(&{&1.relationship_path, &1.join_filters || %{}})
           |> Enum.flat_map(fn {{path, join_filters}, aggregates} ->
             {can_group, cant_group} = Enum.split_with(aggregates, &can_group?(resource, &1))
 
@@ -371,6 +378,14 @@ defmodule AshPostgres.Aggregate do
       :__ash_bindings__,
       &Map.put(&1, :in_group?, true)
     )
+  end
+
+  defp different_queries?(nil, nil), do: false
+  defp different_queries?(nil, _), do: true
+  defp different_queries?(_, nil), do: true
+
+  defp different_queries?(query1, query2) do
+    query1.filter != query2.filter && query1.sort != query2.sort
   end
 
   @doc false
