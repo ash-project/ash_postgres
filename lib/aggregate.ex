@@ -1440,8 +1440,6 @@ defmodule AshPostgres.Aggregate do
 
   defp single_path?(_, []), do: true
 
-  defp single_path?(_, [%{from_many?: true} | _]), do: false
-
   defp single_path?(resource, [relationship | rest]) do
     relationship = Ash.Resource.Info.relationship(resource, relationship)
 
