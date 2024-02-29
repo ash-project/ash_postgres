@@ -266,7 +266,7 @@ defmodule AshPostgres.Join do
     end
   end
 
-  def related_query(relationship, query, opts \\ []) do
+  defp related_query(relationship, query, opts) do
     sort? = Keyword.get(opts, :sort?, false)
     filter = Keyword.get(opts, :filter, nil)
     parent_resources = Keyword.get(opts, :parent_stack, [relationship.source])
@@ -306,7 +306,10 @@ defmodule AshPostgres.Join do
         )
         |> case do
           {:ok, ecto_query} ->
-            {:ok, Ecto.Query.exclude(ecto_query, :select)}
+            {:ok,
+             ecto_query
+             |> set_join_prefix(query, relationship.destination)
+             |> Ecto.Query.exclude(:select)}
 
           {:error, error} ->
             {:error, error}
@@ -453,10 +456,7 @@ defmodule AshPostgres.Join do
     with {:ok, relationship_destination} <-
            related_subquery(relationship, query, sort?: sort?) do
       {relationship_destination, acc} =
-        relationship_destination
-        |> Ecto.Queryable.to_query()
-        |> set_join_prefix(query, relationship.destination)
-        |> maybe_apply_filter(query, query.__ash_bindings__, apply_filter)
+        maybe_apply_filter(relationship_destination, query, query.__ash_bindings__, apply_filter)
 
       query = AshPostgres.DataLayer.merge_expr_accumulator(query, acc)
 
@@ -548,16 +548,8 @@ defmodule AshPostgres.Join do
     with {:ok, relationship_through} <- related_subquery(join_relationship, query),
          {:ok, relationship_destination} <-
            related_subquery(relationship, query, sort?: sort?) do
-      relationship_through =
-        relationship_through
-        |> Ecto.Queryable.to_query()
-        |> set_join_prefix(query, relationship.through)
-
       {relationship_destination, dest_acc} =
-        relationship_destination
-        |> Ecto.Queryable.to_query()
-        |> set_join_prefix(query, relationship.destination)
-        |> maybe_apply_filter(query, query.__ash_bindings__, apply_filter)
+        maybe_apply_filter(relationship_destination, query, query.__ash_bindings__, apply_filter)
 
       query =
         query
@@ -680,9 +672,12 @@ defmodule AshPostgres.Join do
 
       {:ok, relationship_destination} ->
         {relationship_destination, acc} =
-          relationship_destination
-          |> set_join_prefix(query, relationship.destination)
-          |> maybe_apply_filter(query, query.__ash_bindings__, apply_filter)
+          maybe_apply_filter(
+            relationship_destination,
+            query,
+            query.__ash_bindings__,
+            apply_filter
+          )
 
         query = AshPostgres.DataLayer.merge_expr_accumulator(query, acc)
 

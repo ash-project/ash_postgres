@@ -145,6 +145,8 @@ defmodule AshPostgres.Aggregate do
                            first_relationship,
                            query,
                            on_subquery: fn subquery ->
+                             current_binding = subquery.__ash_bindings__.current
+
                              subquery =
                                subquery
                                |> Ecto.Query.exclude(:select)
@@ -172,7 +174,7 @@ defmodule AshPostgres.Aggregate do
                                    subquery =
                                      from(sub in subquery,
                                        join: through in ^through,
-                                       as: ^subquery.__ash_bindings__.current,
+                                       as: ^current_binding,
                                        on:
                                          field(
                                            through,
@@ -224,7 +226,7 @@ defmodule AshPostgres.Aggregate do
                                        module.ash_postgres_subquery(
                                          opts,
                                          source_binding,
-                                         subquery.__ash_bindings__.current - 1,
+                                         current_binding - 1,
                                          subquery
                                        )
 
@@ -839,7 +841,8 @@ defmodule AshPostgres.Aggregate do
 
   def can_group?(resource, aggregate) do
     can_group_kind?(aggregate, resource) && !has_exists?(aggregate) &&
-      !references_to_many_relationships?(aggregate)
+      !references_to_many_relationships?(aggregate) &&
+      !optimizable_first_aggregate?(resource, aggregate)
   end
 
   # We can potentially optimize this. We don't have to prevent aggregates that reference
@@ -1403,6 +1406,8 @@ defmodule AshPostgres.Aggregate do
   end
 
   defp single_path?(_, []), do: true
+
+  defp single_path?(_, [%{from_many?: true} | _]), do: false
 
   defp single_path?(resource, [relationship | rest]) do
     relationship = Ash.Resource.Info.relationship(resource, relationship)
