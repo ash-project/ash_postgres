@@ -1445,8 +1445,9 @@ defmodule AshPostgres.Aggregate do
   defp single_path?(resource, [relationship | rest]) do
     relationship = Ash.Resource.Info.relationship(resource, relationship)
 
-    (relationship.type == :belongs_to ||
-       has_one_with_identity?(relationship)) &&
+    !Map.get(relationship, :from_many?) &&
+      (relationship.type == :belongs_to ||
+         has_one_with_identity?(relationship)) &&
       single_path?(relationship.destination, rest)
   end
 
