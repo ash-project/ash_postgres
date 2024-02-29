@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.13](https://github.com/ash-project/ash_postgres/compare/v1.5.12...v1.5.13) (2024-02-29)
+
+
+
+
+### Bug Fixes:
+
+* properly handle multiple sorts in aggregate
+
 ## [v1.5.12](https://github.com/ash-project/ash_postgres/compare/v1.5.11...v1.5.12) (2024-02-29)
 
 
