@@ -5,6 +5,25 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.11](https://github.com/ash-project/ash_postgres/compare/v1.5.10...v1.5.11) (2024-02-29)
+
+
+
+
+### Bug Fixes:
+
+* simplify(and fix) exists subquery generation
+
+* properly leverage subqueries throughout relationship joining
+
+* migration generator extensions in multiple repos (#214)
+
+* Migration generator for extensions in multiple repos
+
+### Improvements:
+
+* optimize more cases for simple join aggregates
+
 ## [v1.5.10](https://github.com/ash-project/ash_postgres/compare/v1.5.9...v1.5.10) (2024-02-26)
 
 
