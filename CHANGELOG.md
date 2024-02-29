@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.12](https://github.com/ash-project/ash_postgres/compare/v1.5.11...v1.5.12) (2024-02-29)
+
+
+
+
+### Bug Fixes:
+
+* ensure that `from_many?` joins are properly limited
+
+* ensure that lateral joins are properly filtered
+
 ## [v1.5.11](https://github.com/ash-project/ash_postgres/compare/v1.5.10...v1.5.11) (2024-02-29)
 
 
