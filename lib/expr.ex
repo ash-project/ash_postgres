@@ -1433,151 +1433,73 @@ defmodule AshPostgres.Expr do
     resource = Ash.Resource.Info.related(bindings.resource, at_path)
     first_relationship = Ash.Resource.Info.relationship(resource, first)
 
-    last_relationship =
-      Enum.reduce(rest, first_relationship, fn name, relationship ->
-        Ash.Resource.Info.relationship(relationship.destination, name)
-      end)
-
-    {:ok, expr} =
-      Ash.Filter.hydrate_refs(expr, %{
-        resource: last_relationship.destination,
-        aggregates: %{},
-        parent_stack: [
+    {:ok, subquery} =
+      AshPostgres.Join.related_subquery(first_relationship, query,
+        filter: Ash.Filter.move_to_relationship_path(expr, rest),
+        parent_resources: [
           query.__ash_bindings__.resource
-          | query.__ash_bindings__[:parent_resource] || []
+          | query.__ash_bindings__[:parent_resources] || []
         ],
-        calculations: %{},
-        public?: false
-      })
+        return_subquery?: true,
+        on_subquery: fn subquery ->
+          cond do
+            Map.get(first_relationship, :manual) ->
+              subquery
 
-    filter =
-      %Ash.Filter{expression: expr, resource: first_relationship.destination}
-      |> nest_expression(rest)
+            Map.get(first_relationship, :no_attributes?) ->
+              subquery
 
-    {:ok, source} =
-      AshPostgres.Join.related_subquery(first_relationship, query)
+            first_relationship.type == :many_to_many ->
+              source_ref =
+                ref_binding(
+                  %Ref{
+                    attribute:
+                      Ash.Resource.Info.attribute(resource, first_relationship.source_attribute),
+                    relationship_path: at_path,
+                    resource: resource
+                  },
+                  bindings
+                )
 
-    used_aggregates = Ash.Filter.used_aggregates(filter, [])
+              through_relationship =
+                Ash.Resource.Info.relationship(resource, first_relationship.join_relationship)
 
-    {:ok, filtered} =
-      source
-      |> set_parent_path(query)
-      |> AshPostgres.Aggregate.add_aggregates(
-        used_aggregates,
-        first_relationship.destination,
-        false,
-        0
+              {:ok, through} =
+                AshPostgres.Join.related_subquery(through_relationship, query)
+
+              Ecto.Query.from(destination in subquery,
+                join: through in ^through,
+                as: ^subquery.__ash_bindings__.current,
+                on:
+                  field(through, ^first_relationship.destination_attribute_on_join_resource) ==
+                    field(destination, ^first_relationship.destination_attribute),
+                on:
+                  field(parent_as(^source_ref), ^first_relationship.source_attribute) ==
+                    field(through, ^first_relationship.source_attribute_on_join_resource)
+              )
+
+            true ->
+              source_ref =
+                ref_binding(
+                  %Ref{
+                    attribute:
+                      Ash.Resource.Info.attribute(resource, first_relationship.source_attribute),
+                    relationship_path: at_path,
+                    resource: resource
+                  },
+                  bindings
+                )
+
+              Ecto.Query.from(destination in subquery,
+                where:
+                  field(parent_as(^source_ref), ^first_relationship.source_attribute) ==
+                    field(destination, ^first_relationship.destination_attribute)
+              )
+          end
+        end
       )
-      |> case do
-        {:ok, query} ->
-          AshPostgres.DataLayer.filter(
-            query,
-            filter,
-            first_relationship.destination,
-            no_this?: true
-          )
 
-        {:error, error} ->
-          {:error, error}
-      end
-
-    acc = merge_accumulator(query.__ash_bindings__.expression_accumulator, acc)
-
-    free_binding = filtered.__ash_bindings__.current
-
-    {exists_query, acc} =
-      cond do
-        Map.get(first_relationship, :manual) ->
-          {module, opts} = first_relationship.manual
-
-          [pkey_attr | _] = Ash.Resource.Info.primary_key(first_relationship.destination)
-
-          pkey_attr = Ash.Resource.Info.attribute(first_relationship.destination, pkey_attr)
-
-          source_ref =
-            ref_binding(
-              %Ref{
-                attribute: pkey_attr,
-                relationship_path: at_path,
-                resource: resource
-              },
-              bindings
-            )
-
-          {:ok, subquery} =
-            module.ash_postgres_subquery(
-              opts,
-              source_ref,
-              0,
-              filtered
-            )
-
-          {subquery, acc}
-
-        first_relationship.type == :many_to_many ->
-          source_ref =
-            ref_binding(
-              %Ref{
-                attribute:
-                  Ash.Resource.Info.attribute(resource, first_relationship.source_attribute),
-                relationship_path: at_path,
-                resource: resource
-              },
-              bindings
-            )
-
-          through_relationship =
-            Ash.Resource.Info.relationship(resource, first_relationship.join_relationship)
-
-          {:ok, through} =
-            AshPostgres.Join.related_subquery(through_relationship, query)
-
-          query =
-            Ecto.Query.from(destination in filtered,
-              join: through in ^through,
-              as: ^free_binding,
-              on:
-                field(through, ^first_relationship.destination_attribute_on_join_resource) ==
-                  field(destination, ^first_relationship.destination_attribute),
-              on:
-                field(parent_as(^source_ref), ^first_relationship.source_attribute) ==
-                  field(through, ^first_relationship.source_attribute_on_join_resource)
-            )
-
-          {query, acc}
-
-        Map.get(first_relationship, :no_attributes?) ->
-          {filtered, acc}
-
-        true ->
-          source_ref =
-            ref_binding(
-              %Ref{
-                attribute:
-                  Ash.Resource.Info.attribute(resource, first_relationship.source_attribute),
-                relationship_path: at_path,
-                resource: resource
-              },
-              bindings
-            )
-
-          query =
-            Ecto.Query.from(destination in filtered,
-              where:
-                field(parent_as(^source_ref), ^first_relationship.source_attribute) ==
-                  field(destination, ^first_relationship.destination_attribute)
-            )
-
-          {query, acc}
-      end
-
-    exists_query =
-      exists_query
-      |> Ecto.Query.exclude(:select)
-      |> Ecto.Query.select(1)
-      |> AshPostgres.DataLayer.set_subquery_prefix(query, first_relationship.destination)
-
-    {Ecto.Query.dynamic(exists(Ecto.Query.subquery(exists_query))), acc}
+    {Ecto.Query.dynamic(exists(subquery)), acc}
   end
 
   defp do_dynamic_expr(
@@ -2224,53 +2146,6 @@ defmodule AshPostgres.Expr do
         parent.__ash_bindings__.resource | parent.__ash_bindings__[:parent_resources] || []
       ])
     end)
-  end
-
-  defp nest_expression(expression, relationship_path) do
-    case expression do
-      {key, value} when is_atom(key) ->
-        {key, nest_expression(value, relationship_path)}
-
-      %Not{expression: expression} = not_expr ->
-        %{not_expr | expression: nest_expression(expression, relationship_path)}
-
-      %BooleanExpression{left: left, right: right} = expression ->
-        %{
-          expression
-          | left: nest_expression(left, relationship_path),
-            right: nest_expression(right, relationship_path)
-        }
-
-      %{__operator__?: true, left: left, right: right} = op ->
-        left = nest_expression(left, relationship_path)
-        right = nest_expression(right, relationship_path)
-        %{op | left: left, right: right}
-
-      %Ref{} = ref ->
-        add_to_ref_path(ref, relationship_path)
-
-      %{__function__?: true, arguments: args} = func ->
-        %{func | arguments: Enum.map(args, &nest_expression(&1, relationship_path))}
-
-      %Ash.Query.Exists{} = exists ->
-        %{exists | at_path: relationship_path ++ exists.at_path}
-
-      %Ash.Query.Parent{} = parent ->
-        parent
-
-      %Ash.Query.Call{args: args} = call ->
-        %{call | args: Enum.map(args, &nest_expression(&1, relationship_path))}
-
-      %Ash.Filter{expression: expression} = filter ->
-        %{filter | expression: nest_expression(expression, relationship_path)}
-
-      other ->
-        other
-    end
-  end
-
-  defp add_to_ref_path(%Ref{relationship_path: relationship_path} = ref, to_add) do
-    %{ref | relationship_path: to_add ++ relationship_path}
   end
 
   @doc false

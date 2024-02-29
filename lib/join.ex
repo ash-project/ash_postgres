@@ -242,21 +242,25 @@ defmodule AshPostgres.Join do
       query = on_subquery.(query)
 
       query =
-        from(row in subquery(query), as: ^0)
-        |> AshPostgres.DataLayer.default_bindings(relationship.destination)
-        |> AshPostgres.DataLayer.merge_expr_accumulator(
-          query.__ash_bindings__.expression_accumulator
-        )
-        |> Map.update!(
-          :__ash_bindings__,
-          fn bindings ->
-            bindings
-            |> Map.put(:current, query.__ash_bindings__.current)
-            |> put_in([:context, :data_layer], %{
-              has_parent_expr?: has_parent_expr?
-            })
-          end
-        )
+        if opts[:return_subquery?] do
+          subquery(query)
+        else
+          from(row in subquery(query), as: ^0)
+          |> AshPostgres.DataLayer.default_bindings(relationship.destination)
+          |> AshPostgres.DataLayer.merge_expr_accumulator(
+            query.__ash_bindings__.expression_accumulator
+          )
+          |> Map.update!(
+            :__ash_bindings__,
+            fn bindings ->
+              bindings
+              |> Map.put(:current, query.__ash_bindings__.current)
+              |> put_in([:context, :data_layer], %{
+                has_parent_expr?: has_parent_expr?
+              })
+            end
+          )
+        end
 
       {:ok, query}
     end
@@ -264,6 +268,8 @@ defmodule AshPostgres.Join do
 
   def related_query(relationship, query, opts \\ []) do
     sort? = Keyword.get(opts, :sort?, false)
+    filter = Keyword.get(opts, :filter, nil)
+    parent_resources = Keyword.get(opts, :parent_stack, [relationship.source])
 
     read_action =
       relationship.read_action ||
@@ -276,7 +282,8 @@ defmodule AshPostgres.Join do
     |> Ash.Query.set_context(context)
     |> Ash.Query.set_context(%{data_layer: %{table: nil}})
     |> Ash.Query.set_context(relationship.context)
-    |> Ash.Query.do_filter(relationship.filter, parent_stack: [relationship.source])
+    |> Ash.Query.do_filter(relationship.filter, parent_stack: parent_resources)
+    |> Ash.Query.do_filter(filter, parent_stack: parent_resources)
     |> Ash.Query.for_read(read_action, %{},
       actor: context[:private][:actor],
       tenant: context[:private][:tenant]

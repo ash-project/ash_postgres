@@ -1,4 +1,5 @@
 defmodule AshPostgres.Test.PostFollower do
+  @moduledoc false
   use Ash.Resource,
     data_layer: AshPostgres.DataLayer
 
