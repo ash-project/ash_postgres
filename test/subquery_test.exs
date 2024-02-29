@@ -13,7 +13,6 @@ defmodule AshPostgres.SubqueryTest do
 
     Through.create(%{parent_id: parent.id, child_id: child.id})
 
-    assert {:ok, _} =
-             Child.read(actor: %{email: "foo@bar.com"})
+    Child.read!(actor: %{email: "foo@bar.com"})
   end
 end

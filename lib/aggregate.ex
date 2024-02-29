@@ -2,6 +2,7 @@ defmodule AshPostgres.Aggregate do
   @moduledoc false
 
   require Ecto.Query
+  import Ecto.Query, only: [from: 2]
 
   @next_aggregate_names Enum.reduce(0..999, %{}, fn i, acc ->
                           Map.put(acc, :"aggregate_#{i}", :"aggregate_#{i + 1}")

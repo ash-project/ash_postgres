@@ -208,6 +208,13 @@ defmodule AshPostgres.Test.Post do
       destination_attribute_on_join_resource: :destination_post_id
     )
 
+    many_to_many(:followers, AshPostgres.Test.User,
+      through: AshPostgres.Test.PostFollower,
+      source_attribute_on_join_resource: :post_id,
+      destination_attribute_on_join_resource: :follower_id,
+      read_action: :active
+    )
+
     has_many(:views, AshPostgres.Test.PostView)
   end
 
@@ -216,11 +223,34 @@ defmodule AshPostgres.Test.Post do
   end
 
   calculations do
+    calculate(
+      :author_has_post_with_follower_named_fred,
+      :boolean,
+      expr(
+        exists(
+          author.posts,
+          has_follower_named_fred
+        )
+      )
+    )
+
+    calculate(
+      :has_no_followers,
+      :boolean,
+      expr(is_nil(author.posts.followers))
+    )
+
     calculate(:score_after_winning, :integer, expr((score || 0) + 1))
     calculate(:negative_score, :integer, expr(-score))
     calculate(:category_label, :ci_string, expr("(" <> category <> ")"))
     calculate(:score_with_score, :string, expr(score <> score))
     calculate(:foo_bar_from_stuff, :string, expr(stuff[:foo][:bar]))
+
+    calculate(
+      :has_follower_named_fred,
+      :boolean,
+      expr(exists(followers, name == "fred"))
+    )
 
     calculate(
       :composite_origin,

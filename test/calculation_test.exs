@@ -724,6 +724,20 @@ defmodule AshPostgres.CalculationTest do
              |> Api.read_one!()
   end
 
+  test "exists with a relationship that has a filtered read action works" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{})
+      |> Api.create!()
+
+    post_id = post.id
+
+    assert [%{id: ^post_id}] =
+             Post
+             |> Ash.Query.filter(has_no_followers)
+             |> Api.read!()
+  end
+
   def fred do
     "fred"
   end

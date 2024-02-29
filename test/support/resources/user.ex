@@ -4,6 +4,14 @@ defmodule AshPostgres.Test.User do
 
   actions do
     defaults([:create, :read, :update, :destroy])
+
+    read :active do
+      filter(expr(active))
+    end
+  end
+
+  calculations do
+    calculate(:active, :boolean, expr(is_active == true))
   end
 
   attributes do
