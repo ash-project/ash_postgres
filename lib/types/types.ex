@@ -189,6 +189,45 @@ defmodule AshPostgres.Types do
   end
 
   defp fill_in_known_type(
+         {{:array, type},
+          %Ash.Query.Function.Type{arguments: [inner, {:array, type}, constraints]} = func}
+       ) do
+    {:in,
+     fill_in_known_type({type, %{func | arguments: [inner, type, constraints[:items] || []]}})}
+  end
+
+  defp fill_in_known_type(
+         {{:array, type},
+          %Ref{attribute: %{type: {:array, type}, constraints: constraints} = attribute} = ref}
+       ) do
+    {:in,
+     fill_in_known_type(
+       {type,
+        %{ref | attribute: %{attribute | type: type, constraints: constraints[:items] || []}}}
+     )}
+  end
+
+  defp fill_in_known_type(
+         {vague_type, %Ash.Query.Function.Type{arguments: [_, type, constraints]}} = func
+       )
+       when vague_type in [:any, :same] do
+    if Ash.Type.ash_type?(type) do
+      type = type |> parameterized_type(constraints) |> array_to_in()
+
+      {type || :any, func}
+    else
+      type =
+        if is_atom(type) && :erlang.function_exported(type, :type, 1) do
+          {:parameterized, type, []} |> array_to_in()
+        else
+          type |> array_to_in()
+        end
+
+      {type, func}
+    end
+  end
+
+  defp fill_in_known_type(
          {vague_type, %Ref{attribute: %{type: type, constraints: constraints}}} = ref
        )
        when vague_type in [:any, :same] do
@@ -206,12 +245,6 @@ defmodule AshPostgres.Types do
 
       {type, ref}
     end
-  end
-
-  defp fill_in_known_type(
-         {{:array, type}, %Ref{attribute: %{type: {:array, type}} = attribute} = ref}
-       ) do
-    {:in, fill_in_known_type({type, %{ref | attribute: %{attribute | type: type}}})}
   end
 
   defp fill_in_known_type({type, value}), do: {array_to_in(type), value}

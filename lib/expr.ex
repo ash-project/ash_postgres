@@ -1216,6 +1216,23 @@ defmodule AshPostgres.Expr do
 
   defp do_dynamic_expr(
          query,
+         %Type{
+           arguments: [
+             %Type{arguments: [_, type, constraints]} = nested_call,
+             type,
+             constraints
+           ]
+         },
+         bindings,
+         embedded?,
+         acc,
+         type
+       ) do
+    do_dynamic_expr(query, nested_call, bindings, embedded?, acc, type)
+  end
+
+  defp do_dynamic_expr(
+         query,
          %Type{arguments: [arg1, arg2, constraints]},
          bindings,
          embedded?,
