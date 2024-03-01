@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.15](https://github.com/ash-project/ash_postgres/compare/v1.5.14...v1.5.15) (2024-03-01)
+
+
+
+
+### Improvements:
+
+* don't double cast to the same type
+
+* detect more types
+
 ## [v1.5.14](https://github.com/ash-project/ash_postgres/compare/v1.5.13...v1.5.14) (2024-03-01)
 
 
