@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.14](https://github.com/ash-project/ash_postgres/compare/v1.5.13...v1.5.14) (2024-03-01)
+
+
+
+
+### Improvements:
+
+* no need for subquery for simple table aliases
+
 ## [v1.5.13](https://github.com/ash-project/ash_postgres/compare/v1.5.12...v1.5.13) (2024-02-29)
 
 
