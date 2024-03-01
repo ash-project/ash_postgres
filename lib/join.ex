@@ -247,21 +247,25 @@ defmodule AshPostgres.Join do
         if opts[:return_subquery?] do
           subquery(query)
         else
-          from(row in subquery(query), as: ^0)
-          |> AshPostgres.DataLayer.default_bindings(relationship.destination)
-          |> AshPostgres.DataLayer.merge_expr_accumulator(
-            query.__ash_bindings__.expression_accumulator
-          )
-          |> Map.update!(
-            :__ash_bindings__,
-            fn bindings ->
-              bindings
-              |> Map.put(:current, query.__ash_bindings__.current)
-              |> put_in([:context, :data_layer], %{
-                has_parent_expr?: has_parent_expr?
-              })
-            end
-          )
+          if Enum.empty?(query.joins) && Enum.empty?(query.order_bys) && Enum.empty?(query.wheres) do
+            query
+          else
+            from(row in subquery(query), as: ^0)
+            |> AshPostgres.DataLayer.default_bindings(relationship.destination)
+            |> AshPostgres.DataLayer.merge_expr_accumulator(
+              query.__ash_bindings__.expression_accumulator
+            )
+            |> Map.update!(
+              :__ash_bindings__,
+              fn bindings ->
+                bindings
+                |> Map.put(:current, query.__ash_bindings__.current)
+                |> put_in([:context, :data_layer], %{
+                  has_parent_expr?: has_parent_expr?
+                })
+              end
+            )
+          end
         end
 
       {:ok, query}
