@@ -1228,7 +1228,6 @@ defmodule AshPostgres.DataLayer do
     |> Ash.Query.new()
     |> Ash.Query.set_context(through_relationship.context)
     |> Ash.Query.do_filter(through_relationship.filter)
-    |> Ash.Query.sort(through_relationship.sort, prepend?: true)
     |> Ash.Query.set_tenant(source_query.tenant)
     |> Ash.Query.put_context(:data_layer, %{
       start_bindings_at: query.__ash_bindings__.current
