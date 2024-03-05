@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.16](https://github.com/ash-project/ash_postgres/compare/v1.5.15...v1.5.16) (2024-03-05)
+
+
+
+
+### Bug Fixes:
+
+* always exclude `:order_by` on bulk updateable query
+
+* don't apply join relationship sort for lateral join
+
 ## [v1.5.15](https://github.com/ash-project/ash_postgres/compare/v1.5.14...v1.5.15) (2024-03-01)
 
 
