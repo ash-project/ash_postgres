@@ -1493,7 +1493,7 @@ defmodule AshPostgres.DataLayer do
              ),
            {:ok, query} <-
              AshPostgres.Aggregate.add_aggregates(query, used_aggregates, resource, false, 0) do
-        {:cont, {:ok, Ecto.Query.exclude(query, :order_by)}}
+        {:cont, {:ok, query}}
       else
         {:error, error} ->
           {:halt, {:error, error}}
@@ -1506,19 +1506,22 @@ defmodule AshPostgres.DataLayer do
             {:ok,
              query
              |> default_bindings(resource, context)
-             |> Ecto.Query.exclude(:select)}
+             |> Ecto.Query.exclude(:select)
+             |> Ecto.Query.exclude(:order_by)}
 
           %{qual: :inner} ->
             {:ok,
              query
              |> default_bindings(resource, context)
-             |> Ecto.Query.exclude(:select)}
+             |> Ecto.Query.exclude(:select)
+             |> Ecto.Query.exclude(:order_by)}
 
           _other_type_of_join ->
             root_query =
               from(row in query.from.source, [])
               |> Map.put(:__ash_bindings__, query.__ash_bindings__)
               |> Ecto.Query.exclude(:select)
+              |> Ecto.Query.exclude(:order_by)
 
             dynamic =
               Enum.reduce(Ash.Resource.Info.primary_key(resource), nil, fn pkey, dynamic ->
