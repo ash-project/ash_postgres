@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.17](https://github.com/ash-project/ash_postgres/compare/v1.5.16...v1.5.17) (2024-03-06)
+
+
+
+
+### Bug Fixes:
+
+* prevent ecto/pg from getting confused about the type of maps
+
 ## [v1.5.16](https://github.com/ash-project/ash_postgres/compare/v1.5.15...v1.5.16) (2024-03-05)
 
 
