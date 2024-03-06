@@ -1600,7 +1600,11 @@ defmodule AshPostgres.Expr do
         {Map.put(map, key, value), acc}
       end)
 
-    {Ecto.Query.dynamic([], type(^value, :map)), acc}
+    if embedded? do
+      {Ecto.Query.dynamic([], type(^value, :map)), acc}
+    else
+      {value, acc}
+    end
   end
 
   defp do_dynamic_expr(query, other, bindings, true, acc, type) do
