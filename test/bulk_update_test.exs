@@ -34,6 +34,17 @@ defmodule AshPostgres.BulkUpdateTest do
     |> Enum.map(& &1.list_of_stuff)
   end
 
+  test "a map can be given as input on a regular update" do
+    %{records: [post | _]} =
+      Api.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create,
+        return_records?: true
+      )
+
+    post
+    |> Ash.Changeset.for_update(:update, %{list_of_stuff: [%{a: [:a, :b]}, %{a: [:c, :d]}]})
+    |> Api.update!()
+  end
+
   test "bulk updates only apply to things that the query produces" do
     Api.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
 

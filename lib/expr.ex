@@ -1594,10 +1594,13 @@ defmodule AshPostgres.Expr do
 
   defp do_dynamic_expr(query, value, bindings, embedded?, acc, _type)
        when is_map(value) and not is_struct(value) do
-    Enum.reduce(value, {%{}, acc}, fn {key, value}, {map, acc} ->
-      {value, acc} = do_dynamic_expr(query, value, bindings, embedded?, acc)
-      {Map.put(map, key, value), acc}
-    end)
+    {value, acc} =
+      Enum.reduce(value, {%{}, acc}, fn {key, value}, {map, acc} ->
+        {value, acc} = do_dynamic_expr(query, value, bindings, embedded?, acc)
+        {Map.put(map, key, value), acc}
+      end)
+
+    {Ecto.Query.dynamic([], type(^value, :map)), acc}
   end
 
   defp do_dynamic_expr(query, other, bindings, true, acc, type) do
