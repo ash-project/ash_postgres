@@ -209,6 +209,9 @@ defmodule AshPostgres.Aggregate do
                                              ^first_relationship.source_attribute_on_join_resource
                                            )
                                      )
+                                     |> Map.update!(:__ash_bindings__, fn bindings ->
+                                       Map.update!(bindings, :current, &(&1 + 1))
+                                     end)
 
                                    AshPostgres.Join.set_join_prefix(
                                      subquery,
