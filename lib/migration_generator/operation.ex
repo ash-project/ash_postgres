@@ -893,10 +893,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       index =
-        if index.where && base_filter do
-          %{index | where: base_filter <> " AND " <> index.where}
-        else
-          index
+        case {index.where, base_filter} do
+          {_where, nil} -> index
+          {nil, base_filter} -> %{index | where: base_filter}
+          {where, base_filter} -> %{index | where: base_filter <> " AND " <> where}
         end
 
       opts =
