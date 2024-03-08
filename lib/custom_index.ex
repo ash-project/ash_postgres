@@ -11,6 +11,7 @@ defmodule AshPostgres.CustomIndex do
     :prefix,
     :where,
     :include,
+    :nulls_distinct,
     :message,
     :all_tenants?
   ]
@@ -54,14 +55,18 @@ defmodule AshPostgres.CustomIndex do
       type: :string,
       doc: "specify conditions for a partial index."
     ],
-    message: [
-      type: :string,
-      doc: "A custom message to use for unique indexes that have been violated"
-    ],
     include: [
       type: {:list, :string},
       doc:
         "specify fields for a covering index. This is not supported by all databases. For more information on PostgreSQL support, please read the official docs."
+    ],
+    nulls_distinct: [
+      type: :boolean,
+      doc: "specify whether null values should be considered distinct for a unique index."
+    ],
+    message: [
+      type: :string,
+      doc: "A custom message to use for unique indexes that have been violated"
     ],
     all_tenants?: [
       type: :boolean,
