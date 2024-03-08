@@ -908,6 +908,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           option(:prefix, index.prefix),
           option(:where, index.where),
           option(:include, index.include),
+          option(:nulls_distinct, index.nulls_distinct),
           option(:prefix, schema)
         ])
 
