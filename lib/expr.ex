@@ -1457,12 +1457,11 @@ defmodule AshPostgres.Expr do
         ],
         return_subquery?: true,
         on_subquery: fn subquery ->
-          subquery = Ecto.Query.exclude(subquery, :select)
-
           subquery =
-            Ecto.Query.from(row in subquery,
+            Ecto.Query.from(row in Ecto.Query.exclude(subquery, :select),
               select: fragment("1")
             )
+            |> Map.put(:__ash_bindings__, subquery.__ash_bindings__)
 
           cond do
             Map.get(first_relationship, :manual) ->
