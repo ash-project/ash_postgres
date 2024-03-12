@@ -62,7 +62,8 @@ defmodule AshPostgres.CustomIndex do
     ],
     nulls_distinct: [
       type: :boolean,
-      doc: "specify whether null values should be considered distinct for a unique index."
+      doc: "specify whether null values should be considered distinct for a unique index.",
+      default: false
     ],
     message: [
       type: :string,
