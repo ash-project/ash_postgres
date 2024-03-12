@@ -305,7 +305,7 @@ defmodule AshPostgres.MigrationGenerator do
             pretty: true
           )
 
-        contents = format(contents, opts)
+        contents = String.trim(format(migration_file, contents, opts))
         create_file(snapshot_file, snapshot_contents, force: true)
         create_file(migration_file, contents)
       end
@@ -869,7 +869,7 @@ defmodule AshPostgres.MigrationGenerator do
     """
 
     try do
-      contents = format(contents, opts)
+      contents = String.trim(format(migration_file, contents, opts))
 
       if opts.dry_run do
         Mix.shell().info(contents)
@@ -980,9 +980,10 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp maybe_comment(text, _), do: text
 
-  defp format(string, opts) do
+  defp format(path, string, opts) do
     if opts.format do
-      Code.format_string!(string, locals_without_parens: ecto_sql_locals_without_parens())
+      {func, _} = Mix.Tasks.Format.formatter_for_file(path)
+      func.(string)
     else
       string
     end
@@ -997,17 +998,6 @@ defmodule AshPostgres.MigrationGenerator do
       """)
 
       reraise exception, __STACKTRACE__
-  end
-
-  defp ecto_sql_locals_without_parens do
-    path = File.cwd!() |> Path.join("deps/ecto_sql/.formatter.exs")
-
-    if File.exists?(path) do
-      {opts, _} = Code.eval_file(path)
-      Keyword.get(opts, :locals_without_parens, [])
-    else
-      []
-    end
   end
 
   defp streamline(ops, acc \\ [])
