@@ -25,6 +25,7 @@ spark_locals_without_parens = [
   migration_ignore_attributes: 1,
   migration_types: 1,
   name: 1,
+  nulls_distinct: 1,
   on_delete: 1,
   on_update: 1,
   polymorphic?: 1,

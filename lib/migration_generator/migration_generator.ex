@@ -2988,6 +2988,7 @@ defmodule AshPostgres.MigrationGenerator do
         end)
       end)
       |> Map.put_new(:include, [])
+      |> Map.put_new(:nulls_distinct, false)
       |> Map.put_new(:message, nil)
       |> Map.put_new(:all_tenants?, false)
     end)
