@@ -2706,7 +2706,7 @@ defmodule AshPostgres.DataLayer do
         case AshPostgres.Expr.dynamic_expr(
                query,
                expr,
-               query.__ash_bindings__,
+               Map.put(query.__ash_bindings__, :location, :update),
                false,
                type
              ) do

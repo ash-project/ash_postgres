@@ -148,6 +148,32 @@ defmodule AshPostgres.Expr do
 
   defp do_dynamic_expr(
          query,
+         %IsNil{left: left, right: true, embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         acc,
+         _type
+       ) do
+    {left_expr, acc} = do_dynamic_expr(query, left, bindings, pred_embedded? || embedded?, acc)
+
+    {Ecto.Query.dynamic(is_nil(^left_expr)), acc}
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %IsNil{left: left, right: false, embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         acc,
+         _type
+       ) do
+    {left_expr, acc} = do_dynamic_expr(query, left, bindings, pred_embedded? || embedded?, acc)
+
+    {Ecto.Query.dynamic(not is_nil(^left_expr)), acc}
+  end
+
+  defp do_dynamic_expr(
+         query,
          %IsNil{left: left, right: right, embedded?: pred_embedded?},
          bindings,
          embedded?,
@@ -382,21 +408,44 @@ defmodule AshPostgres.Expr do
          acc,
          type
        ) do
-    do_dynamic_expr(
-      query,
-      %Fragment{
-        embedded?: pred_embedded?,
-        arguments: [
-          raw: "(SELECT COUNT(*) FROM unnest(",
-          expr: list,
-          raw: ") AS item WHERE item IS NULL)"
-        ]
-      },
-      bindings,
-      embedded?,
-      acc,
-      type
-    )
+    if is_list(list) do
+      list =
+        Enum.map(list, fn item ->
+          %Ash.Query.Operator.IsNil{left: item, right: true}
+        end)
+
+      do_dynamic_expr(
+        query,
+        %Fragment{
+          embedded?: pred_embedded?,
+          arguments: [
+            raw: "(SELECT COUNT(*) FROM unnest(",
+            expr: list,
+            raw: ") AS item WHERE item IS TRUE)"
+          ]
+        },
+        bindings,
+        embedded?,
+        acc,
+        type
+      )
+    else
+      do_dynamic_expr(
+        query,
+        %Fragment{
+          embedded?: pred_embedded?,
+          arguments: [
+            raw: "(SELECT COUNT(*) FROM unnest(",
+            expr: list,
+            raw: ") AS item WHERE item IS NULL)"
+          ]
+        },
+        bindings,
+        embedded?,
+        acc,
+        type
+      )
+    end
   end
 
   defp do_dynamic_expr(
@@ -1598,18 +1647,53 @@ defmodule AshPostgres.Expr do
     {value, acc}
   end
 
-  defp do_dynamic_expr(query, value, bindings, embedded?, acc, _type)
+  defp do_dynamic_expr(query, value, bindings, embedded?, acc, type)
        when is_map(value) and not is_struct(value) do
-    {value, acc} =
-      Enum.reduce(value, {%{}, acc}, fn {key, value}, {map, acc} ->
-        {value, acc} = do_dynamic_expr(query, value, bindings, embedded?, acc)
-        {Map.put(map, key, value), acc}
-      end)
+    if bindings[:location] == :update &&
+         Enum.any?(value, fn {key, value} ->
+           Ash.Filter.TemplateHelpers.expr?(key) || Ash.Filter.TemplateHelpers.expr?(value)
+         end) do
+      elements =
+        value
+        |> Enum.flat_map(fn {key, list_item} ->
+          if is_atom(key) do
+            [{:expr, %Ash.Query.Function.Type{arguments: [key, :atom, []]}}, {:expr, list_item}]
+          else
+            [
+              {:expr, %Ash.Query.Function.Type{arguments: [key, :string, []]}},
+              {:expr, list_item}
+            ]
+          end
+        end)
+        |> Enum.intersperse({:raw, ","})
 
-    if embedded? do
-      {Ecto.Query.dynamic([], type(^value, :map)), acc}
+      do_dynamic_expr(
+        query,
+        %Fragment{
+          embedded?: embedded?,
+          arguments:
+            [
+              raw: "jsonb_build_object("
+            ] ++ elements ++ [raw: ")"]
+        },
+        bindings,
+        embedded?,
+        acc,
+        type
+      )
     else
-      {value, acc}
+      {value, acc} =
+        Enum.reduce(value, {%{}, acc}, fn {key, value}, {map, acc} ->
+          {value, acc} = do_dynamic_expr(query, value, bindings, embedded?, acc)
+
+          {Map.put(map, key, value), acc}
+        end)
+
+      if embedded? do
+        {Ecto.Query.dynamic([], type(^value, :map)), acc}
+      else
+        {value, acc}
+      end
     end
   end
 
