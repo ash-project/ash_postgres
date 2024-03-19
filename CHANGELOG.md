@@ -5,6 +5,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.19](https://github.com/ash-project/ash_postgres/compare/v1.5.18...v1.5.19) (2024-03-19)
+
+
+
+
+### Bug Fixes:
+
+* encode maps on update using fragments
+
+### Improvements:
+
+* Add nulls_distinct option to CustomIndex (#221)
+
 ## [v1.5.18](https://github.com/ash-project/ash_postgres/compare/v1.5.17...v1.5.18) (2024-03-19)
 
 
