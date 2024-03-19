@@ -5,6 +5,25 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.18](https://github.com/ash-project/ash_postgres/compare/v1.5.17...v1.5.18) (2024-03-19)
+
+
+
+
+### Bug Fixes:
+
+* don't reuse binding in many to many aggregate joins
+
+* typo in extension generator creates invalid drop
+
+* merge base_filter and custom index's where correctly (#219)
+
+### Improvements:
+
+* properly format generated migrations
+
+* don't select fields in exists subquery
+
 ## [v1.5.17](https://github.com/ash-project/ash_postgres/compare/v1.5.16...v1.5.17) (2024-03-06)
 
 
