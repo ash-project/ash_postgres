@@ -112,7 +112,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
 | [`prefix`](#postgres-custom_indexes-index-prefix){: #postgres-custom_indexes-index-prefix } | `String.t` |  | specify an optional prefix for the index. |
 | [`where`](#postgres-custom_indexes-index-where){: #postgres-custom_indexes-index-where } | `String.t` |  | specify conditions for a partial index. |
 | [`include`](#postgres-custom_indexes-index-include){: #postgres-custom_indexes-index-include } | `list(String.t)` |  | specify fields for a covering index. This is not supported by all databases. For more information on PostgreSQL support, please read the official docs. |
-| [`nulls_distinct`](#postgres-custom_indexes-index-nulls_distinct){: #postgres-custom_indexes-index-nulls_distinct } | `boolean` |  | specify whether null values should be considered distinct for a unique index. |
+| [`nulls_distinct`](#postgres-custom_indexes-index-nulls_distinct){: #postgres-custom_indexes-index-nulls_distinct } | `boolean` | `false` | specify whether null values should be considered distinct for a unique index. |
 | [`message`](#postgres-custom_indexes-index-message){: #postgres-custom_indexes-index-message } | `String.t` |  | A custom message to use for unique indexes that have been violated |
 | [`all_tenants?`](#postgres-custom_indexes-index-all_tenants?){: #postgres-custom_indexes-index-all_tenants? } | `boolean` | `false` | Whether or not the index should factor in the multitenancy attribute or not. |
 
