@@ -298,7 +298,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
-  describe "custom_indexes with `null_distinct: true`" do
+  describe "custom_indexes with `null_distinct: false`" do
     setup do
       on_exit(fn ->
         File.rm_rf!("test_snapshots_path")
@@ -337,8 +337,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       file = File.read!(custom_index_migration)
 
-      assert file =~ ~S<create index(:posts, [:uniq_one], nulls_distinct: true)>
-      assert file =~ ~S<create index(:posts, [:uniq_two])>
+      assert file =~ ~S<create index(:posts, [:uniq_one])>
+      assert file =~ ~S<create index(:posts, [:uniq_two], nulls_distinct: false)>
       assert file =~ ~S<create index(:posts, [:uniq_custom_one])>
     end
   end
