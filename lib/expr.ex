@@ -1096,7 +1096,8 @@ defmodule AshPostgres.Expr do
          %Ref{
            attribute: %Ash.Query.Aggregate{
              kind: :exists,
-             relationship_path: agg_relationship_path
+             relationship_path: agg_relationship_path,
+             query: agg_query
            },
            relationship_path: ref_relationship_path
          },
@@ -1105,9 +1106,20 @@ defmodule AshPostgres.Expr do
          acc,
          type
        ) do
+    filter =
+      if is_nil(agg_query.filter) do
+        true
+      else
+        agg_query.filter
+      end
+
     do_dynamic_expr(
       query,
-      %Ash.Query.Exists{path: agg_relationship_path, expr: true, at_path: ref_relationship_path},
+      %Ash.Query.Exists{
+        path: agg_relationship_path,
+        expr: filter,
+        at_path: ref_relationship_path
+      },
       bindings,
       embedded?,
       acc,

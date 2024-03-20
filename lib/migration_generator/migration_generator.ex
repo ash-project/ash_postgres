@@ -305,7 +305,7 @@ defmodule AshPostgres.MigrationGenerator do
             pretty: true
           )
 
-        contents = String.trim(format(migration_file, contents, opts))
+        contents = format(migration_file, contents, opts)
         create_file(snapshot_file, snapshot_contents, force: true)
         create_file(migration_file, contents)
       end
@@ -869,7 +869,7 @@ defmodule AshPostgres.MigrationGenerator do
     """
 
     try do
-      contents = String.trim(format(migration_file, contents, opts))
+      contents = format(migration_file, contents, opts)
 
       if opts.dry_run do
         Mix.shell().info(contents)
