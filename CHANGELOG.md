@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.20](https://github.com/ash-project/ash_postgres/compare/v1.5.19...v1.5.20) (2024-03-20)
+
+
+
+
+### Bug Fixes:
+
+* undo default of nulls_distinct option to true (#223)
+
+* generate correct custom index name in down migration function (#222)
+
 ## [v1.5.19](https://github.com/ash-project/ash_postgres/compare/v1.5.18...v1.5.19) (2024-03-19)
 
 
