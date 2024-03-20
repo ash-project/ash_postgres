@@ -4,7 +4,7 @@ defmodule AshPostgresTest do
   test "transaction metadata is given to on_transaction_begin" do
     AshPostgres.Test.Post
     |> Ash.Changeset.new(%{title: "title"})
-    |> AshPostgres.Test.Api.create!()
+    |> AshPostgres.Test.Ash.create!()
 
     assert_receive %{
       type: :create,
@@ -16,7 +16,7 @@ defmodule AshPostgresTest do
     post =
       AshPostgres.Test.Post
       |> Ash.Changeset.new(%{title: "good"})
-      |> AshPostgres.Test.Api.create!()
+      |> AshPostgres.Test.Ash.create!()
 
     assert_raise Ash.Error.Forbidden, fn ->
       post
@@ -24,13 +24,13 @@ defmodule AshPostgresTest do
         authorize?: true,
         actor: %{id: Ash.UUID.generate()}
       )
-      |> AshPostgres.Test.Api.update!()
+      |> AshPostgres.Test.Ash.update!()
       |> Map.get(:title)
     end
 
     post
     |> Ash.Changeset.for_update(:update, %{title: "okay"}, authorize?: true)
-    |> AshPostgres.Test.Api.update!()
+    |> AshPostgres.Test.Ash.update!()
     |> Map.get(:title)
   end
 end

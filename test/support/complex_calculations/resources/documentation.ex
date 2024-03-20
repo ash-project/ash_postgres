@@ -1,8 +1,12 @@
 defmodule AshPostgres.Test.ComplexCalculations.Documentation do
   @moduledoc false
-  use Ash.Resource, data_layer: AshPostgres.DataLayer
+  use Ash.Resource,
+    domain: AshPostgres.Test.ComplexCalculations.Domain,
+    data_layer: AshPostgres.DataLayer
 
   actions do
+    default_accept :*
+
     defaults([:create, :read, :update, :destroy])
   end
 
@@ -19,8 +23,8 @@ defmodule AshPostgres.Test.ComplexCalculations.Documentation do
     )
 
     attribute(:documented_at, :utc_datetime_usec)
-    create_timestamp(:inserted_at, private?: false)
-    update_timestamp(:updated_at, private?: false)
+    create_timestamp(:inserted_at, public?: true)
+    update_timestamp(:updated_at, public?: true)
   end
 
   calculations do

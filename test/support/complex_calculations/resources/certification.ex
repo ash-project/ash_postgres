@@ -1,8 +1,9 @@
 defmodule AshPostgres.Test.ComplexCalculations.Certification do
   @moduledoc false
-  use Ash.Resource, data_layer: AshPostgres.DataLayer
+  use Ash.Resource, domain: AshPostgres.Test.ComplexCalculations.Domain, data_layer: AshPostgres.DataLayer
 
   actions do
+    default_accept :*
     defaults([:create, :read, :update, :destroy])
   end
 

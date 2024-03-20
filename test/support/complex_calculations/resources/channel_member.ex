@@ -1,18 +1,21 @@
 defmodule AshPostgres.Test.ComplexCalculations.ChannelMember do
   @moduledoc false
   use Ash.Resource,
+    domain: AshPostgres.Test.ComplexCalculations.Domain,
     data_layer: AshPostgres.DataLayer,
     authorizers: [Ash.Policy.Authorizer]
 
   actions do
+    default_accept :*
+
     defaults([:create, :read, :update, :destroy])
   end
 
   attributes do
     uuid_primary_key(:id)
 
-    create_timestamp(:created_at, private?: false)
-    update_timestamp(:updated_at, private?: false)
+    create_timestamp(:created_at, public?: true)
+    update_timestamp(:updated_at, public?: true)
   end
 
   postgres do
@@ -21,7 +24,7 @@ defmodule AshPostgres.Test.ComplexCalculations.ChannelMember do
   end
 
   relationships do
-    belongs_to(:user, AshPostgres.Test.User, api: AshPostgres.Test.Api, attribute_writable?: true)
+    belongs_to(:user, AshPostgres.Test.User, domain: AshPostgres.Test.Domain, attribute_writable?: true)
 
     belongs_to(:channel, AshPostgres.Test.ComplexCalculations.Channel, attribute_writable?: true)
   end

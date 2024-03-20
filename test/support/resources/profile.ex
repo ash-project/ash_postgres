@@ -1,6 +1,7 @@
 defmodule AshPostgres.Test.Profile do
   @moduledoc false
   use Ash.Resource,
+    domain: AshPostgres.Test.Domain,
     data_layer: AshPostgres.DataLayer
 
   postgres do
@@ -15,6 +16,8 @@ defmodule AshPostgres.Test.Profile do
   end
 
   actions do
+    default_accept :*
+
     defaults([:create, :read, :update, :destroy])
   end
 

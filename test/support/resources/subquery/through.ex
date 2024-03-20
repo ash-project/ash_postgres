@@ -2,9 +2,10 @@ defmodule AshPostgres.Test.Subquery.Through do
   @moduledoc false
   alias AshPostgres.Test.Subquery.Child
   alias AshPostgres.Test.Subquery.Parent
-  alias AshPostgres.Test.Subquery.ParentApi
+  alias AshPostgres.Test.Subquery.ParentDomain
 
   use Ash.Resource,
+    domain: AshPostgres.Test.Domain,
     data_layer: AshPostgres.DataLayer,
     authorizers: [
       Ash.Policy.Authorizer
@@ -28,7 +29,6 @@ defmodule AshPostgres.Test.Subquery.Through do
   end
 
   code_interface do
-    define_for(AshPostgres.Test.Subquery.ChildApi)
 
     define(:create)
     define(:read)
@@ -36,7 +36,7 @@ defmodule AshPostgres.Test.Subquery.Through do
 
   relationships do
     belongs_to :parent, Parent do
-      api(ParentApi)
+      domain(ParentDomain)
     end
 
     belongs_to :child, Child do
@@ -52,6 +52,8 @@ defmodule AshPostgres.Test.Subquery.Through do
   end
 
   actions do
+    default_accept :*
+
     defaults([:create, :read, :update, :destroy])
   end
 end

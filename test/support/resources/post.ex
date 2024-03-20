@@ -16,6 +16,7 @@ end
 defmodule AshPostgres.Test.Post do
   @moduledoc false
   use Ash.Resource,
+    domain: AshPostgres.Test.Domain,
     data_layer: AshPostgres.DataLayer,
     authorizers: [
       Ash.Policy.Authorizer
@@ -73,6 +74,8 @@ defmodule AshPostgres.Test.Post do
   end
 
   actions do
+    default_accept :*
+
     defaults([:update, :destroy])
 
     read :title_is_foo do
@@ -155,7 +158,6 @@ defmodule AshPostgres.Test.Post do
   end
 
   code_interface do
-    define_for(AshPostgres.Test.Api)
     define(:get_by_id, action: :read, get_by: [:id])
     define(:increment_score, args: [{:optional, :amount}])
   end
@@ -524,7 +526,7 @@ defmodule AshPostgres.Test.Post.ManualUpdate do
       |> Ash.Changeset.for_update(:update, changeset.attributes)
       |> Ash.Changeset.force_change_attribute(:title, "manual")
       |> Ash.Changeset.load(:comments)
-      |> AshPostgres.Test.Api.update!()
+      |> Ash.update!()
     }
   end
 end

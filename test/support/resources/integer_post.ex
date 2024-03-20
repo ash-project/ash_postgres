@@ -1,6 +1,7 @@
 defmodule AshPostgres.Test.IntegerPost do
   @moduledoc false
   use Ash.Resource,
+    domain: AshPostgres.Test.Domain,
     data_layer: AshPostgres.DataLayer
 
   postgres do
@@ -9,6 +10,8 @@ defmodule AshPostgres.Test.IntegerPost do
   end
 
   actions do
+    default_accept :*
+
     defaults([:create, :read, :update, :destroy])
   end
 

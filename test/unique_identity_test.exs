@@ -1,6 +1,6 @@
 defmodule AshPostgres.Test.UniqueIdentityTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Post}
+  alias AshPostgres.Test.Post
 
   require Ash.Query
 
@@ -8,14 +8,14 @@ defmodule AshPostgres.Test.UniqueIdentityTest do
     post =
       Post
       |> Ash.Changeset.new(%{title: "title"})
-      |> Api.create!()
+      |> Ash.create!()
 
     assert_raise Ash.Error.Invalid,
                  ~r/Invalid value provided for id: has already been taken/,
                  fn ->
                    Post
                    |> Ash.Changeset.new(%{id: post.id})
-                   |> Api.create!()
+                   |> Ash.create!()
                  end
   end
 
@@ -23,12 +23,12 @@ defmodule AshPostgres.Test.UniqueIdentityTest do
     post =
       Post
       |> Ash.Changeset.new(%{title: "title", uniq_one: "fred", uniq_two: "astair", price: 10})
-      |> Api.create!()
+      |> Ash.create!()
 
     new_post =
       Post
       |> Ash.Changeset.new(%{title: "title2", uniq_one: "fred", uniq_two: "astair"})
-      |> Api.create!(upsert?: true, upsert_identity: :uniq_one_and_two)
+      |> Ash.create!(upsert?: true, upsert_identity: :uniq_one_and_two)
 
     assert new_post.id == post.id
     assert new_post.price == 10

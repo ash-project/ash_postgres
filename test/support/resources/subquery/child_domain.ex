@@ -1,8 +1,8 @@
-defmodule AshPostgres.Test.Subquery.ChildApi do
+defmodule AshPostgres.Test.Subquery.ChildDomain do
   @moduledoc false
   alias AshPostgres.Test.Subquery.Child
   alias AshPostgres.Test.Subquery.Through
-  use Ash.Api
+  use Ash.Domain
 
   resources do
     resource(Child)

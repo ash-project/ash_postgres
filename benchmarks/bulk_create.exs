@@ -1,4 +1,4 @@
-alias AshPostgres.Test.{Api, Post}
+alias AshPostgres.Test.{Domain, Post}
 
 ten_rows =
   1..10
@@ -25,7 +25,7 @@ hundred_thousand_rows =
   end)
 
 # do them both once to warm things up
-Api.bulk_create(ten_rows, Post, :create,
+Ash.bulk_create(ten_rows, Post, :create,
   batch_size: 10,
   max_concurrency: 2
 )
@@ -39,13 +39,13 @@ batch_size = 200
 Benchee.run(
   %{
     "ash sync": fn input ->
-      %{error_count: 0} = Api.bulk_create(input, Post, :create,
+      %{error_count: 0} = Ash.bulk_create(input, Post, :create,
         batch_size: batch_size,
         transaction: false
       )
     end,
     "ash sync assuming casted": fn input ->
-      %{error_count: 0} = Api.bulk_create(input, Post, :create,
+      %{error_count: 0} = Ash.bulk_create(input, Post, :create,
         batch_size: batch_size,
         transaction: false,
         assume_casted?: true
@@ -62,7 +62,7 @@ Benchee.run(
       input
       |> Stream.chunk_every(batch_size)
       |> Task.async_stream(fn batch ->
-        %{error_count: 0} =  Api.bulk_create(batch, Post, :create,
+        %{error_count: 0} =  Ash.bulk_create(batch, Post, :create,
           transaction: false
         )
       end, max_concurrency: max_concurrency, timeout: :infinity)
@@ -72,7 +72,7 @@ Benchee.run(
       input
       |> Stream.chunk_every(batch_size)
       |> Task.async_stream(fn batch ->
-        %{error_count: 0} =  Api.bulk_create(batch, Post, :create,
+        %{error_count: 0} =  Ash.bulk_create(batch, Post, :create,
           transaction: false,
           assume_casted?: true
         )
@@ -80,14 +80,14 @@ Benchee.run(
       |> Stream.run()
     end,
     "ash using own async option": fn input ->
-      %{error_count: 0} = Api.bulk_create(input, Post, :create,
+      %{error_count: 0} = Ash.bulk_create(input, Post, :create,
         transaction: false,
         max_concurrency: max_concurrency,
         batch_size: batch_size
       )
     end,
     "ash using own async option assuming casted": fn input ->
-      %{error_count: 0} = Api.bulk_create(input, Post, :create,
+      %{error_count: 0} = Ash.bulk_create(input, Post, :create,
         transaction: false,
         assume_casted?: true,
         max_concurrency: max_concurrency,

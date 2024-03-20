@@ -1,6 +1,7 @@
 defmodule AshPostgres.MultitenancyTest.User do
   @moduledoc false
   use Ash.Resource,
+    domain: AshPostgres.MultitenancyTest.Domain,
     data_layer: AshPostgres.DataLayer
 
   attributes do
@@ -15,6 +16,8 @@ defmodule AshPostgres.MultitenancyTest.User do
   end
 
   actions do
+    default_accept :*
+
     defaults([:create, :read, :update, :destroy])
   end
 

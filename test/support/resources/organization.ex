@@ -1,6 +1,7 @@
 defmodule AshPostgres.Test.Organization do
   @moduledoc false
   use Ash.Resource,
+    domain: AshPostgres.Test.Domain,
     data_layer: AshPostgres.DataLayer,
     authorizers: [
       Ash.Policy.Authorizer
@@ -24,6 +25,8 @@ defmodule AshPostgres.Test.Organization do
   end
 
   actions do
+    default_accept :*
+
     defaults([:create, :read, :update, :destroy])
   end
 

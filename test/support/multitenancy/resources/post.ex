@@ -1,6 +1,7 @@
 defmodule AshPostgres.MultitenancyTest.Post do
   @moduledoc false
   use Ash.Resource,
+    domain: AshPostgres.MultitenancyTest.Domain,
     data_layer: AshPostgres.DataLayer,
     authorizers: [Ash.Policy.Authorizer]
 
@@ -21,6 +22,8 @@ defmodule AshPostgres.MultitenancyTest.Post do
   end
 
   actions do
+    default_accept :*
+
     defaults([:create, :read, :update, :destroy])
 
     update(:update_with_policy)

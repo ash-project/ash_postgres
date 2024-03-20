@@ -1,6 +1,7 @@
 defmodule AshPostgres.Test.Manager do
   @moduledoc false
   use Ash.Resource,
+    domain: AshPostgres.Test.Domain,
     data_layer: AshPostgres.DataLayer
 
   postgres do
@@ -9,6 +10,8 @@ defmodule AshPostgres.Test.Manager do
   end
 
   actions do
+    default_accept :*
+
     defaults([:read, :update, :destroy])
 
     create :create do

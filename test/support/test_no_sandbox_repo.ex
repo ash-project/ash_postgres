@@ -16,7 +16,7 @@ defmodule AshPostgres.TestNoSandboxRepo do
     Code.ensure_compiled(AshPostgres.MultitenancyTest.Org)
 
     AshPostgres.MultitenancyTest.Org
-    |> AshPostgres.MultitenancyTest.Api.read!()
+    |> Ash.read!()
     |> Enum.map(&"org_#{&1.id}")
   end
 end

@@ -4,7 +4,7 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
   import AshPostgres.MixHelpers,
     only: [migrations_path: 2, tenant_migrations_path: 2, tenants: 2]
 
-  @shortdoc "Runs the repository migrations for all repositories in the provided (or congigured) apis"
+  @shortdoc "Runs the repository migrations for all repositories in the provided (or congigured) domains"
 
   @aliases [
     n: :step
@@ -20,7 +20,7 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
     pool_size: :integer,
     log_sql: :boolean,
     strict_version_order: :boolean,
-    apis: :string,
+    domains: :string,
     no_compile: :boolean,
     no_deps_check: :boolean,
     migrations_path: :keep,
@@ -42,7 +42,7 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
   specific version number, supply `--to version_number`. To migrate a
   specific number of times, use `--step n`.
 
-  This is only really useful if your api or apis only use a single repo.
+  This is only really useful if your domains only use a single repo.
   If you have multiple repos and you want to run a single migration and/or
   migrate/roll them back to different points, you will need to use the
   ecto specific task, `mix ecto.migrate` and provide your repo name.
@@ -53,7 +53,7 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
   ## Examples
 
       mix ash_postgres.migrate
-      mix ash_postgres.migrate --apis MyApp.Api1,MyApp.Api2
+      mix ash_postgres.migrate --domains MyApp.Domain1,MyApp.Domain2
 
       mix ash_postgres.migrate -n 3
       mix ash_postgres.migrate --step 3
@@ -62,7 +62,7 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
 
   ## Command line options
 
-    * `--apis` - the apis who's repos should be migrated
+    * `--domains` - the domains who's repos should be migrated
 
     * `--tenants` - Run the tenant migrations
 
@@ -107,7 +107,7 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
 
     rest_opts =
       args
-      |> AshPostgres.MixHelpers.delete_arg("--apis")
+      |> AshPostgres.MixHelpers.delete_arg("--domains")
       |> AshPostgres.MixHelpers.delete_arg("--migrations-path")
       |> AshPostgres.MixHelpers.delete_flag("--tenants")
       |> AshPostgres.MixHelpers.delete_flag("--only-tenants")

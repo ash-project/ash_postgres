@@ -3,6 +3,7 @@ defmodule AshPostgres.Test.Subquery.Access do
   alias AshPostgres.Test.Subquery.Parent
 
   use Ash.Resource,
+    domain: AshPostgres.Test.Domain,
     data_layer: AshPostgres.DataLayer,
     authorizers: [
       Ash.Policy.Authorizer
@@ -22,7 +23,6 @@ defmodule AshPostgres.Test.Subquery.Access do
   end
 
   code_interface do
-    define_for(AshPostgres.Test.Subquery.ParentApi)
 
     define(:create)
     define(:read)
@@ -39,6 +39,8 @@ defmodule AshPostgres.Test.Subquery.Access do
   end
 
   actions do
+    default_accept :*
+
     defaults([:create, :update, :destroy])
 
     read :read do

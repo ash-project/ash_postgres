@@ -1,10 +1,9 @@
 ---
 name: Proposal
 about: Suggest an idea for this project
-title: ''
+title: ""
 labels: enhancement, needs review
-assignees: ''
-
+assignees: ""
 ---
 
 **Is your feature request related to a problem? Please describe.**
@@ -29,7 +28,7 @@ For example
 Or
 
 ```elixir
-  Api.read(:resource, bar: 10) # <- Adding `bar` here would cause <x>
+  Ash.read(Resource, bar: 10) # <- Adding `bar` here would cause <x>
 ```
 
 **Additional context**

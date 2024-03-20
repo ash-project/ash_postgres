@@ -8,6 +8,7 @@ defmodule AshPostgres.ReferencesTest do
     defmodule Org do
       @moduledoc false
       use Ash.Resource,
+        domain: nil,
         data_layer: AshPostgres.DataLayer
 
       attributes do
@@ -33,6 +34,7 @@ defmodule AshPostgres.ReferencesTest do
     defmodule User do
       @moduledoc false
       use Ash.Resource,
+        domain: nil,
         data_layer: AshPostgres.DataLayer
 
       attributes do
@@ -66,6 +68,7 @@ defmodule AshPostgres.ReferencesTest do
       defmodule UserThing do
         @moduledoc false
         use Ash.Resource,
+          domain: nil,
           data_layer: AshPostgres.DataLayer
 
         attributes do

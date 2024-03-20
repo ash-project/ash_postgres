@@ -1,6 +1,6 @@
 defmodule AshPostgres.Test.LockTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Post}
+  alias AshPostgres.Test.Post
   require Ash.Query
 
   setup do
@@ -17,7 +17,7 @@ defmodule AshPostgres.Test.LockTest do
       Post
       |> Ash.Changeset.for_create(:create, %{title: "locked"})
       |> Ash.Changeset.set_context(%{data_layer: %{repo: AshPostgres.TestNoSandboxRepo}})
-      |> Api.create!()
+      |> Ash.create!()
 
     task1 =
       Task.async(fn ->
@@ -26,7 +26,7 @@ defmodule AshPostgres.Test.LockTest do
           |> Ash.Query.lock("FOR UPDATE NOWAIT")
           |> Ash.Query.set_context(%{data_layer: %{repo: AshPostgres.TestNoSandboxRepo}})
           |> Ash.Query.filter(id == ^post.id)
-          |> Api.read!()
+          |> Ash.read!()
 
           :timer.sleep(1000)
           :ok
@@ -43,7 +43,7 @@ defmodule AshPostgres.Test.LockTest do
             |> Ash.Query.lock("FOR UPDATE NOWAIT")
             |> Ash.Query.set_context(%{data_layer: %{repo: AshPostgres.TestNoSandboxRepo}})
             |> Ash.Query.filter(id == ^post.id)
-            |> Api.read!()
+            |> Ash.read!()
           end)
         rescue
           e ->

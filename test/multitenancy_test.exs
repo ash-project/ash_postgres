@@ -1,18 +1,18 @@
 defmodule AshPostgres.Test.MultitenancyTest do
   use AshPostgres.RepoCase, async: false
 
-  alias AshPostgres.MultitenancyTest.{Api, Org, Post, User}
+  alias AshPostgres.MultitenancyTest.{Org, Post, User}
 
   setup do
     org1 =
       Org
       |> Ash.Changeset.new(name: "test1")
-      |> Api.create!()
+      |> Ash.create!()
 
     org2 =
       Org
       |> Ash.Changeset.new(name: "test2")
-      |> Api.create!()
+      |> Ash.create!()
 
     [org1: org1, org2: org2]
   end
@@ -34,17 +34,17 @@ defmodule AshPostgres.Test.MultitenancyTest do
     assert [%{id: ^org_id}] =
              Org
              |> Ash.Query.set_tenant(tenant(org1))
-             |> Api.read!()
+             |> Ash.read!()
   end
 
   test "context multitenancy works with policies", %{org1: org1} do
     Post
     |> Ash.Changeset.new(name: "foo")
     |> Ash.Changeset.set_tenant(tenant(org1))
-    |> Api.create!()
+    |> Ash.create!()
     |> Ash.Changeset.for_update(:update_with_policy, %{}, authorize?: true)
     |> Ash.Changeset.set_tenant(tenant(org1))
-    |> Api.update!()
+    |> Ash.update!()
   end
 
   test "attribute multitenancy is set on creation" do
@@ -54,7 +54,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
       Org
       |> Ash.Changeset.new(name: "test3")
       |> Ash.Changeset.set_tenant("org_#{uuid}")
-      |> Api.create!()
+      |> Ash.create!()
 
     assert org.id == uuid
   end
@@ -63,10 +63,10 @@ defmodule AshPostgres.Test.MultitenancyTest do
     Post
     |> Ash.Changeset.new(name: "foo")
     |> Ash.Changeset.set_tenant(tenant(org1))
-    |> Api.create!()
+    |> Ash.create!()
 
-    assert [_] = Post |> Ash.Query.set_tenant(tenant(org1)) |> Api.read!()
-    assert [] = Post |> Ash.Query.set_tenant(tenant(org2)) |> Api.read!()
+    assert [_] = Post |> Ash.Query.set_tenant(tenant(org1)) |> Ash.read!()
+    assert [] = Post |> Ash.Query.set_tenant(tenant(org2)) |> Ash.read!()
   end
 
   test "schema rename on update works", %{org1: org1} do
@@ -74,7 +74,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
 
     org1
     |> Ash.Changeset.new(id: new_uuid)
-    |> Api.update!()
+    |> Ash.update!()
 
     new_tenant = "org_#{new_uuid}"
 
@@ -91,90 +91,90 @@ defmodule AshPostgres.Test.MultitenancyTest do
     org =
       Org
       |> Ash.Changeset.new()
-      |> Api.create!()
+      |> Ash.create!()
 
     user =
       User
       |> Ash.Changeset.new()
       |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
-      |> Api.create!()
+      |> Ash.create!()
 
-    assert Api.load!(user, :org).org.id == org.id
+    assert Ash.load!(user, :org).org.id == org.id
   end
 
   test "loading context multitenant resources from attribute multitenant resources works" do
     org =
       Org
       |> Ash.Changeset.new()
-      |> Api.create!()
+      |> Ash.create!()
 
     user1 =
       User
       |> Ash.Changeset.new(%{name: "a"})
       |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
-      |> Api.create!()
+      |> Ash.create!()
 
     user2 =
       User
       |> Ash.Changeset.new(%{name: "b"})
       |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
-      |> Api.create!()
+      |> Ash.create!()
 
     user1_id = user1.id
     user2_id = user2.id
 
     assert [%{id: ^user1_id}, %{id: ^user2_id}] =
-             Api.load!(org, users: Ash.Query.sort(User, :name)).users
+             Ash.load!(org, users: Ash.Query.sort(User, :name)).users
   end
 
   test "manage_relationship from context multitenant resource to attribute multitenant resource doesn't raise an error" do
-    org = Org |> Ash.Changeset.new() |> Api.create!()
-    user = User |> Ash.Changeset.new() |> Api.create!()
+    org = Org |> Ash.Changeset.new() |> Ash.create!()
+    user = User |> Ash.Changeset.new() |> Ash.create!()
 
     Post
     |> Ash.Changeset.for_create(:create, %{}, tenant: tenant(org))
     |> Ash.Changeset.manage_relationship(:user, user, type: :append_and_remove)
-    |> Api.create!()
+    |> Ash.create!()
   end
 
   test "loading attribute multitenant resources with limits from context multitenant resources works" do
     org =
       Org
       |> Ash.Changeset.new()
-      |> Api.create!()
+      |> Ash.create!()
 
     user =
       User
       |> Ash.Changeset.new()
       |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
-      |> Api.create!()
+      |> Ash.create!()
 
-    assert Api.load!(user, :org).org.id == org.id
+    assert Ash.load!(user, :org).org.id == org.id
   end
 
   test "loading context multitenant resources with limits from attribute multitenant resources works" do
     org =
       Org
       |> Ash.Changeset.new()
-      |> Api.create!()
+      |> Ash.create!()
 
     user1 =
       User
       |> Ash.Changeset.new(%{name: "a"})
       |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
-      |> Api.create!()
+      |> Ash.create!()
 
     user2 =
       User
       |> Ash.Changeset.new(%{name: "b"})
       |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
-      |> Api.create!()
+      |> Ash.create!()
 
     user1_id = user1.id
     user2_id = user2.id
 
     assert [%{id: ^user1_id}, %{id: ^user2_id}] =
-             Api.load!(org, users: Ash.Query.sort(Ash.Query.limit(User, 10), :name)).users
+             Ash.load!(org, users: Ash.Query.sort(Ash.Query.limit(User, 10), :name)).users
   end
 
   test "unique constraints are properly scoped", %{org1: org1} do
@@ -182,7 +182,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
       Post
       |> Ash.Changeset.new(%{})
       |> Ash.Changeset.set_tenant(tenant(org1))
-      |> Api.create!()
+      |> Ash.create!()
 
     assert_raise Ash.Error.Invalid,
                  ~r/Invalid value provided for id: has already been taken/,
@@ -190,7 +190,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
                    Post
                    |> Ash.Changeset.new(%{id: post.id})
                    |> Ash.Changeset.set_tenant(tenant(org1))
-                   |> Api.create!()
+                   |> Ash.create!()
                  end
   end
 end

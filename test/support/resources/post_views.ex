@@ -1,8 +1,12 @@
 defmodule AshPostgres.Test.PostView do
   @moduledoc false
-  use Ash.Resource, data_layer: AshPostgres.DataLayer
+  use Ash.Resource,
+    domain: AshPostgres.Test.Domain,
+    data_layer: AshPostgres.DataLayer
 
   actions do
+    default_accept :*
+
     defaults([:create, :read])
   end
 

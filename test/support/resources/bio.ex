@@ -1,8 +1,10 @@
 defmodule AshPostgres.Test.Bio do
   @moduledoc false
-  use Ash.Resource, data_layer: :embedded
+  use Ash.Resource,  data_layer: :embedded
 
   actions do
+    default_accept :*
+
     defaults([:create, :read, :update, :destroy])
   end
 

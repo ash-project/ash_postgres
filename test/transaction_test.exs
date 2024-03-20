@@ -1,6 +1,6 @@
 defmodule AshPostgres.Test.TransactionTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Post}
+  alias AshPostgres.Test.Post
 
   require Ash.Query
 
@@ -12,7 +12,7 @@ defmodule AshPostgres.Test.TransactionTest do
         raise "something bad happened"
       end)
       |> send_after_transaction_result()
-      |> Api.create()
+      |> Ash.create()
     end
 
     assert_receive {:error,
@@ -32,12 +32,12 @@ defmodule AshPostgres.Test.TransactionTest do
           raise "something bad happened inside"
         end)
         |> send_after_transaction_result()
-        |> Api.create!()
+        |> Ash.create!()
 
         {:ok, result}
       end)
       |> send_after_transaction_result()
-      |> Api.create()
+      |> Ash.create()
     end
 
     assert_receive {:error,
@@ -52,7 +52,7 @@ defmodule AshPostgres.Test.TransactionTest do
     Post
     |> Ash.Changeset.for_create(:create)
     |> send_after_transaction_result()
-    |> Api.create()
+    |> Ash.create()
 
     assert_receive {:ok, %Post{}}
   end
@@ -68,17 +68,17 @@ defmodule AshPostgres.Test.TransactionTest do
                  raise "something bad happened inside"
                end)
                |> send_after_transaction_result()
-               |> Api.create!()
+               |> Ash.create!()
 
                {:ok, result}
              end)
              |> Ash.Changeset.after_transaction(fn _changeset, {:error, _} ->
                Post
                |> Ash.Changeset.for_create(:create)
-               |> Api.create()
+               |> Ash.create()
              end)
              |> send_after_transaction_result()
-             |> Api.create()
+             |> Ash.create()
 
     assert_receive {:error,
                     %RuntimeError{

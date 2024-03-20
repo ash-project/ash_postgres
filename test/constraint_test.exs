@@ -1,7 +1,7 @@
 defmodule AshPostgres.ConstraintTest do
   @moduledoc false
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Post}
+  alias AshPostgres.Test.Post
 
   require Ash.Query
 
@@ -9,7 +9,7 @@ defmodule AshPostgres.ConstraintTest do
     assert_raise Ash.Error.Invalid, ~r/yo, bad price/, fn ->
       Post
       |> Ash.Changeset.new(%{title: "title", price: -1})
-      |> Api.create!()
+      |> Ash.create!()
     end
   end
 end

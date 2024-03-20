@@ -5,17 +5,17 @@ defmodule AshPostgres.ManualUpdateTest do
     post =
       AshPostgres.Test.Post
       |> Ash.Changeset.new(%{title: "match"})
-      |> AshPostgres.Test.Api.create!()
+      |> Ash.create!()
 
     AshPostgres.Test.Comment
     |> Ash.Changeset.new(%{title: "_"})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-    |> AshPostgres.Test.Api.create!()
+    |> Ash.create!()
 
     post =
       post
       |> Ash.Changeset.for_update(:manual_update)
-      |> AshPostgres.Test.Api.update!()
+      |> Ash.update!()
 
     assert post.title == "manual"
 

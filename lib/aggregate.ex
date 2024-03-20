@@ -685,11 +685,11 @@ defmodule AshPostgres.Aggregate do
             type: type,
             constraints: constraints
           } ->
-            {:ok, new_calc} = Ash.Query.Calculation.new(name, module, opts, {type, constraints})
+            {:ok, new_calc} = Ash.Query.Calculation.new(name, module, opts, type, constraints)
             expression = module.expression(opts, aggregate.context)
 
             expression =
-              Ash.Filter.build_filter_from_template(
+              Ash.Expr.fill_template(
                 expression,
                 aggregate.context[:actor],
                 aggregate.context,

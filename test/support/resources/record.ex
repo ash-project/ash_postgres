@@ -2,6 +2,7 @@ defmodule AshPostgres.Test.Record do
   @moduledoc false
 
   use Ash.Resource,
+    domain: AshPostgres.Test.Domain,
     data_layer: AshPostgres.DataLayer
 
   attributes do
@@ -9,7 +10,7 @@ defmodule AshPostgres.Test.Record do
 
     attribute(:full_name, :string, allow_nil?: false)
 
-    timestamps(private?: false)
+    timestamps(public?: true)
   end
 
   relationships do
@@ -30,6 +31,8 @@ defmodule AshPostgres.Test.Record do
   end
 
   actions do
+    default_accept :*
+
     defaults([:create, :read])
   end
 end

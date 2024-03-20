@@ -1,7 +1,7 @@
 defmodule Mix.Tasks.AshPostgres.Drop do
   use Mix.Task
 
-  @shortdoc "Drops the repository storage for the repos in the specified (or configured) apis"
+  @shortdoc "Drops the repository storage for the repos in the specified (or configured) domains"
   @default_opts [force: false, force_drop: false]
 
   @aliases [
@@ -13,7 +13,7 @@ defmodule Mix.Tasks.AshPostgres.Drop do
     force: :boolean,
     force_drop: :boolean,
     quiet: :boolean,
-    apis: :string,
+    domains: :string,
     no_compile: :boolean,
     no_deps_check: :boolean
   ]
@@ -24,11 +24,11 @@ defmodule Mix.Tasks.AshPostgres.Drop do
   ## Examples
 
       mix ash_postgres.drop
-      mix ash_postgres.drop -r MyApp.Api1,MyApp.Api2
+      mix ash_postgres.drop -r MyApp.Repo1,MyApp.Repo2
 
   ## Command line options
 
-    * `--apis` - the apis who's repos should be dropped
+    * `--domains` - the domains who's repos should be dropped
     * `-q`, `--quiet` - run the command quietly
     * `-f`, `--force` - do not ask for confirmation when dropping the database.
       Configuration is asked only when `:start_permanent` is set to true
@@ -51,7 +51,7 @@ defmodule Mix.Tasks.AshPostgres.Drop do
         ["-r", to_string(repo)]
       end)
 
-    rest_opts = AshPostgres.MixHelpers.delete_arg(args, "--apis")
+    rest_opts = AshPostgres.MixHelpers.delete_arg(args, "--domains")
 
     Mix.Task.reenable("ecto.drop")
     Mix.Task.run("ecto.drop", repo_args ++ rest_opts)

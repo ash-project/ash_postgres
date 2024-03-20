@@ -30,7 +30,7 @@ Then, configure each of your `Ash.Resource` resources by adding `use Ash.Resourc
 
 ```elixir
 defmodule MyApp.SomeResource do
-  use Ash.Resource, data_layer: AshPostgres.DataLayer
+  use Ash.Resource, domain: MyDomain, data_layer: AshPostgres.DataLayer
 
   postgres do
     repo MyApp.Repo

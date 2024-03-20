@@ -1,6 +1,7 @@
 defmodule AshPostgres.Test.Subquery.Parent do
   @moduledoc false
   use Ash.Resource,
+    domain: AshPostgres.Test.Domain,
     data_layer: AshPostgres.DataLayer,
     authorizers: [
       Ash.Policy.Authorizer
@@ -27,7 +28,7 @@ defmodule AshPostgres.Test.Subquery.Parent do
       source_attribute_on_join_resource(:parent_id)
       destination_attribute(:id)
       destination_attribute_on_join_resource(:child_id)
-      api(AshPostgres.Test.Subquery.ChildApi)
+      domain(AshPostgres.Test.Subquery.ChildDomain)
     end
 
     has_many(:accesses, Access)
@@ -48,7 +49,6 @@ defmodule AshPostgres.Test.Subquery.Parent do
   end
 
   code_interface do
-    define_for(AshPostgres.Test.Subquery.ParentApi)
 
     define(:create)
     define(:read)
@@ -57,6 +57,8 @@ defmodule AshPostgres.Test.Subquery.Parent do
   end
 
   actions do
+    default_accept :*
+
     defaults([:create, :read, :update, :destroy])
   end
 end

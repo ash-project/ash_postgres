@@ -1,6 +1,6 @@
 defmodule AshPostgres.Test.TypeTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Post}
+  alias AshPostgres.Test.Post
 
   require Ash.Query
 
@@ -8,7 +8,7 @@ defmodule AshPostgres.Test.TypeTest do
     post =
       Post
       |> Ash.Changeset.new(%{title: "title", point: {1.0, 2.0, 3.0}})
-      |> Api.create!()
+      |> Ash.create!()
 
     assert post.point == {1.0, 2.0, 3.0}
   end
@@ -16,16 +16,16 @@ defmodule AshPostgres.Test.TypeTest do
   test "complex custom types can be accessed with fragments" do
     Post
     |> Ash.Changeset.new(%{title: "title", point: {1.0, 2.0, 3.0}})
-    |> Api.create!()
+    |> Ash.create!()
 
     Post
     |> Ash.Changeset.new(%{title: "title", point: {2.0, 1.0, 3.0}})
-    |> Api.create!()
+    |> Ash.create!()
 
     assert [%{point: {2.0, 1.0, 3.0}}] =
              Post
              |> Ash.Query.filter(fragment("(?)[1] > (?)[2]", point, point))
-             |> Api.read!()
+             |> Ash.read!()
   end
 
   test "uuids can be used as strings in fragments" do
@@ -33,6 +33,6 @@ defmodule AshPostgres.Test.TypeTest do
 
     Post
     |> Ash.Query.filter(fragment("? = ?", id, type(^uuid, :uuid)))
-    |> Api.read!()
+    |> Ash.read!()
   end
 end

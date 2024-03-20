@@ -20,11 +20,11 @@ defmodule AshPostgres.MigrationGenerator do
             check: false,
             drop_columns: false
 
-  def generate(apis, opts \\ []) do
-    apis = List.wrap(apis)
+  def generate(domains, opts \\ []) do
+    domains = List.wrap(domains)
     opts = opts(opts)
 
-    all_resources = Enum.uniq(Enum.flat_map(apis, &Ash.Api.Info.resources/1))
+    all_resources = Enum.uniq(Enum.flat_map(domains, &Ash.Domain.Info.resources/1))
 
     {tenant_snapshots, snapshots} =
       all_resources
@@ -60,8 +60,8 @@ defmodule AshPostgres.MigrationGenerator do
 
   Does not support everything supported by the migration generator.
   """
-  def take_snapshots(api, repo, only_resources \\ nil) do
-    all_resources = api |> Ash.Api.Info.resources() |> Enum.uniq()
+  def take_snapshots(domain, repo, only_resources \\ nil) do
+    all_resources = domain |> Ash.Domain.Info.resources() |> Enum.uniq()
 
     all_resources
     |> Enum.filter(fn resource ->

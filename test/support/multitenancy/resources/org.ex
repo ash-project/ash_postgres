@@ -1,6 +1,7 @@
 defmodule AshPostgres.MultitenancyTest.Org do
   @moduledoc false
   use Ash.Resource,
+    domain: AshPostgres.MultitenancyTest.Domain,
     data_layer: AshPostgres.DataLayer
 
   identities do
@@ -13,6 +14,8 @@ defmodule AshPostgres.MultitenancyTest.Org do
   end
 
   actions do
+    default_accept :*
+
     defaults([:create, :read, :update, :destroy])
   end
 

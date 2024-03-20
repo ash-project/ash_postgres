@@ -10,6 +10,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defmodule unquote(mod) do
         use Ash.Resource,
+          domain: nil,
           data_layer: AshPostgres.DataLayer
 
         postgres do
@@ -34,25 +35,17 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
-  defmacrop defapi(resources) do
+  defmacrop defdomain(resources) do
     quote do
       Code.compiler_options(ignore_module_conflict: true)
 
-      defmodule Registry do
-        use Ash.Registry
-
-        entries do
-          for resource <- unquote(resources) do
-            entry(resource)
-          end
-        end
-      end
-
-      defmodule Api do
-        use Ash.Api
+      defmodule Domain do
+        use Ash.Domain
 
         resources do
-          registry(Registry)
+          for resource <- unquote(resources) do
+            resource(resource)
+          end
         end
       end
 
@@ -112,11 +105,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
       Mix.shell(Mix.Shell.Process)
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -198,7 +191,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
       Mix.shell(Mix.Shell.Process)
 
@@ -210,7 +203,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
           """
         )
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -275,10 +268,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
       Mix.shell(Mix.Shell.Process)
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -320,10 +313,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
       Mix.shell(Mix.Shell.Process)
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -361,11 +354,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
       Mix.shell(Mix.Shell.Process)
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -387,11 +380,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
       send(self(), {:mix_shell_input, :yes?, true})
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -416,11 +409,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
       send(self(), {:mix_shell_input, :yes?, true})
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -453,11 +446,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
       Mix.shell(Mix.Shell.Process)
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -483,9 +476,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -512,9 +505,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -536,11 +529,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
       send(self(), {:mix_shell_input, :yes?, true})
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -561,11 +554,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
       send(self(), {:mix_shell_input, :yes?, false})
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -588,12 +581,12 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
       send(self(), {:mix_shell_input, :yes?, true})
       send(self(), {:mix_shell_input, :prompt, "subject"})
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -619,11 +612,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
       send(self(), {:mix_shell_input, :yes?, false})
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -653,9 +646,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post, Post2])
+      defdomain([Post, Post2])
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -695,9 +688,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post, Post2])
+      defdomain([Post, Post2])
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -739,9 +732,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post, Post2])
+      defdomain([Post, Post2])
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -772,11 +765,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
       Mix.shell(Mix.Shell.Process)
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -806,14 +799,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
-      [api: Api]
+      [domain: Domain]
     end
 
-    test "returns code(1) if snapshots and resources don't fit", %{api: api} do
+    test "returns code(1) if snapshots and resources don't fit", %{domain: domain} do
       assert catch_exit(
-               AshPostgres.MigrationGenerator.generate(api,
+               AshPostgres.MigrationGenerator.generate(domain,
                  snapshot_path: "test_snapshot_path",
                  migration_path: "test_migration_path",
                  check: true
@@ -853,9 +846,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post, Post2])
+      defdomain([Post, Post2])
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -888,9 +881,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post, Post2])
+      defdomain([Post, Post2])
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -930,9 +923,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post, Post2])
+      defdomain([Post, Post2])
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -1002,9 +995,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Org, User, UserThing])
+      defdomain([Org, User, UserThing])
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -1053,9 +1046,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Org, User])
+      defdomain([Org, User])
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -1088,9 +1081,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post, Post2])
+      defdomain([Post, Post2])
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -1114,7 +1107,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -1207,9 +1200,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Org, User, UserThing1, UserThing2])
+      defdomain([Org, User, UserThing1, UserThing2])
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -1248,9 +1241,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -1280,9 +1273,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -1319,9 +1312,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -1335,7 +1328,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -1362,6 +1355,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defmodule Comment do
         use Ash.Resource,
+          domain: nil,
           data_layer: AshPostgres.DataLayer
 
         postgres do
@@ -1381,6 +1375,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defmodule Post do
         use Ash.Resource,
+          domain: nil,
           data_layer: AshPostgres.DataLayer
 
         postgres do
@@ -1409,16 +1404,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post, Comment])
+      defdomain([Post, Comment])
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
         format: false
       )
 
-      [api: Api]
+      [domain: Domain]
     end
 
     test "it uses the relationship's table context if it is set" do
@@ -1454,9 +1449,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -1506,11 +1501,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post])
+      defdomain([Post])
 
       log =
         capture_log(fn ->
-          AshPostgres.MigrationGenerator.generate(Api,
+          AshPostgres.MigrationGenerator.generate(Domain,
             snapshot_path: "test_snapshots_path",
             migration_path: "test_migration_path",
             quiet: true,
@@ -1545,6 +1540,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defmodule Comment do
         use Ash.Resource,
+          domain: nil,
           data_layer: AshPostgres.DataLayer
 
         postgres do
@@ -1561,11 +1557,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post, Comment])
+      defdomain([Post, Comment])
 
       Mix.shell(Mix.Shell.Process)
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
@@ -1586,6 +1582,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defmodule Comment do
         use Ash.Resource,
+          domain: nil,
           data_layer: AshPostgres.DataLayer
 
         postgres do
@@ -1602,9 +1599,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defapi([Post, Comment])
+      defdomain([Post, Comment])
 
-      AshPostgres.MigrationGenerator.generate(Api,
+      AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
