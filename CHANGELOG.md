@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.21](https://github.com/ash-project/ash_postgres/compare/v1.5.20...v1.5.21) (2024-03-20)
+
+
+
+
+### Bug Fixes:
+
+* properly format migrations
+
+* ensure exists aggregates have filters included
+
 ## [v1.5.20](https://github.com/ash-project/ash_postgres/compare/v1.5.19...v1.5.20) (2024-03-20)
 
 
