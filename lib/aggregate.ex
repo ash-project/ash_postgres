@@ -1198,7 +1198,7 @@ defmodule AshPostgres.Aggregate do
     has_sort? = has_sort?(aggregate.query)
 
     {sorted, query} =
-      if has_sort? || first_relationship.sort not in [nil, []] do
+      if has_sort? || (first_relationship && first_relationship.sort not in [nil, []]) do
         {sort, binding} =
           if has_sort? do
             {aggregate.query.sort, binding}

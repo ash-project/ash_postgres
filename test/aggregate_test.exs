@@ -1164,6 +1164,12 @@ defmodule AshPostgres.AggregateTest do
       |> Api.count!()
     end
 
+    test "a list with a filter that references a to many relationship can be aggregated at the query level" do
+      Post
+      |> Ash.Query.filter(comments.likes > 10)
+      |> Api.list!(:title)
+    end
+
     test "a count with a limit and a filter can be aggregated at the query level" do
       Post
       |> Ash.Changeset.new(%{title: "foo"})
