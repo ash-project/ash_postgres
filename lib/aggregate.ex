@@ -650,8 +650,26 @@ defmodule AshPostgres.Aggregate do
 
       related = Ash.Resource.Info.related(first_relationship.destination, relationship_path)
 
+      field =
+        case aggregate.field do
+          field when is_atom(field) ->
+            Ash.Resource.Info.field(related, field)
+
+          field ->
+            field
+        end
+
       agg_query =
-        case Ash.Resource.Info.field(related, aggregate.field) do
+        case field do
+          %Ash.Query.Aggregate{} = aggregate ->
+            {:ok, agg_query} =
+              add_aggregates(agg_query, [aggregate], related, false, 0, {
+                first_relationship.destination,
+                [first_relationship.name]
+              })
+
+            agg_query
+
           %Ash.Resource.Aggregate{} = aggregate ->
             {:ok, agg_query} =
               add_aggregates(agg_query, [aggregate], related, false, 0, {
@@ -688,6 +706,36 @@ defmodule AshPostgres.Aggregate do
               AshPostgres.DataLayer.add_calculations(
                 agg_query,
                 [{new_calc, expression}],
+                agg_query.__ash_bindings__.resource,
+                false
+              )
+
+            agg_query
+
+          %Ash.Query.Calculation{
+            module: module,
+            opts: opts
+          } = calc ->
+            expression = module.expression(opts, aggregate.context)
+
+            expression =
+              Ash.Filter.build_filter_from_template(
+                expression,
+                aggregate.context[:actor],
+                aggregate.context,
+                aggregate.context
+              )
+
+            {:ok, expression} =
+              Ash.Filter.hydrate_refs(expression, %{
+                resource: related,
+                public?: false
+              })
+
+            {:ok, agg_query} =
+              AshPostgres.DataLayer.add_calculations(
+                agg_query,
+                [{calc, expression}],
                 agg_query.__ash_bindings__.resource,
                 false
               )
@@ -913,6 +961,42 @@ defmodule AshPostgres.Aggregate do
   def optimizable_first_aggregate?(
         resource,
         %{
+          kind: :first,
+          relationship_path: relationship_path,
+          join_filters: join_filters,
+          field: %Ash.Query.Calculation{} = field
+        }
+      ) do
+    ref =
+      %Ash.Query.Ref{
+        attribute: field,
+        relationship_path: relationship_path,
+        resource: resource
+      }
+
+    with true <- join_filters == %{},
+         [] <- Ash.Filter.used_aggregates(ref, :all),
+         [] <- Ash.Filter.relationship_paths(ref) do
+      true
+    else
+      _ ->
+        false
+    end
+  end
+
+  def optimizable_first_aggregate?(
+        _resource,
+        %{
+          kind: :first,
+          field: %Ash.Query.Aggregate{}
+        }
+      ) do
+    false
+  end
+
+  def optimizable_first_aggregate?(
+        resource,
+        %{
           name: name,
           kind: :first,
           relationship_path: relationship_path,
@@ -945,6 +1029,9 @@ defmodule AshPostgres.Aggregate do
             false
         end
 
+      nil ->
+        false
+
       _ ->
         name in AshPostgres.DataLayer.Info.simple_join_first_aggregates(resource) ||
           (join_filters in [nil, %{}, []] &&
@@ -957,12 +1044,24 @@ defmodule AshPostgres.Aggregate do
   defp array_type?(resource, aggregate) do
     related = Ash.Resource.Info.related(resource, aggregate.relationship_path)
 
-    case Ash.Resource.Info.field(related, aggregate.field).type do
-      {:array, _} ->
+    case aggregate.field do
+      nil ->
         false
 
-      _ ->
+      %{type: {:array, _}} ->
         true
+
+      type when is_atom(type) ->
+        case Ash.Resource.Info.field(related, aggregate.field).type do
+          {:array, _} ->
+            false
+
+          _ ->
+            true
+        end
+
+      _ ->
+        false
     end
   end
 
@@ -1482,32 +1581,36 @@ defmodule AshPostgres.Aggregate do
 
   @doc false
   def aggregate_field(aggregate, resource) do
-    case Ash.Resource.Info.field(
-           resource,
-           aggregate.field || List.first(Ash.Resource.Info.primary_key(resource))
-         ) do
-      %Ash.Resource.Calculation{calculation: {module, opts}} = calculation ->
-        calc_type =
-          AshPostgres.Types.parameterized_type(
-            calculation.type,
-            Map.get(calculation, :constraints, [])
-          )
+    if is_atom(aggregate.field) do
+      case Ash.Resource.Info.field(
+             resource,
+             aggregate.field || List.first(Ash.Resource.Info.primary_key(resource))
+           ) do
+        %Ash.Resource.Calculation{calculation: {module, opts}} = calculation ->
+          calc_type =
+            AshPostgres.Types.parameterized_type(
+              calculation.type,
+              Map.get(calculation, :constraints, [])
+            )
 
-        AshPostgres.Expr.validate_type!(resource, calc_type, "#{inspect(calculation.name)}")
+          AshPostgres.Expr.validate_type!(resource, calc_type, "#{inspect(calculation.name)}")
 
-        {:ok, query_calc} =
-          Ash.Query.Calculation.new(
-            calculation.name,
-            module,
-            opts,
-            calculation.type,
-            Map.get(aggregate, :context, %{})
-          )
+          {:ok, query_calc} =
+            Ash.Query.Calculation.new(
+              calculation.name,
+              module,
+              opts,
+              calculation.type,
+              Map.get(aggregate, :context, %{})
+            )
 
-        query_calc
+          query_calc
 
-      other ->
-        other
+        other ->
+          other
+      end
+    else
+      aggregate.field
     end
   end
 end

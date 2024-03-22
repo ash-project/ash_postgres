@@ -308,9 +308,16 @@ defmodule AshPostgres.Expr do
        )
        when is_list(right) do
     attribute =
-      if aggregate.field do
-        related = Ash.Resource.Info.related(resource, aggregate.relationship_path)
-        Ash.Resource.Info.attribute(related, aggregate.field)
+      case aggregate.field do
+        nil ->
+          nil
+
+        %{} = field ->
+          field
+
+        field ->
+          related = Ash.Resource.Info.related(resource, aggregate.relationship_path)
+          Ash.Resource.Info.attribute(related, field)
       end
 
     attribute_type =
@@ -1097,7 +1104,8 @@ defmodule AshPostgres.Expr do
            attribute: %Ash.Query.Aggregate{
              kind: :exists,
              relationship_path: agg_relationship_path,
-             query: agg_query
+             query: agg_query,
+             join_filters: join_filters
            },
            relationship_path: ref_relationship_path
          },
@@ -1119,7 +1127,8 @@ defmodule AshPostgres.Expr do
         path: agg_relationship_path,
         expr: filter,
         at_path: ref_relationship_path
-      },
+      }
+      |> Map.put(:__join_filters__, join_filters),
       bindings,
       embedded?,
       acc,
@@ -1185,6 +1194,11 @@ defmodule AshPostgres.Expr do
           )
 
         {value, acc} = do_dynamic_expr(query, ref, query.__ash_bindings__, false, acc)
+
+        case aggregate.field do
+          %{name: name} -> name
+          field -> field
+        end
 
         {ref_binding, aggregate.field, value, acc}
       else
@@ -1500,7 +1514,7 @@ defmodule AshPostgres.Expr do
 
   defp do_dynamic_expr(
          query,
-         %Exists{at_path: at_path, path: [first | rest], expr: expr},
+         %Exists{at_path: at_path, path: [first | rest], expr: expr} = exists,
          bindings,
          _embedded?,
          acc,
@@ -1509,9 +1523,52 @@ defmodule AshPostgres.Expr do
     resource = Ash.Resource.Info.related(bindings.resource, at_path)
     first_relationship = Ash.Resource.Info.relationship(resource, first)
 
+    filter = Ash.Filter.move_to_relationship_path(expr, rest)
+
+    filter =
+      exists
+      |> Map.get(:__join_filters__, %{})
+      |> Map.fetch([first_relationship.name])
+      |> case do
+        {:ok, join_filter} ->
+          Ash.Query.BooleanExpression.optimized_new(
+            :and,
+            filter,
+            Ash.Filter.move_to_relationship_path(
+              join_filter,
+              rest ++ [first_relationship.name]
+            )
+          )
+
+        :error ->
+          filter
+      end
+
+    filter =
+      exists
+      |> Map.get(:__join_filters__, %{})
+      |> Map.delete([first_relationship.name])
+      |> Enum.reduce(filter, fn {path, path_filter}, filter ->
+        path = Enum.drop(path, 1)
+        parent_path = :lists.droplast(path)
+
+        Ash.Query.BooleanExpression.optimized_new(
+          :and,
+          filter,
+          Ash.Filter.move_to_relationship_path(path_filter, path)
+        )
+        |> Ash.Filter.map(fn
+          %Ash.Query.Parent{expr: expr} ->
+            {:halt, Ash.Filter.move_to_relationship_path(expr, parent_path)}
+
+          other ->
+            other
+        end)
+      end)
+
     {:ok, subquery} =
       AshPostgres.Join.related_subquery(first_relationship, query,
-        filter: Ash.Filter.move_to_relationship_path(expr, rest),
+        filter: filter,
         parent_resources: [
           query.__ash_bindings__.resource
           | query.__ash_bindings__[:parent_resources] || []

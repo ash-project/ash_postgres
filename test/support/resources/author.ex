@@ -129,6 +129,10 @@ defmodule AshPostgres.Test.Author do
       join_filter([:posts, :comments], expr(parent(score) < likes))
     end
 
+    exists :has_post_with_better_comment, [:posts, :comments] do
+      join_filter([:posts, :comments], expr(parent(score) < likes))
+    end
+
     count(:num_of_authors_with_same_first_name, :authors_with_same_first_name)
   end
 end
