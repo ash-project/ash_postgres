@@ -515,6 +515,12 @@ defmodule AshPostgres.DataLayer do
 
   def can?(_, :timeout), do: true
   def can?(_, :expr_error), do: true
+
+  def can?(resource, {:filter_expr, %Ash.Query.Function.Error{}}) do
+    "ash-functions" in AshPostgres.DataLayer.Info.repo(resource, :read).installed_extensions() &&
+      "ash-functions" in AshPostgres.DataLayer.Info.repo(resource, :mutate).installed_extensions()
+  end
+
   def can?(_, {:filter_expr, _}), do: true
   def can?(_, :nested_expressions), do: true
   def can?(_, {:query_aggregate, _}), do: true
