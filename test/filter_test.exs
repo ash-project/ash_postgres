@@ -1,6 +1,7 @@
 defmodule AshPostgres.FilterTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.{Author, Comment, Post}
+  alias AshPostgres.Test.ComplexCalculations.{Channel, ChannelMember}
 
   require Ash.Query
 
@@ -11,7 +12,7 @@ defmodule AshPostgres.FilterTest do
 
     test "with data" do
       Post
-      |> Ash.Changeset.new(%{title: "title"})
+      |> Ash.Changeset.for_create(:create, %{title: "title"})
       |> Ash.create!()
 
       assert [%Post{title: "title"}] = Ash.read!(Post)
@@ -58,7 +59,7 @@ defmodule AshPostgres.FilterTest do
 
     test "with data that matches" do
       Post
-      |> Ash.Changeset.new(%{title: "title"})
+      |> Ash.Changeset.for_create(:create, %{title: "title"})
       |> Ash.create!()
 
       results =
@@ -71,7 +72,7 @@ defmodule AshPostgres.FilterTest do
 
     test "with some data that matches and some data that doesnt" do
       Post
-      |> Ash.Changeset.new(%{title: "title"})
+      |> Ash.Changeset.for_create(:create, %{title: "title"})
       |> Ash.create!()
 
       results =
@@ -85,11 +86,11 @@ defmodule AshPostgres.FilterTest do
     test "with related data that doesn't match" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "not match"})
+      |> Ash.Changeset.for_create(:create, %{title: "not match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -104,23 +105,23 @@ defmodule AshPostgres.FilterTest do
     test "with related data two steps away that matches" do
       author =
         Author
-        |> Ash.Changeset.new(%{first_name: "match"})
+        |> Ash.Changeset.for_create(:create, %{first_name: "match"})
         |> Ash.create!()
 
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
         |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
       |> Ash.Changeset.manage_relationship(:linked_posts, [post], type: :append_and_remove)
       |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
       |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "not match"})
+      |> Ash.Changeset.for_create(:create, %{title: "not match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
       |> Ash.create!()
@@ -136,11 +137,11 @@ defmodule AshPostgres.FilterTest do
     test "with related data that does match" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "match"})
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -155,16 +156,16 @@ defmodule AshPostgres.FilterTest do
     test "with related data that does and doesn't match" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "match"})
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "not match"})
+      |> Ash.Changeset.for_create(:create, %{title: "not match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -180,15 +181,15 @@ defmodule AshPostgres.FilterTest do
   describe "in" do
     test "it properly filters" do
       Post
-      |> Ash.Changeset.new(%{title: "title"})
+      |> Ash.Changeset.for_create(:create, %{title: "title"})
       |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{title: "title1"})
+      |> Ash.Changeset.for_create(:create, %{title: "title1"})
       |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
       |> Ash.create!()
 
       assert [%Post{title: "title1"}, %Post{title: "title2"}] =
@@ -211,7 +212,7 @@ defmodule AshPostgres.FilterTest do
 
     test "with data that doesn't match" do
       Post
-      |> Ash.Changeset.new(%{title: "no title", score: 2})
+      |> Ash.Changeset.for_create(:create, %{title: "no title", score: 2})
       |> Ash.create!()
 
       results =
@@ -224,11 +225,11 @@ defmodule AshPostgres.FilterTest do
 
     test "with data that matches both conditions" do
       Post
-      |> Ash.Changeset.new(%{title: "title", score: 0})
+      |> Ash.Changeset.for_create(:create, %{title: "title", score: 0})
       |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{score: 1, title: "nothing"})
+      |> Ash.Changeset.for_create(:create, %{score: 1, title: "nothing"})
       |> Ash.create!()
 
       results =
@@ -242,11 +243,11 @@ defmodule AshPostgres.FilterTest do
 
     test "with data that matches one condition and data that matches nothing" do
       Post
-      |> Ash.Changeset.new(%{title: "title", score: 0})
+      |> Ash.Changeset.for_create(:create, %{title: "title", score: 0})
       |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{score: 2, title: "nothing"})
+      |> Ash.Changeset.for_create(:create, %{score: 2, title: "nothing"})
       |> Ash.create!()
 
       results =
@@ -261,11 +262,11 @@ defmodule AshPostgres.FilterTest do
     test "with related data in an or statement that matches, while basic filter doesn't match" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "doesn't match"})
+        |> Ash.Changeset.for_create(:create, %{title: "doesn't match"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "match"})
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -280,11 +281,11 @@ defmodule AshPostgres.FilterTest do
     test "with related data in an or statement that doesn't match, while basic filter does match" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "match"})
+        |> Ash.Changeset.for_create(:create, %{title: "match"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "doesn't match"})
+      |> Ash.Changeset.for_create(:create, %{title: "doesn't match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -299,11 +300,11 @@ defmodule AshPostgres.FilterTest do
     test "with related data and an inner join condition" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "match"})
+        |> Ash.Changeset.for_create(:create, %{title: "match"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "match"})
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -372,11 +373,11 @@ defmodule AshPostgres.FilterTest do
   describe "basic expressions" do
     test "basic expressions work" do
       Post
-      |> Ash.Changeset.new(%{title: "match", score: 4})
+      |> Ash.Changeset.for_create(:create, %{title: "match", score: 4})
       |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{title: "non_match", score: 2})
+      |> Ash.Changeset.for_create(:create, %{title: "non_match", score: 2})
       |> Ash.create!()
 
       assert [%{title: "match"}] =
@@ -389,11 +390,11 @@ defmodule AshPostgres.FilterTest do
   describe "case insensitive fields" do
     test "it matches case insensitively" do
       Post
-      |> Ash.Changeset.new(%{title: "match", category: "FoObAr"})
+      |> Ash.Changeset.for_create(:create, %{title: "match", category: "FoObAr"})
       |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{category: "bazbuz"})
+      |> Ash.Changeset.for_create(:create, %{category: "bazbuz"})
       |> Ash.create!()
 
       assert [%{title: "match"}] =
@@ -406,11 +407,11 @@ defmodule AshPostgres.FilterTest do
   describe "contains/2" do
     test "it works when it matches" do
       Post
-      |> Ash.Changeset.new(%{title: "match"})
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
       |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{title: "bazbuz"})
+      |> Ash.Changeset.for_create(:create, %{title: "bazbuz"})
       |> Ash.create!()
 
       assert [%{title: "match"}] =
@@ -421,11 +422,11 @@ defmodule AshPostgres.FilterTest do
 
     test "it works when a case insensitive string is provided as a value" do
       Post
-      |> Ash.Changeset.new(%{title: "match"})
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
       |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{title: "bazbuz"})
+      |> Ash.Changeset.for_create(:create, %{title: "bazbuz"})
       |> Ash.create!()
 
       assert [%{title: "match"}] =
@@ -436,11 +437,11 @@ defmodule AshPostgres.FilterTest do
 
     test "it works on a case insensitive column" do
       Post
-      |> Ash.Changeset.new(%{category: "match"})
+      |> Ash.Changeset.for_create(:create, %{category: "match"})
       |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{category: "bazbuz"})
+      |> Ash.Changeset.for_create(:create, %{category: "bazbuz"})
       |> Ash.create!()
 
       assert [%{category: %Ash.CiString{string: "match"}}] =
@@ -451,11 +452,11 @@ defmodule AshPostgres.FilterTest do
 
     test "it works on a case insensitive calculation" do
       Post
-      |> Ash.Changeset.new(%{category: "match"})
+      |> Ash.Changeset.for_create(:create, %{category: "match"})
       |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{category: "bazbuz"})
+      |> Ash.Changeset.for_create(:create, %{category: "bazbuz"})
       |> Ash.create!()
 
       assert [%{category: %Ash.CiString{string: "match"}}] =
@@ -467,21 +468,21 @@ defmodule AshPostgres.FilterTest do
     test "it works on related values" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "match"})
+        |> Ash.Changeset.for_create(:create, %{title: "match"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "abba"})
+      |> Ash.Changeset.for_create(:create, %{title: "abba"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
       post2 =
         Post
-        |> Ash.Changeset.new(%{title: "no_match"})
+        |> Ash.Changeset.for_create(:create, %{title: "no_match"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "acca"})
+      |> Ash.Changeset.for_create(:create, %{title: "acca"})
       |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
       |> Ash.create!()
 
@@ -496,12 +497,12 @@ defmodule AshPostgres.FilterTest do
     test "it works with a list attribute" do
       author1 =
         Author
-        |> Ash.Changeset.new(%{badges: [:author_of_the_year]})
+        |> Ash.Changeset.for_create(:create, %{badges: [:author_of_the_year]})
         |> Ash.create!()
 
       _author2 =
         Author
-        |> Ash.Changeset.new(%{badges: []})
+        |> Ash.Changeset.for_create(:create, %{badges: []})
         |> Ash.create!()
 
       author1_id = author1.id
@@ -515,7 +516,7 @@ defmodule AshPostgres.FilterTest do
     test "it works with nil" do
       author1 =
         Author
-        |> Ash.Changeset.new(%{badges: [:author_of_the_year]})
+        |> Ash.Changeset.for_create(:create, %{badges: [:author_of_the_year]})
         |> Ash.create!()
 
       _author2 =
@@ -569,21 +570,21 @@ defmodule AshPostgres.FilterTest do
     test "it works with single relationships" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "match"})
+        |> Ash.Changeset.for_create(:create, %{title: "match"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "abba"})
+      |> Ash.Changeset.for_create(:create, %{title: "abba"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
       post2 =
         Post
-        |> Ash.Changeset.new(%{title: "no_match"})
+        |> Ash.Changeset.for_create(:create, %{title: "no_match"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "acca"})
+      |> Ash.Changeset.for_create(:create, %{title: "acca"})
       |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
       |> Ash.create!()
 
@@ -596,11 +597,11 @@ defmodule AshPostgres.FilterTest do
     test "it works with many to many relationships" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "a"})
+        |> Ash.Changeset.for_create(:create, %{title: "a"})
         |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{title: "b"})
+      |> Ash.Changeset.for_create(:create, %{title: "b"})
       |> Ash.Changeset.manage_relationship(:linked_posts, [post], type: :append_and_remove)
       |> Ash.create!()
 
@@ -613,11 +614,11 @@ defmodule AshPostgres.FilterTest do
     test "it works with join association relationships" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "a"})
+        |> Ash.Changeset.for_create(:create, %{title: "a"})
         |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{title: "b"})
+      |> Ash.Changeset.for_create(:create, %{title: "b"})
       |> Ash.Changeset.manage_relationship(:linked_posts, [post], type: :append_and_remove)
       |> Ash.create!()
 
@@ -630,16 +631,16 @@ defmodule AshPostgres.FilterTest do
     test "it works with nested relationships as the path" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "a"})
+        |> Ash.Changeset.for_create(:create, %{title: "a"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "comment"})
+      |> Ash.Changeset.for_create(:create, %{title: "comment"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{title: "b"})
+      |> Ash.Changeset.for_create(:create, %{title: "b"})
       |> Ash.Changeset.manage_relationship(:linked_posts, [post], type: :append_and_remove)
       |> Ash.create!()
 
@@ -652,31 +653,31 @@ defmodule AshPostgres.FilterTest do
     test "it works with an `at_path`" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "a"})
+        |> Ash.Changeset.for_create(:create, %{title: "a"})
         |> Ash.create!()
 
       other_post =
         Post
-        |> Ash.Changeset.new(%{title: "other_a"})
+        |> Ash.Changeset.for_create(:create, %{title: "other_a"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "comment"})
+      |> Ash.Changeset.for_create(:create, %{title: "comment"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "comment"})
+      |> Ash.Changeset.for_create(:create, %{title: "comment"})
       |> Ash.Changeset.manage_relationship(:post, other_post, type: :append_and_remove)
       |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{title: "b"})
+      |> Ash.Changeset.for_create(:create, %{title: "b"})
       |> Ash.Changeset.manage_relationship(:linked_posts, [post], type: :append_and_remove)
       |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{title: "b"})
+      |> Ash.Changeset.for_create(:create, %{title: "b"})
       |> Ash.Changeset.manage_relationship(:linked_posts, [other_post], type: :append_and_remove)
       |> Ash.create!()
 
@@ -700,16 +701,16 @@ defmodule AshPostgres.FilterTest do
     test "it works with nested relationships inside of exists" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "a"})
+        |> Ash.Changeset.for_create(:create, %{title: "a"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "comment"})
+      |> Ash.Changeset.for_create(:create, %{title: "comment"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{title: "b"})
+      |> Ash.Changeset.for_create(:create, %{title: "b"})
       |> Ash.Changeset.manage_relationship(:linked_posts, [post], type: :append_and_remove)
       |> Ash.create!()
 
@@ -722,16 +723,16 @@ defmodule AshPostgres.FilterTest do
     test "it works with aggregates inside of exists" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "a", category: "foo"})
+        |> Ash.Changeset.for_create(:create, %{title: "a", category: "foo"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "comment"})
+      |> Ash.Changeset.for_create(:create, %{title: "comment"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{title: "b"})
+      |> Ash.Changeset.for_create(:create, %{title: "b"})
       |> Ash.Changeset.manage_relationship(:linked_posts, [post], type: :append_and_remove)
       |> Ash.create!()
 
@@ -747,7 +748,7 @@ defmodule AshPostgres.FilterTest do
   describe "filtering on enum types" do
     test "it allows simple filtering" do
       Post
-      |> Ash.Changeset.new(status_enum: "open")
+      |> Ash.Changeset.for_create(:create, status_enum: "open")
       |> Ash.create!()
 
       assert %{status_enum: :open} =
@@ -758,7 +759,7 @@ defmodule AshPostgres.FilterTest do
 
     test "it allows simple filtering without casting" do
       Post
-      |> Ash.Changeset.new(status_enum_no_cast: "open")
+      |> Ash.Changeset.for_create(:create, status_enum_no_cast: "open")
       |> Ash.create!()
 
       assert %{status_enum_no_cast: :open} =
@@ -771,7 +772,7 @@ defmodule AshPostgres.FilterTest do
   describe "atom filters" do
     test "it works on matches" do
       Post
-      |> Ash.Changeset.new(%{title: "match"})
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
       |> Ash.create!()
 
       result =
@@ -786,7 +787,7 @@ defmodule AshPostgres.FilterTest do
   describe "like and ilike" do
     test "like builds and matches" do
       Post
-      |> Ash.Changeset.new(%{title: "MaTcH"})
+      |> Ash.Changeset.for_create(:create, %{title: "MaTcH"})
       |> Ash.create!()
 
       results =
@@ -806,7 +807,7 @@ defmodule AshPostgres.FilterTest do
 
     test "ilike builds and matches" do
       Post
-      |> Ash.Changeset.new(%{title: "MaTcH"})
+      |> Ash.Changeset.for_create(:create, %{title: "MaTcH"})
       |> Ash.create!()
 
       results =
@@ -828,7 +829,7 @@ defmodule AshPostgres.FilterTest do
   describe "trigram_similarity" do
     test "it works on matches" do
       Post
-      |> Ash.Changeset.new(%{title: "match"})
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
       |> Ash.create!()
 
       results =
@@ -841,7 +842,7 @@ defmodule AshPostgres.FilterTest do
 
     test "it works on non-matches" do
       Post
-      |> Ash.Changeset.new(%{title: "match"})
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
       |> Ash.create!()
 
       results =
@@ -857,11 +858,11 @@ defmodule AshPostgres.FilterTest do
     test "double replacement works" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "match", score: 4})
+        |> Ash.Changeset.for_create(:create, %{title: "match", score: 4})
         |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{title: "non_match", score: 2})
+      |> Ash.Changeset.for_create(:create, %{title: "non_match", score: 2})
       |> Ash.create!()
 
       assert [%{title: "match"}] =
@@ -879,28 +880,28 @@ defmodule AshPostgres.FilterTest do
   test "filtering allows filtering on list aggregates with filters" do
     post =
       Post
-      |> Ash.Changeset.new(%{title: "match"})
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
       |> Ash.create!()
 
     post_id = post.id
 
     Comment
-    |> Ash.Changeset.new(%{title: "match", likes: 5})
+    |> Ash.Changeset.for_create(:create, %{title: "match", likes: 5})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "non_match", likes: 5})
+    |> Ash.Changeset.for_create(:create, %{title: "non_match", likes: 5})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Ash.create!()
 
     post2 =
       Post
-      |> Ash.Changeset.new(%{title: "non_match"})
+      |> Ash.Changeset.for_create(:create, %{title: "non_match"})
       |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "non_match", likes: 5})
+    |> Ash.Changeset.for_create(:create, %{title: "non_match", likes: 5})
     |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
     |> Ash.create!()
 
@@ -913,28 +914,28 @@ defmodule AshPostgres.FilterTest do
   test "filtering allows filtering on count aggregates with filters" do
     post =
       Post
-      |> Ash.Changeset.new(%{title: "match"})
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
       |> Ash.create!()
 
     post_id = post.id
 
     Comment
-    |> Ash.Changeset.new(%{title: "title"})
+    |> Ash.Changeset.for_create(:create, %{title: "title"})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "title"})
+    |> Ash.Changeset.for_create(:create, %{title: "title"})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Ash.create!()
 
     post2 =
       Post
-      |> Ash.Changeset.new(%{title: "non_match"})
+      |> Ash.Changeset.for_create(:create, %{title: "non_match"})
       |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "title"})
+    |> Ash.Changeset.for_create(:create, %{title: "title"})
     |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
     |> Ash.create!()
 
@@ -977,13 +978,10 @@ defmodule AshPostgres.FilterTest do
   end
 
   test "filter by has_one from_many?" do
-    alias Ash.Changeset
-    alias AshPostgres.Test.ComplexCalculations.{Ash, Channel, ChannelMember}
-
     [_cm1, cm2 | _] =
       for _ <- 1..5 do
-        c = Changeset.for_create(Channel, :create, %{}) |> Ash.create!()
-        Changeset.for_create(ChannelMember, :create, %{channel_id: c.id}) |> Ash.create!()
+        c = Ash.Changeset.for_create(Channel, :create, %{}) |> Ash.create!()
+        Ash.Changeset.for_create(ChannelMember, :create, %{channel_id: c.id}) |> Ash.create!()
       end
 
     assert Channel

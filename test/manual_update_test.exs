@@ -4,11 +4,11 @@ defmodule AshPostgres.ManualUpdateTest do
   test "Manual update defined in a module to update an attribute" do
     post =
       AshPostgres.Test.Post
-      |> Ash.Changeset.new(%{title: "match"})
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
       |> Ash.create!()
 
     AshPostgres.Test.Comment
-    |> Ash.Changeset.new(%{title: "_"})
+    |> Ash.Changeset.for_create(:create, %{title: "_"})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Ash.create!()
 

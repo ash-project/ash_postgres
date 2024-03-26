@@ -25,19 +25,27 @@ defmodule AshPostgres.Test.Organization do
   end
 
   actions do
-    default_accept :*
+    default_accept(:*)
 
     defaults([:create, :read, :update, :destroy])
   end
 
   attributes do
     uuid_primary_key(:id, writable?: true)
-    attribute(:name, :string)
+    attribute(:name, :string, public?: true)
   end
 
   relationships do
-    has_many(:users, AshPostgres.Test.User)
-    has_many(:posts, AshPostgres.Test.Post)
-    has_many(:managers, AshPostgres.Test.Manager)
+    has_many(:users, AshPostgres.Test.User) do
+      public?(true)
+    end
+
+    has_many(:posts, AshPostgres.Test.Post) do
+      public?(true)
+    end
+
+    has_many(:managers, AshPostgres.Test.Manager) do
+      public?(true)
+    end
   end
 end

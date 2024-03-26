@@ -5,7 +5,7 @@ defmodule AshPostgres.Test.ComplexCalculations.Documentation do
     data_layer: AshPostgres.DataLayer
 
   actions do
-    default_accept :*
+    default_accept(:*)
 
     defaults([:create, :read, :update, :destroy])
   end
@@ -19,12 +19,13 @@ defmodule AshPostgres.Test.ComplexCalculations.Documentation do
       constraints: [
         one_of: [:demonstrated, :performed, :approved, :reopened]
       ],
+      public?: true,
       allow_nil?: false
     )
 
-    attribute(:documented_at, :utc_datetime_usec)
-    create_timestamp(:inserted_at, public?: true)
-    update_timestamp(:updated_at, public?: true)
+    attribute(:documented_at, :utc_datetime_usec, public?: true)
+    create_timestamp(:inserted_at, public?: true, writable?: true)
+    update_timestamp(:updated_at, public?: true, writable?: true)
   end
 
   calculations do
@@ -47,6 +48,8 @@ defmodule AshPostgres.Test.ComplexCalculations.Documentation do
   end
 
   relationships do
-    belongs_to(:skill, AshPostgres.Test.ComplexCalculations.Skill)
+    belongs_to(:skill, AshPostgres.Test.ComplexCalculations.Skill) do
+      public?(true)
+    end
   end
 end

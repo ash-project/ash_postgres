@@ -5,7 +5,7 @@ defmodule AshPostgres.Test.ComplexCalculations.Skill do
     data_layer: AshPostgres.DataLayer
 
   actions do
-    default_accept :*
+    default_accept(:*)
 
     defaults([:create, :read, :update, :destroy])
   end
@@ -18,7 +18,7 @@ defmodule AshPostgres.Test.ComplexCalculations.Skill do
 
   attributes do
     uuid_primary_key(:id)
-    attribute(:removed, :boolean, default: false, allow_nil?: false)
+    attribute(:removed, :boolean, default: false, allow_nil?: false, public?: true)
   end
 
   calculations do
@@ -41,13 +41,17 @@ defmodule AshPostgres.Test.ComplexCalculations.Skill do
   end
 
   relationships do
-    belongs_to(:certification, AshPostgres.Test.ComplexCalculations.Certification)
+    belongs_to(:certification, AshPostgres.Test.ComplexCalculations.Certification) do
+      public?(true)
+    end
 
     has_many :documentations, AshPostgres.Test.ComplexCalculations.Documentation do
+      public?(true)
       sort(timestamp: :desc, inserted_at: :desc)
     end
 
     has_one :latest_documentation, AshPostgres.Test.ComplexCalculations.Documentation do
+      public?(true)
       sort(timestamp: :desc, inserted_at: :desc)
     end
   end

@@ -1,9 +1,11 @@
 defmodule AshPostgres.Test.ComplexCalculations.Certification do
   @moduledoc false
-  use Ash.Resource, domain: AshPostgres.Test.ComplexCalculations.Domain, data_layer: AshPostgres.DataLayer
+  use Ash.Resource,
+    domain: AshPostgres.Test.ComplexCalculations.Domain,
+    data_layer: AshPostgres.DataLayer
 
   actions do
-    default_accept :*
+    default_accept(:*)
     defaults([:create, :read, :update, :destroy])
   end
 
@@ -44,6 +46,8 @@ defmodule AshPostgres.Test.ComplexCalculations.Certification do
   end
 
   relationships do
-    has_many(:skills, AshPostgres.Test.ComplexCalculations.Skill)
+    has_many(:skills, AshPostgres.Test.ComplexCalculations.Skill) do
+      public?(true)
+    end
   end
 end

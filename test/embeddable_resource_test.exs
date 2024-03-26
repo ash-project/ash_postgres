@@ -1,14 +1,14 @@
 defmodule AshPostgres.EmbeddableResourceTest do
   @moduledoc false
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.Author, Bio, Post
+  alias AshPostgres.Test.{Author, Bio, Post}
 
   require Ash.Query
 
   setup do
     post =
       Post
-      |> Ash.Changeset.new(%{title: "title"})
+      |> Ash.Changeset.for_create(:create, %{title: "title"})
       |> Ash.create!()
 
     %{post: post}
@@ -20,15 +20,15 @@ defmodule AshPostgres.EmbeddableResourceTest do
   end
 
   test "embeds with list attributes set to nil are loaded as nil" do
-    post =
+    author =
       Author
-      |> Ash.Changeset.new(%{bio: %Bio{list_of_strings: nil}})
+      |> Ash.Changeset.for_create(:create, %{bio: %Bio{list_of_strings: nil}})
       |> Ash.create!()
 
-    assert is_nil(post.bio.list_of_strings)
+    assert is_nil(author.bio.list_of_strings)
 
-    post = Ash.reload!(post)
+    author = Ash.reload!(author)
 
-    assert is_nil(post.bio.list_of_strings)
+    assert is_nil(author.bio.list_of_strings)
   end
 end

@@ -14,6 +14,21 @@ defmodule AshPostgres.DataLayer.Info do
     end
   end
 
+  @doc "Checks a version requirement against the resource's repo's postgres version"
+  def pg_version_matches?(resource, requirement) do
+    resource
+    |> pg_version()
+    |> Version.match?(requirement)
+  end
+
+  @doc "Gets the resource's repo's postgres version"
+  def pg_version(resource) do
+    case repo(resource, :read).pg_version() do
+      %Version{} = version -> version
+      string when is_binary(string) -> Version.parse!(string)
+    end
+  end
+
   @doc "The configured table for a resource"
   def table(resource) do
     Extension.get_opt(resource, [:postgres], :table, nil, true)

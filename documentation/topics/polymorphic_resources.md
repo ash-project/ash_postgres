@@ -13,7 +13,7 @@ defmodule MyApp.Reaction do
   end
 
   attributes do
-    attribute(:resource_id, :uuid)
+    attribute :resource_id, :uuid, public?: true
   end
 
   ...

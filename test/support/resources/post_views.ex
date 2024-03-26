@@ -5,18 +5,19 @@ defmodule AshPostgres.Test.PostView do
     data_layer: AshPostgres.DataLayer
 
   actions do
-    default_accept :*
+    default_accept(:*)
 
     defaults([:create, :read])
   end
 
   attributes do
     create_timestamp(:time)
-    attribute(:browser, :atom, constraints: [one_of: [:firefox, :chrome, :edge]])
+    attribute(:browser, :atom, constraints: [one_of: [:firefox, :chrome, :edge]], public?: true)
   end
 
   relationships do
     belongs_to :post, AshPostgres.Test.Post do
+      public?(true)
       allow_nil?(false)
       attribute_writable?(true)
     end

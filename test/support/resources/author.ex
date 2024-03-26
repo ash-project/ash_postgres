@@ -6,7 +6,7 @@ defmodule AshPostgres.Test.Author do
 
   defmodule RuntimeFullName do
     @moduledoc false
-    use Ash.Calculation
+    use Ash.Resource.Calculation
 
     def calculate(records, _, _) do
       Enum.map(records, fn record ->
@@ -22,23 +22,29 @@ defmodule AshPostgres.Test.Author do
 
   attributes do
     uuid_primary_key(:id, writable?: true)
-    attribute(:first_name, :string)
-    attribute(:last_name, :string)
-    attribute(:bio, AshPostgres.Test.Bio)
-    attribute(:badges, {:array, :atom})
+    attribute(:first_name, :string, public?: true)
+    attribute(:last_name, :string, public?: true)
+    attribute(:bio, AshPostgres.Test.Bio, public?: true)
+    attribute(:badges, {:array, :atom}, public?: true)
   end
 
   actions do
-    default_accept :*
+    default_accept(:*)
 
     defaults([:create, :read, :update, :destroy])
   end
 
   relationships do
-    has_one(:profile, AshPostgres.Test.Profile)
-    has_many(:posts, AshPostgres.Test.Post)
+    has_one(:profile, AshPostgres.Test.Profile) do
+      public?(true)
+    end
+
+    has_many(:posts, AshPostgres.Test.Post) do
+      public?(true)
+    end
 
     has_many :authors_with_same_first_name, __MODULE__ do
+      public?(true)
       source_attribute(:first_name)
       destination_attribute(:first_name)
       filter(expr(parent(id) != id))

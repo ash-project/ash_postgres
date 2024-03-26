@@ -58,7 +58,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       Code.compiler_options(ignore_module_conflict: true)
 
       defmodule unquote(mod) do
-        use Ash.Resource, data_layer: AshPostgres.DataLayer
+        use Ash.Resource, data_layer: AshPostgres.DataLayer, domain: nil
 
         postgres do
           table unquote(table)
@@ -97,11 +97,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         attributes do
           uuid_primary_key(:id)
-          attribute(:title, :string)
-          attribute(:second_title, :string)
-          attribute(:title_with_source, :string, source: :t_w_s)
-          attribute(:title_with_default, :string)
-          attribute(:email, Test.Support.Types.Email)
+          attribute(:title, :string, public?: true)
+          attribute(:second_title, :string, public?: true)
+          attribute(:title_with_source, :string, source: :t_w_s, public?: true)
+          attribute(:title_with_default, :string, public?: true)
+          attribute(:email, Test.Support.Types.Email, public?: true)
         end
       end
 
@@ -186,8 +186,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         attributes do
           uuid_primary_key(:id)
-          attribute(:title, :string)
-          attribute(:second_title, :string)
+          attribute(:title, :string, public?: true)
+          attribute(:second_title, :string, public?: true)
         end
       end
 
@@ -264,7 +264,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         attributes do
           uuid_primary_key(:id)
-          attribute(:title, :string)
+          attribute(:title, :string, public?: true)
         end
       end
 
@@ -309,7 +309,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         attributes do
           uuid_primary_key(:id)
-          attribute(:title, :string)
+          attribute(:title, :string, public?: true)
         end
       end
 
@@ -350,7 +350,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         attributes do
           uuid_primary_key(:id)
-          attribute(:title, :string)
+          attribute(:title, :string, public?: true)
         end
       end
 
@@ -376,7 +376,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         attributes do
           uuid_primary_key(:id)
-          attribute(:name, :string, allow_nil?: false)
+          attribute(:name, :string, allow_nil?: false, public?: true)
         end
       end
 
@@ -405,7 +405,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         attributes do
           uuid_primary_key(:id)
-          attribute(:name, :string, allow_nil?: false, default: "fred")
+          attribute(:name, :string, allow_nil?: false, default: "fred", public?: true)
         end
       end
 
@@ -442,7 +442,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         attributes do
           uuid_primary_key(:id)
-          attribute(:title, :string)
+          attribute(:title, :string, public?: true)
         end
       end
 
@@ -472,7 +472,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         attributes do
           uuid_primary_key(:id)
-          attribute(:title, :string)
+          attribute(:title, :string, public?: true)
         end
       end
 
@@ -500,8 +500,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         attributes do
           uuid_primary_key(:id)
-          attribute(:title, :string)
-          attribute(:name, :string, allow_nil?: false)
+          attribute(:title, :string, public?: true)
+          attribute(:name, :string, allow_nil?: false, public?: true)
         end
       end
 
@@ -525,7 +525,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           uuid_primary_key(:id)
-          attribute(:name, :string, allow_nil?: false)
+          attribute(:name, :string, allow_nil?: false, public?: true)
         end
       end
 
@@ -550,7 +550,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           uuid_primary_key(:id)
-          attribute(:name, :string, allow_nil?: false)
+          attribute(:name, :string, allow_nil?: false, public?: true)
         end
       end
 
@@ -576,8 +576,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           uuid_primary_key(:id)
-          attribute(:name, :string, allow_nil?: false)
-          attribute(:subject, :string, allow_nil?: false)
+          attribute(:name, :string, allow_nil?: false, public?: true)
+          attribute(:subject, :string, allow_nil?: false, public?: true)
         end
       end
 
@@ -607,8 +607,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           uuid_primary_key(:id)
-          attribute(:name, :string, allow_nil?: false)
-          attribute(:subject, :string, allow_nil?: false)
+          attribute(:name, :string, allow_nil?: false, public?: true)
+          attribute(:subject, :string, allow_nil?: false, public?: true)
         end
       end
 
@@ -634,15 +634,15 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           uuid_primary_key(:id)
-          attribute(:title, :string)
-          attribute(:foobar, :string)
+          attribute(:title, :string, public?: true)
+          attribute(:foobar, :string, public?: true)
         end
       end
 
       defposts Post2 do
         attributes do
           uuid_primary_key(:id)
-          attribute(:name, :string)
+          attribute(:name, :string, public?: true)
         end
       end
 
@@ -669,7 +669,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           uuid_primary_key(:id)
-          attribute(:title, :string)
+          attribute(:title, :string, public?: true)
         end
 
         identities do
@@ -680,7 +680,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts Post2 do
         attributes do
           uuid_primary_key(:id)
-          attribute(:name, :string)
+          attribute(:name, :string, public?: true)
         end
 
         identities do
@@ -721,8 +721,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           uuid_primary_key(:id)
-          attribute(:title, :string)
-          attribute(:example, :string, allow_nil?: false)
+          attribute(:title, :string, public?: true)
+          attribute(:example, :string, allow_nil?: false, public?: true)
         end
       end
 
@@ -760,8 +760,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defposts do
         attributes do
-          attribute(:id, :integer, generated?: true, allow_nil?: false, primary_key?: true)
-          attribute(:views, :integer)
+          attribute(:id, :integer,
+            generated?: true,
+            allow_nil?: false,
+            primary_key?: true,
+            public?: true
+          )
+
+          attribute(:views, :integer, public?: true)
         end
       end
 
@@ -795,7 +801,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           uuid_primary_key(:id)
-          attribute(:title, :string)
+          attribute(:title, :string, public?: true)
         end
       end
 
@@ -830,19 +836,19 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           uuid_primary_key(:id)
-          attribute(:title, :string)
-          attribute(:foobar, :string)
+          attribute(:title, :string, public?: true)
+          attribute(:foobar, :string, public?: true)
         end
       end
 
       defposts Post2 do
         attributes do
           uuid_primary_key(:id)
-          attribute(:name, :string)
+          attribute(:name, :string, public?: true)
         end
 
         relationships do
-          belongs_to(:post, Post)
+          belongs_to(:post, Post, public?: true)
         end
       end
 
@@ -864,20 +870,20 @@ defmodule AshPostgres.MigrationGeneratorTest do
     test "references are inferred automatically if the attribute has a different type" do
       defposts do
         attributes do
-          attribute(:id, :string, primary_key?: true, allow_nil?: false)
-          attribute(:title, :string)
-          attribute(:foobar, :string)
+          attribute(:id, :string, primary_key?: true, allow_nil?: false, public?: true)
+          attribute(:title, :string, public?: true)
+          attribute(:foobar, :string, public?: true)
         end
       end
 
       defposts Post2 do
         attributes do
-          attribute(:id, :string, primary_key?: true, allow_nil?: false)
-          attribute(:name, :string)
+          attribute(:id, :string, primary_key?: true, allow_nil?: false, public?: true)
+          attribute(:name, :string, public?: true)
         end
 
         relationships do
-          belongs_to(:post, Post, attribute_type: :string)
+          belongs_to(:post, Post, attribute_type: :string, public?: true)
         end
       end
 
@@ -900,20 +906,22 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           uuid_primary_key(:id)
-          attribute(:key_id, :uuid, allow_nil?: false)
-          attribute(:foobar, :string)
+          attribute(:key_id, :uuid, allow_nil?: false, public?: true)
+          attribute(:foobar, :string, public?: true)
         end
       end
 
       defposts Post2 do
         attributes do
           uuid_primary_key(:id)
-          attribute(:name, :string)
-          attribute(:related_key_id, :uuid)
+          attribute(:name, :string, public?: true)
+          attribute(:related_key_id, :uuid, public?: true)
         end
 
         relationships do
-          belongs_to(:post, Post)
+          belongs_to(:post, Post) do
+            public?(true)
+          end
         end
 
         postgres do
@@ -941,8 +949,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
     test "references merge :match_with and multitenancy attribute" do
       defresource Org, "orgs" do
         attributes do
-          uuid_primary_key(:id, writable?: true)
-          attribute(:name, :string)
+          uuid_primary_key(:id, writable?: true, public?: true)
+          attribute(:name, :string, public?: true)
         end
 
         multitenancy do
@@ -954,10 +962,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defresource User, "users" do
         attributes do
           uuid_primary_key(:id, writable?: true)
-          attribute(:secondary_id, :uuid)
-          attribute(:name, :string)
-          attribute(:org_id, :uuid)
-          attribute(:key_id, :uuid)
+          attribute(:secondary_id, :uuid, public?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
+          attribute(:key_id, :uuid, public?: true)
         end
 
         multitenancy do
@@ -966,16 +974,18 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
 
         relationships do
-          belongs_to(:org, Org)
+          belongs_to(:org, Org) do
+            public?(true)
+          end
         end
       end
 
       defresource UserThing, "user_things" do
         attributes do
-          attribute(:id, :string, primary_key?: true, allow_nil?: false)
-          attribute(:name, :string)
-          attribute(:org_id, :uuid)
-          attribute(:related_key_id, :uuid)
+          attribute(:id, :string, primary_key?: true, allow_nil?: false, public?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
+          attribute(:related_key_id, :uuid, public?: true)
         end
 
         multitenancy do
@@ -984,8 +994,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
 
         relationships do
-          belongs_to(:org, Org)
-          belongs_to(:user, User, destination_attribute: :secondary_id)
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+
+          belongs_to(:user, User, destination_attribute: :secondary_id, public?: true)
         end
 
         postgres do
@@ -1014,7 +1027,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defresource Org, "orgs" do
         attributes do
           uuid_primary_key(:id, writable?: true)
-          attribute(:name, :string)
+          attribute(:name, :string, public?: true)
         end
 
         multitenancy do
@@ -1026,10 +1039,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defresource User, "users" do
         attributes do
           uuid_primary_key(:id, writable?: true)
-          attribute(:secondary_id, :uuid)
-          attribute(:name, :string)
-          attribute(:org_id, :uuid)
-          attribute(:key_id, :uuid)
+          attribute(:secondary_id, :uuid, public?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
+          attribute(:key_id, :uuid, public?: true)
         end
 
         multitenancy do
@@ -1042,7 +1055,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
 
         relationships do
-          belongs_to(:org, Org)
+          belongs_to(:org, Org) do
+            public?(true)
+          end
         end
       end
 
@@ -1065,19 +1080,21 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           uuid_primary_key(:id)
-          attribute(:title, :string)
-          attribute(:foobar, :string)
+          attribute(:title, :string, public?: true)
+          attribute(:foobar, :string, public?: true)
         end
       end
 
       defposts Post2 do
         attributes do
           uuid_primary_key(:id)
-          attribute(:name, :string)
+          attribute(:name, :string, public?: true)
         end
 
         relationships do
-          belongs_to(:post, Post)
+          belongs_to(:post, Post) do
+            public?(true)
+          end
         end
       end
 
@@ -1099,11 +1116,13 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         attributes do
           uuid_primary_key(:id)
-          attribute(:name, :string)
+          attribute(:name, :string, public?: true)
         end
 
         relationships do
-          belongs_to(:post, Post)
+          belongs_to(:post, Post) do
+            public?(true)
+          end
         end
       end
 
@@ -1138,7 +1157,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defresource Org, "orgs" do
         attributes do
           uuid_primary_key(:id, writable?: true)
-          attribute(:name, :string)
+          attribute(:name, :string, public?: true)
         end
 
         multitenancy do
@@ -1150,9 +1169,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defresource User, "users" do
         attributes do
           uuid_primary_key(:id, writable?: true)
-          attribute(:secondary_id, :uuid)
-          attribute(:name, :string)
-          attribute(:org_id, :uuid)
+          attribute(:secondary_id, :uuid, public?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
         end
 
         multitenancy do
@@ -1161,15 +1180,17 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
 
         relationships do
-          belongs_to(:org, Org)
+          belongs_to(:org, Org) do
+            public?(true)
+          end
         end
       end
 
       defresource UserThing1, "user_things1" do
         attributes do
-          attribute(:id, :string, primary_key?: true, allow_nil?: false)
-          attribute(:name, :string)
-          attribute(:org_id, :uuid)
+          attribute(:id, :string, primary_key?: true, allow_nil?: false, public?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
         end
 
         multitenancy do
@@ -1178,15 +1199,18 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
 
         relationships do
-          belongs_to(:org, Org)
-          belongs_to(:user, User, destination_attribute: :secondary_id)
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+
+          belongs_to(:user, User, destination_attribute: :secondary_id, public?: true)
         end
       end
 
       defresource UserThing2, "user_things2" do
         attributes do
           uuid_primary_key(:id, writable?: true)
-          attribute(:name, :string)
+          attribute(:name, :string, public?: true)
         end
 
         multitenancy do
@@ -1195,8 +1219,13 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
 
         relationships do
-          belongs_to(:org, Org)
-          belongs_to(:user, User)
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+
+          belongs_to(:user, User) do
+            public?(true)
+          end
         end
       end
 
@@ -1231,7 +1260,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           uuid_primary_key(:id)
-          attribute(:price, :integer)
+          attribute(:price, :integer, public?: true)
         end
 
         postgres do
@@ -1263,7 +1292,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           uuid_primary_key(:id)
-          attribute(:price, :integer)
+          attribute(:price, :integer, public?: true)
         end
 
         postgres do
@@ -1302,7 +1331,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           uuid_primary_key(:id)
-          attribute(:price, :integer)
+          attribute(:price, :integer, public?: true)
         end
 
         postgres do
@@ -1324,7 +1353,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           uuid_primary_key(:id)
-          attribute(:price, :integer)
+          attribute(:price, :integer, public?: true)
         end
       end
 
@@ -1365,7 +1394,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         attributes do
           uuid_primary_key(:id)
-          attribute(:resource_id, :uuid)
+          attribute(:resource_id, :uuid, public?: true)
         end
 
         actions do
@@ -1393,11 +1422,13 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         relationships do
           has_many(:comments, Comment,
+            public?: true,
             destination_attribute: :resource_id,
             relationship_context: %{data_layer: %{table: "post_comments"}}
           )
 
           belongs_to(:best_comment, Comment,
+            public?: true,
             destination_attribute: :id,
             relationship_context: %{data_layer: %{table: "post_comments"}}
           )
@@ -1436,16 +1467,26 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           uuid_primary_key(:id)
-          attribute(:start_date, :date, default: ~D[2022-04-19])
-          attribute(:start_time, :time, default: ~T[08:30:45])
-          attribute(:timestamp, :utc_datetime, default: ~U[2022-02-02 08:30:30Z])
-          attribute(:timestamp_naive, :naive_datetime, default: ~N[2022-02-02 08:30:30])
-          attribute(:number, :integer, default: 5)
-          attribute(:fraction, :float, default: 0.25)
-          attribute(:decimal, :decimal, default: Decimal.new("123.4567890987654321987"))
-          attribute(:name, :string, default: "Fred")
-          attribute(:tag, :atom, default: :value)
-          attribute(:enabled, :boolean, default: false)
+          attribute(:start_date, :date, default: ~D[2022-04-19], public?: true)
+          attribute(:start_time, :time, default: ~T[08:30:45], public?: true)
+          attribute(:timestamp, :utc_datetime, default: ~U[2022-02-02 08:30:30Z], public?: true)
+
+          attribute(:timestamp_naive, :naive_datetime,
+            default: ~N[2022-02-02 08:30:30],
+            public?: true
+          )
+
+          attribute(:number, :integer, default: 5, public?: true)
+          attribute(:fraction, :float, default: 0.25, public?: true)
+
+          attribute(:decimal, :decimal,
+            default: Decimal.new("123.4567890987654321987"),
+            public?: true
+          )
+
+          attribute(:name, :string, default: "Fred", public?: true)
+          attribute(:tag, :atom, default: :value, public?: true)
+          attribute(:enabled, :boolean, default: false, public?: true)
         end
       end
 
@@ -1497,7 +1538,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           uuid_primary_key(:id)
-          attribute(:product_code, :term, default: {"xyz"})
+          attribute(:product_code, :term, default: {"xyz"}, public?: true)
         end
       end
 
@@ -1534,7 +1575,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         attributes do
           uuid_primary_key(:id)
-          attribute(:title, :string)
+          attribute(:title, :string, public?: true)
         end
       end
 
@@ -1553,7 +1594,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
 
         relationships do
-          belongs_to(:post, Post)
+          belongs_to(:post, Post) do
+            public?(true)
+          end
         end
       end
 
@@ -1574,9 +1617,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
     test "when changing the primary key, it changes properly" do
       defposts do
         attributes do
-          attribute(:id, :uuid, primary_key?: false, default: &Ecto.UUID.generate/0)
+          attribute(:id, :uuid,
+            primary_key?: false,
+            default: &Ecto.UUID.generate/0,
+            public?: true
+          )
+
           uuid_primary_key(:guid)
-          attribute(:title, :string)
+          attribute(:title, :string, public?: true)
         end
       end
 
@@ -1595,7 +1643,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
 
         relationships do
-          belongs_to(:post, Post)
+          belongs_to(:post, Post) do
+            public?(true)
+          end
         end
       end
 

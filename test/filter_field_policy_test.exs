@@ -1,7 +1,7 @@
 defmodule FilterFieldPolicyTest do
   use AshPostgres.RepoCase, async: false
 
-  alias AshPostgres.Test.Organization, Post, User
+  alias AshPostgres.Test.{Organization, Post, User}
 
   require Ash.Query
 

@@ -10,13 +10,13 @@ defmodule AshPostgres.Test.IntegerPost do
   end
 
   actions do
-    default_accept :*
+    default_accept(:*)
 
     defaults([:create, :read, :update, :destroy])
   end
 
   attributes do
     integer_primary_key(:id)
-    attribute(:title, :string)
+    attribute(:title, :string, public?: true)
   end
 end

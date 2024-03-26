@@ -7,19 +7,19 @@ defmodule AshPostgres.DistinctTest do
 
   setup do
     Post
-    |> Ash.Changeset.new(%{title: "title", score: 1})
+    |> Ash.Changeset.for_create(:create, %{title: "title", score: 1})
     |> Ash.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "title", score: 1})
+    |> Ash.Changeset.for_create(:create, %{title: "title", score: 1})
     |> Ash.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "foo", score: 2})
+    |> Ash.Changeset.for_create(:create, %{title: "foo", score: 2})
     |> Ash.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "foo", score: 2})
+    |> Ash.Changeset.for_create(:create, %{title: "foo", score: 2})
     |> Ash.create!()
 
     :ok
@@ -118,11 +118,11 @@ defmodule AshPostgres.DistinctTest do
 
   test "distinct, join filters and sort can be combined" do
     Post
-    |> Ash.Changeset.new(%{title: "a", score: 2})
+    |> Ash.Changeset.for_create(:create, %{title: "a", score: 2})
     |> Ash.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "a", score: 1})
+    |> Ash.Changeset.for_create(:create, %{title: "a", score: 1})
     |> Ash.create!()
 
     assert [] =
@@ -135,11 +135,11 @@ defmodule AshPostgres.DistinctTest do
 
   test "distinct sort is applied" do
     Post
-    |> Ash.Changeset.new(%{title: "a", score: 2})
+    |> Ash.Changeset.for_create(:create, %{title: "a", score: 2})
     |> Ash.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "a", score: 1})
+    |> Ash.Changeset.for_create(:create, %{title: "a", score: 1})
     |> Ash.create!()
 
     results =

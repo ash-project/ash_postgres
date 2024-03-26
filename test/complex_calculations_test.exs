@@ -17,7 +17,7 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
 
     _documentation =
       AshPostgres.Test.ComplexCalculations.Documentation
-      |> Ash.Changeset.new(%{status: :demonstrated})
+      |> Ash.Changeset.for_create(:create, %{status: :demonstrated})
       |> Ash.Changeset.manage_relationship(:skill, skill, type: :append)
       |> Ash.create!()
 
@@ -199,11 +199,11 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
   test "calculations with aggregates can be referenced from aggregates" do
     author =
       AshPostgres.Test.Author
-      |> Ash.Changeset.new(%{first_name: "is", last_name: "match"})
+      |> Ash.Changeset.for_create(:create, %{first_name: "is", last_name: "match"})
       |> Ash.create!()
 
     AshPostgres.Test.Post
-    |> Ash.Changeset.new(%{title: "match"})
+    |> Ash.Changeset.for_create(:create, %{title: "match"})
     |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
     |> Ash.create!()
 
@@ -226,11 +226,11 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
   test "calculations can reference aggregates from optimizable first aggregates" do
     author =
       AshPostgres.Test.Author
-      |> Ash.Changeset.new(%{first_name: "is", last_name: "match"})
+      |> Ash.Changeset.for_create(:create, %{first_name: "is", last_name: "match"})
       |> Ash.create!()
 
     AshPostgres.Test.Post
-    |> Ash.Changeset.new(%{title: "match"})
+    |> Ash.Changeset.for_create(:create, %{title: "match"})
     |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
     |> Ash.create!()
 
@@ -253,11 +253,11 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
   test "calculations can reference aggregates from non optimizable aggregates" do
     author =
       AshPostgres.Test.Author
-      |> Ash.Changeset.new(%{first_name: "is", last_name: "match"})
+      |> Ash.Changeset.for_create(:create, %{first_name: "is", last_name: "match"})
       |> Ash.create!()
 
     AshPostgres.Test.Post
-    |> Ash.Changeset.new(%{title: "match"})
+    |> Ash.Changeset.for_create(:create, %{title: "match"})
     |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
     |> Ash.create!()
 

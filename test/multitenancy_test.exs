@@ -6,12 +6,12 @@ defmodule AshPostgres.Test.MultitenancyTest do
   setup do
     org1 =
       Org
-      |> Ash.Changeset.new(name: "test1")
+      |> Ash.Changeset.for_create(:create, %{name: "test1"})
       |> Ash.create!()
 
     org2 =
       Org
-      |> Ash.Changeset.new(name: "test2")
+      |> Ash.Changeset.for_create(:create, %{name: "test2"})
       |> Ash.create!()
 
     [org1: org1, org2: org2]
@@ -39,7 +39,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
 
   test "context multitenancy works with policies", %{org1: org1} do
     Post
-    |> Ash.Changeset.new(name: "foo")
+    |> Ash.Changeset.for_create(:create, %{name: "foo"})
     |> Ash.Changeset.set_tenant(tenant(org1))
     |> Ash.create!()
     |> Ash.Changeset.for_update(:update_with_policy, %{}, authorize?: true)
@@ -52,7 +52,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
 
     org =
       Org
-      |> Ash.Changeset.new(name: "test3")
+      |> Ash.Changeset.for_create(:create, %{name: "test3"})
       |> Ash.Changeset.set_tenant("org_#{uuid}")
       |> Ash.create!()
 
@@ -61,7 +61,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
 
   test "schema multitenancy works", %{org1: org1, org2: org2} do
     Post
-    |> Ash.Changeset.new(name: "foo")
+    |> Ash.Changeset.for_create(:create, %{name: "foo"})
     |> Ash.Changeset.set_tenant(tenant(org1))
     |> Ash.create!()
 
@@ -73,7 +73,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
     new_uuid = Ash.UUID.generate()
 
     org1
-    |> Ash.Changeset.new(id: new_uuid)
+    |> Ash.Changeset.for_update(:update, %{id: new_uuid})
     |> Ash.update!()
 
     new_tenant = "org_#{new_uuid}"
@@ -110,13 +110,13 @@ defmodule AshPostgres.Test.MultitenancyTest do
 
     user1 =
       User
-      |> Ash.Changeset.new(%{name: "a"})
+      |> Ash.Changeset.for_create(:create, %{name: "a"})
       |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
       |> Ash.create!()
 
     user2 =
       User
-      |> Ash.Changeset.new(%{name: "b"})
+      |> Ash.Changeset.for_create(:create, %{name: "b"})
       |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
       |> Ash.create!()
 
@@ -160,13 +160,13 @@ defmodule AshPostgres.Test.MultitenancyTest do
 
     user1 =
       User
-      |> Ash.Changeset.new(%{name: "a"})
+      |> Ash.Changeset.for_create(:create, %{name: "a"})
       |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
       |> Ash.create!()
 
     user2 =
       User
-      |> Ash.Changeset.new(%{name: "b"})
+      |> Ash.Changeset.for_create(:create, %{name: "b"})
       |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
       |> Ash.create!()
 
@@ -180,7 +180,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
   test "unique constraints are properly scoped", %{org1: org1} do
     post =
       Post
-      |> Ash.Changeset.new(%{})
+      |> Ash.Changeset.for_create(:create, %{})
       |> Ash.Changeset.set_tenant(tenant(org1))
       |> Ash.create!()
 
@@ -188,7 +188,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
                  ~r/Invalid value provided for id: has already been taken/,
                  fn ->
                    Post
-                   |> Ash.Changeset.new(%{id: post.id})
+                   |> Ash.Changeset.for_create(:create, %{id: post.id})
                    |> Ash.Changeset.set_tenant(tenant(org1))
                    |> Ash.create!()
                  end

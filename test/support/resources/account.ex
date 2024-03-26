@@ -5,7 +5,7 @@ defmodule AshPostgres.Test.Account do
     data_layer: AshPostgres.DataLayer
 
   actions do
-    default_accept :*
+    default_accept(:*)
 
     defaults([:create, :read, :update, :destroy])
   end
@@ -16,7 +16,7 @@ defmodule AshPostgres.Test.Account do
 
   attributes do
     uuid_primary_key(:id)
-    attribute(:is_active, :boolean)
+    attribute(:is_active, :boolean, public?: true)
   end
 
   calculations do
@@ -34,6 +34,8 @@ defmodule AshPostgres.Test.Account do
   end
 
   relationships do
-    belongs_to(:user, AshPostgres.Test.User)
+    belongs_to(:user, AshPostgres.Test.User) do
+      public?(true)
+    end
   end
 end

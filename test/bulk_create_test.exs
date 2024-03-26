@@ -1,6 +1,6 @@
 defmodule AshPostgres.BulkCreateTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.Pos}
+  alias AshPostgres.Test.Post
 
   describe "bulk creates" do
     test "bulk creates insert each input" do

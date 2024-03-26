@@ -3,7 +3,7 @@ defmodule AshPostgres.Test.Subquery.Child do
   alias AshPostgres.Test.Subquery.Through
 
   use Ash.Resource,
-    domain: AshPostgres.Test.Domain,
+    domain: AshPostgres.Test.Subquery.ChildDomain,
     data_layer: AshPostgres.DataLayer,
     authorizers: [
       Ash.Policy.Authorizer
@@ -16,17 +16,17 @@ defmodule AshPostgres.Test.Subquery.Child do
 
   attributes do
     uuid_primary_key(:id)
-    attribute(:state, :string)
+    attribute(:state, :string, public?: true)
   end
 
   code_interface do
-
     define(:create)
     define(:read)
   end
 
   relationships do
     has_many :throughs, Through do
+      public?(true)
       source_attribute(:id)
       destination_attribute(:child_id)
     end
@@ -48,7 +48,7 @@ defmodule AshPostgres.Test.Subquery.Child do
   end
 
   actions do
-    default_accept :*
+    default_accept(:*)
 
     defaults([:create, :read, :update, :destroy])
   end

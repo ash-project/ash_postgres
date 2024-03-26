@@ -1,7 +1,7 @@
 defmodule AshPostgres.Test.Subquery.Parent do
   @moduledoc false
   use Ash.Resource,
-    domain: AshPostgres.Test.Domain,
+    domain: AshPostgres.Test.Subquery.ParentDomain,
     data_layer: AshPostgres.DataLayer,
     authorizers: [
       Ash.Policy.Authorizer
@@ -16,13 +16,14 @@ defmodule AshPostgres.Test.Subquery.Parent do
 
   attributes do
     uuid_primary_key(:id)
-    attribute(:owner_email, :string)
-    attribute(:other_owner_email, :string)
-    attribute(:visible, :boolean)
+    attribute(:owner_email, :string, public?: true)
+    attribute(:other_owner_email, :string, public?: true)
+    attribute(:visible, :boolean, public?: true)
   end
 
   relationships do
     many_to_many :children, Child do
+      public?(true)
       through(Through)
       source_attribute(:id)
       source_attribute_on_join_resource(:parent_id)
@@ -31,7 +32,9 @@ defmodule AshPostgres.Test.Subquery.Parent do
       domain(AshPostgres.Test.Subquery.ChildDomain)
     end
 
-    has_many(:accesses, Access)
+    has_many(:accesses, Access) do
+      public?(true)
+    end
   end
 
   policies do
@@ -49,7 +52,6 @@ defmodule AshPostgres.Test.Subquery.Parent do
   end
 
   code_interface do
-
     define(:create)
     define(:read)
 
@@ -57,7 +59,7 @@ defmodule AshPostgres.Test.Subquery.Parent do
   end
 
   actions do
-    default_accept :*
+    default_accept(:*)
 
     defaults([:create, :read, :update, :destroy])
   end

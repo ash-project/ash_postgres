@@ -10,7 +10,7 @@ defmodule AshPostgres.Test.PostFollower do
   end
 
   actions do
-    default_accept :*
+    default_accept(:*)
 
     defaults([:create, :read, :update, :destroy])
   end
@@ -21,10 +21,12 @@ defmodule AshPostgres.Test.PostFollower do
 
   relationships do
     belongs_to :post, AshPostgres.Test.Post do
+      public?(true)
       allow_nil?(false)
     end
 
     belongs_to :follower, AshPostgres.Test.User do
+      public?(true)
       allow_nil?(false)
     end
   end

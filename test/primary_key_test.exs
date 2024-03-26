@@ -6,11 +6,12 @@ defmodule AshPostgres.Test.PrimaryKeyTest do
   require Ash.Query
 
   test "creates record with integer primary key" do
-    assert %IntegerPost{} = IntegerPost |> Ash.Changeset.new(%{title: "title"}) |> Ash.create!()
+    assert %IntegerPost{} =
+             IntegerPost |> Ash.Changeset.for_create(:create, %{title: "title"}) |> Ash.create!()
   end
 
   test "creates record with uuid primary key" do
-    assert %Post{} = Post |> Ash.Changeset.new(%{title: "title"}) |> Ash.create!()
+    assert %Post{} = Post |> Ash.Changeset.for_create(:create, %{title: "title"}) |> Ash.create!()
   end
 
   describe "resources without a primary key" do

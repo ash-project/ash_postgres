@@ -8,7 +8,7 @@ defmodule AshPostgres.Test.ComplexCalculations.Channel do
   require Ash.Expr
 
   actions do
-    default_accept :*
+    default_accept(:*)
     defaults([:create, :read, :update, :destroy])
   end
 
@@ -25,26 +25,32 @@ defmodule AshPostgres.Test.ComplexCalculations.Channel do
   end
 
   relationships do
-    has_many(:channel_members, AshPostgres.Test.ComplexCalculations.ChannelMember)
+    has_many(:channel_members, AshPostgres.Test.ComplexCalculations.ChannelMember) do
+      public?(true)
+    end
 
     has_one :first_member, AshPostgres.Test.ComplexCalculations.ChannelMember do
+      public?(true)
       destination_attribute(:channel_id)
       from_many?(true)
       sort(created_at: :asc)
     end
 
     has_one :second_member, AshPostgres.Test.ComplexCalculations.ChannelMember do
+      public?(true)
       destination_attribute(:channel_id)
       from_many?(true)
       sort(created_at: :desc)
     end
 
     has_one :dm_channel, AshPostgres.Test.ComplexCalculations.DMChannel do
+      public?(true)
       domain(AshPostgres.Test.ComplexCalculations.Domain)
       destination_attribute(:id)
     end
 
     has_one :dm_channel_with_same_id, AshPostgres.Test.ComplexCalculations.DMChannel do
+      public?(true)
       no_attributes?(true)
       from_many?(true)
       filter(expr(parent(id) == id))

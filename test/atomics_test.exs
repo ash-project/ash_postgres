@@ -43,8 +43,9 @@ defmodule AshPostgres.AtomicsTest do
 
     assert %{created_at: ^now} =
              post
-             |> Ash.Changeset.for_update(:update, %{})
+             |> Ash.Changeset.new()
              |> Ash.Changeset.atomic_update(:created_at, expr(^now))
+             |> Ash.Changeset.for_update(:update, %{})
              |> Ash.update!()
   end
 
@@ -56,8 +57,9 @@ defmodule AshPostgres.AtomicsTest do
 
     assert_raise Ash.Error.Invalid, ~r/does not exist/, fn ->
       post
-      |> Ash.Changeset.for_update(:update, %{})
+      |> Ash.Changeset.new()
       |> Ash.Changeset.atomic_update(:organization_id, Ash.UUID.generate())
+      |> Ash.Changeset.for_update(:update, %{})
       |> Ash.update!()
     end
   end

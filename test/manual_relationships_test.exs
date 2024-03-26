@@ -1,6 +1,6 @@
 defmodule AshPostgres.Test.ManualRelationshipsTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.Comment, Post
+  alias AshPostgres.Test.{Comment, Post}
 
   require Ash.Query
 
@@ -8,7 +8,7 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
     test "aggregates can be loaded with no data" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       assert %{count_of_comments_containing_title: 0} =
@@ -18,20 +18,20 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
     test "aggregates can be loaded with data" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
       |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "no match"})
+      |> Ash.Changeset.for_create(:create, %{title: "no match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -41,7 +41,7 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
 
     test "relationships can be filtered on with no data" do
       Post
-      |> Ash.Changeset.new(%{title: "title"})
+      |> Ash.Changeset.for_create(:create, %{title: "title"})
       |> Ash.create!()
 
       assert [] =
@@ -50,7 +50,7 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
 
     test "aggregates can be filtered on with no data" do
       Post
-      |> Ash.Changeset.new(%{title: "title"})
+      |> Ash.Changeset.for_create(:create, %{title: "title"})
       |> Ash.create!()
 
       assert [] = Post |> Ash.Query.filter(count_of_comments_containing_title == 1) |> Ash.read!()
@@ -59,20 +59,20 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
     test "aggregates can be filtered on with data" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
       |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "no match"})
+      |> Ash.Changeset.for_create(:create, %{title: "no match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -83,20 +83,20 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
     test "relationships can be filtered on with data" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
       |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "no match"})
+      |> Ash.Changeset.for_create(:create, %{title: "no match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -111,12 +111,12 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
     test "aggregates can be loaded with no data" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       comment =
         Comment
-        |> Ash.Changeset.new(%{title: "no match"})
+        |> Ash.Changeset.for_create(:create, %{title: "no match"})
         |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
         |> Ash.create!()
 
@@ -127,21 +127,21 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
     test "aggregates can be loaded with data" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
       |> Ash.create!()
 
       comment =
         Comment
-        |> Ash.Changeset.new(%{title: "title2"})
+        |> Ash.Changeset.for_create(:create, %{title: "title2"})
         |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "no match"})
+      |> Ash.Changeset.for_create(:create, %{title: "no match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -152,11 +152,11 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
     test "aggregates can be filtered on with no data" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "no match"})
+      |> Ash.Changeset.for_create(:create, %{title: "no match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -169,11 +169,11 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
     test "relationships can be filtered on with no data" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "no match"})
+      |> Ash.Changeset.for_create(:create, %{title: "no match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -186,20 +186,20 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
     test "aggregates can be filtered on with data" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
       |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "no match"})
+      |> Ash.Changeset.for_create(:create, %{title: "no match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -212,20 +212,20 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
     test "relationships can be filtered on with data" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
       |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "no match"})
+      |> Ash.Changeset.for_create(:create, %{title: "no match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -240,12 +240,12 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
     test "aggregates can be loaded with no data" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       comment =
         Comment
-        |> Ash.Changeset.new(%{title: "no match"})
+        |> Ash.Changeset.for_create(:create, %{title: "no match"})
         |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
         |> Ash.create!()
 
@@ -256,21 +256,21 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
     test "aggregates can be loaded with data" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
       |> Ash.create!()
 
       comment =
         Comment
-        |> Ash.Changeset.new(%{title: "title2"})
+        |> Ash.Changeset.for_create(:create, %{title: "title2"})
         |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "no match"})
+      |> Ash.Changeset.for_create(:create, %{title: "no match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -281,11 +281,11 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
     test "aggregates can be filtered on with no data" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "no match"})
+      |> Ash.Changeset.for_create(:create, %{title: "no match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -298,11 +298,11 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
     test "relationships can be filtered on with no data" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "no match"})
+      |> Ash.Changeset.for_create(:create, %{title: "no match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -315,20 +315,20 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
     test "aggregates can be filtered on with data" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
       |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "no match"})
+      |> Ash.Changeset.for_create(:create, %{title: "no match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -341,20 +341,20 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
     test "relationships can be filtered on with data" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
       |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "title2"})
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "no match"})
+      |> Ash.Changeset.for_create(:create, %{title: "no match"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 

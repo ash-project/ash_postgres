@@ -499,8 +499,7 @@ defmodule AshPostgres.Aggregate do
   end
 
   defp resource_aggregates_to_aggregates(resource, aggregates) do
-    aggregates
-    |> Enum.reduce_while({:ok, []}, fn
+    Enum.reduce_while(aggregates, {:ok, []}, fn
       %Ash.Query.Aggregate{} = aggregate, {:ok, aggregates} ->
         {:cont, {:ok, [aggregate | aggregates]}}
 
@@ -523,6 +522,8 @@ defmodule AshPostgres.Aggregate do
             default: aggregate.default,
             filterable?: aggregate.filterable?,
             type: aggregate.type,
+            sortable?: aggregate.filterable?,
+            include_nil?: aggregate.include_nil?,
             constraints: aggregate.constraints,
             implementation: aggregate.implementation,
             uniq?: aggregate.uniq?,
@@ -719,11 +720,11 @@ defmodule AshPostgres.Aggregate do
             expression = module.expression(opts, aggregate.context)
 
             expression =
-              Ash.Filter.build_filter_from_template(
+              Ash.Expr.fill_template(
                 expression,
-                aggregate.context[:actor],
-                aggregate.context,
-                aggregate.context
+                aggregate.context.actor,
+                aggregate.context.arguments,
+                aggregate.context.source_context
               )
 
             {:ok, expression} =
@@ -1189,6 +1190,13 @@ defmodule AshPostgres.Aggregate do
 
     has_sort? = has_sort?(aggregate.query)
 
+    array_agg =
+      if AshPostgres.DataLayer.Info.pg_version_matches?(aggregate.resource, ">= 16.0.0") do
+        "any_value"
+      else
+        "array_agg"
+      end
+
     {sorted, query} =
       if has_sort? || first_relationship.sort not in [nil, []] do
         {sort, binding} =
@@ -1211,31 +1219,63 @@ defmodule AshPostgres.Aggregate do
             :return
           )
 
-        question_marks = Enum.map(sort_expr, fn _ -> " ? " end)
+        if aggregate.include_nil? do
+          question_marks = Enum.map(sort_expr, fn _ -> " ? " end)
 
-        {:ok, expr} =
-          AshPostgres.Functions.Fragment.casted_new(
-            ["array_agg(? ORDER BY #{question_marks})", field] ++ sort_expr
-          )
+          {:ok, expr} =
+            Ash.Query.Function.Fragment.casted_new(
+              ["#{array_agg}(? ORDER BY #{question_marks} FILTER (WHERE ? IS NOT NULL))", field] ++
+                sort_expr ++ [field]
+            )
 
-        {sort_expr, acc} =
-          AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__, false)
+          {sort_expr, acc} =
+            AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__, false)
 
-        query =
-          AshPostgres.DataLayer.merge_expr_accumulator(query, acc)
+          query =
+            AshPostgres.DataLayer.merge_expr_accumulator(query, acc)
 
-        {sort_expr, query}
+          {sort_expr, query}
+        else
+          question_marks = Enum.map(sort_expr, fn _ -> " ? " end)
+
+          {:ok, expr} =
+            Ash.Query.Function.Fragment.casted_new(
+              ["#{array_agg}(? ORDER BY #{question_marks})", field] ++ sort_expr
+            )
+
+          {sort_expr, acc} =
+            AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__, false)
+
+          query =
+            AshPostgres.DataLayer.merge_expr_accumulator(query, acc)
+
+          {sort_expr, query}
+        end
       else
-        {Ecto.Query.dynamic(
-           [row],
-           fragment("array_agg(?)", ^field)
-         ), query}
+        case array_agg do
+          "array_agg" ->
+            {Ecto.Query.dynamic(
+               [row],
+               fragment("array_agg(?)", ^field)
+             ), query}
+
+          "any_value" ->
+            {Ecto.Query.dynamic(
+               [row],
+               fragment("any_value(?)", ^field)
+             ), query}
+        end
       end
 
     {query, filtered} =
       filter_field(sorted, query, aggregate, relationship_path, is_single?)
 
-    value = Ecto.Query.dynamic(fragment("(?)[1]", ^filtered))
+    value =
+      if array_agg == "array_agg" do
+        Ecto.Query.dynamic(fragment("(?)[1]", ^filtered))
+      else
+        filtered
+      end
 
     with_default =
       if aggregate.default_value do
@@ -1327,10 +1367,26 @@ defmodule AshPostgres.Aggregate do
             ""
           end
 
-        {:ok, expr} =
-          AshPostgres.Functions.Fragment.casted_new(
-            ["array_agg(#{distinct}? ORDER BY #{question_marks})", field] ++ sort_expr
-          )
+        expr =
+          if aggregate.include_nil? do
+            {:ok, expr} =
+              Ash.Query.Function.Fragment.casted_new(
+                [
+                  "array_agg(#{distinct}? ORDER BY #{question_marks} FILTER (WHERE ? IS NOT NULL))",
+                  field
+                ] ++
+                  sort_expr ++ [field]
+              )
+
+            expr
+          else
+            {:ok, expr} =
+              Ash.Query.Function.Fragment.casted_new(
+                ["array_agg(#{distinct}? ORDER BY #{question_marks})", field] ++ sort_expr
+              )
+
+            expr
+          end
 
         {expr, acc} =
           AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__, false)

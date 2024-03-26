@@ -8,4 +8,8 @@ defmodule AshPostgres.Test.Subquery.ChildDomain do
     resource(Child)
     resource(Through)
   end
+
+  authorization do
+    authorize(:when_requested)
+  end
 end

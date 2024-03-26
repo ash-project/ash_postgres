@@ -1,6 +1,6 @@
 defmodule AshPostgres.Test.LoadTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.Comment, Post, Record, TempEntity
+  alias AshPostgres.Test.{Comment, Post, Record, TempEntity}
 
   require Ash.Query
 
@@ -8,11 +8,11 @@ defmodule AshPostgres.Test.LoadTest do
     assert %Post{comments: %Ash.NotLoaded{type: :relationship}} =
              post =
              Post
-             |> Ash.Changeset.new(%{title: "title"})
+             |> Ash.Changeset.for_create(:create, %{title: "title"})
              |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "match"})
+    |> Ash.Changeset.for_create(:create, %{title: "match"})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Ash.create!()
 
@@ -28,11 +28,11 @@ defmodule AshPostgres.Test.LoadTest do
     assert %Comment{post: %Ash.NotLoaded{type: :relationship}} =
              comment =
              Comment
-             |> Ash.Changeset.new(%{})
+             |> Ash.Changeset.for_create(:create, %{})
              |> Ash.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "match"})
+    |> Ash.Changeset.for_create(:create, %{title: "match"})
     |> Ash.Changeset.manage_relationship(:comments, [comment], type: :append_and_remove)
     |> Ash.create!()
 
@@ -47,17 +47,17 @@ defmodule AshPostgres.Test.LoadTest do
   test "many_to_many loads work" do
     source_post =
       Post
-      |> Ash.Changeset.new(%{title: "source"})
+      |> Ash.Changeset.for_create(:create, %{title: "source"})
       |> Ash.create!()
 
     destination_post =
       Post
-      |> Ash.Changeset.new(%{title: "destination"})
+      |> Ash.Changeset.for_create(:create, %{title: "destination"})
       |> Ash.create!()
 
     destination_post2 =
       Post
-      |> Ash.Changeset.new(%{title: "destination"})
+      |> Ash.Changeset.for_create(:create, %{title: "destination"})
       |> Ash.create!()
 
     source_post
@@ -77,12 +77,12 @@ defmodule AshPostgres.Test.LoadTest do
   test "many_to_many loads work when nested" do
     source_post =
       Post
-      |> Ash.Changeset.new(%{title: "source"})
+      |> Ash.Changeset.for_create(:create, %{title: "source"})
       |> Ash.create!()
 
     destination_post =
       Post
-      |> Ash.Changeset.new(%{title: "destination"})
+      |> Ash.Changeset.for_create(:create, %{title: "destination"})
       |> Ash.create!()
 
     source_post
@@ -109,19 +109,19 @@ defmodule AshPostgres.Test.LoadTest do
     test "parent references are resolved" do
       post1 =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       post2 =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       post2_id = post2.id
 
       post3 =
         Post
-        |> Ash.Changeset.new(%{title: "no match"})
+        |> Ash.Changeset.for_create(:create, %{title: "no match"})
         |> Ash.create!()
 
       assert [%{posts_with_matching_title: [%{id: ^post2_id}]}] =
@@ -140,20 +140,20 @@ defmodule AshPostgres.Test.LoadTest do
     test "parent references work when joining for filters" do
       %{id: post1_id} =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       post2 =
         Post
-        |> Ash.Changeset.new(%{title: "title"})
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
         |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{title: "no match"})
+      |> Ash.Changeset.for_create(:create, %{title: "no match"})
       |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{title: "no match"})
+      |> Ash.Changeset.for_create(:create, %{title: "no match"})
       |> Ash.create!()
 
       assert [%{id: ^post1_id}] =
@@ -166,16 +166,16 @@ defmodule AshPostgres.Test.LoadTest do
       assert %Post{comments: %Ash.NotLoaded{type: :relationship}} =
                post =
                Post
-               |> Ash.Changeset.new(%{title: "title"})
+               |> Ash.Changeset.for_create(:create, %{title: "title"})
                |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "abc"})
+      |> Ash.Changeset.for_create(:create, %{title: "abc"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "def"})
+      |> Ash.Changeset.for_create(:create, %{title: "def"})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
@@ -219,17 +219,17 @@ defmodule AshPostgres.Test.LoadTest do
     test "loading many to many relationships on records works without loading its join relationship when using code interface" do
       source_post =
         Post
-        |> Ash.Changeset.new(%{title: "source"})
+        |> Ash.Changeset.for_create(:create, %{title: "source"})
         |> Ash.create!()
 
       destination_post =
         Post
-        |> Ash.Changeset.new(%{title: "abc"})
+        |> Ash.Changeset.for_create(:create, %{title: "abc"})
         |> Ash.create!()
 
       destination_post2 =
         Post
-        |> Ash.Changeset.new(%{title: "def"})
+        |> Ash.Changeset.for_create(:create, %{title: "def"})
         |> Ash.create!()
 
       source_post
@@ -245,17 +245,17 @@ defmodule AshPostgres.Test.LoadTest do
     test "lateral join loads with many to many relationships are supported" do
       source_post =
         Post
-        |> Ash.Changeset.new(%{title: "source"})
+        |> Ash.Changeset.for_create(:create, %{title: "source"})
         |> Ash.create!()
 
       destination_post =
         Post
-        |> Ash.Changeset.new(%{title: "abc"})
+        |> Ash.Changeset.for_create(:create, %{title: "abc"})
         |> Ash.create!()
 
       destination_post2 =
         Post
-        |> Ash.Changeset.new(%{title: "def"})
+        |> Ash.Changeset.for_create(:create, %{title: "def"})
         |> Ash.create!()
 
       source_post
@@ -291,17 +291,17 @@ defmodule AshPostgres.Test.LoadTest do
     test "lateral join loads with many to many relationships are supported with aggregates" do
       source_post =
         Post
-        |> Ash.Changeset.new(%{title: "source"})
+        |> Ash.Changeset.for_create(:create, %{title: "source"})
         |> Ash.create!()
 
       destination_post =
         Post
-        |> Ash.Changeset.new(%{title: "abc"})
+        |> Ash.Changeset.for_create(:create, %{title: "abc"})
         |> Ash.create!()
 
       destination_post2 =
         Post
-        |> Ash.Changeset.new(%{title: "def"})
+        |> Ash.Changeset.for_create(:create, %{title: "def"})
         |> Ash.create!()
 
       source_post
@@ -336,8 +336,10 @@ defmodule AshPostgres.Test.LoadTest do
     end
 
     test "lateral join loads with read action from a custom table and schema" do
-      record = Record |> Ash.Changeset.new(%{full_name: "name"}) |> Ash.create!()
-      temp_entity = TempEntity |> Ash.Changeset.new(%{full_name: "name"}) |> Ash.create!()
+      record = Record |> Ash.Changeset.for_create(:create, %{full_name: "name"}) |> Ash.create!()
+
+      temp_entity =
+        TempEntity |> Ash.Changeset.for_create(:create, %{full_name: "name"}) |> Ash.create!()
 
       assert %{entity: entity} = Ash.load!(record, :entity)
 

@@ -7,6 +7,10 @@ defmodule AshPostgres.TestRepo do
     send(self(), data)
   end
 
+  def pg_version do
+    Version.parse!(System.get_env("PG_VERSION") || "16.0.0")
+  end
+
   def installed_extensions do
     ["ash-functions", "uuid-ossp", "pg_trgm", "citext", AshPostgres.TestCustomExtension] --
       Application.get_env(:ash_postgres, :no_extensions, [])

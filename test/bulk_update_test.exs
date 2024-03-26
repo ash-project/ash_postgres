@@ -84,7 +84,8 @@ defmodule AshPostgres.BulkUpdateTest do
     |> Ash.read!()
     |> Ash.bulk_update!(:update, %{},
       atomic_update: %{title: Ash.Expr.expr(title <> "_stuff")},
-      return_records?: true
+      return_records?: true,
+      strategy: [:stream]
     )
 
     titles =
@@ -99,12 +100,15 @@ defmodule AshPostgres.BulkUpdateTest do
   test "bulk updates that require initial data must use streaming" do
     Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
 
-    Post
-    |> Ash.Query.for_read(:paginated, authorize?: true)
-    |> Ash.bulk_update!(:requires_initial_data, %{},
-      authorize?: true,
-      allow_stream_with: :full_read,
-      authorize_query?: false
-    )
+    assert_raise Ash.Error.Invalid, ~r/had no matching bulk strategy that could be used/, fn ->
+      Post
+      |> Ash.Query.for_read(:paginated, authorize?: true)
+      |> Ash.bulk_update!(:requires_initial_data, %{},
+        authorize?: true,
+        allow_stream_with: :full_read,
+        authorize_query?: false,
+        return_errors?: true
+      )
+    end
   end
 end

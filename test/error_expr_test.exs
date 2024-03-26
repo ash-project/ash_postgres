@@ -7,7 +7,7 @@ defmodule AshPostgres.ErrorExprTest do
 
   test "exceptions in filters are treated as regular Ash exceptions" do
     Post
-    |> Ash.Changeset.new(%{title: "title"})
+    |> Ash.Changeset.for_create(:create, %{title: "title"})
     |> Ash.create!()
 
     assert_raise Ash.Error.Invalid, ~r/this is bad!/, fn ->
@@ -21,7 +21,7 @@ defmodule AshPostgres.ErrorExprTest do
 
   test "exceptions in calculations are treated as regular Ash exceptions" do
     Post
-    |> Ash.Changeset.new(%{title: "title"})
+    |> Ash.Changeset.for_create(:create, %{title: "title"})
     |> Ash.create!()
 
     assert_raise Ash.Error.Invalid, ~r/this is bad!/, fn ->
@@ -38,7 +38,7 @@ defmodule AshPostgres.ErrorExprTest do
 
   test "exceptions in calculations are treated as regular Ash exceptions in transactions" do
     Post
-    |> Ash.Changeset.new(%{title: "title"})
+    |> Ash.Changeset.for_create(:create, %{title: "title"})
     |> Ash.create!()
 
     assert_raise Ash.Error.Invalid, ~r/this is bad!/, fn ->

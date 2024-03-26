@@ -6,7 +6,7 @@ defmodule AshPostgres.Test.ComplexCalculations.ChannelMember do
     authorizers: [Ash.Policy.Authorizer]
 
   actions do
-    default_accept :*
+    default_accept(:*)
 
     defaults([:create, :read, :update, :destroy])
   end
@@ -24,8 +24,8 @@ defmodule AshPostgres.Test.ComplexCalculations.ChannelMember do
   end
 
   relationships do
-    belongs_to(:user, AshPostgres.Test.User, domain: AshPostgres.Test.Domain, attribute_writable?: true)
+    belongs_to(:user, AshPostgres.Test.User, domain: AshPostgres.Test.Domain, public?: true)
 
-    belongs_to(:channel, AshPostgres.Test.ComplexCalculations.Channel, attribute_writable?: true)
+    belongs_to(:channel, AshPostgres.Test.ComplexCalculations.Channel, public?: true)
   end
 end

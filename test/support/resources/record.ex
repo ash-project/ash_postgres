@@ -8,7 +8,7 @@ defmodule AshPostgres.Test.Record do
   attributes do
     uuid_primary_key(:id)
 
-    attribute(:full_name, :string, allow_nil?: false)
+    attribute(:full_name, :string, allow_nil?: false, public?: true)
 
     timestamps(public?: true)
   end
@@ -17,6 +17,7 @@ defmodule AshPostgres.Test.Record do
     alias AshPostgres.Test.Entity
 
     has_one :entity, Entity do
+      public?(true)
       no_attributes?(true)
 
       read_action(:read_from_temp)
@@ -31,7 +32,7 @@ defmodule AshPostgres.Test.Record do
   end
 
   actions do
-    default_accept :*
+    default_accept(:*)
 
     defaults([:create, :read])
   end

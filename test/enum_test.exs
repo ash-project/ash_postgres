@@ -7,7 +7,7 @@ defmodule AshPostgres.EnumTest do
 
   test "valid values are properly inserted" do
     Post
-    |> Ash.Changeset.new(%{title: "title", status: :open})
+    |> Ash.Changeset.for_create(:create, %{title: "title", status: :open})
     |> Ash.create!()
   end
 end

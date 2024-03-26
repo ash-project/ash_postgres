@@ -7,7 +7,7 @@ defmodule AshPostgres.Test.TypeTest do
   test "complex custom types can be used" do
     post =
       Post
-      |> Ash.Changeset.new(%{title: "title", point: {1.0, 2.0, 3.0}})
+      |> Ash.Changeset.for_create(:create, %{title: "title", point: {1.0, 2.0, 3.0}})
       |> Ash.create!()
 
     assert post.point == {1.0, 2.0, 3.0}
@@ -15,11 +15,11 @@ defmodule AshPostgres.Test.TypeTest do
 
   test "complex custom types can be accessed with fragments" do
     Post
-    |> Ash.Changeset.new(%{title: "title", point: {1.0, 2.0, 3.0}})
+    |> Ash.Changeset.for_create(:create, %{title: "title", point: {1.0, 2.0, 3.0}})
     |> Ash.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "title", point: {2.0, 1.0, 3.0}})
+    |> Ash.Changeset.for_create(:create, %{title: "title", point: {2.0, 1.0, 3.0}})
     |> Ash.create!()
 
     assert [%{point: {2.0, 1.0, 3.0}}] =

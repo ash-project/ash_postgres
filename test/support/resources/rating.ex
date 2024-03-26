@@ -10,14 +10,14 @@ defmodule AshPostgres.Test.Rating do
   end
 
   actions do
-    default_accept :*
+    default_accept(:*)
 
     defaults([:create, :read, :update, :destroy])
   end
 
   attributes do
     uuid_primary_key(:id)
-    attribute(:score, :integer)
-    attribute(:resource_id, :uuid)
+    attribute(:score, :integer, public?: true)
+    attribute(:resource_id, :uuid, public?: true)
   end
 end

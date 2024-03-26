@@ -6,8 +6,8 @@ defmodule AshPostgres.MultitenancyTest.User do
 
   attributes do
     uuid_primary_key(:id, writable?: true)
-    attribute(:name, :string)
-    attribute(:org_id, :uuid)
+    attribute(:name, :string, public?: true)
+    attribute(:org_id, :uuid, public?: true)
   end
 
   postgres do
@@ -16,7 +16,7 @@ defmodule AshPostgres.MultitenancyTest.User do
   end
 
   actions do
-    default_accept :*
+    default_accept(:*)
 
     defaults([:create, :read, :update, :destroy])
   end
@@ -31,7 +31,9 @@ defmodule AshPostgres.MultitenancyTest.User do
   end
 
   relationships do
-    belongs_to(:org, AshPostgres.MultitenancyTest.Org)
+    belongs_to(:org, AshPostgres.MultitenancyTest.Org) do
+      public?(true)
+    end
   end
 
   def parse_tenant("org_" <> id), do: id

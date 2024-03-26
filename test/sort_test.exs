@@ -8,15 +8,15 @@ defmodule AshPostgres.SortTest do
 
   test "multi-column sorts work" do
     Post
-    |> Ash.Changeset.new(%{title: "aaa", score: 0})
+    |> Ash.Changeset.for_create(:create, %{title: "aaa", score: 0})
     |> Ash.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "aaa", score: 1})
+    |> Ash.Changeset.for_create(:create, %{title: "aaa", score: 1})
     |> Ash.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "bbb", score: 0})
+    |> Ash.Changeset.for_create(:create, %{title: "bbb", score: 0})
     |> Ash.create!()
 
     assert [
@@ -34,29 +34,29 @@ defmodule AshPostgres.SortTest do
   test "multi-column sorts work on inclusion" do
     post =
       Post
-      |> Ash.Changeset.new(%{title: "aaa", score: 0})
+      |> Ash.Changeset.for_create(:create, %{title: "aaa", score: 0})
       |> Ash.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "aaa", score: 1})
+    |> Ash.Changeset.for_create(:create, %{title: "aaa", score: 1})
     |> Ash.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "bbb", score: 0})
+    |> Ash.Changeset.for_create(:create, %{title: "bbb", score: 0})
     |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "aaa", likes: 1})
+    |> Ash.Changeset.for_create(:create, %{title: "aaa", likes: 1})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "bbb", likes: 1})
+    |> Ash.Changeset.for_create(:create, %{title: "bbb", likes: 1})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "aaa", likes: 2})
+    |> Ash.Changeset.for_create(:create, %{title: "aaa", likes: 2})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Ash.create!()
 
@@ -82,15 +82,15 @@ defmodule AshPostgres.SortTest do
 
   test "multicolumn sort works with a select statement" do
     Post
-    |> Ash.Changeset.new(%{title: "aaa", score: 0})
+    |> Ash.Changeset.for_create(:create, %{title: "aaa", score: 0})
     |> Ash.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "aaa", score: 1})
+    |> Ash.Changeset.for_create(:create, %{title: "aaa", score: 1})
     |> Ash.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "bbb", score: 0})
+    |> Ash.Changeset.for_create(:create, %{title: "bbb", score: 0})
     |> Ash.create!()
 
     assert [
@@ -108,17 +108,17 @@ defmodule AshPostgres.SortTest do
   test "sorting when joining to a many to many relationship sorts properly" do
     post1 =
       Post
-      |> Ash.Changeset.new(%{title: "aaa", score: 0})
+      |> Ash.Changeset.for_create(:create, %{title: "aaa", score: 0})
       |> Ash.create!()
 
     post2 =
       Post
-      |> Ash.Changeset.new(%{title: "bbb", score: 1})
+      |> Ash.Changeset.for_create(:create, %{title: "bbb", score: 1})
       |> Ash.create!()
 
     post3 =
       Post
-      |> Ash.Changeset.new(%{title: "ccc", score: 0})
+      |> Ash.Changeset.for_create(:create, %{title: "ccc", score: 0})
       |> Ash.create!()
 
     PostLink
@@ -186,17 +186,17 @@ defmodule AshPostgres.SortTest do
   test "calculations can sort on expressions" do
     post1 =
       Post
-      |> Ash.Changeset.new(%{title: "aaa", score: 0})
+      |> Ash.Changeset.for_create(:create, %{title: "aaa", score: 0})
       |> Ash.create!()
 
     post2 =
       Post
-      |> Ash.Changeset.new(%{title: "bbb", score: 1})
+      |> Ash.Changeset.for_create(:create, %{title: "bbb", score: 1})
       |> Ash.create!()
 
     post3 =
       Post
-      |> Ash.Changeset.new(%{title: "ccc", score: 0})
+      |> Ash.Changeset.for_create(:create, %{title: "ccc", score: 0})
       |> Ash.create!()
 
     PostLink

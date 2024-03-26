@@ -14,6 +14,7 @@ defmodule AshPostgres.Expr do
     DateAdd,
     DateTimeAdd,
     Error,
+    Fragment,
     FromNow,
     GetPath,
     If,
@@ -21,6 +22,7 @@ defmodule AshPostgres.Expr do
     Length,
     Now,
     Round,
+    StringDowncase,
     StringJoin,
     StringLength,
     StringSplit,
@@ -29,7 +31,7 @@ defmodule AshPostgres.Expr do
     Type
   }
 
-  alias AshPostgres.Functions.{Fragment, ILike, Like, TrigramSimilarity, VectorCosineDistance}
+  alias AshPostgres.Functions.{ILike, Like, TrigramSimilarity, VectorCosineDistance}
 
   require Ecto.Query
 
@@ -727,6 +729,27 @@ defmodule AshPostgres.Expr do
 
   defp do_dynamic_expr(
          query,
+         %StringDowncase{arguments: [value], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         acc,
+         type
+       ) do
+    do_dynamic_expr(
+      query,
+      %Fragment{
+        embedded?: pred_embedded?,
+        arguments: [raw: "lower(", expr: value, raw: ")"]
+      },
+      bindings,
+      embedded?,
+      acc,
+      type
+    )
+  end
+
+  defp do_dynamic_expr(
+         query,
          %StringTrim{arguments: [value], embedded?: pred_embedded?},
          bindings,
          embedded?,
@@ -1074,10 +1097,11 @@ defmodule AshPostgres.Expr do
         expression =
           Ash.Actions.Read.add_calc_context_to_filter(
             expression,
-            calculation.context[:actor],
-            calculation.context[:authorize?],
-            calculation.context[:tenant],
-            calculation.context[:tracer]
+            calculation.context.actor,
+            calculation.context.authorize?,
+            calculation.context.tenant,
+            calculation.context.tracer,
+            nil
           )
 
         do_dynamic_expr(
@@ -1190,7 +1214,8 @@ defmodule AshPostgres.Expr do
             aggregate.context[:actor],
             aggregate.context[:authorize?],
             aggregate.context[:tenant],
-            aggregate.context[:tracer]
+            aggregate.context[:tracer],
+            nil
           )
 
         {value, acc} = do_dynamic_expr(query, ref, query.__ash_bindings__, false, acc)

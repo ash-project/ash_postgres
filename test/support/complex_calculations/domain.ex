@@ -10,4 +10,8 @@ defmodule AshPostgres.Test.ComplexCalculations.Domain do
     resource(AshPostgres.Test.ComplexCalculations.DMChannel)
     resource(AshPostgres.Test.ComplexCalculations.ChannelMember)
   end
+
+  authorization do
+    authorize(:when_requested)
+  end
 end

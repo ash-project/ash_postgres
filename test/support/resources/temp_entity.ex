@@ -8,7 +8,7 @@ defmodule AshPostgres.Test.TempEntity do
   attributes do
     uuid_primary_key(:id)
 
-    attribute(:full_name, :string, allow_nil?: false)
+    attribute(:full_name, :string, allow_nil?: false, public?: true)
 
     timestamps(public?: true)
   end
@@ -20,7 +20,7 @@ defmodule AshPostgres.Test.TempEntity do
   end
 
   actions do
-    default_accept :*
+    default_accept(:*)
 
     defaults([:create, :read])
   end

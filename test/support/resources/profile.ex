@@ -12,16 +12,18 @@ defmodule AshPostgres.Test.Profile do
 
   attributes do
     uuid_primary_key(:id, writable?: true)
-    attribute(:description, :string)
+    attribute(:description, :string, public?: true)
   end
 
   actions do
-    default_accept :*
+    default_accept(:*)
 
     defaults([:create, :read, :update, :destroy])
   end
 
   relationships do
-    belongs_to(:author, AshPostgres.Test.Author)
+    belongs_to(:author, AshPostgres.Test.Author) do
+      public?(true)
+    end
   end
 end

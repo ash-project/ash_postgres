@@ -13,7 +13,7 @@ defmodule AshPostgres.ReferencesTest do
 
       attributes do
         uuid_primary_key(:id, writable?: true)
-        attribute(:name, :string)
+        attribute(:name, :string, public?: true)
       end
 
       multitenancy do
@@ -39,10 +39,10 @@ defmodule AshPostgres.ReferencesTest do
 
       attributes do
         uuid_primary_key(:id, writable?: true)
-        attribute(:secondary_id, :uuid)
-        attribute(:foo_id, :uuid)
-        attribute(:name, :string)
-        attribute(:org_id, :uuid)
+        attribute(:secondary_id, :uuid, public?: true)
+        attribute(:foo_id, :uuid, public?: true)
+        attribute(:name, :string, public?: true)
+        attribute(:org_id, :uuid, public?: true)
       end
 
       multitenancy do
@@ -51,7 +51,9 @@ defmodule AshPostgres.ReferencesTest do
       end
 
       relationships do
-        belongs_to(:org, Org)
+        belongs_to(:org, Org) do
+          public?(true)
+        end
       end
 
       postgres do
@@ -72,10 +74,10 @@ defmodule AshPostgres.ReferencesTest do
           data_layer: AshPostgres.DataLayer
 
         attributes do
-          attribute(:id, :string, primary_key?: true, allow_nil?: false)
-          attribute(:name, :string)
-          attribute(:org_id, :uuid)
-          attribute(:foo_id, :uuid)
+          attribute(:id, :string, primary_key?: true, allow_nil?: false, public?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
+          attribute(:foo_id, :uuid, public?: true)
         end
 
         multitenancy do

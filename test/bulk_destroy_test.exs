@@ -43,7 +43,7 @@ defmodule AshPostgres.BulkDestroyTest do
 
     Post
     |> Ash.read!()
-    |> Ash.bulk_destroy!(:destroy, %{})
+    |> Ash.bulk_destroy!(:destroy, %{}, strategy: :stream, return_errors?: true)
 
     assert [] = Ash.read!(Post)
   end

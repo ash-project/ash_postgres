@@ -20,4 +20,8 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.Record)
     resource(AshPostgres.Test.PostFollower)
   end
+
+  authorization do
+    authorize(:when_requested)
+  end
 end
