@@ -38,7 +38,7 @@ defmodule Helpdesk.Support.Ticket.Relationships.TicketsAboveThreshold do
      |> Enum.group_by(& &1.representative_id)}
   end
 
-  # query is the "source" query that is being built. 
+  # query is the "source" query that is being built.
 
   # _opts are options provided to the manual relationship, i.e `{Manual, opt: :val}`
 

@@ -1,5 +1,9 @@
 # Migrations
 
+## Migration Generator Primer
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/GtsL_lIis4Q?si=5G6-5ckzBEzL4zko" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+
 ## Tasks
 
 The available tasks are:
@@ -21,7 +25,7 @@ AshPostgres is built on top of ecto, so much of its behavior is pass-through/orc
 For more information on generating migrations, see the module documentation here:
 `Mix.Tasks.AshPostgres.GenerateMigrations`, or run `mix help ash_postgres.generate_migrations`
 
-For running your migrations, there is a mix task that will find all of the repos configured in your apis and run their
+For running your migrations, there is a mix task that will find all of the repos configured in your domains and run their
 migrations. It is a thin wrapper around `mix ecto.migrate`. Ours is called `mix ash_postgres.migrate`
 
 If you want to run or rollback individual migrations, use the corresponding
@@ -70,9 +74,9 @@ Define a module similar to the following:
 ```elixir
 defmodule MyApp.Release do
   @moduledoc """
-  Houses tasks that need to be executed in the released application (because mix is not present in releases).
+Tasks that need to be executed in the released application (because mix is not present in releases).
   """
-  @app :my_ap
+  @app :my_app
   def migrate do
     load_app()
 
@@ -142,17 +146,17 @@ defmodule MyApp.Release do
   end
 
   defp repos do
-    apis()
-    |> Enum.flat_map(fn api ->
-      api
-      |> Ash.Api.Info.resources()
-      |> Enum.map(&AshPostgres.repo/1)
+    domains()
+    |> Enum.flat_map(fn domain ->
+      domain
+      |> Ash.Domain.Info.resources()
+      |> Enum.map(&AshPostgres.DataLayer.Info.repo/1)
     end)
     |> Enum.uniq()
   end
 
-  defp apis do
-    Application.fetch_env!(:my_app, :ash_apis)
+  defp domains do
+    Application.fetch_env!(@app, :ash_domains)
   end
 
   defp load_app do

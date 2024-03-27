@@ -1,6 +1,6 @@
 defmodule AshPostgres.Test.UpsertTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Post}
+  alias AshPostgres.Test.Post
 
   require Ash.Query
 
@@ -13,7 +13,7 @@ defmodule AshPostgres.Test.UpsertTest do
         id: id,
         title: "title2"
       })
-      |> Api.create!(upsert?: true)
+      |> Ash.create!(upsert?: true)
 
     assert new_post.id == id
     assert new_post.created_at == new_post.updated_at
@@ -24,7 +24,7 @@ defmodule AshPostgres.Test.UpsertTest do
         id: id,
         title: "title2"
       })
-      |> Api.create!(upsert?: true)
+      |> Ash.create!(upsert?: true)
 
     assert updated_post.id == id
     assert updated_post.created_at == new_post.created_at
@@ -40,7 +40,7 @@ defmodule AshPostgres.Test.UpsertTest do
         id: id,
         title: "title2"
       })
-      |> Api.create!(upsert?: true)
+      |> Ash.create!(upsert?: true)
 
     assert new_post.id == id
     assert new_post.created_at == new_post.updated_at
@@ -52,7 +52,7 @@ defmodule AshPostgres.Test.UpsertTest do
         title: "title2",
         decimal: Decimal.new(5)
       })
-      |> Api.create!(upsert?: true)
+      |> Ash.create!(upsert?: true)
 
     assert updated_post.id == id
     assert Decimal.equal?(updated_post.decimal, Decimal.new(5))

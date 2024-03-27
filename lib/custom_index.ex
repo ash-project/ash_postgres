@@ -1,8 +1,9 @@
 defmodule AshPostgres.CustomIndex do
-  @moduledoc false
+  @moduledoc "Represents a custom index on the table backing a resource"
   @fields [
     :table,
     :fields,
+    :error_fields,
     :name,
     :unique,
     :concurrently,
@@ -10,7 +11,9 @@ defmodule AshPostgres.CustomIndex do
     :prefix,
     :where,
     :include,
-    :message
+    :nulls_distinct,
+    :message,
+    :all_tenants?
   ]
 
   defstruct @fields
@@ -19,8 +22,12 @@ defmodule AshPostgres.CustomIndex do
 
   @schema [
     fields: [
-      type: {:list, {:or, [:atom, :string]}},
+      type: {:wrap_list, {:or, [:atom, :string]}},
       doc: "The fields to include in the index."
+    ],
+    error_fields: [
+      type: {:list, :atom},
+      doc: "The fields to attach the error to."
     ],
     name: [
       type: :string,
@@ -48,33 +55,87 @@ defmodule AshPostgres.CustomIndex do
       type: :string,
       doc: "specify conditions for a partial index."
     ],
-    message: [
-      type: :string,
-      doc: "A custom message to use for unique indexes that have been violated"
-    ],
     include: [
       type: {:list, :string},
       doc:
         "specify fields for a covering index. This is not supported by all databases. For more information on PostgreSQL support, please read the official docs."
+    ],
+    nulls_distinct: [
+      type: :boolean,
+      doc: "specify whether null values should be considered distinct for a unique index.",
+      default: true
+    ],
+    message: [
+      type: :string,
+      doc: "A custom message to use for unique indexes that have been violated"
+    ],
+    all_tenants?: [
+      type: :boolean,
+      default: false,
+      doc: "Whether or not the index should factor in the multitenancy attribute or not."
     ]
   ]
 
   def schema, do: @schema
 
+  def transform(index) do
+    with {:ok, index} <- set_name(index) do
+      set_error_fields(index)
+    end
+  end
+
   # sobelow_skip ["DOS.StringToAtom"]
-  def transform(%__MODULE__{fields: fields} = index) do
-    {:ok,
-     %{
-       index
-       | fields:
-           Enum.map(fields, fn field ->
-             if is_atom(field) do
-               field
-             else
-               String.to_atom(field)
-             end
-           end)
-     }}
+  defp set_error_fields(index) do
+    if index.error_fields do
+      {:ok, index}
+    else
+      {:ok,
+       %{
+         index
+         | error_fields:
+             Enum.flat_map(index.fields, fn field ->
+               if Regex.match?(~r/^[0-9a-zA-Z_]+$/, to_string(field)) do
+                 if is_binary(field) do
+                   [String.to_atom(field)]
+                 else
+                   [field]
+                 end
+               else
+                 []
+               end
+             end)
+       }}
+    end
+  end
+
+  defp set_name(index) do
+    cond do
+      index.name ->
+        if Regex.match?(~r/^[0-9a-zA-Z_]+$/, index.name) do
+          {:ok, index}
+        else
+          {:error,
+           "Custom index name #{index.name} is not valid. Must have letters, numbers and underscores only"}
+        end
+
+      mismatched_field =
+          Enum.find(index.fields, fn field ->
+            !Regex.match?(~r/^[0-9a-zA-Z_]+$/, to_string(field))
+          end) ->
+        {:error,
+         """
+         Custom index field #{mismatched_field} contains invalid index name characters.
+
+         A name must be set manually, i.e
+
+             `name: "your_desired_index_name"`
+
+         Index names must have letters, numbers and underscores only
+         """}
+
+      true ->
+        {:ok, index}
+    end
   end
 
   def name(_resource, %{name: name}) when is_binary(name) do

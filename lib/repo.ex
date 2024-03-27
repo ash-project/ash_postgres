@@ -12,17 +12,21 @@ defmodule AshPostgres.Repo do
 
   To configure your list of installed extensions, define `installed_extensions/0`
 
+  Extensions can be a string, representing a standard postgres extension, or a module that implements `AshPostgres.CustomExtension`.
+  That custom extension will be called to generate migrations that serve a specific purpose.
+
   Extensions that are relevant to ash_postgres:
 
   * "ash-functions" - This isn't really an extension, but it expresses that certain functions
     should be added when generating migrations, to support the `||` and `&&` operators in expressions.
   * `"uuid-ossp"` - Sets UUID primary keys defaults in the migration generator
-  * `"pg_trgm"` - Makes the `AshPostgres.Predicates.Trigram` custom predicate available
+  * `"pg_trgm"` - Makes the `AshPostgres.Functions.TrigramSimilarity` function available
   * "citext" - Allows case insensitive fields to be used
+  * `"vector"` - Makes the `AshPostgres.Functions.VectorCosineDistance` function available. See `AshPostgres.Extensions.Vector` for more setup instructions.
 
   ```
   def installed_extensions() do
-    ["pg_trgm", "uuid-ossp"]
+    ["pg_trgm", "uuid-ossp", "vector", YourCustomExtension]
   end
   ```
 
@@ -38,14 +42,21 @@ defmodule AshPostgres.Repo do
   """
 
   @doc "Use this to inform the data layer about what extensions are installed"
-  @callback installed_extensions() :: [String.t()]
+  @callback installed_extensions() :: [String.t() | module()]
+
+  @doc "Configure the version of postgres that is being used."
+  @callback pg_version() :: Version.t()
 
   @doc """
   Use this to inform the data layer about the oldest potential postgres version it will be run on.
 
   Must be an integer greater than or equal to 13.
+
+  ## Combining with other tools
+
+  For things like `Fly.Repo`, where you might need to have more fine grained control over the repo module,
+  you can use the `define_ecto_repo?: false` option to `use AshPostgres.Repo`.
   """
-  @callback min_pg_version() :: integer()
 
   @callback on_transaction_begin(reason :: Ash.DataLayer.transaction_reason()) :: term
 
@@ -57,6 +68,7 @@ defmodule AshPostgres.Repo do
   @callback migrations_path() :: String.t() | nil
   @doc "The default prefix(postgres schema) to use when building queries"
   @callback default_prefix() :: String.t()
+
   @doc "Allows overriding a given migration type for *all* fields, for example if you wanted to always use :timestamptz for :utc_datetime fields"
   @callback override_migration_type(atom) :: atom
   @doc "Should the repo should be created by `mix ash_postgres.create`?"
@@ -66,11 +78,13 @@ defmodule AshPostgres.Repo do
 
   defmacro __using__(opts) do
     quote bind_quoted: [opts: opts] do
-      otp_app = opts[:otp_app] || raise("Must configure OTP app")
+      if Keyword.get(opts, :define_ecto_repo?, true) do
+        otp_app = opts[:otp_app] || raise("Must configure OTP app")
 
-      use Ecto.Repo,
-        adapter: Ecto.Adapters.Postgres,
-        otp_app: otp_app
+        use Ecto.Repo,
+          adapter: Ecto.Adapters.Postgres,
+          otp_app: otp_app
+      end
 
       @behaviour AshPostgres.Repo
 
@@ -81,9 +95,16 @@ defmodule AshPostgres.Repo do
       def migrations_path, do: nil
       def default_prefix, do: "public"
       def override_migration_type(type), do: type
-      def min_pg_version, do: 10
       def create?, do: true
       def drop?, do: true
+
+
+      def transaction!(fun) do
+        case fun.() do
+          {:ok, value} -> value
+          {:error, error} -> raise Ash.Error.to_error_class(error)
+        end
+      end
 
       def all_tenants do
         raise """
@@ -213,7 +234,6 @@ defmodule AshPostgres.Repo do
                      tenant_migrations_path: 0,
                      default_prefix: 0,
                      override_migration_type: 1,
-                     min_pg_version: 0,
                      create?: 0,
                      drop?: 0
     end

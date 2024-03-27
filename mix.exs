@@ -6,13 +6,13 @@ defmodule AshPostgres.MixProject do
   support, and delegates to a configured repo.
   """
 
-  @version "1.3.24"
+  @version "1.5.22"
 
   def project do
     [
       app: :ash_postgres,
       version: @version,
-      elixir: "~> 1.11",
+      elixir: "~> 1.13",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description: @description,
@@ -23,6 +23,7 @@ defmodule AshPostgres.MixProject do
         "coveralls.github": :test,
         "test.create": :test,
         "test.migrate": :test,
+        "test.rollback": :test,
         "test.migrate_tenants": :test,
         "test.check_migrations": :test,
         "test.drop": :test,
@@ -35,15 +36,18 @@ defmodule AshPostgres.MixProject do
       docs: docs(),
       aliases: aliases(),
       package: package(),
-      source_url: "https://github.com/ash-project/ash_postgres",
-      homepage_url: "https://github.com/ash-project/ash_postgres",
-      consolidate_protocols: Mix.env() != :test
+      source_url: "https://github.com/ash-project/ash_postgres/",
+      homepage_url: "https://ash-hq.org",
+      consolidate_protocols: Mix.env() == :prod
     ]
   end
 
   if Mix.env() == :test do
     def application() do
-      [applications: [:ecto, :ecto_sql, :jason, :ash, :postgrex], mod: {AshPostgres.TestApp, []}]
+      [
+        applications: [:ecto, :ecto_sql, :jason, :ash, :postgrex, :tools, :benchee, :xmerl],
+        mod: {AshPostgres.TestApp, []}
+      ]
     end
   end
 
@@ -62,84 +66,71 @@ defmodule AshPostgres.MixProject do
     ]
   end
 
-  defp extras() do
-    "documentation/**/*.md"
-    |> Path.wildcard()
-    |> Enum.map(fn path ->
-      title =
-        path
-        |> Path.basename(".md")
-        |> String.split(~r/[-_]/)
-        |> Enum.map(&String.capitalize/1)
-        |> Enum.join(" ")
-        |> case do
-          "F A Q" ->
-            "FAQ"
-
-          other ->
-            other
-        end
-
-      {String.to_atom(path),
-       [
-         title: title
-       ]}
-    end)
-  end
-
-  defp groups_for_extras() do
-    "documentation/*"
-    |> Path.wildcard()
-    |> Enum.map(fn folder ->
-      name =
-        folder
-        |> Path.basename()
-        |> String.split(~r/[-_]/)
-        |> Enum.map(&String.capitalize/1)
-        |> Enum.join(" ")
-
-      {name, folder |> Path.join("**") |> Path.wildcard()}
-    end)
-  end
-
   defp docs do
     [
       main: "get-started-with-postgres",
       source_ref: "v#{@version}",
       logo: "logos/small-logo.png",
-      extras: extras(),
-      spark: [
-        mix_tasks: [
-          Postgres: [
-            Mix.Tasks.AshPostgres.GenerateMigrations,
-            Mix.Tasks.AshPostgres.Create,
-            Mix.Tasks.AshPostgres.Drop,
-            Mix.Tasks.AshPostgres.Migrate,
-            Mix.Tasks.AshPostgres.Rollback
-          ]
-        ],
-        extensions: [
-          %{
-            module: AshPostgres.DataLayer,
-            name: "AshPostgres",
-            target: "Ash.Resource",
-            type: "DataLayer"
-          }
-        ]
+      before_closing_head_tag: fn type ->
+        if type == :html do
+          """
+          <script>
+            if (location.hostname === "hexdocs.pm") {
+              var script = document.createElement("script");
+              script.src = "https://plausible.io/js/script.js";
+              script.setAttribute("defer", "defer")
+              script.setAttribute("data-domain", "ashhexdocs")
+              document.head.appendChild(script);
+            }
+          </script>
+          """
+        end
+      end,
+      extras: [
+        "documentation/tutorials/get-started-with-postgres.md",
+        "documentation/how_to/join-manual-relationships.md",
+        "documentation/how_to/test-with-postgres.md",
+        "documentation/how_to/using-fragments.md",
+        "documentation/topics/migrations_and_tasks.md",
+        "documentation/topics/polymorphic_resources.md",
+        "documentation/topics/postgres-expressions.md",
+        "documentation/topics/references.md",
+        "documentation/topics/schema-based-multitenancy.md",
+        "documentation/dsls/DSL:-AshPostgres.DataLayer.md"
       ],
-      groups_for_extras: groups_for_extras(),
+      groups_for_extras: [
+        Tutorials: ~r'documentation/tutorials',
+        "How To": ~r'documentation/how_to',
+        Topics: ~r'documentation/topics',
+        DSLs: ~r'documentation/dsls'
+      ],
+      nest_modules_by_prefix: [
+        AshPostgres.Functions
+      ],
       groups_for_modules: [
         AshPostgres: [
           AshPostgres,
           AshPostgres.Repo,
           AshPostgres.DataLayer
         ],
-        Introspection: [
-          AshPostgres.DataLayer.Info
+        Utilities: [
+          AshPostgres.ManualRelationship
         ],
-        "Postgres Expressions": [
-          AshPostgres.Functions.Fragment,
-          AshPostgres.Functions.TrigramSimilarity
+        Introspection: [
+          AshPostgres.DataLayer.Info,
+          AshPostgres.CheckConstraint,
+          AshPostgres.CustomExtension,
+          AshPostgres.CustomIndex,
+          AshPostgres.Reference,
+          AshPostgres.Statement
+        ],
+        Types: [
+          AshPostgres.Type,
+          AshPostgres.Tsquery,
+          AshPostgres.Tsvector
+        ],
+        Extensions: [
+          AshPostgres.Extensions.Vector
         ],
         "Custom Aggregates": [
           AshPostgres.CustomAggregate
@@ -148,8 +139,12 @@ defmodule AshPostgres.MixProject do
           AshPostgres.Migration,
           EctoMigrationDefault
         ],
-        Transformers: ~r/AshPostgres\.Transformers\..*/,
-        Internals: ~r/.*/
+        Expressions: [
+          AshPostgres.Functions.TrigramSimilarity,
+          AshPostgres.Functions.ILike,
+          AshPostgres.Functions.Like,
+          AshPostgres.Functions.VectorCosineDistance
+        ]
       ]
     ]
   end
@@ -161,9 +156,13 @@ defmodule AshPostgres.MixProject do
       {:ecto, "~> 3.9"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
-      {:ash, ash_version("~> 2.9 and >= 2.9.2")},
+      {:spark, path: "../spark", override: true},
+      # dev/test dependencies
+      {:simple_sat, "~> 0.1"},
+      {:ash, ash_version("~> 3.0.0-rc.0")},
+      {:benchee, "~> 1.1", only: [:dev, :test]},
       {:git_ops, "~> 2.5", only: [:dev, :test]},
-      {:ex_doc, "~> 0.22", only: [:dev, :test], runtime: false},
+      {:ex_doc, github: "elixir-lang/ex_doc", only: [:dev, :test], runtime: false},
       {:ex_check, "~> 0.14", only: [:dev, :test]},
       {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:dialyxir, ">= 0.0.0", only: [:dev, :test], runtime: false},
@@ -196,12 +195,21 @@ defmodule AshPostgres.MixProject do
       sobelow:
         "sobelow --skip -i Config.Secrets --ignore-files lib/migration_generator/migration_generator.ex",
       credo: "credo --strict",
-      docs: ["docs", "ash.replace_doc_links"],
+      docs: [
+        "spark.cheat_sheets",
+        "docs",
+        "spark.replace_doc_links",
+        "spark.cheat_sheets_in_search"
+      ],
       "spark.formatter": "spark.formatter --extensions AshPostgres.DataLayer",
+      "spark.cheat_sheets": "spark.cheat_sheets --extensions AshPostgres.DataLayer",
+      "spark.cheat_sheets_in_search":
+        "spark.cheat_sheets_in_search --extensions AshPostgres.DataLayer",
       "test.generate_migrations": "ash_postgres.generate_migrations",
       "test.check_migrations": "ash_postgres.generate_migrations --check",
       "test.migrate_tenants": "ash_postgres.migrate --tenants",
       "test.migrate": "ash_postgres.migrate",
+      "test.rollback": "ash_postgres.rollback",
       "test.create": "ash_postgres.create",
       "test.reset": ["test.drop", "test.create", "test.migrate", "ash_postgres.migrate --tenants"],
       "test.drop": "ash_postgres.drop"

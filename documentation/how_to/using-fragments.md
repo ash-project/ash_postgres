@@ -23,3 +23,21 @@ fragment("points > (SELECT SUM(points) FROM games WHERE user_id = ? AND id != ?)
 ```
 
 Using entire queries like the above is a last resort, but can often help us avoid having to add extra structure unnecessarily.
+
+sql function in a calculate
+
+```elixir
+calculations do
+  calculate :lower_name, :string, expr(
+    fragment("LOWER(?)", name)
+  )
+end
+```
+
+sql function in a migration
+
+```elixir
+create table(:managers, primary_key: false) do
+  add :id, :uuid, null: false, default: fragment("UUID_GENERATE_V4()"), primary_key: true
+end
+```

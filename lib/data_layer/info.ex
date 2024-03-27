@@ -4,13 +4,38 @@ defmodule AshPostgres.DataLayer.Info do
   alias Spark.Dsl.Extension
 
   @doc "The configured repo for a resource"
-  def repo(resource) do
-    Extension.get_opt(resource, [:postgres], :repo, nil, true)
+  def repo(resource, type \\ :mutate) do
+    case Extension.get_opt(resource, [:postgres], :repo, nil, true) do
+      fun when is_function(fun, 2) ->
+        fun.(resource, type)
+
+      repo ->
+        repo
+    end
+  end
+
+  @doc "Checks a version requirement against the resource's repo's postgres version"
+  def pg_version_matches?(resource, requirement) do
+    resource
+    |> pg_version()
+    |> Version.match?(requirement)
+  end
+
+  @doc "Gets the resource's repo's postgres version"
+  def pg_version(resource) do
+    case repo(resource, :read).pg_version() do
+      %Version{} = version -> version
+      string when is_binary(string) -> Version.parse!(string)
+    end
   end
 
   @doc "The configured table for a resource"
   def table(resource) do
     Extension.get_opt(resource, [:postgres], :table, nil, true)
+  end
+
+  def simple_join_first_aggregates(resource) do
+    Extension.get_opt(resource, [:postgres], :simple_join_first_aggregates, [])
   end
 
   @doc "The configured schema for a resource"
@@ -21,6 +46,13 @@ defmodule AshPostgres.DataLayer.Info do
   @doc "The configured references for a resource"
   def references(resource) do
     Extension.get_entities(resource, [:postgres, :references])
+  end
+
+  @doc "The configured reference for a given relationship of a  resource"
+  def reference(resource, relationship) do
+    resource
+    |> Extension.get_entities([:postgres, :references])
+    |> Enum.find(&(&1.relationship == relationship))
   end
 
   @doc "A keyword list of customized migration types"
@@ -65,7 +97,7 @@ defmodule AshPostgres.DataLayer.Info do
 
   @doc "The configured polymorphic_reference_name for a resource"
   def polymorphic_name(resource) do
-    Extension.get_opt(resource, [:postgres, :references], :polymorphic_on_delete, nil, true)
+    Extension.get_opt(resource, [:postgres, :references], :polymorphic_name, nil, true)
   end
 
   @doc "The configured polymorphic? for a resource"

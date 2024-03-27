@@ -42,11 +42,11 @@ defmodule AshPostgres.Migration do
 
   Keep in mind, that if you want to create a custom enum type, you will want to add
   ```elixir
-  def storage_type, do: :my_type_name
+  def storage_type(_), do: :my_type_name
   ```
   """
-  def create_enum(type) do
-    if type.storage_type() == :string do
+  def create_enum(type, constraints \\ []) do
+    if type.storage_type(constraints) == :string do
       raise "Must customize the storage_type for #{type} in order to create an enum"
     end
 

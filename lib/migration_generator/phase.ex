@@ -5,9 +5,11 @@ defmodule AshPostgres.MigrationGenerator.Phase do
     @moduledoc false
     defstruct [:table, :schema, :multitenancy, operations: [], commented?: false]
 
+    import AshPostgres.MigrationGenerator.Operation.Helper, only: [as_atom: 1]
+
     def up(%{schema: schema, table: table, operations: operations, multitenancy: multitenancy}) do
       if multitenancy.strategy == :context do
-        "create table(:#{table}, primary_key: false, prefix: prefix()) do\n" <>
+        "create table(:#{as_atom(table)}, primary_key: false, prefix: prefix()) do\n" <>
           Enum.map_join(operations, "\n", fn operation -> operation.__struct__.up(operation) end) <>
           "\nend"
       else
@@ -18,7 +20,7 @@ defmodule AshPostgres.MigrationGenerator.Phase do
             ""
           end
 
-        "create table(:#{table}, primary_key: false#{opts}) do\n" <>
+        "create table(:#{as_atom(table)}, primary_key: false#{opts}) do\n" <>
           Enum.map_join(operations, "\n", fn operation -> operation.__struct__.up(operation) end) <>
           "\nend"
       end
@@ -26,7 +28,7 @@ defmodule AshPostgres.MigrationGenerator.Phase do
 
     def down(%{schema: schema, table: table, multitenancy: multitenancy}) do
       if multitenancy.strategy == :context do
-        "drop table(:#{inspect(table)}, prefix: prefix())"
+        "drop table(:#{as_atom(table)}, prefix: prefix())"
       else
         opts =
           if schema do
@@ -35,7 +37,7 @@ defmodule AshPostgres.MigrationGenerator.Phase do
             ""
           end
 
-        "drop table(:#{inspect(table)}#{opts})"
+        "drop table(:#{as_atom(table)}#{opts})"
       end
     end
   end
@@ -44,25 +46,33 @@ defmodule AshPostgres.MigrationGenerator.Phase do
     @moduledoc false
     defstruct [:schema, :table, :multitenancy, operations: [], commented?: false]
 
+    import AshPostgres.MigrationGenerator.Operation.Helper, only: [as_atom: 1]
+
     def up(%{table: table, schema: schema, operations: operations, multitenancy: multitenancy}) do
       body =
-        Enum.map_join(operations, "\n", fn operation -> operation.__struct__.up(operation) end)
+        operations
+        |> Enum.map_join("\n", fn operation -> operation.__struct__.up(operation) end)
+        |> String.trim()
 
-      if multitenancy.strategy == :context do
-        "alter table(:#{table}, prefix: prefix()) do\n" <>
-          body <>
-          "\nend"
+      if body == "" do
+        ""
       else
-        opts =
-          if schema do
-            ", prefix: \"#{schema}\""
-          else
-            ""
-          end
+        if multitenancy.strategy == :context do
+          "alter table(:#{as_atom(table)}, prefix: prefix()) do\n" <>
+            body <>
+            "\nend"
+        else
+          opts =
+            if schema do
+              ", prefix: \"#{schema}\""
+            else
+              ""
+            end
 
-        "alter table(:#{table}#{opts}) do\n" <>
-          body <>
-          "\nend"
+          "alter table(:#{as_atom(table)}#{opts}) do\n" <>
+            body <>
+            "\nend"
+        end
       end
     end
 
@@ -71,22 +81,27 @@ defmodule AshPostgres.MigrationGenerator.Phase do
         operations
         |> Enum.reverse()
         |> Enum.map_join("\n", fn operation -> operation.__struct__.down(operation) end)
+        |> String.trim()
 
-      if multitenancy.strategy == :context do
-        "alter table(:#{table}, prefix: prefix()) do\n" <>
-          body <>
-          "\nend"
+      if body == "" do
+        ""
       else
-        opts =
-          if schema do
-            ", prefix: \"#{schema}\""
-          else
-            ""
-          end
+        if multitenancy.strategy == :context do
+          "alter table(:#{as_atom(table)}, prefix: prefix()) do\n" <>
+            body <>
+            "\nend"
+        else
+          opts =
+            if schema do
+              ", prefix: \"#{schema}\""
+            else
+              ""
+            end
 
-        "alter table(:#{table}#{opts}) do\n" <>
-          body <>
-          "\nend"
+          "alter table(:#{as_atom(table)}#{opts}) do\n" <>
+            body <>
+            "\nend"
+        end
       end
     end
   end

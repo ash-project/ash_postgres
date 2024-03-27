@@ -8,7 +8,7 @@ defmodule AshPostgres.Sort do
         resource,
         relationship_path \\ [],
         binding \\ 0,
-        return_order_by? \\ false
+        type \\ :window
       ) do
     query = AshPostgres.DataLayer.default_bindings(query, resource)
 
@@ -20,6 +20,7 @@ defmodule AshPostgres.Sort do
                  %{
                    resource: resource,
                    aggregates: %{},
+                   parent_stack: query.__ash_bindings__[:parent_resources] || [],
                    calculations: %{},
                    public?: false
                  }
@@ -44,18 +45,46 @@ defmodule AshPostgres.Sort do
           []
       end)
 
-    case AshPostgres.Aggregate.add_aggregates(query, used_aggregates, resource, false) do
+    calcs =
+      Enum.flat_map(sort, fn
+        {%Ash.Query.Calculation{} = calculation, _} ->
+          {:ok, expression} =
+            calculation.opts
+            |> calculation.module.expression(calculation.context)
+            |> Ash.Filter.hydrate_refs(%{
+              resource: resource,
+              parent_stack: query.__ash_bindings__[:parent_resources] || [],
+              public?: false
+            })
+
+          [{calculation, Ash.Filter.move_to_relationship_path(expression, relationship_path)}]
+
+        _ ->
+          []
+      end)
+
+    {:ok, query} =
+      AshPostgres.Join.join_all_relationships(
+        query,
+        %Ash.Filter{
+          resource: resource,
+          expression: Enum.map(calcs, &elem(&1, 1))
+        },
+        left_only?: true
+      )
+
+    case AshPostgres.Aggregate.add_aggregates(query, used_aggregates, resource, false, 0) do
       {:error, error} ->
         {:error, error}
 
       {:ok, query} ->
         sort
         |> sanitize_sort()
-        |> Enum.reduce_while({:ok, []}, fn
-          {order, %Ash.Query.Calculation{} = calc}, {:ok, query_expr} ->
+        |> Enum.reduce_while({:ok, [], query}, fn
+          {order, %Ash.Query.Calculation{} = calc}, {:ok, query_expr, query} ->
             type =
               if calc.type do
-                AshPostgres.Types.parameterized_type(calc.type, [])
+                AshPostgres.Types.parameterized_type(calc.type, calc.constraints)
               else
                 nil
               end
@@ -64,23 +93,39 @@ defmodule AshPostgres.Sort do
             |> calc.module.expression(calc.context)
             |> Ash.Filter.hydrate_refs(%{
               resource: resource,
-              aggregates: query.__ash_bindings__.aggregate_defs,
-              calculations: %{},
+              parent_stack: query.__ash_bindings__[:parent_resources] || [],
               public?: false
             })
             |> Ash.Filter.move_to_relationship_path(relationship_path)
             |> case do
               {:ok, expr} ->
-                expr =
-                  AshPostgres.Expr.dynamic_expr(query, expr, query.__ash_bindings__, false, type)
+                bindings =
+                  if query.__ash_bindings__[:parent_bindings] do
+                    Map.update!(query.__ash_bindings__, :parent_bindings, fn parent ->
+                      Map.put(parent, :parent_is_parent_as?, false)
+                    end)
+                  else
+                    query.__ash_bindings__
+                  end
 
-                {:cont, {:ok, query_expr ++ [{order, expr}]}}
+                {expr, acc} =
+                  AshPostgres.Expr.dynamic_expr(
+                    query,
+                    expr,
+                    bindings,
+                    false,
+                    type
+                  )
+
+                {:cont,
+                 {:ok, query_expr ++ [{order, expr}],
+                  AshPostgres.DataLayer.merge_expr_accumulator(query, acc)}}
 
               {:error, error} ->
                 {:halt, {:error, error}}
             end
 
-          {order, sort}, {:ok, query_expr} ->
+          {order, sort}, {:ok, query_expr, query} ->
             expr =
               case find_aggregate_binding(
                      query.__ash_bindings__.bindings,
@@ -129,8 +174,8 @@ defmodule AshPostgres.Sort do
                   aggregate = Ash.Resource.Info.aggregate(resource, sort)
 
                   {binding, sort} =
-                    if aggregate && aggregate.kind == :first &&
-                         AshPostgres.Aggregate.single_path?(resource, aggregate.relationship_path) do
+                    if aggregate &&
+                         AshPostgres.Aggregate.optimizable_first_aggregate?(resource, aggregate) do
                       {AshPostgres.Join.get_binding(
                          resource,
                          aggregate.relationship_path,
@@ -147,35 +192,48 @@ defmodule AshPostgres.Sort do
                   Ecto.Query.dynamic(field(as(^binding), ^sort))
               end
 
-            {:cont, {:ok, query_expr ++ [{order, expr}]}}
+            {:cont, {:ok, query_expr ++ [{order, expr}], query}}
         end)
         |> case do
-          {:ok, []} ->
-            {:ok, query}
-
-          {:ok, sort_exprs} ->
-            if return_order_by? do
-              {:ok, order_to_fragments(sort_exprs)}
+          {:ok, [], query} ->
+            if type == :return do
+              {:ok, [], query}
             else
-              new_query = Ecto.Query.order_by(query, ^sort_exprs)
+              {:ok, query}
+            end
 
-              sort_expr = List.last(new_query.order_bys)
+          {:ok, sort_exprs, query} ->
+            case type do
+              :return ->
+                {:ok, order_to_fragments(sort_exprs), query}
 
-              new_query =
-                new_query
-                |> Map.update!(:windows, fn windows ->
-                  order_by_expr = %{sort_expr | expr: [order_by: sort_expr.expr]}
-                  Keyword.put(windows, :order, order_by_expr)
-                end)
-                |> Map.update!(:__ash_bindings__, &Map.put(&1, :__order__?, true))
+              :window ->
+                new_query = Ecto.Query.order_by(query, ^sort_exprs)
 
-              {:ok, new_query}
+                sort_expr = List.last(new_query.order_bys)
+
+                new_query =
+                  new_query
+                  |> Map.update!(:windows, fn windows ->
+                    order_by_expr = %{sort_expr | expr: [order_by: sort_expr.expr]}
+                    Keyword.put(windows, :order, order_by_expr)
+                  end)
+                  |> Map.update!(:__ash_bindings__, &Map.put(&1, :__order__?, true))
+
+                {:ok, new_query}
+
+              :direct ->
+                {:ok, query |> Ecto.Query.order_by(^sort_exprs) |> set_sort_applied()}
             end
 
           {:error, error} ->
             {:error, error}
         end
     end
+  end
+
+  defp set_sort_applied(query) do
+    Map.update!(query, :__ash_bindings__, &Map.put(&1, :sort_applied?, true))
   end
 
   def find_aggregate_binding(bindings, relationship_path, sort) do
@@ -196,29 +254,52 @@ defmodule AshPostgres.Sort do
 
   def order_to_fragments([]), do: []
 
-  def order_to_fragments(order) when is_list(order) do
-    Enum.map(order, &do_order_to_fragments(&1))
+  def order_to_fragments([last]) do
+    [do_order_to_fragments(last, false)]
   end
 
-  def do_order_to_fragments({order, sort}) do
-    case order do
-      :asc ->
+  def order_to_fragments([first | rest]) do
+    [do_order_to_fragments(first, true) | order_to_fragments(rest)]
+  end
+
+  def do_order_to_fragments({order, sort}, comma?) do
+    case {order, comma?} do
+      {:asc, false} ->
         Ecto.Query.dynamic([row], fragment("? ASC", ^sort))
 
-      :desc ->
+      {:desc, false} ->
         Ecto.Query.dynamic([row], fragment("? DESC", ^sort))
 
-      :asc_nulls_last ->
+      {:asc_nulls_last, false} ->
         Ecto.Query.dynamic([row], fragment("? ASC NULLS LAST", ^sort))
 
-      :asc_nulls_first ->
+      {:asc_nulls_first, false} ->
         Ecto.Query.dynamic([row], fragment("? ASC NULLS FIRST", ^sort))
 
-      :desc_nulls_first ->
+      {:desc_nulls_first, false} ->
         Ecto.Query.dynamic([row], fragment("? DESC NULLS FIRST", ^sort))
 
-      :desc_nulls_last ->
+      {:desc_nulls_last, false} ->
         Ecto.Query.dynamic([row], fragment("? DESC NULLS LAST", ^sort))
+        "DESC NULLS LAST"
+
+      {:asc, true} ->
+        Ecto.Query.dynamic([row], fragment("? ASC, ", ^sort))
+
+      {:desc, true} ->
+        Ecto.Query.dynamic([row], fragment("? DESC, ", ^sort))
+
+      {:asc_nulls_last, true} ->
+        Ecto.Query.dynamic([row], fragment("? ASC NULLS LAST, ", ^sort))
+
+      {:asc_nulls_first, true} ->
+        Ecto.Query.dynamic([row], fragment("? ASC NULLS FIRST, ", ^sort))
+
+      {:desc_nulls_first, true} ->
+        Ecto.Query.dynamic([row], fragment("? DESC NULLS FIRST, ", ^sort))
+
+      {:desc_nulls_last, true} ->
+        Ecto.Query.dynamic([row], fragment("? DESC NULLS LAST, ", ^sort))
         "DESC NULLS LAST"
     end
   end

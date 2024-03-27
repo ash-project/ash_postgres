@@ -1,6 +1,6 @@
 defmodule AshPostgres.MixHelpers do
   @moduledoc false
-  def apis!(opts, args) do
+  def domains!(opts, args) do
     apps =
       if apps_paths = Mix.Project.apps_paths() do
         apps_paths |> Map.keys() |> Enum.sort()
@@ -8,46 +8,46 @@ defmodule AshPostgres.MixHelpers do
         [Mix.Project.config()[:app]]
       end
 
-    configured_apis = Enum.flat_map(apps, &Application.get_env(&1, :ash_apis, []))
+    configure_domains = Enum.flat_map(apps, &Application.get_env(&1, :ash_domains, []))
 
-    apis =
-      if opts[:apis] && opts[:apis] != "" do
-        opts[:apis]
+    domains =
+      if opts[:domains] && opts[:domains] != "" do
+        opts[:domains]
         |> Kernel.||("")
         |> String.split(",")
         |> Enum.flat_map(fn
           "" ->
             []
 
-          api ->
-            [Module.concat([api])]
+          domain ->
+            [Module.concat([domain])]
         end)
       else
-        configured_apis
+        configure_domains
       end
 
-    apis
+    domains
     |> Enum.map(&ensure_compiled(&1, args))
     |> case do
       [] ->
-        raise "must supply the --apis argument, or set `config :my_app, ash_apis: [...]` in config"
+        raise "must supply the --domains argument, or set `config :my_app, ash_domains: [...]` in config"
 
-      apis ->
-        apis
+      domains ->
+        domains
     end
   end
 
   def repos!(opts, args) do
-    apis = apis!(opts, args)
+    domains = domains!(opts, args)
 
     resources =
-      apis
-      |> Enum.flat_map(&Ash.Api.Info.resources/1)
+      domains
+      |> Enum.flat_map(&Ash.Domain.Info.resources/1)
       |> Enum.filter(&(Ash.DataLayer.data_layer(&1) == AshPostgres.DataLayer))
       |> case do
         [] ->
           raise """
-          No resources with `data_layer: AshPostgres.DataLayer` found in the apis #{Enum.map_join(apis, ",", &inspect/1)}.
+          No resources with `data_layer: AshPostgres.DataLayer` found in the domains #{Enum.map_join(domains, ",", &inspect/1)}.
 
           Must be able to find at least one resource with `data_layer: AshPostgres.DataLayer`.
           """
@@ -57,12 +57,14 @@ defmodule AshPostgres.MixHelpers do
       end
 
     resources
-    |> Enum.map(&AshPostgres.DataLayer.Info.repo(&1))
+    |> Enum.flat_map(
+      &[AshPostgres.DataLayer.Info.repo(&1, :read), AshPostgres.DataLayer.Info.repo(&1, :mutate)]
+    )
     |> Enum.uniq()
     |> case do
       [] ->
         raise """
-        No repos could be found configured on the resources in the apis: #{Enum.map_join(apis, ",", &inspect/1)}
+        No repos could be found configured on the resources in the domains: #{Enum.map_join(domains, ",", &inspect/1)}
 
         At least one resource must have a repo configured.
 
@@ -96,7 +98,7 @@ defmodule AshPostgres.MixHelpers do
     end
   end
 
-  defp ensure_compiled(api, args) do
+  defp ensure_compiled(domain, args) do
     if Code.ensure_loaded?(Mix.Tasks.App.Config) do
       Mix.Task.run("app.config", args)
     else
@@ -104,18 +106,18 @@ defmodule AshPostgres.MixHelpers do
       "--no-compile" not in args && Mix.Task.run("compile", args)
     end
 
-    case Code.ensure_compiled(api) do
+    case Code.ensure_compiled(domain) do
       {:module, _} ->
-        api
-        |> Ash.Api.Info.resources()
+        domain
+        |> Ash.Domain.Info.resources()
         |> Enum.each(&Code.ensure_compiled/1)
 
         # TODO: We shouldn't need to make sure that the resources are compiled
 
-        api
+        domain
 
       {:error, error} ->
-        Mix.raise("Could not load #{inspect(api)}, error: #{inspect(error)}. ")
+        Mix.raise("Could not load #{inspect(domain)}, error: #{inspect(error)}. ")
     end
   end
 

@@ -1,6 +1,22 @@
+defmodule PassIfOriginalDataPresent do
+  @moduledoc false
+  use Ash.Policy.SimpleCheck
+
+  def describe(_options), do: "original data present"
+
+  def match?(_, _, _) do
+    true
+  end
+
+  def requires_original_data?(_, _) do
+    true
+  end
+end
+
 defmodule AshPostgres.Test.Post do
   @moduledoc false
   use Ash.Resource,
+    domain: AshPostgres.Test.Domain,
     data_layer: AshPostgres.DataLayer,
     authorizers: [
       Ash.Policy.Authorizer
@@ -10,6 +26,25 @@ defmodule AshPostgres.Test.Post do
     bypass action_type(:read) do
       # Check that the post is in the same org as actor
       authorize_if(relates_to_actor_via([:organization, :users]))
+    end
+
+    policy action(:allow_any) do
+      authorize_if(always())
+    end
+
+    policy action(:requires_initial_data) do
+      authorize_if(PassIfOriginalDataPresent)
+    end
+
+    policy action_type(:update) do
+      authorize_if(relates_to_actor_via([:author, :authors_with_same_first_name]))
+      authorize_unless(changing_attributes(title: [from: "good", to: "bad"]))
+    end
+  end
+
+  field_policies do
+    field_policy :* do
+      authorize_if(always())
     end
   end
 
@@ -39,11 +74,24 @@ defmodule AshPostgres.Test.Post do
   end
 
   actions do
-    defaults([:update, :destroy])
+    default_accept(:*)
+
+    defaults([:destroy])
+
+    update :update do
+      primary?(true)
+      require_atomic?(false)
+    end
+
+    read :title_is_foo do
+      filter(expr(title == "foo"))
+    end
 
     read :read do
       primary?(true)
     end
+
+    read(:allow_any)
 
     read :paginated do
       pagination(offset?: true, required?: true, countable: true)
@@ -61,6 +109,21 @@ defmodule AshPostgres.Test.Post do
         )
       )
     end
+
+    update :increment_score do
+      argument(:amount, :integer, default: 1)
+      change(atomic_update(:score, expr((score || 0) + ^arg(:amount))))
+    end
+
+    update :requires_initial_data do
+      argument(:amount, :integer, default: 1)
+      change(atomic_update(:score, expr((score || 0) + ^arg(:amount))))
+    end
+
+    update :manual_update do
+      require_atomic?(false)
+      manual(AshPostgres.Test.Post.ManualUpdate)
+    end
   end
 
   identities do
@@ -69,71 +132,200 @@ defmodule AshPostgres.Test.Post do
 
   attributes do
     uuid_primary_key(:id, writable?: true)
-    attribute(:title, :string)
-    attribute(:score, :integer)
-    attribute(:public, :boolean)
-    attribute(:category, :ci_string)
-    attribute(:type, :atom, default: :sponsored, private?: true, writable?: false)
-    attribute(:price, :integer)
-    attribute(:decimal, :decimal, default: Decimal.new(0))
-    attribute(:status, AshPostgres.Test.Types.Status)
-    attribute(:status_enum, AshPostgres.Test.Types.StatusEnum)
-    attribute(:status_enum_no_cast, AshPostgres.Test.Types.StatusEnumNoCast, source: :status_enum)
-    attribute(:point, AshPostgres.Test.Point)
-    attribute(:uniq_one, :string)
-    attribute(:uniq_two, :string)
-    attribute(:uniq_custom_one, :string)
-    attribute(:uniq_custom_two, :string)
-    create_timestamp(:created_at)
-    update_timestamp(:updated_at)
+
+    attribute(:title, :string) do
+      public?(true)
+      source(:title_column)
+    end
+
+    attribute(:score, :integer, public?: true)
+    attribute(:public, :boolean, public?: true)
+    attribute(:category, :ci_string, public?: true)
+    attribute(:type, :atom, default: :sponsored, writable?: false, public?: false)
+    attribute(:price, :integer, public?: true)
+    attribute(:decimal, :decimal, default: Decimal.new(0), public?: true)
+    attribute(:status, AshPostgres.Test.Types.Status, public?: true)
+    attribute(:status_enum, AshPostgres.Test.Types.StatusEnum, public?: true)
+
+    attribute(:status_enum_no_cast, AshPostgres.Test.Types.StatusEnumNoCast,
+      source: :status_enum,
+      public?: true
+    )
+
+    attribute(:point, AshPostgres.Test.Point, public?: true)
+    attribute(:composite_point, AshPostgres.Test.CompositePoint, public?: true)
+    attribute(:stuff, :map, public?: true)
+    attribute(:list_of_stuff, {:array, :map}, public?: true)
+    attribute(:uniq_one, :string, public?: true)
+    attribute(:uniq_two, :string, public?: true)
+    attribute(:uniq_custom_one, :string, public?: true)
+    attribute(:uniq_custom_two, :string, public?: true)
+
+    attribute :list_containing_nils, {:array, :string} do
+      public?(true)
+      constraints(nil_items?: true)
+    end
+
+    create_timestamp(:created_at, writable?: true, public?: true)
+    update_timestamp(:updated_at, writable?: true, public?: true)
   end
 
   code_interface do
-    define_for(AshPostgres.Test.Api)
+    define(:create, args: [:title])
     define(:get_by_id, action: :read, get_by: [:id])
+    define(:increment_score, args: [{:optional, :amount}])
+    define(:destroy)
   end
 
   relationships do
-    belongs_to(:organization, AshPostgres.Test.Organization)
+    belongs_to :organization, AshPostgres.Test.Organization do
+      public?(true)
+      attribute_writable?(true)
+    end
 
-    belongs_to(:author, AshPostgres.Test.Author)
+    belongs_to(:author, AshPostgres.Test.Author) do
+      public?(true)
+    end
 
-    has_many(:comments, AshPostgres.Test.Comment, destination_attribute: :post_id)
+    has_many :posts_with_matching_title, __MODULE__ do
+      public?(true)
+      no_attributes?(true)
+      filter(expr(parent(title) == title and parent(id) != id))
+    end
+
+    has_many(:comments, AshPostgres.Test.Comment, destination_attribute: :post_id, public?: true)
+
+    has_many :comments_matching_post_title, AshPostgres.Test.Comment do
+      public?(true)
+      filter(expr(title == parent_expr(title)))
+    end
 
     has_many :popular_comments, AshPostgres.Test.Comment do
+      public?(true)
       destination_attribute(:post_id)
       filter(expr(likes > 10))
     end
 
     has_many :comments_containing_title, AshPostgres.Test.Comment do
+      public?(true)
       manual(AshPostgres.Test.Post.CommentsContainingTitle)
     end
 
+    has_many :comments_with_high_rating, AshPostgres.Test.Comment do
+      public?(true)
+      filter(expr(ratings.score > 5))
+    end
+
     has_many(:ratings, AshPostgres.Test.Rating,
+      public?: true,
       destination_attribute: :resource_id,
       relationship_context: %{data_layer: %{table: "post_ratings"}}
     )
 
     has_many(:post_links, AshPostgres.Test.PostLink,
+      public?: true,
       destination_attribute: :source_post_id,
       filter: [state: :active]
     )
 
     many_to_many(:linked_posts, __MODULE__,
+      public?: true,
       through: AshPostgres.Test.PostLink,
       join_relationship: :post_links,
       source_attribute_on_join_resource: :source_post_id,
       destination_attribute_on_join_resource: :destination_post_id
     )
+
+    many_to_many(:followers, AshPostgres.Test.User,
+      public?: true,
+      through: AshPostgres.Test.PostFollower,
+      source_attribute_on_join_resource: :post_id,
+      destination_attribute_on_join_resource: :follower_id,
+      read_action: :active
+    )
+
+    has_many(:views, AshPostgres.Test.PostView) do
+      public?(true)
+    end
+  end
+
+  validations do
+    validate(attribute_does_not_equal(:title, "not allowed"))
   end
 
   calculations do
+    calculate(
+      :author_has_post_with_follower_named_fred,
+      :boolean,
+      expr(
+        exists(
+          author.posts,
+          has_follower_named_fred
+        )
+      )
+    )
+
+    calculate(
+      :has_no_followers,
+      :boolean,
+      expr(is_nil(author.posts.followers))
+    )
+
+    calculate(:score_after_winning, :integer, expr((score || 0) + 1))
+    calculate(:negative_score, :integer, expr(-score))
     calculate(:category_label, :ci_string, expr("(" <> category <> ")"))
     calculate(:score_with_score, :string, expr(score <> score))
+    calculate(:foo_bar_from_stuff, :string, expr(stuff[:foo][:bar]))
+
+    calculate(
+      :has_follower_named_fred,
+      :boolean,
+      expr(exists(followers, name == "fred"))
+    )
+
+    calculate(
+      :composite_origin,
+      AshPostgres.Test.CompositePoint,
+      expr(composite_type(%{x: 0, y: 0}, AshPostgres.Test.CompositePoint))
+    )
+
+    calculate(
+      :score_map,
+      :map,
+      expr(%{
+        negative_score: %{foo: negative_score, bar: negative_score}
+      })
+    )
+
+    calculate(
+      :count_of_comments_called_baz,
+      :integer,
+      expr(count(comments, query: [filter: expr(title == "baz")]))
+    )
+
+    calculate(
+      :agg_map,
+      :map,
+      expr(%{
+        called_foo: count(comments, query: [filter: expr(title == "foo")]),
+        called_bar: count(comments, query: [filter: expr(title == "bar")]),
+        called_baz: count_of_comments_called_baz
+      })
+    )
 
     calculate(:c_times_p, :integer, expr(count_of_comments * count_of_linked_posts),
       load: [:count_of_comments, :count_of_linked_posts]
     )
+
+    calculate :similarity,
+              :boolean,
+              expr(fragment("(to_tsvector(?) @@ ?)", title, ^arg(:search))) do
+      argument(:search, AshPostgres.Tsquery, allow_expr?: true, allow_nil?: false)
+    end
+
+    calculate :query, AshPostgres.Tsquery, expr(fragment("to_tsquery(?)", ^arg(:search))) do
+      argument(:search, :string, allow_expr?: true, allow_nil?: false)
+    end
 
     calculate(
       :calc_returning_json,
@@ -151,7 +343,13 @@ defmodule AshPostgres.Test.Post do
       expr(latest_arbitrary_timestamp > fragment("now()"))
     )
 
-    calculate(:has_future_comment, :boolean, expr(latest_comment_created_at > fragment("now()")))
+    calculate(
+      :has_future_comment,
+      :boolean,
+      expr(latest_comment_created_at > fragment("now()") || type(false, :boolean))
+    )
+
+    calculate(:price_times_2, :integer, expr(price * 2))
 
     calculate(
       :was_created_in_the_last_month,
@@ -166,6 +364,16 @@ defmodule AshPostgres.Test.Post do
       )
     )
 
+    calculate(:author_count_of_posts, :integer, expr(author.count_of_posts_with_calc))
+
+    calculate(
+      :sum_of_author_count_of_posts,
+      :integer,
+      expr(sum(author, field: :count_of_posts))
+    )
+
+    calculate(:author_count_of_posts_agg, :integer, expr(author.count_of_posts))
+
     calculate(
       :price_string,
       :string,
@@ -177,6 +385,10 @@ defmodule AshPostgres.Test.Post do
       :string,
       CalculatePostPriceStringWithSymbol
     )
+
+    calculate(:author_first_name_calc, :string, expr(author.first_name))
+
+    calculate(:author_profile_description_from_agg, :string, expr(author_profile_description))
   end
 
   aggregates do
@@ -187,6 +399,10 @@ defmodule AshPostgres.Test.Post do
       filter(title: "match")
     end
 
+    exists :has_comment_called_match, :comments do
+      filter(title: "match")
+    end
+
     count(:count_of_comments_containing_title, :comments_containing_title)
 
     first :first_comment, :comments, :title do
@@ -194,7 +410,7 @@ defmodule AshPostgres.Test.Post do
     end
 
     first :last_comment, :comments, :title do
-      sort(title: :desc)
+      sort(title: :desc, title: :asc)
     end
 
     first(:author_first_name, :author, :first_name)
@@ -228,6 +444,8 @@ defmodule AshPostgres.Test.Post do
       field(:title)
       uniq?(true)
     end
+
+    count(:count_of_ratings, :ratings)
 
     list :comment_titles_with_5_likes, :comments, :title do
       sort(title: :asc_nils_last)
@@ -289,15 +507,17 @@ defmodule AshPostgres.Test.Post do
     first :latest_arbitrary_timestamp, :comments, :arbitrary_timestamp do
       sort(arbitrary_timestamp: :desc)
     end
+
+    first(:author_profile_description, :author, :description)
   end
 end
 
 defmodule CalculatePostPriceString do
   @moduledoc false
-  use Ash.Calculation
+  use Ash.Resource.Calculation
 
   @impl true
-  def select(_, _, _), do: [:price]
+  def load(_, _, _), do: [:price]
 
   @impl true
   def calculate(records, _, _) do
@@ -311,7 +531,7 @@ end
 
 defmodule CalculatePostPriceStringWithSymbol do
   @moduledoc false
-  use Ash.Calculation
+  use Ash.Resource.Calculation
 
   @impl true
   def load(_, _, _), do: [:price_string]
@@ -321,5 +541,21 @@ defmodule CalculatePostPriceStringWithSymbol do
     Enum.map(records, fn %{price_string: price_string} ->
       "#{price_string}$"
     end)
+  end
+end
+
+defmodule AshPostgres.Test.Post.ManualUpdate do
+  @moduledoc false
+  use Ash.Resource.ManualUpdate
+
+  def update(changeset, _opts, _context) do
+    {
+      :ok,
+      changeset.data
+      |> Ash.Changeset.for_update(:update, changeset.attributes)
+      |> Ash.Changeset.force_change_attribute(:title, "manual")
+      |> Ash.Changeset.load(:comments)
+      |> Ash.update!()
+    }
   end
 end

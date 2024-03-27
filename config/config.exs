@@ -1,7 +1,5 @@
 import Config
 
-config :ash, :use_all_identities_in_manage_relationship?, false
-
 if Mix.env() == :dev do
   config :git_ops,
     mix_project: AshPostgres.MixProject,
@@ -17,6 +15,9 @@ if Mix.env() == :dev do
 end
 
 if Mix.env() == :test do
+  config :ash, :validate_domain_resource_inclusion?, false
+  config :ash, :validate_domain_config_inclusion?, false
+
   config :ash_postgres, AshPostgres.TestRepo,
     username: "postgres",
     database: "ash_postgres_test",
@@ -26,11 +27,26 @@ if Mix.env() == :test do
   # sobelow_skip ["Config.Secrets"]
   config :ash_postgres, AshPostgres.TestRepo, password: "postgres"
 
-  config :ash_postgres,
-    ecto_repos: [AshPostgres.TestRepo],
-    ash_apis: [AshPostgres.Test.Api, AshPostgres.MultitenancyTest.Api]
-
   config :ash_postgres, AshPostgres.TestRepo, migration_primary_key: [name: :id, type: :binary_id]
 
-  config :logger, level: :warn
+  config :ash_postgres, AshPostgres.TestNoSandboxRepo,
+    username: "postgres",
+    database: "ash_postgres_test",
+    hostname: "localhost"
+
+  # sobelow_skip ["Config.Secrets"]
+  config :ash_postgres, AshPostgres.TestNoSandboxRepo, password: "postgres"
+
+  config :ash_postgres, AshPostgres.TestNoSandboxRepo,
+    migration_primary_key: [name: :id, type: :binary_id]
+
+  config :ash_postgres,
+    ecto_repos: [AshPostgres.TestRepo, AshPostgres.TestNoSandboxRepo],
+    ash_domains: [
+      AshPostgres.Test.Domain,
+      AshPostgres.MultitenancyTest.Domain,
+      AshPostgres.Test.ComplexCalculations.Domain
+    ]
+
+  config :logger, level: :warning
 end

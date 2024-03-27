@@ -1,6 +1,7 @@
 defmodule AshPostgres.Test.Comment do
   @moduledoc false
   use Ash.Resource,
+    domain: AshPostgres.Test.Domain,
     data_layer: AshPostgres.DataLayer,
     authorizers: [
       Ash.Policy.Authorizer
@@ -23,6 +24,7 @@ defmodule AshPostgres.Test.Comment do
   end
 
   actions do
+    default_accept(:*)
     defaults([:read, :update, :destroy])
 
     create :create do
@@ -35,10 +37,10 @@ defmodule AshPostgres.Test.Comment do
 
   attributes do
     uuid_primary_key(:id)
-    attribute(:title, :string)
-    attribute(:likes, :integer)
-    attribute(:arbitrary_timestamp, :utc_datetime_usec)
-    create_timestamp(:created_at, writable?: true)
+    attribute(:title, :string, public?: true)
+    attribute(:likes, :integer, public?: true)
+    attribute(:arbitrary_timestamp, :utc_datetime_usec, public?: true)
+    create_timestamp(:created_at, writable?: true, public?: true)
   end
 
   aggregates do
@@ -49,15 +51,22 @@ defmodule AshPostgres.Test.Comment do
   end
 
   relationships do
-    belongs_to(:post, AshPostgres.Test.Post)
-    belongs_to(:author, AshPostgres.Test.Author)
+    belongs_to(:post, AshPostgres.Test.Post) do
+      public?(true)
+    end
+
+    belongs_to(:author, AshPostgres.Test.Author) do
+      public?(true)
+    end
 
     has_many(:ratings, AshPostgres.Test.Rating,
+      public?: true,
       destination_attribute: :resource_id,
       relationship_context: %{data_layer: %{table: "comment_ratings"}}
     )
 
     has_many(:popular_ratings, AshPostgres.Test.Rating,
+      public?: true,
       destination_attribute: :resource_id,
       relationship_context: %{data_layer: %{table: "comment_ratings"}},
       filter: expr(score > 5)

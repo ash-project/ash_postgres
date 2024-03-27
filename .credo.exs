@@ -117,13 +117,13 @@
         #
         {Credo.Check.Refactor.CondStatements, []},
         {Credo.Check.Refactor.CyclomaticComplexity, false},
-        {Credo.Check.Refactor.FunctionArity, []},
+        {Credo.Check.Refactor.FunctionArity, [max_arity: 10]},
         {Credo.Check.Refactor.LongQuoteBlocks, []},
         {Credo.Check.Refactor.MapInto, []},
         {Credo.Check.Refactor.MatchInCondition, []},
         {Credo.Check.Refactor.NegatedConditionsInUnless, []},
         {Credo.Check.Refactor.NegatedConditionsWithElse, []},
-        {Credo.Check.Refactor.Nesting, [max_nesting: 4]},
+        {Credo.Check.Refactor.Nesting, [max_nesting: 5]},
         {Credo.Check.Refactor.UnlessWithElse, []},
         {Credo.Check.Refactor.WithClauses, []},
 

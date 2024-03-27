@@ -26,9 +26,19 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     def in_quotes(nil), do: nil
     def in_quotes(value), do: "\"#{value}\""
 
+    def as_atom(value) when is_atom(value), do: Macro.inspect_atom(:remote_call, value)
+    # sobelow_skip ["DOS.StringToAtom"]
+    def as_atom(value), do: Macro.inspect_atom(:remote_call, String.to_atom(value))
+
+    def option(:nulls_distinct = key, value) do
+      if !value do
+        "#{as_atom(key)}: #{inspect(value)}"
+      end
+    end
+
     def option(key, value) do
       if value do
-        "#{key}: #{inspect(value)}"
+        "#{as_atom(key)}: #{inspect(value)}"
       end
     end
 
@@ -59,9 +69,60 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       :bigint
     end
 
+    def reference_type(%{type: :integer, default: "nil", generated?: true}, _) do
+      ":bigserial"
+    end
+
     def reference_type(%{type: type}, _) do
       type
     end
+
+    def with_match(reference, source_attribute \\ nil)
+
+    def with_match(
+          %{
+            primary_key?: false,
+            destination_attribute: reference_attribute,
+            multitenancy: %{strategy: :attribute, attribute: destination_attribute}
+          } = reference,
+          source_attribute
+        )
+        when not is_nil(source_attribute) and reference_attribute != destination_attribute do
+      with_targets =
+        [{as_atom(source_attribute), as_atom(destination_attribute)}]
+        |> Enum.into(reference.match_with || %{})
+        |> with_targets()
+
+      # We can only have match: :full here, this gets validated by a Transformer
+      join([with_targets, "match: :full"])
+    end
+
+    def with_match(reference, _) do
+      with_targets = with_targets(reference.match_with)
+      match_type = match_type(reference.match_type)
+
+      if with_targets != nil or match_type != nil do
+        join([with_targets, match_type])
+      else
+        nil
+      end
+    end
+
+    def with_targets(targets) when is_map(targets) do
+      targets_string =
+        targets
+        |> Enum.map_join(", ", fn {source, destination} -> "#{source}: :#{destination}" end)
+
+      "with: [#{targets_string}]"
+    end
+
+    def with_targets(_), do: nil
+
+    def match_type(type) when type in [:simple, :partial, :full] do
+      "match: :#{type}"
+    end
+
+    def match_type(_), do: nil
   end
 
   defmodule CreateTable do
@@ -84,14 +145,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                   table: table,
                   destination_attribute: reference_attribute,
                   schema: destination_schema,
-                  multitenancy: %{strategy: :attribute, attribute: destination_attribute}
+                  multitenancy: %{strategy: :attribute}
                 } = reference
             } = attribute
         }) do
-      with_match =
-        if destination_attribute != reference_attribute do
-          "with: [#{source_attribute}: :#{destination_attribute}], match: :full"
-        end
+      with_match = with_match(reference, source_attribute)
 
       size =
         if attribute[:size] do
@@ -100,7 +158,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       [
         "add #{inspect(attribute.source)}",
-        "references(:#{table}",
+        "references(:#{as_atom(table)}",
         [
           "column: #{inspect(reference_attribute)}",
           with_match,
@@ -132,6 +190,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                 } = reference
             } = attribute
         }) do
+      with_match = with_match(reference)
+
       size =
         if attribute[:size] do
           "size: #{attribute[:size]}"
@@ -139,9 +199,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       [
         "add #{inspect(attribute.source)}",
-        "references(:#{table}",
+        "references(:#{as_atom(table)}",
         [
           "column: #{inspect(destination_attribute)}",
+          with_match,
           option("prefix", destination_schema),
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
@@ -194,6 +255,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                 } = reference
             } = attribute
         }) do
+      with_match = with_match(reference)
+
       size =
         if attribute[:size] do
           "size: #{attribute[:size]}"
@@ -201,9 +264,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       [
         "add #{inspect(attribute.source)}",
-        "references(:#{table}",
+        "references(:#{as_atom(table)}",
         [
           "column: #{inspect(destination_attribute)}",
+          with_match,
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
           "prefix: prefix()",
@@ -232,6 +296,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                 } = reference
             } = attribute
         }) do
+      with_match = with_match(reference)
+
       size =
         if attribute[:size] do
           "size: #{attribute[:size]}"
@@ -244,9 +310,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       [
         "add #{inspect(attribute.source)}",
-        "references(:#{table}",
+        "references(:#{as_atom(table)}",
         [
           "column: #{inspect(destination_attribute)}",
+          with_match,
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
           option("prefix", destination_schema),
@@ -273,6 +340,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                 } = reference
             } = attribute
         }) do
+      with_match = with_match(reference)
+
       size =
         if attribute[:size] do
           "size: #{attribute[:size]}"
@@ -280,9 +349,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       [
         "add #{inspect(attribute.source)}",
-        "references(:#{table}",
+        "references(:#{as_atom(table)}",
         [
           "column: #{inspect(destination_attribute)}",
+          with_match,
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
           option("prefix", destination_schema),
@@ -351,6 +421,28 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     end
   end
 
+  defmodule AlterDeferrability do
+    @moduledoc false
+    defstruct [:table, :schema, :references, :direction, no_phase: true]
+
+    def up(%{direction: :up, table: table, references: %{name: name, deferrable: true}}) do
+      "execute(\"ALTER TABLE #{table} alter CONSTRAINT #{name} DEFERRABLE INITIALLY IMMEDIATE\");"
+    end
+
+    def up(%{direction: :up, table: table, references: %{name: name, deferrable: :initially}}) do
+      "execute(\"ALTER TABLE #{table} alter CONSTRAINT #{name} DEFERRABLE INITIALLY DEFERRED\");"
+    end
+
+    def up(%{direction: :up, table: table, references: %{name: name}}) do
+      "execute(\"ALTER TABLE #{table} alter CONSTRAINT #{name} NOT DEFERRABLE\");"
+    end
+
+    def up(_), do: ""
+
+    def down(%{direction: :down} = data), do: up(%{data | direction: :up})
+    def down(_), do: ""
+  end
+
   defmodule AlterAttribute do
     @moduledoc false
     defstruct [
@@ -405,7 +497,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
              Map.get(old_attribute, :references) != Map.get(attribute, :references) do
           reference(multitenancy, attribute, schema)
         else
-          inspect(attribute.type)
+          if attribute.type == :biging and attribute.default == "nil" and attribute.generated? do
+            ":bigserial"
+          else
+            inspect(attribute.type)
+          end
         end
 
       "modify #{inspect(attribute.source)}, #{type_or_reference}#{alter_opts(attribute, old_attribute)}"
@@ -423,13 +519,16 @@ defmodule AshPostgres.MigrationGenerator.Operation do
            } = attribute,
            _schema
          ) do
+      with_match = with_match(reference)
+
       size =
         if attribute[:size] do
           "size: #{attribute[:size]}"
         end
 
       join([
-        "references(:#{table}, column: #{inspect(destination_attribute)}",
+        "references(:#{as_atom(table)}, column: #{inspect(destination_attribute)}",
+        with_match,
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
         size,
@@ -445,7 +544,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
            %{
              references:
                %{
-                 multitenancy: %{strategy: :attribute, attribute: destination_attribute},
+                 multitenancy: %{strategy: :attribute},
                  table: table,
                  schema: destination_schema,
                  destination_attribute: reference_attribute
@@ -458,10 +557,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           destination_schema
         end
 
-      with_match =
-        if destination_attribute != reference_attribute do
-          "with: [#{source_attribute}: :#{destination_attribute}], match: :full"
-        end
+      with_match = with_match(reference, source_attribute)
 
       size =
         if attribute[:size] do
@@ -469,7 +565,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       join([
-        "references(:#{table}, column: #{inspect(reference_attribute)}",
+        "references(:#{as_atom(table)}, column: #{inspect(reference_attribute)}",
         with_match,
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
@@ -493,6 +589,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
            } = attribute,
            schema
          ) do
+      with_match = with_match(reference)
+
       size =
         if attribute[:size] do
           "size: #{attribute[:size]}"
@@ -504,7 +602,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       join([
-        "references(:#{table}, column: #{inspect(destination_attribute)}",
+        "references(:#{as_atom(table)}, column: #{inspect(destination_attribute)}",
+        with_match,
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
         size,
@@ -527,6 +626,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
            } = attribute,
            schema
          ) do
+      with_match = with_match(reference)
+
       destination_schema =
         if schema != destination_schema do
           destination_schema
@@ -538,7 +639,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       join([
-        "references(:#{table}, column: #{inspect(destination_attribute)}",
+        "references(:#{as_atom(table)}, column: #{inspect(destination_attribute)}",
+        with_match,
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
         size,
@@ -570,7 +672,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     import Helper
 
     def up(%{table: table, schema: schema, attribute: %{references: reference}, direction: :up}) do
-      "drop constraint(:#{table}, #{join([inspect(reference.name), option("prefix", schema)])})"
+      "drop constraint(:#{as_atom(table)}, #{join([inspect(reference.name), option("prefix", schema)])})"
     end
 
     def up(_) do
@@ -583,7 +685,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           attribute: %{references: reference},
           direction: :down
         }) do
-      "drop constraint(:#{table}, #{join([inspect(reference.name), option("prefix", schema)])})"
+      "drop constraint(:#{as_atom(table)}, #{join([inspect(reference.name), option("prefix", schema)])})"
     end
 
     def down(_) do
@@ -611,7 +713,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           schema: schema,
           table: table
         }) do
-      table_statement = join([":#{table}", option("prefix", schema)])
+      table_statement = join([":#{as_atom(table)}", option("prefix", schema)])
 
       "rename table(#{table_statement}), #{inspect(old_attribute.source)}, to: #{inspect(new_attribute.source)}"
     end
@@ -681,26 +783,36 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     import Helper
 
     def up(%{
-          identity: %{name: name, keys: keys, base_filter: base_filter, index_name: index_name},
+          identity: %{
+            name: name,
+            keys: keys,
+            base_filter: base_filter,
+            index_name: index_name,
+            all_tenants?: all_tenants?
+          },
           table: table,
           schema: schema,
           multitenancy: multitenancy
         }) do
       keys =
-        case multitenancy.strategy do
-          :attribute ->
-            [multitenancy.attribute | keys]
+        if all_tenants? do
+          keys
+        else
+          case multitenancy.strategy do
+            :attribute ->
+              [multitenancy.attribute | keys]
 
-          _ ->
-            keys
+            _ ->
+              keys
+          end
         end
 
       index_name = index_name || "#{table}_#{name}_index"
 
       if base_filter do
-        "create unique_index(:#{table}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option("prefix", schema)])})"
+        "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option("prefix", schema)])})"
       else
-        "create unique_index(:#{table}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema)])})"
+        "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema)])})"
       end
     end
 
@@ -721,7 +833,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       index_name = index_name || "#{table}_#{name}_index"
 
-      "drop_if_exists unique_index(:#{table}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema)])})"
+      "drop_if_exists unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema)])})"
     end
   end
 
@@ -780,19 +892,17 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           multitenancy: multitenancy
         }) do
       keys =
-        case multitenancy.strategy do
-          :attribute ->
-            [to_string(multitenancy.attribute) | Enum.map(index.fields, &to_string/1)]
-
-          _ ->
-            Enum.map(index.fields, &to_string/1)
+        if !index.all_tenants? and multitenancy.strategy == :attribute do
+          [multitenancy.attribute | index.fields]
+        else
+          index.fields
         end
 
       index =
-        if index.where && base_filter do
-          %{index | where: base_filter <> " AND " <> index.where}
-        else
-          index
+        case {index.where, base_filter} do
+          {_where, nil} -> index
+          {nil, base_filter} -> %{index | where: base_filter}
+          {where, base_filter} -> %{index | where: base_filter <> " AND " <> where}
         end
 
       opts =
@@ -804,27 +914,36 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           option(:prefix, index.prefix),
           option(:where, index.where),
           option(:include, index.include),
+          option(:nulls_distinct, index.nulls_distinct),
           option(:prefix, schema)
         ])
 
-      if opts == "",
-        do: "create index(:#{table}, [#{Enum.map_join(keys, ", ", &inspect/1)}])",
-        else: "create index(:#{table}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{opts})"
+      if opts == "" do
+        "create index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}])"
+      else
+        "create index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{opts})"
+      end
     end
 
     def down(%{schema: schema, index: index, table: table, multitenancy: multitenancy}) do
-      index_name = AshPostgres.CustomIndex.name(table, index)
-
       keys =
-        case multitenancy.strategy do
-          :attribute ->
-            [to_string(multitenancy.attribute) | Enum.map(index.fields, &to_string/1)]
-
-          _ ->
-            Enum.map(index.fields, &to_string/1)
+        if !index.all_tenants? and multitenancy.strategy == :attribute do
+          [multitenancy.attribute | index.fields]
+        else
+          index.fields
         end
 
-      "drop_if_exists index(:#{table}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
+      opts =
+        join([
+          option(:name, index.name),
+          option(:prefix, schema)
+        ])
+
+      if opts == "" do
+        "drop_if_exists index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}])"
+      else
+        "drop_if_exists index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{opts})"
+      end
     end
   end
 
@@ -847,17 +966,27 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule RemovePrimaryKeyDown do
     @moduledoc false
-    defstruct [:schema, :table, no_phase: true]
+    defstruct [:schema, :table, commented?: false, no_phase: true]
 
     def up(_) do
       ""
     end
 
-    def down(%{schema: schema, table: table}) do
+    def down(%{schema: schema, table: table, commented?: commented?}) do
+      comment =
+        if commented? do
+          """
+          # Primary key removal is dropped because a corresponding attribute removal
+          # has been commented out. If you uncomment this, uncomment the attribute removal and vice versa.
+          """
+        else
+          ""
+        end
+
       if schema do
-        "drop constraint(#{inspect(table)}, \"#{table}_pkey\", prefix: \"#{schema}\")"
+        "#{comment}drop constraint(#{inspect(table)}, \"#{table}_pkey\", prefix: \"#{schema}\")"
       else
-        "drop constraint(#{inspect(table)}, \"#{table}_pkey\")"
+        "#{comment}drop constraint(#{inspect(table)}, \"#{table}_pkey\")"
       end
     end
   end
@@ -867,61 +996,12 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     defstruct [:schema, :table, :index, :base_filter, :multitenancy, no_phase: true]
     import Helper
 
-    def up(%{index: index, table: table, multitenancy: multitenancy, schema: schema}) do
-      index_name = AshPostgres.CustomIndex.name(table, index)
-
-      keys =
-        case multitenancy.strategy do
-          :attribute ->
-            [to_string(multitenancy.attribute) | Enum.map(index.fields, &to_string/1)]
-
-          _ ->
-            Enum.map(index.fields, &to_string/1)
-        end
-
-      "drop_if_exists index(:#{table}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
+    def up(operation) do
+      AddCustomIndex.down(operation)
     end
 
-    def down(%{
-          index: index,
-          table: table,
-          schema: schema,
-          base_filter: base_filter,
-          multitenancy: multitenancy
-        }) do
-      keys =
-        case multitenancy.strategy do
-          :attribute ->
-            [to_string(multitenancy.attribute) | Enum.map(index.fields, &to_string/1)]
-
-          _ ->
-            Enum.map(index.fields, &to_string/1)
-        end
-
-      index =
-        if index.where && base_filter do
-          %{index | where: base_filter <> " AND " <> index.where}
-        else
-          index
-        end
-
-      opts =
-        join([
-          option(:name, index.name),
-          option(:unique, index.unique),
-          option(:concurrently, index.concurrently),
-          option(:using, index.using),
-          option(:prefix, index.prefix),
-          option(:where, index.where),
-          option(:include, index.include),
-          option(:prefix, schema)
-        ])
-
-      if opts == "" do
-        "create index(:#{table}, [#{Enum.map_join(keys, ", ", &inspect/1)}])"
-      else
-        "create index(:#{table}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{opts})"
-      end
+    def down(operation) do
+      AddCustomIndex.up(operation)
     end
   end
 
@@ -993,7 +1073,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       index_name = index_name || "#{table}_#{name}_index"
 
-      "drop_if_exists unique_index(:#{table}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
+      "drop_if_exists unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
     end
 
     def down(%{
@@ -1014,9 +1094,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       index_name = index_name || "#{table}_#{name}_index"
 
       if base_filter do
-        "create unique_index(:#{table}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
+        "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
       else
-        "create unique_index(:#{table}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
+        "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
       end
     end
   end
@@ -1037,9 +1117,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           table: table
         }) do
       if base_filter do
-        "create constraint(:#{table}, :#{name}, #{join(["check: \"#{base_filter} AND #{check}\")", option(:prefix, schema)])}"
+        "create constraint(:#{as_atom(table)}, :#{as_atom(name)}, #{join(["check: \"#{base_filter} AND #{check}\")", option(:prefix, schema)])}"
       else
-        "create constraint(:#{table}, :#{name}, #{join(["check: \"#{check}\")", option(:prefix, schema)])}"
+        "create constraint(:#{as_atom(table)}, :#{as_atom(name)}, #{join(["check: \"#{check}\")", option(:prefix, schema)])}"
       end
     end
 
@@ -1048,7 +1128,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           schema: schema,
           table: table
         }) do
-      "drop_if_exists constraint(:#{table}, #{join([":#{name}", option(:prefix, schema)])})"
+      "drop_if_exists constraint(:#{as_atom(table)}, #{join([":#{as_atom(name)}", option(:prefix, schema)])})"
     end
   end
 
@@ -1059,7 +1139,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     import Helper
 
     def up(%{constraint: %{name: name}, schema: schema, table: table}) do
-      "drop_if_exists constraint(:#{table}, #{join([":#{name}", option(:prefix, schema)])})"
+      "drop_if_exists constraint(:#{as_atom(table)}, #{join([":#{as_atom(name)}", option(:prefix, schema)])})"
     end
 
     def down(%{
@@ -1072,9 +1152,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           table: table
         }) do
       if base_filter do
-        "create constraint(:#{table}, :#{name}, #{join(["check: \"#{base_filter} AND #{check}\")", option(:prefix, schema)])}"
+        "create constraint(:#{as_atom(table)}, :#{as_atom(name)}, #{join(["check: \"#{base_filter} AND #{check}\")", option(:prefix, schema)])}"
       else
-        "create constraint(:#{table}, :#{name}, #{join(["check: \"#{check}\")", option(:prefix, schema)])}"
+        "create constraint(:#{as_atom(table)}, :#{as_atom(name)}, #{join(["check: \"#{check}\")", option(:prefix, schema)])}"
       end
     end
   end

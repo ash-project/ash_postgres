@@ -3,16 +3,18 @@ defmodule AshPostgres.Types do
 
   alias Ash.Query.Ref
 
-  def parameterized_type({:parameterized, _, _} = type, _) do
+  def parameterized_type(type, constraints, no_maps? \\ true)
+
+  def parameterized_type({:parameterized, _, _} = type, _, _) do
     type
   end
 
-  def parameterized_type({:in, type}, constraints) do
-    parameterized_type({:array, type}, constraints)
+  def parameterized_type({:in, type}, constraints, no_maps?) do
+    parameterized_type({:array, type}, constraints, no_maps?)
   end
 
-  def parameterized_type({:array, type}, constraints) do
-    case parameterized_type(type, constraints[:items] || []) do
+  def parameterized_type({:array, type}, constraints, _) do
+    case parameterized_type(type, constraints[:items] || [], false) do
       nil ->
         nil
 
@@ -21,15 +23,27 @@ defmodule AshPostgres.Types do
     end
   end
 
-  def parameterized_type(Ash.Type.CiString, constraints) do
-    parameterized_type(Ash.Type.CiStringWrapper, constraints)
+  def parameterized_type(Ash.Type.CiString, constraints, no_maps?) do
+    parameterized_type(Ash.Type.CiStringWrapper, constraints, no_maps?)
   end
 
-  def parameterized_type(Ash.Type.String.EctoType, constraints) do
-    parameterized_type(Ash.Type.StringWrapper, constraints)
+  def parameterized_type(Ash.Type.String.EctoType, constraints, no_maps?) do
+    parameterized_type(Ash.Type.StringWrapper, constraints, no_maps?)
   end
 
-  def parameterized_type(type, constraints) do
+  def parameterized_type(:tsquery, constraints, no_maps?) do
+    parameterized_type(AshPostgres.Tsquery, constraints, no_maps?)
+  end
+
+  def parameterized_type(type, _constraints, false)
+      when type in [Ash.Type.Map, Ash.Type.Map.EctoType],
+      do: :map
+
+  def parameterized_type(type, _constraints, true)
+      when type in [Ash.Type.Map, Ash.Type.Map.EctoType],
+      do: nil
+
+  def parameterized_type(type, constraints, no_maps?) do
     if Ash.Type.ash_type?(type) do
       cast_in_query? =
         if function_exported?(Ash.Type, :cast_in_query?, 2) do
@@ -39,12 +53,28 @@ defmodule AshPostgres.Types do
         end
 
       if cast_in_query? do
-        parameterized_type(Ash.Type.ecto_type(type), constraints)
+        type = Ash.Type.ecto_type(type)
+
+        type =
+          if type.type(constraints) == :ci_string do
+            Ash.Type.CiStringWrapper
+          else
+            type
+          end
+
+        parameterized_type(type, constraints, no_maps?)
       else
         nil
       end
     else
       if is_atom(type) && :erlang.function_exported(type, :type, 1) do
+        type =
+          if type == :ci_string do
+            :citext
+          else
+            type
+          end
+
         {:parameterized, type, constraints || []}
       else
         type
@@ -54,6 +84,18 @@ defmodule AshPostgres.Types do
 
   def determine_types(mod, values) do
     Code.ensure_compiled(mod)
+
+    name =
+      cond do
+        function_exported?(mod, :operator, 0) ->
+          mod.operator()
+
+        function_exported?(mod, :name, 0) ->
+          mod.name()
+
+        true ->
+          nil
+      end
 
     cond do
       :erlang.function_exported(mod, :types, 0) ->
@@ -65,6 +107,7 @@ defmodule AshPostgres.Types do
       true ->
         [:any]
     end
+    |> Enum.concat(Map.keys(Ash.Query.Operator.operator_overloads(name) || %{}))
     |> Enum.map(fn types ->
       case types do
         :same ->
@@ -146,6 +189,45 @@ defmodule AshPostgres.Types do
   end
 
   defp fill_in_known_type(
+         {{:array, type},
+          %Ash.Query.Function.Type{arguments: [inner, {:array, type}, constraints]} = func}
+       ) do
+    {:in,
+     fill_in_known_type({type, %{func | arguments: [inner, type, constraints[:items] || []]}})}
+  end
+
+  defp fill_in_known_type(
+         {{:array, type},
+          %Ref{attribute: %{type: {:array, type}, constraints: constraints} = attribute} = ref}
+       ) do
+    {:in,
+     fill_in_known_type(
+       {type,
+        %{ref | attribute: %{attribute | type: type, constraints: constraints[:items] || []}}}
+     )}
+  end
+
+  defp fill_in_known_type(
+         {vague_type, %Ash.Query.Function.Type{arguments: [_, type, constraints]}} = func
+       )
+       when vague_type in [:any, :same] do
+    if Ash.Type.ash_type?(type) do
+      type = type |> parameterized_type(constraints) |> array_to_in()
+
+      {type || :any, func}
+    else
+      type =
+        if is_atom(type) && :erlang.function_exported(type, :type, 1) do
+          {:parameterized, type, []} |> array_to_in()
+        else
+          type |> array_to_in()
+        end
+
+      {type, func}
+    end
+  end
+
+  defp fill_in_known_type(
          {vague_type, %Ref{attribute: %{type: type, constraints: constraints}}} = ref
        )
        when vague_type in [:any, :same] do
@@ -163,12 +245,6 @@ defmodule AshPostgres.Types do
 
       {type, ref}
     end
-  end
-
-  defp fill_in_known_type(
-         {{:array, type}, %Ref{attribute: %{type: {:array, type}} = attribute} = ref}
-       ) do
-    {:in, fill_in_known_type({type, %{ref | attribute: %{attribute | type: type}}})}
   end
 
   defp fill_in_known_type({type, value}), do: {array_to_in(type), value}

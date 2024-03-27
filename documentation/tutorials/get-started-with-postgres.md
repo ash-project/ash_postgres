@@ -68,7 +68,7 @@ import Config
 # This should already have been added in the first
 # getting started guide
 config :helpdesk,
-  ash_apis: [Helpdesk.Support]
+  ash_domains: [Helpdesk.Support]
 
 config :helpdesk,
   ecto_repos: [Helpdesk.Repo]
@@ -155,6 +155,7 @@ Now we can add the data layer to our resources. The basic configuration for a re
 # in lib/helpdesk/support/resources/ticket.ex
 
   use Ash.Resource,
+    domain: Helpdesk.Support,
     data_layer: AshPostgres.DataLayer
 
   postgres do
@@ -167,6 +168,7 @@ Now we can add the data layer to our resources. The basic configuration for a re
 # in lib/helpdesk/support/resources/representative.ex
 
   use Ash.Resource,
+    domain: Helpdesk.Support,
     data_layer: AshPostgres.DataLayer
 
   postgres do
@@ -191,9 +193,10 @@ Typically, you need to write these by hand. AshPostgres, however, will store sna
 
 You should always look at the generated migrations to ensure that they look correct. Do so now by looking at the generated file in `priv/repo/migrations`.
 
-Finally, we will apply the generated migrations to our local database:
+Finally, we will create the local database and apply the generated migrations:
 
 ```bash
+mix ash_postgres.create
 mix ash_postgres.migrate
 ```
 
