@@ -725,9 +725,9 @@ defmodule AshPostgres.DataLayer do
     |> add_timeout(timeout)
   end
 
-  defp repo_opts(repo, timeout, tenant, resource) do
+  defp repo_opts(_repo, timeout, tenant, resource) do
     if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
-      [prefix: repo.tenant_to_schema(tenant)]
+      [prefix: tenant]
     else
       if schema = AshPostgres.DataLayer.Info.schema(resource) do
         [prefix: schema]
@@ -1385,20 +1385,16 @@ defmodule AshPostgres.DataLayer do
           %{
             data_layer_query
             | prefix:
-                repo.tenant_to_schema(
-                  query_tenant || AshPostgres.DataLayer.Info.schema(resource) ||
-                    config[:default_prefix] ||
-                    "public"
-                )
+                query_tenant || AshPostgres.DataLayer.Info.schema(resource) ||
+                  config[:default_prefix] ||
+                  "public"
           }
         else
           %{
             data_layer_query
             | prefix:
-                repo.tenant_to_schema(
-                  AshPostgres.DataLayer.Info.schema(resource) || config[:default_prefix] ||
-                    "public"
-                )
+                AshPostgres.DataLayer.Info.schema(resource) || config[:default_prefix] ||
+                  "public"
           }
         end
     end
