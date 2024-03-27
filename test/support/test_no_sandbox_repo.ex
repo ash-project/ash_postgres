@@ -8,7 +8,15 @@ defmodule AshPostgres.TestNoSandboxRepo do
   end
 
   def pg_version do
-    Version.parse!(System.get_env("PG_VERSION") || "16.0.0")
+    version =
+      case System.get_env("PG_VERSION") do
+        nil -> "16.0.0"
+        "14" -> "14.0.0"
+        "15" -> "15.0.0"
+        "16" -> "16.0.0"
+      end
+
+    Version.parse!(version)
   end
 
   def installed_extensions do
