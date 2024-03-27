@@ -727,7 +727,7 @@ defmodule AshPostgres.DataLayer do
 
   defp repo_opts(_repo, timeout, tenant, resource) do
     if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
-      [prefix: tenant]
+      [prefix: Ash.ToTenant.to_tenant(resource, tenant)]
     else
       if schema = AshPostgres.DataLayer.Info.schema(resource) do
         [prefix: schema]
