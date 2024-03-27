@@ -4,15 +4,9 @@ There are only three breaking changes in this release, one of them is very signi
 
 # AshPostgres officially supports only postgresql version 14 or higher
 
-You will need to configure your repo version in the `pg_version/0` callback in your repo. For example:
+A new callback `min_pg_version/0` has been added to the repo, but a default implementation is set up that reads the version from postgres directly, the first time it is required. It is cached until the repo is reinitialized, at which point it is looked up again.
 
-```elixir
-def pg_version do
-  Version.parse!("14.0.0")
-end
-```
-
-While _most_ things will work with versions as low as 11, we are relying on features of newer postgres versions. We will not be testing against versions lower than 14, and we will not be supporting them. If you are using an older version of postgres, you will need to upgrade.
+While _most_ things will work with versions as low as 9, we are relying on features of newer postgres versions and intend to do so more in the future. We will not be testing against versions lower than 14, and we will not be supporting them. If you are using an older version of postgres, you will need to upgrade.
 
 If you _must_ use an older version, the only thing that you'll need to change in the short term is to handle the fact that we now use `gen_random_uuid()` as the default for generated uuids (see below), which is only available after postgres _13_. Additionally, if you are on postgres 12 or earlier, you will need to replace `ANYCOMPATIBLE` with `ANYELEMENT` in the `ash-functions` extension migration.
 

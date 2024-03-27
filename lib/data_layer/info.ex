@@ -17,13 +17,13 @@ defmodule AshPostgres.DataLayer.Info do
   @doc "Checks a version requirement against the resource's repo's postgres version"
   def pg_version_matches?(resource, requirement) do
     resource
-    |> pg_version()
+    |> min_pg_version()
     |> Version.match?(requirement)
   end
 
   @doc "Gets the resource's repo's postgres version"
-  def pg_version(resource) do
-    case repo(resource, :read).pg_version() do
+  def min_pg_version(resource) do
+    case repo(resource, :read).min_pg_version() do
       %Version{} = version -> version
       string when is_binary(string) -> Version.parse!(string)
     end

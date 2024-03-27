@@ -385,7 +385,6 @@ defmodule AshPostgres.DataLayer do
   use Spark.Dsl.Extension,
     sections: @sections,
     verifiers: [
-      AshPostgres.Verifiers.VerifyPostgresVersion,
       AshPostgres.Verifiers.PreventMultidimensionalArrayAggregates,
       AshPostgres.Verifiers.ValidateReferences,
       AshPostgres.Verifiers.PreventAttributeMultitenancyAndNonFullMatchType,
