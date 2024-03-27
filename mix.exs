@@ -156,7 +156,6 @@ defmodule AshPostgres.MixProject do
       {:ecto, "~> 3.9"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
-      {:spark, path: "../spark", override: true},
       # dev/test dependencies
       {:simple_sat, "~> 0.1"},
       {:ash, ash_version("~> 3.0.0-rc.0")},
