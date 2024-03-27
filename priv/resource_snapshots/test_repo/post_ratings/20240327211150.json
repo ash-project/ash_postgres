@@ -1,0 +1,67 @@
+{
+  "attributes": [
+    {
+      "default": "fragment(\"gen_random_uuid()\")",
+      "size": null,
+      "type": "uuid",
+      "source": "id",
+      "references": null,
+      "primary_key?": true,
+      "allow_nil?": false,
+      "generated?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "bigint",
+      "source": "score",
+      "references": null,
+      "primary_key?": false,
+      "allow_nil?": true,
+      "generated?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "uuid",
+      "source": "resource_id",
+      "references": {
+        "name": "post_ratings_resource_id_fkey",
+        "table": "posts",
+        "multitenancy": {
+          "global": null,
+          "attribute": null,
+          "strategy": null
+        },
+        "primary_key?": true,
+        "destination_attribute": "id",
+        "schema": null,
+        "deferrable": false,
+        "destination_attribute_default": "fragment(\"gen_random_uuid()\")",
+        "destination_attribute_generated": false,
+        "on_delete": null,
+        "on_update": null,
+        "match_with": null,
+        "match_type": null
+      },
+      "primary_key?": false,
+      "allow_nil?": true,
+      "generated?": false
+    }
+  ],
+  "table": "post_ratings",
+  "hash": "251643EE9B79229CEB3A6CEB2CCAEF67E02A5017D780607E6AA87C016F9D5366",
+  "repo": "Elixir.AshPostgres.TestRepo",
+  "multitenancy": {
+    "global": null,
+    "attribute": null,
+    "strategy": null
+  },
+  "schema": null,
+  "identities": [],
+  "has_create_action": true,
+  "custom_indexes": [],
+  "custom_statements": [],
+  "base_filter": null,
+  "check_constraints": []
+}

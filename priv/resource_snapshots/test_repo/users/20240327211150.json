@@ -1,0 +1,105 @@
+{
+  "attributes": [
+    {
+      "default": "fragment(\"gen_random_uuid()\")",
+      "size": null,
+      "type": "uuid",
+      "source": "id",
+      "references": null,
+      "primary_key?": true,
+      "allow_nil?": false,
+      "generated?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "boolean",
+      "source": "is_active",
+      "references": null,
+      "primary_key?": false,
+      "allow_nil?": true,
+      "generated?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "text",
+      "source": "name",
+      "references": null,
+      "primary_key?": false,
+      "allow_nil?": true,
+      "generated?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "uuid",
+      "source": "organization_id",
+      "references": {
+        "name": "users_organization_id_fkey",
+        "table": "orgs",
+        "multitenancy": {
+          "global": null,
+          "attribute": null,
+          "strategy": null
+        },
+        "primary_key?": true,
+        "destination_attribute": "id",
+        "schema": "public",
+        "deferrable": false,
+        "destination_attribute_default": null,
+        "destination_attribute_generated": null,
+        "on_delete": null,
+        "on_update": null,
+        "match_with": null,
+        "match_type": null
+      },
+      "primary_key?": false,
+      "allow_nil?": true,
+      "generated?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "uuid",
+      "source": "org_id",
+      "references": {
+        "name": "users_org_id_fkey",
+        "table": "multitenant_orgs",
+        "multitenancy": {
+          "global": true,
+          "attribute": "id",
+          "strategy": "attribute"
+        },
+        "primary_key?": true,
+        "destination_attribute": "id",
+        "schema": "public",
+        "deferrable": false,
+        "destination_attribute_default": null,
+        "destination_attribute_generated": null,
+        "on_delete": null,
+        "on_update": null,
+        "match_with": null,
+        "match_type": null
+      },
+      "primary_key?": false,
+      "allow_nil?": true,
+      "generated?": false
+    }
+  ],
+  "table": "users",
+  "hash": "1E8931B282681C15BD83551B4849F1C6C8C9755D45A28AEE9617527DB1DD3921",
+  "repo": "Elixir.AshPostgres.TestRepo",
+  "multitenancy": {
+    "global": null,
+    "attribute": null,
+    "strategy": null
+  },
+  "schema": null,
+  "identities": [],
+  "has_create_action": true,
+  "custom_indexes": [],
+  "custom_statements": [],
+  "base_filter": null,
+  "check_constraints": []
+}

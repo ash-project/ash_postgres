@@ -2816,11 +2816,11 @@ defmodule AshPostgres.MigrationGenerator do
 
   @uuid_functions [&Ash.UUID.generate/0, &Ecto.UUID.generate/0]
 
-  defp default(%{name: name, default: default}, resource, repo) when is_function(default) do
+  defp default(%{name: name, default: default}, resource, _repo) when is_function(default) do
     configured_default(resource, name) ||
       cond do
-        default in @uuid_functions && "uuid-ossp" in (repo.config()[:installed_extensions] || []) ->
-          ~S[fragment("uuid_generate_v4()")]
+        default in @uuid_functions ->
+          ~S[fragment("gen_random_uuid()")]
 
         default == (&DateTime.utc_now/0) ->
           ~S[fragment("(now() AT TIME ZONE 'utc')")]
