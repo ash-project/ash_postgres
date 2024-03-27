@@ -2823,7 +2823,7 @@ defmodule AshPostgres.MigrationGenerator do
           ~S[fragment("uuid_generate_v4()")]
 
         default == (&DateTime.utc_now/0) ->
-          ~S[fragment("now()")]
+          ~S[fragment("(now() AT TIME ZONE 'utc')")]
 
         default == (&Date.utc_today/0) ->
           ~S[fragment("CURRENT_DATE")]
