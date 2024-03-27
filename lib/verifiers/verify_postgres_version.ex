@@ -14,7 +14,7 @@ defmodule AshPostgres.Verifiers.VerifyPostgresVersion do
     if Version.match?(read_version, ">= 14.0.0") && Version.match?(mutation_version, ">= 14.0.0") do
       :ok
     else
-      {:error, "AshPostgres now only supports versions >= 14.0."}
+      {:error, "AshPostgres only supports postgres versions >= 14.0."}
     end
   end
 

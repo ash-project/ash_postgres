@@ -159,7 +159,7 @@ defmodule AshPostgres.MixProject do
       {:spark, path: "../spark", override: true},
       # dev/test dependencies
       {:simple_sat, "~> 0.1"},
-      {:ash, ash_version(github: "ash-project/ash", branch: "3.0")},
+      {:ash, ash_version("~> 3.0.0-rc.0")},
       {:benchee, "~> 1.1", only: [:dev, :test]},
       {:git_ops, "~> 2.5", only: [:dev, :test]},
       {:ex_doc, github: "elixir-lang/ex_doc", only: [:dev, :test], runtime: false},

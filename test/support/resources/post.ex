@@ -175,7 +175,6 @@ defmodule AshPostgres.Test.Post do
     define(:get_by_id, action: :read, get_by: [:id])
     define(:increment_score, args: [{:optional, :amount}])
     define(:destroy)
-    define(:bulk_create, bulk?: true, action: :create)
   end
 
   relationships do
