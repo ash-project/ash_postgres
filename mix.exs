@@ -96,7 +96,8 @@ defmodule AshPostgres.MixProject do
         "documentation/topics/postgres-expressions.md",
         "documentation/topics/references.md",
         "documentation/topics/schema-based-multitenancy.md",
-        "documentation/dsls/DSL:-AshPostgres.DataLayer.md"
+        "documentation/dsls/DSL:-AshPostgres.DataLayer.md",
+        "CHANGELOG.md"
       ],
       groups_for_extras: [
         Tutorials: ~r'documentation/tutorials',
