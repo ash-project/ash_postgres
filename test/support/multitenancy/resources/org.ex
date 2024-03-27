@@ -1,6 +1,7 @@
 defmodule AshPostgres.MultitenancyTest.Org do
   @moduledoc false
   use Ash.Resource,
+    domain: AshPostgres.MultitenancyTest.Domain,
     data_layer: AshPostgres.DataLayer
 
   identities do
@@ -9,10 +10,12 @@ defmodule AshPostgres.MultitenancyTest.Org do
 
   attributes do
     uuid_primary_key(:id, writable?: true)
-    attribute(:name, :string)
+    attribute(:name, :string, public?: true)
   end
 
   actions do
+    default_accept(:*)
+
     defaults([:create, :read, :update, :destroy])
   end
 
@@ -33,8 +36,15 @@ defmodule AshPostgres.MultitenancyTest.Org do
   end
 
   relationships do
-    has_many(:posts, AshPostgres.MultitenancyTest.Post, destination_attribute: :org_id)
-    has_many(:users, AshPostgres.MultitenancyTest.User, destination_attribute: :org_id)
+    has_many(:posts, AshPostgres.MultitenancyTest.Post,
+      destination_attribute: :org_id,
+      public?: true
+    )
+
+    has_many(:users, AshPostgres.MultitenancyTest.User,
+      destination_attribute: :org_id,
+      public?: true
+    )
   end
 
   def tenant("org_" <> tenant) do

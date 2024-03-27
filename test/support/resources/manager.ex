@@ -1,6 +1,7 @@
 defmodule AshPostgres.Test.Manager do
   @moduledoc false
   use Ash.Resource,
+    domain: AshPostgres.Test.Domain,
     data_layer: AshPostgres.DataLayer
 
   postgres do
@@ -9,6 +10,8 @@ defmodule AshPostgres.Test.Manager do
   end
 
   actions do
+    default_accept(:*)
+
     defaults([:read, :update, :destroy])
 
     create :create do
@@ -25,14 +28,15 @@ defmodule AshPostgres.Test.Manager do
 
   attributes do
     uuid_primary_key(:id)
-    attribute(:name, :string)
-    attribute(:code, :string, allow_nil?: false)
-    attribute(:must_be_present, :string, allow_nil?: false)
-    attribute(:role, :string)
+    attribute(:name, :string, public?: true)
+    attribute(:code, :string, allow_nil?: false, public?: true)
+    attribute(:must_be_present, :string, allow_nil?: false, public?: true)
+    attribute(:role, :string, public?: true)
   end
 
   relationships do
     belongs_to :organization, AshPostgres.Test.Organization do
+      public?(true)
       attribute_writable?(true)
     end
   end

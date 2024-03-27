@@ -1,20 +1,23 @@
 defmodule AshPostgres.Test.ComplexCalculations.DMChannel do
   @moduledoc false
   use Ash.Resource,
+    domain: AshPostgres.Test.ComplexCalculations.Domain,
     data_layer: AshPostgres.DataLayer,
     authorizers: [Ash.Policy.Authorizer]
 
   require Ash.Expr
 
   actions do
+    default_accept(:*)
+
     defaults([:create, :read, :update, :destroy])
   end
 
   attributes do
     uuid_primary_key(:id)
 
-    create_timestamp(:created_at, private?: false)
-    update_timestamp(:updated_at, private?: false)
+    create_timestamp(:created_at, public?: true)
+    update_timestamp(:updated_at, public?: true)
   end
 
   postgres do
@@ -24,16 +27,19 @@ defmodule AshPostgres.Test.ComplexCalculations.DMChannel do
 
   relationships do
     has_many :channel_members, AshPostgres.Test.ComplexCalculations.ChannelMember do
+      public?(true)
       destination_attribute(:channel_id)
     end
 
     has_one :first_member, AshPostgres.Test.ComplexCalculations.ChannelMember do
+      public?(true)
       destination_attribute(:channel_id)
       from_many?(true)
       sort(created_at: :asc)
     end
 
     has_one :second_member, AshPostgres.Test.ComplexCalculations.ChannelMember do
+      public?(true)
       destination_attribute(:channel_id)
       from_many?(true)
       sort(created_at: :desc)

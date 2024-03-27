@@ -25,7 +25,7 @@ AshPostgres is built on top of ecto, so much of its behavior is pass-through/orc
 For more information on generating migrations, see the module documentation here:
 `Mix.Tasks.AshPostgres.GenerateMigrations`, or run `mix help ash_postgres.generate_migrations`
 
-For running your migrations, there is a mix task that will find all of the repos configured in your apis and run their
+For running your migrations, there is a mix task that will find all of the repos configured in your domains and run their
 migrations. It is a thin wrapper around `mix ecto.migrate`. Ours is called `mix ash_postgres.migrate`
 
 If you want to run or rollback individual migrations, use the corresponding
@@ -146,17 +146,17 @@ Tasks that need to be executed in the released application (because mix is not p
   end
 
   defp repos do
-    apis()
-    |> Enum.flat_map(fn api ->
-      api
-      |> Ash.Api.Info.resources()
+    domains()
+    |> Enum.flat_map(fn domain ->
+      domain
+      |> Ash.Domain.Info.resources()
       |> Enum.map(&AshPostgres.DataLayer.Info.repo/1)
     end)
     |> Enum.uniq()
   end
 
-  defp apis do
-    Application.fetch_env!(@app, :ash_apis)
+  defp domains do
+    Application.fetch_env!(@app, :ash_domains)
   end
 
   defp load_app do

@@ -44,6 +44,9 @@ defmodule AshPostgres.Repo do
   @doc "Use this to inform the data layer about what extensions are installed"
   @callback installed_extensions() :: [String.t() | module()]
 
+  @doc "Configure the version of postgres that is being used."
+  @callback pg_version() :: Version.t()
+
   @doc """
   Use this to inform the data layer about the oldest potential postgres version it will be run on.
 
@@ -54,7 +57,6 @@ defmodule AshPostgres.Repo do
   For things like `Fly.Repo`, where you might need to have more fine grained control over the repo module,
   you can use the `define_ecto_repo?: false` option to `use AshPostgres.Repo`.
   """
-  @callback min_pg_version() :: integer()
 
   @callback on_transaction_begin(reason :: Ash.DataLayer.transaction_reason()) :: term
 
@@ -66,6 +68,7 @@ defmodule AshPostgres.Repo do
   @callback migrations_path() :: String.t() | nil
   @doc "The default prefix(postgres schema) to use when building queries"
   @callback default_prefix() :: String.t()
+
   @doc "Allows overriding a given migration type for *all* fields, for example if you wanted to always use :timestamptz for :utc_datetime fields"
   @callback override_migration_type(atom) :: atom
 
@@ -88,7 +91,6 @@ defmodule AshPostgres.Repo do
       def migrations_path, do: nil
       def default_prefix, do: "public"
       def override_migration_type(type), do: type
-      def min_pg_version, do: 10
 
       def transaction!(fun) do
         case fun.() do
@@ -224,8 +226,7 @@ defmodule AshPostgres.Repo do
                      all_tenants: 0,
                      tenant_migrations_path: 0,
                      default_prefix: 0,
-                     override_migration_type: 1,
-                     min_pg_version: 0
+                     override_migration_type: 1
     end
   end
 end

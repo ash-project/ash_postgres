@@ -73,10 +73,11 @@ defmodule AshPostgres.Calculation do
               expression =
                 Ash.Actions.Read.add_calc_context_to_filter(
                   expression,
-                  calculation.context[:actor],
-                  calculation.context[:authorize?],
-                  calculation.context[:tenant],
-                  calculation.context[:tracer]
+                  calculation.context.actor,
+                  calculation.context.authorize?,
+                  calculation.context.tenant,
+                  calculation.context.tracer,
+                  nil
                 )
 
               {expr, acc} =

@@ -2,20 +2,22 @@ defmodule AshPostgres.Test.Record do
   @moduledoc false
 
   use Ash.Resource,
+    domain: AshPostgres.Test.Domain,
     data_layer: AshPostgres.DataLayer
 
   attributes do
     uuid_primary_key(:id)
 
-    attribute(:full_name, :string, allow_nil?: false)
+    attribute(:full_name, :string, allow_nil?: false, public?: true)
 
-    timestamps(private?: false)
+    timestamps(public?: true)
   end
 
   relationships do
     alias AshPostgres.Test.Entity
 
     has_one :entity, Entity do
+      public?(true)
       no_attributes?(true)
 
       read_action(:read_from_temp)
@@ -30,6 +32,8 @@ defmodule AshPostgres.Test.Record do
   end
 
   actions do
+    default_accept(:*)
+
     defaults([:create, :read])
   end
 end

@@ -1,7 +1,7 @@
 defmodule AshPostgres.RelWithParentFilterTest do
   use AshPostgres.RepoCase, async: false
 
-  alias AshPostgres.Test.{Api, Author}
+  alias AshPostgres.Test.Author
 
   require Ash.Query
 
@@ -9,11 +9,11 @@ defmodule AshPostgres.RelWithParentFilterTest do
     %{id: author_id} =
       Author
       |> Ash.Changeset.for_create(:create, %{first_name: "John", last_name: "Doe"})
-      |> Api.create!()
+      |> Ash.create!()
 
     Author
     |> Ash.Changeset.for_create(:create, %{first_name: "John"})
-    |> Api.create!()
+    |> Ash.create!()
 
     # here we get the expected result of 1 because it is done in the same query
     assert %{num_of_authors_with_same_first_name: 1} =
@@ -21,18 +21,18 @@ defmodule AshPostgres.RelWithParentFilterTest do
              |> Ash.Query.for_read(:read)
              |> Ash.Query.filter(id == ^author_id)
              |> Ash.Query.load(:num_of_authors_with_same_first_name)
-             |> Api.read_one!()
+             |> Ash.read_one!()
   end
 
   test "filter on relationship using parent works as expected when loading relationship" do
     %{id: author_id} =
       Author
       |> Ash.Changeset.for_create(:create, %{first_name: "John", last_name: "Doe"})
-      |> Api.create!()
+      |> Ash.create!()
 
     Author
     |> Ash.Changeset.for_create(:create, %{first_name: "John"})
-    |> Api.create!()
+    |> Ash.create!()
 
     assert %{authors_with_same_first_name: authors} =
              Author
@@ -43,7 +43,7 @@ defmodule AshPostgres.RelWithParentFilterTest do
              # but when doing that it does a inner lateral join
              # instead of using the id from the parent relationship
              |> Ash.Query.load(:authors_with_same_first_name)
-             |> Api.read_one!()
+             |> Ash.read_one!()
 
     assert length(authors) == 1
   end

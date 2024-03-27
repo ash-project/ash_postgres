@@ -1,6 +1,7 @@
 defmodule AshPostgres.MultitenancyTest.Post do
   @moduledoc false
   use Ash.Resource,
+    domain: AshPostgres.MultitenancyTest.Domain,
     data_layer: AshPostgres.DataLayer,
     authorizers: [Ash.Policy.Authorizer]
 
@@ -17,10 +18,12 @@ defmodule AshPostgres.MultitenancyTest.Post do
 
   attributes do
     uuid_primary_key(:id, writable?: true)
-    attribute(:name, :string)
+    attribute(:name, :string, public?: true)
   end
 
   actions do
+    default_accept(:*)
+
     defaults([:create, :read, :update, :destroy])
 
     update(:update_with_policy)
@@ -38,8 +41,14 @@ defmodule AshPostgres.MultitenancyTest.Post do
   end
 
   relationships do
-    belongs_to(:org, AshPostgres.MultitenancyTest.Org)
-    belongs_to(:user, AshPostgres.MultitenancyTest.User)
-    has_one(:self, __MODULE__, destination_attribute: :id, source_attribute: :id)
+    belongs_to(:org, AshPostgres.MultitenancyTest.Org) do
+      public?(true)
+    end
+
+    belongs_to(:user, AshPostgres.MultitenancyTest.User) do
+      public?(true)
+    end
+
+    has_one(:self, __MODULE__, destination_attribute: :id, source_attribute: :id, public?: true)
   end
 end

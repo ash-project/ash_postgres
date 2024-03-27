@@ -3,6 +3,7 @@ defmodule AshPostgres.Test.Subquery.Access do
   alias AshPostgres.Test.Subquery.Parent
 
   use Ash.Resource,
+    domain: AshPostgres.Test.Subquery.ParentDomain,
     data_layer: AshPostgres.DataLayer,
     authorizers: [
       Ash.Policy.Authorizer
@@ -17,19 +18,19 @@ defmodule AshPostgres.Test.Subquery.Access do
 
   attributes do
     uuid_primary_key(:id)
-    attribute(:parent_id, :uuid)
-    attribute(:email, :string)
+    attribute(:parent_id, :uuid, public?: true)
+    attribute(:email, :string, public?: true)
   end
 
   code_interface do
-    define_for(AshPostgres.Test.Subquery.ParentApi)
-
     define(:create)
     define(:read)
   end
 
   relationships do
-    belongs_to(:parent, Parent)
+    belongs_to(:parent, Parent) do
+      public?(true)
+    end
   end
 
   policies do
@@ -39,6 +40,8 @@ defmodule AshPostgres.Test.Subquery.Access do
   end
 
   actions do
+    default_accept(:*)
+
     defaults([:create, :update, :destroy])
 
     read :read do

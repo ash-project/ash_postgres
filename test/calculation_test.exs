@@ -1,6 +1,6 @@
 defmodule AshPostgres.CalculationTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Account, Api, Author, Comment, Post, User}
+  alias AshPostgres.Test.{Account, Author, Comment, Post, User}
 
   require Ash.Query
   import Ash.Expr
@@ -8,48 +8,48 @@ defmodule AshPostgres.CalculationTest do
   test "an expression calculation can be filtered on" do
     post =
       Post
-      |> Ash.Changeset.new(%{title: "match"})
-      |> Api.create!()
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
 
     post2 =
       Post
-      |> Ash.Changeset.new(%{title: "title2"})
-      |> Api.create!()
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
+      |> Ash.create!()
 
     post3 =
       Post
-      |> Ash.Changeset.new(%{title: "title3"})
-      |> Api.create!()
+      |> Ash.Changeset.for_create(:create, %{title: "title3"})
+      |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "_"})
+    |> Ash.Changeset.for_create(:create, %{title: "_"})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-    |> Api.create!()
+    |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "_"})
+    |> Ash.Changeset.for_create(:create, %{title: "_"})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-    |> Api.create!()
+    |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "_"})
+    |> Ash.Changeset.for_create(:create, %{title: "_"})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-    |> Api.create!()
+    |> Ash.create!()
 
     post
     |> Ash.Changeset.new()
     |> Ash.Changeset.manage_relationship(:linked_posts, [post2, post3], type: :append_and_remove)
-    |> Api.update!()
+    |> Ash.update!()
 
     post2
     |> Ash.Changeset.new()
     |> Ash.Changeset.manage_relationship(:linked_posts, [post3], type: :append_and_remove)
-    |> Api.update!()
+    |> Ash.update!()
 
     assert [%{c_times_p: 6, title: "match"}] =
              Post
              |> Ash.Query.load(:c_times_p)
-             |> Api.read!()
+             |> Ash.read!()
              |> Enum.filter(&(&1.c_times_p == 6))
 
     assert [
@@ -57,12 +57,12 @@ defmodule AshPostgres.CalculationTest do
            ] =
              Post
              |> Ash.Query.filter(c_times_p == 6)
-             |> Api.read!()
+             |> Ash.read!()
 
     assert [] =
              Post
              |> Ash.Query.filter(author: [has_posts: true])
-             |> Api.read!()
+             |> Ash.read!()
   end
 
   test "calculations can refer to to_one path attributes in filters" do
@@ -72,18 +72,18 @@ defmodule AshPostgres.CalculationTest do
         first_name: "Foo",
         bio: %{title: "Mr.", bio: "Bones"}
       })
-      |> Api.create!()
+      |> Ash.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "match"})
+    |> Ash.Changeset.for_create(:create, %{title: "match"})
     |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
-    |> Api.create!()
+    |> Ash.create!()
 
     assert [%{author_first_name_calc: "Foo"}] =
              Post
              |> Ash.Query.filter(author_first_name_calc == "Foo")
              |> Ash.Query.load(:author_first_name_calc)
-             |> Api.read!()
+             |> Ash.read!()
   end
 
   test "calculations can refer to to_one path attributes in sorts" do
@@ -93,44 +93,44 @@ defmodule AshPostgres.CalculationTest do
         first_name: "Foo",
         bio: %{title: "Mr.", bio: "Bones"}
       })
-      |> Api.create!()
+      |> Ash.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "match"})
+    |> Ash.Changeset.for_create(:create, %{title: "match"})
     |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
-    |> Api.create!()
+    |> Ash.create!()
 
     assert [%{author_first_name_calc: "Foo"}] =
              Post
              |> Ash.Query.sort(:author_first_name_calc)
              |> Ash.Query.load(:author_first_name_calc)
-             |> Api.read!()
+             |> Ash.read!()
   end
 
   test "calculations can refer to embedded attributes" do
     author =
       Author
       |> Ash.Changeset.for_create(:create, %{bio: %{title: "Mr.", bio: "Bones"}})
-      |> Api.create!()
+      |> Ash.create!()
 
     assert %{title: "Mr."} =
              Author
              |> Ash.Query.filter(id == ^author.id)
              |> Ash.Query.load(:title)
-             |> Api.read_one!()
+             |> Ash.read_one!()
   end
 
   test "calculations can use the || operator" do
     author =
       Author
       |> Ash.Changeset.for_create(:create, %{bio: %{title: "Mr.", bio: "Bones"}})
-      |> Api.create!()
+      |> Ash.create!()
 
     assert %{first_name_or_bob: "bob"} =
              Author
              |> Ash.Query.filter(id == ^author.id)
              |> Ash.Query.load(:first_name_or_bob)
-             |> Api.read_one!()
+             |> Ash.read_one!()
   end
 
   test "calculations can use the && operator" do
@@ -140,60 +140,60 @@ defmodule AshPostgres.CalculationTest do
         first_name: "fred",
         bio: %{title: "Mr.", bio: "Bones"}
       })
-      |> Api.create!()
+      |> Ash.create!()
 
     assert %{first_name_and_bob: "bob"} =
              Author
              |> Ash.Query.filter(id == ^author.id)
              |> Ash.Query.load(:first_name_and_bob)
-             |> Api.read_one!()
+             |> Ash.read_one!()
   end
 
   test "calculations can be used in related filters" do
     post =
       Post
-      |> Ash.Changeset.new(%{title: "match"})
-      |> Api.create!()
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
 
     post2 =
       Post
-      |> Ash.Changeset.new(%{title: "title2"})
-      |> Api.create!()
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
+      |> Ash.create!()
 
     post3 =
       Post
-      |> Ash.Changeset.new(%{title: "title3"})
-      |> Api.create!()
+      |> Ash.Changeset.for_create(:create, %{title: "title3"})
+      |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "match"})
+    |> Ash.Changeset.for_create(:create, %{title: "match"})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-    |> Api.create!()
+    |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "match"})
+    |> Ash.Changeset.for_create(:create, %{title: "match"})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-    |> Api.create!()
+    |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "match"})
+    |> Ash.Changeset.for_create(:create, %{title: "match"})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-    |> Api.create!()
+    |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "no_match"})
+    |> Ash.Changeset.for_create(:create, %{title: "no_match"})
     |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
-    |> Api.create!()
+    |> Ash.create!()
 
     post
     |> Ash.Changeset.new()
     |> Ash.Changeset.manage_relationship(:linked_posts, [post2, post3], type: :append_and_remove)
-    |> Api.update!()
+    |> Ash.update!()
 
     post2
     |> Ash.Changeset.new()
     |> Ash.Changeset.manage_relationship(:linked_posts, [post3], type: :append_and_remove)
-    |> Api.update!()
+    |> Ash.update!()
 
     posts_query =
       Post
@@ -202,7 +202,7 @@ defmodule AshPostgres.CalculationTest do
     assert %{post: %{c_times_p: 6}} =
              Comment
              |> Ash.Query.load(post: posts_query)
-             |> Api.read!()
+             |> Ash.read!()
              |> Enum.filter(&(&1.post.c_times_p == 6))
              |> Enum.at(0)
 
@@ -214,20 +214,20 @@ defmodule AshPostgres.CalculationTest do
 
     assert [
              %{post: %{c_times_p: 6, title: "match"}}
-           ] = Api.read!(query)
+           ] = Ash.read!(query)
 
-    post |> Api.load!(:c_times_p)
+    post |> Ash.load!(:c_times_p)
   end
 
   test "concat calculation can be filtered on" do
     author =
       Author
-      |> Ash.Changeset.new(%{first_name: "is", last_name: "match"})
-      |> Api.create!()
+      |> Ash.Changeset.for_create(:create, %{first_name: "is", last_name: "match"})
+      |> Ash.create!()
 
     Author
-    |> Ash.Changeset.new(%{first_name: "not", last_name: "match"})
-    |> Api.create!()
+    |> Ash.Changeset.for_create(:create, %{first_name: "not", last_name: "match"})
+    |> Ash.create!()
 
     author_id = author.id
 
@@ -235,60 +235,60 @@ defmodule AshPostgres.CalculationTest do
              Author
              |> Ash.Query.load(:full_name)
              |> Ash.Query.filter(full_name == "is match")
-             |> Api.read_one!()
+             |> Ash.read_one!()
   end
 
   test "calculations that refer to aggregates in comparison expressions can be filtered on" do
     Post
     |> Ash.Query.load(:has_future_comment)
-    |> Api.read!()
+    |> Ash.read!()
   end
 
   test "calculations that refer to aggregates can be authorized" do
     post =
       Post
-      |> Ash.Changeset.new(%{title: "title"})
-      |> Api.create!()
+      |> Ash.Changeset.for_create(:create, %{title: "title"})
+      |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "comment"})
+    |> Ash.Changeset.for_create(:create, %{title: "comment"})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-    |> Api.create!()
+    |> Ash.create!()
 
     assert %{has_future_comment: false} =
              Post
              |> Ash.Query.load([:has_future_comment, :latest_comment_created_at])
              |> Ash.Query.for_read(:allow_any, %{})
-             |> Api.read_one!(authorize?: true)
+             |> Ash.read_one!(authorize?: true)
 
     assert %{has_future_comment: true} =
              Post
              |> Ash.Query.load([:has_future_comment, :latest_comment_created_at])
              |> Ash.Query.for_read(:allow_any, %{})
-             |> Api.read_one!(authorize?: false)
+             |> Ash.read_one!(authorize?: false)
 
     assert %{has_future_comment: false} =
              Post
              |> Ash.Query.for_read(:allow_any, %{})
-             |> Api.read_one!()
-             |> Api.load!([:has_future_comment, :latest_comment_created_at], authorize?: true)
+             |> Ash.read_one!()
+             |> Ash.load!([:has_future_comment, :latest_comment_created_at], authorize?: true)
 
     assert %{has_future_comment: true} =
              Post
              |> Ash.Query.for_read(:allow_any, %{})
-             |> Api.read_one!()
-             |> Api.load!([:has_future_comment, :latest_comment_created_at], authorize?: false)
+             |> Ash.read_one!()
+             |> Ash.load!([:has_future_comment, :latest_comment_created_at], authorize?: false)
   end
 
   test "conditional calculations can be filtered on" do
     author =
       Author
-      |> Ash.Changeset.new(%{first_name: "tom"})
-      |> Api.create!()
+      |> Ash.Changeset.for_create(:create, %{first_name: "tom"})
+      |> Ash.create!()
 
     Author
-    |> Ash.Changeset.new(%{first_name: "tom", last_name: "holland"})
-    |> Api.create!()
+    |> Ash.Changeset.for_create(:create, %{first_name: "tom", last_name: "holland"})
+    |> Ash.create!()
 
     author_id = author.id
 
@@ -296,45 +296,45 @@ defmodule AshPostgres.CalculationTest do
              Author
              |> Ash.Query.load([:conditional_full_name, :full_name])
              |> Ash.Query.filter(conditional_full_name == "(none)")
-             |> Api.read_one!()
+             |> Ash.read_one!()
   end
 
   test "parameterized calculations can be filtered on" do
     Author
-    |> Ash.Changeset.new(%{first_name: "tom", last_name: "holland"})
-    |> Api.create!()
+    |> Ash.Changeset.for_create(:create, %{first_name: "tom", last_name: "holland"})
+    |> Ash.create!()
 
     assert %{param_full_name: "tom holland"} =
              Author
              |> Ash.Query.load(:param_full_name)
-             |> Api.read_one!()
+             |> Ash.read_one!()
 
     assert %{param_full_name: "tom~holland"} =
              Author
              |> Ash.Query.load(param_full_name: [separator: "~"])
-             |> Api.read_one!()
+             |> Ash.read_one!()
 
     assert %{} =
              Author
              |> Ash.Query.filter(param_full_name(separator: "~") == "tom~holland")
-             |> Api.read_one!()
+             |> Ash.read_one!()
   end
 
   test "parameterized related calculations can be filtered on" do
     author =
       Author
-      |> Ash.Changeset.new(%{first_name: "tom", last_name: "holland"})
-      |> Api.create!()
+      |> Ash.Changeset.for_create(:create, %{first_name: "tom", last_name: "holland"})
+      |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "match"})
+    |> Ash.Changeset.for_create(:create, %{title: "match"})
     |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
-    |> Api.create!()
+    |> Ash.create!()
 
     assert %{title: "match"} =
              Comment
              |> Ash.Query.filter(author.param_full_name(separator: "~") == "tom~holland")
-             |> Api.read_one!()
+             |> Ash.read_one!()
 
     assert %{title: "match"} =
              Comment
@@ -342,93 +342,97 @@ defmodule AshPostgres.CalculationTest do
                author.param_full_name(separator: "~") == "tom~holland" and
                  author.param_full_name(separator: " ") == "tom holland"
              )
-             |> Api.read_one!()
+             |> Ash.read_one!()
   end
 
   test "parameterized calculations can be sorted on" do
     Author
-    |> Ash.Changeset.new(%{first_name: "tom", last_name: "holland"})
-    |> Api.create!()
+    |> Ash.Changeset.for_create(:create, %{first_name: "tom", last_name: "holland"})
+    |> Ash.create!()
 
     Author
-    |> Ash.Changeset.new(%{first_name: "abc", last_name: "def"})
-    |> Api.create!()
+    |> Ash.Changeset.for_create(:create, %{first_name: "abc", last_name: "def"})
+    |> Ash.create!()
 
     assert [%{first_name: "abc"}, %{first_name: "tom"}] =
              Author
              |> Ash.Query.sort(param_full_name: [separator: "~"])
-             |> Api.read!()
+             |> Ash.read!()
   end
 
   test "calculations using if and literal boolean results can run" do
     Post
     |> Ash.Query.load(:was_created_in_the_last_month)
     |> Ash.Query.filter(was_created_in_the_last_month == true)
-    |> Api.read!()
+    |> Ash.read!()
   end
 
   test "nested conditional calculations can be loaded" do
     Author
-    |> Ash.Changeset.new(%{last_name: "holland"})
-    |> Api.create!()
+    |> Ash.Changeset.for_create(:create, %{last_name: "holland"})
+    |> Ash.create!()
 
     Author
-    |> Ash.Changeset.new(%{first_name: "tom"})
-    |> Api.create!()
+    |> Ash.Changeset.for_create(:create, %{first_name: "tom"})
+    |> Ash.create!()
 
     assert [%{nested_conditional: "No First Name"}, %{nested_conditional: "No Last Name"}] =
              Author
              |> Ash.Query.load(:nested_conditional)
              |> Ash.Query.sort(:nested_conditional)
-             |> Api.read!()
+             |> Ash.read!()
   end
 
   test "calculations load nullable timestamp aggregates compared to a fragment" do
     post =
       Post
-      |> Ash.Changeset.new(%{title: "aaa", score: 0})
-      |> Api.create!()
+      |> Ash.Changeset.for_create(:create, %{title: "aaa", score: 0})
+      |> Ash.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "aaa", score: 1})
-    |> Api.create!()
+    |> Ash.Changeset.for_create(:create, %{title: "aaa", score: 1})
+    |> Ash.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "bbb", score: 0})
-    |> Api.create!()
+    |> Ash.Changeset.for_create(:create, %{title: "bbb", score: 0})
+    |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "aaa", likes: 1, arbitrary_timestamp: DateTime.now!("Etc/UTC")})
+    |> Ash.Changeset.for_create(:create, %{
+      title: "aaa",
+      likes: 1,
+      arbitrary_timestamp: DateTime.now!("Etc/UTC")
+    })
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-    |> Api.create!()
+    |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "bbb", likes: 1})
+    |> Ash.Changeset.for_create(:create, %{title: "bbb", likes: 1})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-    |> Api.create!()
+    |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.new(%{title: "aaa", likes: 2})
+    |> Ash.Changeset.for_create(:create, %{title: "aaa", likes: 2})
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-    |> Api.create!()
+    |> Ash.create!()
 
     Post
     |> Ash.Query.load([:has_future_arbitrary_timestamp])
-    |> Api.read!()
+    |> Ash.read!()
   end
 
   test "loading a calculation loads its dependent loads" do
     user =
       User
       |> Ash.Changeset.for_create(:create, %{is_active: true})
-      |> Api.create!()
+      |> Ash.create!()
 
     account =
       Account
       |> Ash.Changeset.for_create(:create, %{is_active: true})
       |> Ash.Changeset.manage_relationship(:user, user, type: :append_and_remove)
-      |> Api.create!()
-      |> Api.load!([:active])
+      |> Ash.create!()
+      |> Ash.load!([:active])
 
     assert account.active
   end
@@ -442,7 +446,7 @@ defmodule AshPostgres.CalculationTest do
           last_name: "Jones",
           bio: %{title: "Mr.", bio: "Bones"}
         })
-        |> Api.create!()
+        |> Ash.create!()
 
       assert %{
                full_name_with_nils: "Bill Jones",
@@ -452,7 +456,7 @@ defmodule AshPostgres.CalculationTest do
                |> Ash.Query.filter(id == ^author.id)
                |> Ash.Query.load(:full_name_with_nils)
                |> Ash.Query.load(:full_name_with_nils_no_joiner)
-               |> Api.read_one!()
+               |> Ash.read_one!()
     end
 
     test "with nil value" do
@@ -462,7 +466,7 @@ defmodule AshPostgres.CalculationTest do
           first_name: "Bill",
           bio: %{title: "Mr.", bio: "Bones"}
         })
-        |> Api.create!()
+        |> Ash.create!()
 
       assert %{
                full_name_with_nils: "Bill",
@@ -472,23 +476,23 @@ defmodule AshPostgres.CalculationTest do
                |> Ash.Query.filter(id == ^author.id)
                |> Ash.Query.load(:full_name_with_nils)
                |> Ash.Query.load(:full_name_with_nils_no_joiner)
-               |> Api.read_one!()
+               |> Ash.read_one!()
     end
   end
 
   test "arguments with cast_in_query?: false are not cast" do
     Post
-    |> Ash.Changeset.new(%{title: "match", score: 42})
-    |> Api.create!()
+    |> Ash.Changeset.for_create(:create, %{title: "match", score: 42})
+    |> Ash.create!()
 
     Post
-    |> Ash.Changeset.new(%{title: "not", score: 42})
-    |> Api.create!()
+    |> Ash.Changeset.for_create(:create, %{title: "not", score: 42})
+    |> Ash.create!()
 
     assert [post] =
              Post
              |> Ash.Query.filter(similarity(search: expr(query(search: "match"))))
-             |> Api.read!()
+             |> Ash.read!()
 
     assert post.title == "match"
   end
@@ -502,7 +506,7 @@ defmodule AshPostgres.CalculationTest do
           last_name: "Jones",
           bio: %{title: "Mr.", bio: "Bones"}
         })
-        |> Api.create!()
+        |> Ash.create!()
 
       assert %{
                split_full_name: ["Bill", "Jones"]
@@ -510,7 +514,7 @@ defmodule AshPostgres.CalculationTest do
                Author
                |> Ash.Query.filter(id == ^author.id)
                |> Ash.Query.load(:split_full_name)
-               |> Api.read_one!()
+               |> Ash.read_one!()
     end
 
     test "trimming whitespace" do
@@ -521,7 +525,7 @@ defmodule AshPostgres.CalculationTest do
           last_name: "Jones ",
           bio: %{title: "Mr.", bio: "Bones"}
         })
-        |> Api.create!()
+        |> Ash.create!()
 
       assert %{
                split_full_name_trim: ["Bill", "Jones"],
@@ -530,37 +534,37 @@ defmodule AshPostgres.CalculationTest do
                Author
                |> Ash.Query.filter(id == ^author.id)
                |> Ash.Query.load([:split_full_name_trim, :split_full_name])
-               |> Api.read_one!()
+               |> Ash.read_one!()
     end
   end
 
   describe "count_nils/1" do
     test "counts nil values" do
       Post
-      |> Ash.Changeset.new(%{list_containing_nils: ["a", nil, "b", nil, "c"]})
-      |> Api.create!()
+      |> Ash.Changeset.for_create(:create, %{list_containing_nils: ["a", nil, "b", nil, "c"]})
+      |> Ash.create!()
 
       Post
-      |> Ash.Changeset.new(%{list_containing_nils: ["a", nil, "b", "c"]})
-      |> Api.create!()
+      |> Ash.Changeset.for_create(:create, %{list_containing_nils: ["a", nil, "b", "c"]})
+      |> Ash.create!()
 
       assert [_] =
                Post
                |> Ash.Query.filter(count_nils(list_containing_nils) == 2)
-               |> Api.read!()
+               |> Ash.read!()
     end
   end
 
   describe "-/1" do
     test "makes numbers negative" do
       Post
-      |> Ash.Changeset.new(%{title: "match", score: 42})
-      |> Api.create!()
+      |> Ash.Changeset.for_create(:create, %{title: "match", score: 42})
+      |> Ash.create!()
 
       assert [%{negative_score: -42}] =
                Post
                |> Ash.Query.load(:negative_score)
-               |> Api.read!()
+               |> Ash.read!()
     end
   end
 
@@ -568,39 +572,39 @@ defmodule AshPostgres.CalculationTest do
     test "maps can reference filtered aggregates" do
       post =
         Post
-        |> Ash.Changeset.new(%{title: "match", score: 42})
-        |> Api.create!()
+        |> Ash.Changeset.for_create(:create, %{title: "match", score: 42})
+        |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "foo", likes: 2})
+      |> Ash.Changeset.for_create(:create, %{title: "foo", likes: 2})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-      |> Api.create!()
+      |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "foo", likes: 2})
+      |> Ash.Changeset.for_create(:create, %{title: "foo", likes: 2})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-      |> Api.create!()
+      |> Ash.create!()
 
       Comment
-      |> Ash.Changeset.new(%{title: "bar", likes: 2})
+      |> Ash.Changeset.for_create(:create, %{title: "bar", likes: 2})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-      |> Api.create!()
+      |> Ash.create!()
 
       assert [%{agg_map: %{called_foo: 2, called_bar: 1}}] =
                Post
                |> Ash.Query.load(:agg_map)
-               |> Api.read!()
+               |> Ash.read!()
     end
 
     test "maps can be constructed" do
       Post
-      |> Ash.Changeset.new(%{title: "match", score: 42})
-      |> Api.create!()
+      |> Ash.Changeset.for_create(:create, %{title: "match", score: 42})
+      |> Ash.create!()
 
       assert [%{score_map: %{negative_score: %{foo: -42}}}] =
                Post
                |> Ash.Query.load(:score_map)
-               |> Api.read!()
+               |> Ash.read!()
     end
   end
 
@@ -613,7 +617,7 @@ defmodule AshPostgres.CalculationTest do
           last_name: "Jones ",
           bio: %{title: "Mr.", bio: "Bones"}
         })
-        |> Api.create!()
+        |> Ash.create!()
 
       assert %{
                first_name_from_split: "Bill"
@@ -621,15 +625,15 @@ defmodule AshPostgres.CalculationTest do
                Author
                |> Ash.Query.filter(id == ^author.id)
                |> Ash.Query.load([:first_name_from_split])
-               |> Api.read_one!()
+               |> Ash.read_one!()
     end
   end
 
   test "dependent calc" do
     post =
       Post
-      |> Ash.Changeset.new(%{title: "match", price: 10_024})
-      |> Api.create!()
+      |> Ash.Changeset.for_create(:create, %{title: "match", price: 10_024})
+      |> Ash.create!()
 
     Post.get_by_id(post.id,
       query: Post |> Ash.Query.select([:id]) |> Ash.Query.load([:price_string_with_currency_sign])
@@ -639,10 +643,14 @@ defmodule AshPostgres.CalculationTest do
   test "nested get_path works" do
     assert "thing" =
              Post
-             |> Ash.Changeset.new(%{title: "match", price: 10_024, stuff: %{foo: %{bar: "thing"}}})
+             |> Ash.Changeset.for_create(:create, %{
+               title: "match",
+               price: 10_024,
+               stuff: %{foo: %{bar: "thing"}}
+             })
              |> Ash.Changeset.deselect(:stuff)
-             |> Api.create!()
-             |> Api.load!(:foo_bar_from_stuff)
+             |> Ash.create!()
+             |> Ash.load!(:foo_bar_from_stuff)
              |> Map.get(:foo_bar_from_stuff)
   end
 
@@ -654,19 +662,19 @@ defmodule AshPostgres.CalculationTest do
         last_name: "Jones",
         bio: %{title: "Mr.", bio: "Bones"}
       })
-      |> Api.create!()
+      |> Ash.create!()
 
     assert %AshPostgres.Test.Money{} =
              Post
-             |> Ash.Changeset.new(%{title: "match", price: 10_024})
+             |> Ash.Changeset.for_create(:create, %{title: "match", price: 10_024})
              |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
-             |> Api.create!()
-             |> Api.load!(:calc_returning_json)
+             |> Ash.create!()
+             |> Ash.load!(:calc_returning_json)
              |> Map.get(:calc_returning_json)
 
     assert [%AshPostgres.Test.Money{}] =
              author
-             |> Api.load!(posts: :calc_returning_json)
+             |> Ash.load!(posts: :calc_returning_json)
              |> Map.get(:posts)
              |> Enum.map(&Map.get(&1, :calc_returning_json))
   end
@@ -678,7 +686,7 @@ defmodule AshPostgres.CalculationTest do
       last_name: "Jones",
       bio: %{title: "Mr.", bio: "Bones"}
     })
-    |> Api.create!()
+    |> Ash.create!()
 
     assert %{calculations: %{length: 9}} =
              Author
@@ -687,7 +695,7 @@ defmodule AshPostgres.CalculationTest do
                expr(string_length(string_trim(first_name <> last_name <> " "))),
                :integer
              )
-             |> Api.read_one!()
+             |> Ash.read_one!()
   end
 
   test "an expression calculation that loads a runtime calculation works" do
@@ -697,12 +705,12 @@ defmodule AshPostgres.CalculationTest do
       last_name: "Jones",
       bio: %{title: "Mr.", bio: "Bones"}
     })
-    |> Api.create!()
+    |> Ash.create!()
 
     assert [%{expr_referencing_runtime: "Bill Jones Bill Jones"}] =
              Author
              |> Ash.Query.load(:expr_referencing_runtime)
-             |> Api.read!()
+             |> Ash.read!()
   end
 
   test "lazy values are evaluated lazily" do
@@ -712,7 +720,7 @@ defmodule AshPostgres.CalculationTest do
       last_name: "Jones",
       bio: %{title: "Mr.", bio: "Bones"}
     })
-    |> Api.create!()
+    |> Ash.create!()
 
     assert %{calculations: %{string: "fred"}} =
              Author
@@ -721,21 +729,21 @@ defmodule AshPostgres.CalculationTest do
                expr(lazy({__MODULE__, :fred, []})),
                :string
              )
-             |> Api.read_one!()
+             |> Ash.read_one!()
   end
 
   test "exists with a relationship that has a filtered read action works" do
     post =
       Post
       |> Ash.Changeset.for_create(:create, %{})
-      |> Api.create!()
+      |> Ash.create!()
 
     post_id = post.id
 
     assert [%{id: ^post_id}] =
              Post
              |> Ash.Query.filter(has_no_followers)
-             |> Api.read!()
+             |> Ash.read!()
   end
 
   def fred do

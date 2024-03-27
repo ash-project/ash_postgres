@@ -1,12 +1,10 @@
-defmodule AshPostgres.Transformers.PreventMultidimensionalArrayAggregates do
+defmodule AshPostgres.Verifiers.PreventMultidimensionalArrayAggregates do
   @moduledoc false
-  use Spark.Dsl.Transformer
-  alias Spark.Dsl.Transformer
+  use Spark.Dsl.Verifier
+  alias Spark.Dsl.Verifier
 
-  def after_compile?, do: true
-
-  def transform(dsl) do
-    resource = Transformer.get_persisted(dsl, :module)
+  def verify(dsl) do
+    resource = Verifier.get_persisted(dsl, :module)
 
     dsl
     |> Ash.Resource.Info.aggregates()
@@ -35,6 +33,6 @@ defmodule AshPostgres.Transformers.PreventMultidimensionalArrayAggregates do
       end
     end)
 
-    {:ok, dsl}
+    :ok
   end
 end

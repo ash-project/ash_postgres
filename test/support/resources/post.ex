@@ -16,6 +16,7 @@ end
 defmodule AshPostgres.Test.Post do
   @moduledoc false
   use Ash.Resource,
+    domain: AshPostgres.Test.Domain,
     data_layer: AshPostgres.DataLayer,
     authorizers: [
       Ash.Policy.Authorizer
@@ -73,7 +74,14 @@ defmodule AshPostgres.Test.Post do
   end
 
   actions do
-    defaults([:update, :destroy])
+    default_accept(:*)
+
+    defaults([:destroy])
+
+    update :update do
+      primary?(true)
+      require_atomic?(false)
+    end
 
     read :title_is_foo do
       filter(expr(title == "foo"))
@@ -113,6 +121,7 @@ defmodule AshPostgres.Test.Post do
     end
 
     update :manual_update do
+      require_atomic?(false)
       manual(AshPostgres.Test.Post.ManualUpdate)
     end
   end
@@ -125,83 +134,103 @@ defmodule AshPostgres.Test.Post do
     uuid_primary_key(:id, writable?: true)
 
     attribute(:title, :string) do
+      public?(true)
       source(:title_column)
     end
 
-    attribute(:score, :integer)
-    attribute(:public, :boolean)
-    attribute(:category, :ci_string)
-    attribute(:type, :atom, default: :sponsored, private?: true, writable?: false)
-    attribute(:price, :integer)
-    attribute(:decimal, :decimal, default: Decimal.new(0))
-    attribute(:status, AshPostgres.Test.Types.Status)
-    attribute(:status_enum, AshPostgres.Test.Types.StatusEnum)
-    attribute(:status_enum_no_cast, AshPostgres.Test.Types.StatusEnumNoCast, source: :status_enum)
-    attribute(:point, AshPostgres.Test.Point)
-    attribute(:composite_point, AshPostgres.Test.CompositePoint)
-    attribute(:stuff, :map)
-    attribute(:list_of_stuff, {:array, :map})
-    attribute(:uniq_one, :string)
-    attribute(:uniq_two, :string)
-    attribute(:uniq_custom_one, :string)
-    attribute(:uniq_custom_two, :string)
+    attribute(:score, :integer, public?: true)
+    attribute(:public, :boolean, public?: true)
+    attribute(:category, :ci_string, public?: true)
+    attribute(:type, :atom, default: :sponsored, writable?: false, public?: false)
+    attribute(:price, :integer, public?: true)
+    attribute(:decimal, :decimal, default: Decimal.new(0), public?: true)
+    attribute(:status, AshPostgres.Test.Types.Status, public?: true)
+    attribute(:status_enum, AshPostgres.Test.Types.StatusEnum, public?: true)
+
+    attribute(:status_enum_no_cast, AshPostgres.Test.Types.StatusEnumNoCast,
+      source: :status_enum,
+      public?: true
+    )
+
+    attribute(:point, AshPostgres.Test.Point, public?: true)
+    attribute(:composite_point, AshPostgres.Test.CompositePoint, public?: true)
+    attribute(:stuff, :map, public?: true)
+    attribute(:list_of_stuff, {:array, :map}, public?: true)
+    attribute(:uniq_one, :string, public?: true)
+    attribute(:uniq_two, :string, public?: true)
+    attribute(:uniq_custom_one, :string, public?: true)
+    attribute(:uniq_custom_two, :string, public?: true)
 
     attribute :list_containing_nils, {:array, :string} do
+      public?(true)
       constraints(nil_items?: true)
     end
 
-    create_timestamp(:created_at)
-    update_timestamp(:updated_at)
+    create_timestamp(:created_at, writable?: true, public?: true)
+    update_timestamp(:updated_at, writable?: true, public?: true)
   end
 
   code_interface do
-    define_for(AshPostgres.Test.Api)
+    define(:create, args: [:title])
     define(:get_by_id, action: :read, get_by: [:id])
     define(:increment_score, args: [{:optional, :amount}])
+    define(:destroy)
+    define(:bulk_create, bulk?: true, action: :create)
   end
 
   relationships do
     belongs_to :organization, AshPostgres.Test.Organization do
+      public?(true)
       attribute_writable?(true)
     end
 
-    belongs_to(:author, AshPostgres.Test.Author)
+    belongs_to(:author, AshPostgres.Test.Author) do
+      public?(true)
+    end
 
     has_many :posts_with_matching_title, __MODULE__ do
+      public?(true)
       no_attributes?(true)
       filter(expr(parent(title) == title and parent(id) != id))
     end
 
-    has_many(:comments, AshPostgres.Test.Comment, destination_attribute: :post_id)
+    has_many(:comments, AshPostgres.Test.Comment, destination_attribute: :post_id, public?: true)
 
     has_many :comments_matching_post_title, AshPostgres.Test.Comment do
+      public?(true)
       filter(expr(title == parent_expr(title)))
     end
 
     has_many :popular_comments, AshPostgres.Test.Comment do
+      public?(true)
       destination_attribute(:post_id)
       filter(expr(likes > 10))
     end
 
     has_many :comments_containing_title, AshPostgres.Test.Comment do
+      public?(true)
       manual(AshPostgres.Test.Post.CommentsContainingTitle)
     end
 
     has_many :comments_with_high_rating, AshPostgres.Test.Comment do
+      public?(true)
       filter(expr(ratings.score > 5))
     end
 
     has_many(:ratings, AshPostgres.Test.Rating,
+      public?: true,
       destination_attribute: :resource_id,
       relationship_context: %{data_layer: %{table: "post_ratings"}}
     )
 
     has_many(:post_links, AshPostgres.Test.PostLink,
+      public?: true,
       destination_attribute: :source_post_id,
       filter: [state: :active]
     )
 
     many_to_many(:linked_posts, __MODULE__,
+      public?: true,
       through: AshPostgres.Test.PostLink,
       join_relationship: :post_links,
       source_attribute_on_join_resource: :source_post_id,
@@ -209,13 +238,16 @@ defmodule AshPostgres.Test.Post do
     )
 
     many_to_many(:followers, AshPostgres.Test.User,
+      public?: true,
       through: AshPostgres.Test.PostFollower,
       source_attribute_on_join_resource: :post_id,
       destination_attribute_on_join_resource: :follower_id,
       read_action: :active
     )
 
-    has_many(:views, AshPostgres.Test.PostView)
+    has_many(:views, AshPostgres.Test.PostView) do
+      public?(true)
+    end
   end
 
   validations do
@@ -483,10 +515,10 @@ end
 
 defmodule CalculatePostPriceString do
   @moduledoc false
-  use Ash.Calculation
+  use Ash.Resource.Calculation
 
   @impl true
-  def select(_, _, _), do: [:price]
+  def load(_, _, _), do: [:price]
 
   @impl true
   def calculate(records, _, _) do
@@ -500,7 +532,7 @@ end
 
 defmodule CalculatePostPriceStringWithSymbol do
   @moduledoc false
-  use Ash.Calculation
+  use Ash.Resource.Calculation
 
   @impl true
   def load(_, _, _), do: [:price_string]
@@ -524,7 +556,7 @@ defmodule AshPostgres.Test.Post.ManualUpdate do
       |> Ash.Changeset.for_update(:update, changeset.attributes)
       |> Ash.Changeset.force_change_attribute(:title, "manual")
       |> Ash.Changeset.load(:comments)
-      |> AshPostgres.Test.Api.update!()
+      |> Ash.update!()
     }
   end
 end

@@ -1,8 +1,12 @@
 defmodule AshPostgres.Test.User do
   @moduledoc false
-  use Ash.Resource, data_layer: AshPostgres.DataLayer
+  use Ash.Resource,
+    domain: AshPostgres.Test.Domain,
+    data_layer: AshPostgres.DataLayer
 
   actions do
+    default_accept(:*)
+
     defaults([:create, :read, :update, :destroy])
 
     read :active do
@@ -16,8 +20,8 @@ defmodule AshPostgres.Test.User do
 
   attributes do
     uuid_primary_key(:id)
-    attribute(:is_active, :boolean)
-    attribute(:name, :string)
+    attribute(:is_active, :boolean, public?: true)
+    attribute(:name, :string, public?: true)
   end
 
   postgres do
@@ -27,9 +31,12 @@ defmodule AshPostgres.Test.User do
 
   relationships do
     belongs_to :organization, AshPostgres.Test.Organization do
+      public?(true)
       attribute_writable?(true)
     end
 
-    has_many(:accounts, AshPostgres.Test.Account)
+    has_many(:accounts, AshPostgres.Test.Account) do
+      public?(true)
+    end
   end
 end

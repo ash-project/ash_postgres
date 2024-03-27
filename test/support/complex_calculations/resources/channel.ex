@@ -1,20 +1,22 @@
 defmodule AshPostgres.Test.ComplexCalculations.Channel do
   @moduledoc false
   use Ash.Resource,
+    domain: AshPostgres.Test.ComplexCalculations.Domain,
     data_layer: AshPostgres.DataLayer,
     authorizers: [Ash.Policy.Authorizer]
 
   require Ash.Expr
 
   actions do
+    default_accept(:*)
     defaults([:create, :read, :update, :destroy])
   end
 
   attributes do
     uuid_primary_key(:id)
 
-    create_timestamp(:created_at, private?: false)
-    update_timestamp(:updated_at, private?: false)
+    create_timestamp(:created_at, public?: true)
+    update_timestamp(:updated_at, public?: true)
   end
 
   postgres do
@@ -23,30 +25,36 @@ defmodule AshPostgres.Test.ComplexCalculations.Channel do
   end
 
   relationships do
-    has_many(:channel_members, AshPostgres.Test.ComplexCalculations.ChannelMember)
+    has_many(:channel_members, AshPostgres.Test.ComplexCalculations.ChannelMember) do
+      public?(true)
+    end
 
     has_one :first_member, AshPostgres.Test.ComplexCalculations.ChannelMember do
+      public?(true)
       destination_attribute(:channel_id)
       from_many?(true)
       sort(created_at: :asc)
     end
 
     has_one :second_member, AshPostgres.Test.ComplexCalculations.ChannelMember do
+      public?(true)
       destination_attribute(:channel_id)
       from_many?(true)
       sort(created_at: :desc)
     end
 
     has_one :dm_channel, AshPostgres.Test.ComplexCalculations.DMChannel do
-      api(AshPostgres.Test.ComplexCalculations.Api)
+      public?(true)
+      domain(AshPostgres.Test.ComplexCalculations.Domain)
       destination_attribute(:id)
     end
 
     has_one :dm_channel_with_same_id, AshPostgres.Test.ComplexCalculations.DMChannel do
+      public?(true)
       no_attributes?(true)
       from_many?(true)
       filter(expr(parent(id) == id))
-      api(AshPostgres.Test.ComplexCalculations.Api)
+      domain(AshPostgres.Test.ComplexCalculations.Domain)
     end
   end
 

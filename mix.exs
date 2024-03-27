@@ -45,7 +45,7 @@ defmodule AshPostgres.MixProject do
   if Mix.env() == :test do
     def application() do
       [
-        applications: [:ecto, :ecto_sql, :jason, :ash, :postgrex, :tools, :benchee],
+        applications: [:ecto, :ecto_sql, :jason, :ash, :postgrex, :tools, :benchee, :xmerl],
         mod: {AshPostgres.TestApp, []}
       ]
     end
@@ -140,7 +140,6 @@ defmodule AshPostgres.MixProject do
           EctoMigrationDefault
         ],
         Expressions: [
-          AshPostgres.Functions.Fragment,
           AshPostgres.Functions.TrigramSimilarity,
           AshPostgres.Functions.ILike,
           AshPostgres.Functions.Like,
@@ -157,7 +156,10 @@ defmodule AshPostgres.MixProject do
       {:ecto, "~> 3.9"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
-      {:ash, ash_version("~> 2.19 and >= 2.20.3")},
+      {:spark, path: "../spark", override: true},
+      # dev/test dependencies
+      {:simple_sat, "~> 0.1"},
+      {:ash, ash_version(github: "ash-project/ash", branch: "3.0")},
       {:benchee, "~> 1.1", only: [:dev, :test]},
       {:git_ops, "~> 2.5", only: [:dev, :test]},
       {:ex_doc, github: "elixir-lang/ex_doc", only: [:dev, :test], runtime: false},

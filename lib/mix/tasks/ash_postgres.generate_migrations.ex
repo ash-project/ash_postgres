@@ -4,7 +4,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
 
   Options:
 
-  * `apis` - a comma separated list of API modules, for which migrations will be generated
+  * `domains` - a comma separated list of Domain modules, for which migrations will be generated
   * `snapshot-path` - a custom path to store the snapshots, defaults to "priv/resource_snapshots"
   * `migration-path` - a custom path to store the migrations, defaults to "priv".
     Migrations are stored in a folder for each repo, so `priv/repo_name/migrations`
@@ -87,7 +87,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
     {opts, _} =
       OptionParser.parse!(args,
         strict: [
-          apis: :string,
+          domains: :string,
           snapshot_path: :string,
           migration_path: :string,
           tenant_migration_path: :string,
@@ -100,7 +100,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
         ]
       )
 
-    apis = AshPostgres.MixHelpers.apis!(opts, args)
+    domains = AshPostgres.MixHelpers.domains!(opts, args)
 
     opts =
       opts
@@ -119,6 +119,6 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
       """)
     end
 
-    AshPostgres.MigrationGenerator.generate(apis, opts)
+    AshPostgres.MigrationGenerator.generate(domains, opts)
   end
 end

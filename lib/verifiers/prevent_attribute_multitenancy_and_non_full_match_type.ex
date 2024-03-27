@@ -1,10 +1,10 @@
-defmodule AshPostgres.Transformers.PreventAttributeMultitenancyAndNonFullMatchType do
+defmodule AshPostgres.Verifiers.PreventAttributeMultitenancyAndNonFullMatchType do
   @moduledoc false
-  use Spark.Dsl.Transformer
-  alias Spark.Dsl.Transformer
+  use Spark.Dsl.Verifier
+  alias Spark.Dsl.Verifier
 
-  def transform(dsl) do
-    if Transformer.get_option(dsl, [:multitenancy], :strategy) == :attribute do
+  def verify(dsl) do
+    if Verifier.get_option(dsl, [:multitenancy], :strategy) == :attribute do
       dsl
       |> AshPostgres.DataLayer.Info.references()
       |> Enum.filter(&(&1.match_type && &1.match_type != :full))
@@ -14,7 +14,7 @@ defmodule AshPostgres.Transformers.PreventAttributeMultitenancyAndNonFullMatchTy
         if uses_attribute_strategy?(relationship) and
              not targets_primary_key?(relationship) and
              not targets_multitenancy_attribute?(relationship) do
-          resource = Transformer.get_persisted(dsl, :module)
+          resource = Verifier.get_persisted(dsl, :module)
 
           raise Spark.Error.DslError,
             module: resource,
@@ -28,9 +28,9 @@ defmodule AshPostgres.Transformers.PreventAttributeMultitenancyAndNonFullMatchTy
           :ok
         end
       end)
-    else
-      {:ok, dsl}
     end
+
+    :ok
   end
 
   defp uses_attribute_strategy?(relationship) do

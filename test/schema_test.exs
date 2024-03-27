@@ -1,12 +1,12 @@
 defmodule AshPostgres.SchemaTest do
   @moduledoc false
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Api, Author, Profile}
+  alias AshPostgres.Test.{Author, Profile}
 
   require Ash.Query
 
   setup do
-    [author: Api.create!(Ash.Changeset.for_create(Author, :create, %{}))]
+    [author: Ash.create!(Ash.Changeset.for_create(Author, :create, %{}))]
   end
 
   test "data can be created", %{author: author} do
@@ -14,16 +14,16 @@ defmodule AshPostgres.SchemaTest do
              Profile
              |> Ash.Changeset.for_create(:create, %{description: "foo"})
              |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
-             |> Api.create!()
+             |> Ash.create!()
   end
 
   test "data can be read", %{author: author} do
     Profile
     |> Ash.Changeset.for_create(:create, %{description: "foo"})
     |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
-    |> Api.create!()
+    |> Ash.create!()
 
-    assert [%{description: "foo"}] = Profile |> Api.read!()
+    assert [%{description: "foo"}] = Profile |> Ash.read!()
   end
 
   test "they can be filtered across", %{author: author} do
@@ -31,33 +31,33 @@ defmodule AshPostgres.SchemaTest do
       Profile
       |> Ash.Changeset.for_create(:create, %{description: "foo"})
       |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
-      |> Api.create!()
+      |> Ash.create!()
 
-    Api.create!(Ash.Changeset.for_create(Author, :create, %{}))
+    Ash.create!(Ash.Changeset.for_create(Author, :create, %{}))
 
     assert [_] =
              Author
              |> Ash.Query.filter(profile.id == ^profile.id)
-             |> Api.read!()
+             |> Ash.read!()
 
     assert [_] =
              Profile
              |> Ash.Query.filter(author.id == ^author.id)
-             |> Api.read!()
+             |> Ash.read!()
   end
 
   test "aggregates work across schemas", %{author: author} do
     Profile
     |> Ash.Changeset.for_create(:create, %{description: "foo"})
     |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
-    |> Api.create!()
+    |> Ash.create!()
 
     assert [%{profile_description: "foo"}] =
              Author
              |> Ash.Query.filter(profile_description == "foo")
              |> Ash.Query.load(:profile_description)
-             |> Api.read!()
+             |> Ash.read!()
 
-    assert %{profile_description: "foo"} = Api.load!(author, :profile_description)
+    assert %{profile_description: "foo"} = Ash.load!(author, :profile_description)
   end
 end

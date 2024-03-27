@@ -15,8 +15,8 @@ if Mix.env() == :dev do
 end
 
 if Mix.env() == :test do
-  config :ash, :validate_api_resource_inclusion?, false
-  config :ash, :validate_api_config_inclusion?, false
+  config :ash, :validate_domain_resource_inclusion?, false
+  config :ash, :validate_domain_config_inclusion?, false
 
   config :ash_postgres, AshPostgres.TestRepo,
     username: "postgres",
@@ -42,10 +42,10 @@ if Mix.env() == :test do
 
   config :ash_postgres,
     ecto_repos: [AshPostgres.TestRepo, AshPostgres.TestNoSandboxRepo],
-    ash_apis: [
-      AshPostgres.Test.Api,
-      AshPostgres.MultitenancyTest.Api,
-      AshPostgres.Test.ComplexCalculations.Api
+    ash_domains: [
+      AshPostgres.Test.Domain,
+      AshPostgres.MultitenancyTest.Domain,
+      AshPostgres.Test.ComplexCalculations.Domain
     ]
 
   config :logger, level: :warning
