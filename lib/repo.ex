@@ -71,6 +71,10 @@ defmodule AshPostgres.Repo do
 
   @doc "Allows overriding a given migration type for *all* fields, for example if you wanted to always use :timestamptz for :utc_datetime fields"
   @callback override_migration_type(atom) :: atom
+  @doc "Should the repo should be created by `mix ash_postgres.create`?"
+  @callback create?() :: boolean
+  @doc "Should the repo should be dropped by `mix ash_postgres.drop`?"
+  @callback drop?() :: boolean
 
   defmacro __using__(opts) do
     quote bind_quoted: [opts: opts] do
@@ -91,6 +95,9 @@ defmodule AshPostgres.Repo do
       def migrations_path, do: nil
       def default_prefix, do: "public"
       def override_migration_type(type), do: type
+      def create?, do: true
+      def drop?, do: true
+
 
       def transaction!(fun) do
         case fun.() do
@@ -226,7 +233,9 @@ defmodule AshPostgres.Repo do
                      all_tenants: 0,
                      tenant_migrations_path: 0,
                      default_prefix: 0,
-                     override_migration_type: 1
+                     override_migration_type: 1,
+                     create?: 0,
+                     drop?: 0
     end
   end
 end

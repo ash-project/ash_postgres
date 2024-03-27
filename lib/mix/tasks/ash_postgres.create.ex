@@ -34,7 +34,9 @@ defmodule Mix.Tasks.AshPostgres.Create do
   def run(args) do
     {opts, _} = OptionParser.parse!(args, strict: @switches, aliases: @aliases)
 
-    repos = AshPostgres.MixHelpers.repos!(opts, args)
+    repos =
+      AshPostgres.MixHelpers.repos!(opts, args)
+      |> Enum.filter(fn repo -> repo.create? end)
 
     repo_args =
       Enum.flat_map(repos, fn repo ->
