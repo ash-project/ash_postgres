@@ -220,15 +220,15 @@ defmodule AshPostgres.MigrationGenerator do
         {module, migration_name} =
           case to_install do
             [{ext_name, version, _up_fn, _down_fn}] ->
-              {"install_#{ext_name}_v#{version}",
+              {"install_#{ext_name}_v#{version}_#{timestamp(true)}",
                "#{timestamp(true)}_install_#{ext_name}_v#{version}_extension"}
 
             ["ash-functions" = single] ->
-              {"install_#{single}_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}",
+              {"install_#{single}_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}_#{timestamp(true)}",
                "#{timestamp(true)}_install_#{single}_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}"}
 
             multiple ->
-              {"install_#{Enum.count(multiple)}_extensions",
+              {"install_#{Enum.count(multiple)}_extensions_#{timestamp(true)}",
                "#{timestamp(true)}_install_#{Enum.count(multiple)}_extensions"}
           end
 
