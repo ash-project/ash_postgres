@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.23](https://github.com/ash-project/ash_postgres/compare/v1.5.22...v1.5.23) (2024-03-28)
+
+
+
+
+### Bug Fixes:
+
+* properly handle non-filter aggregate filters
+
 ## [v1.5.22](https://github.com/ash-project/ash_postgres/compare/v1.5.21...v1.5.22) (2024-03-20)
 
 
