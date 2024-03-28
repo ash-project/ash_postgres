@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.0-rc.1](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.0...v2.0.0-rc.1) (2024-03-28)
+
+
+
+
+### Improvements:
+
+* add default implementation for pg_version, and rename to `min_pg_version`
+
 ## [v2.0.0-rc.0](https://github.com/ash-project/ash_postgres/compare/v1.5.22...v2.0.0-rc.0) (2024-03-27)
 
 ### Breaking Changes:
