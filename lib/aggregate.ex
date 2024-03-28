@@ -1048,8 +1048,7 @@ defmodule AshPostgres.Aggregate do
   defp has_filter?(nil), do: false
   defp has_filter?(%{filter: nil}), do: false
   defp has_filter?(%{filter: %Ash.Filter{expression: nil}}), do: false
-  defp has_filter?(%{filter: %Ash.Filter{}}), do: true
-  defp has_filter?(_), do: false
+  defp has_filter?(_), do: true
 
   defp has_sort?(nil), do: false
   defp has_sort?(%{sort: nil}), do: false
