@@ -5,6 +5,37 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.0-rc.2](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.1...v2.0.0-rc.2) (2024-03-29)
+### Breaking Changes:
+
+* change defaults for uuids to `gen_random_uuid()`
+
+* Use UTC for default generated timestamps (#131)
+
+* 3.0 (#227)
+
+
+
+### Features:
+
+* add `create?` and `drop?` callbacks to `AshPostgres.Repo` (#143)
+
+### Bug Fixes:
+
+* properly handle non-filter aggregate filters
+
+* ensure timestamps are present in extension migrations
+
+* handle fully fleshed out aggregate fields
+
+### Improvements:
+
+* add default implementation for pg_version, and rename to `min_pg_version`
+
+* upgrade to 3.0
+
+* properly show unsupported error expression
+
 ## [v2.0.0-rc.1](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.0...v2.0.0-rc.1) (2024-03-28)
 
 
