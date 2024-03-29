@@ -153,13 +153,13 @@ defmodule AshPostgres.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:ash, ash_version("~> 3.0.0-rc.0")},
       {:ecto_sql, "~> 3.9"},
       {:ecto, "~> 3.9"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
       # dev/test dependencies
-      {:simple_sat, "~> 0.1"},
-      {:ash, ash_version("~> 3.0.0-rc.0")},
+      {:simple_sat, "~> 0.1", only: [:dev, :test]},
       {:benchee, "~> 1.1", only: [:dev, :test]},
       {:git_ops, "~> 2.5", only: [:dev, :test]},
       {:ex_doc, github: "elixir-lang/ex_doc", only: [:dev, :test], runtime: false},
