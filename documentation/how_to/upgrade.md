@@ -1,4 +1,4 @@
-# Upgrade from 2.0 to 3.0
+# Upgrade from 1.0 to 2.0
 
 There are only three breaking changes in this release, one of them is very significant, the other two are minor.
 
