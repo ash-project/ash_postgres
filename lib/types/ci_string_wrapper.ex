@@ -1,4 +1,4 @@
-defmodule Ash.Type.CiStringWrapper do
+defmodule AshPostgres.Type.CiStringWrapper do
   @moduledoc false
   use Ash.Type
 

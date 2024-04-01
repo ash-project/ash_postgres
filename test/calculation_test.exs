@@ -692,8 +692,8 @@ defmodule AshPostgres.CalculationTest do
              Author
              |> Ash.Query.calculate(
                :length,
-               expr(string_length(string_trim(first_name <> last_name <> " "))),
-               :integer
+               :integer,
+               expr(string_length(string_trim(first_name <> last_name <> " ")))
              )
              |> Ash.read_one!()
   end
@@ -726,8 +726,8 @@ defmodule AshPostgres.CalculationTest do
              Author
              |> Ash.Query.calculate(
                :string,
-               expr(lazy({__MODULE__, :fred, []})),
-               :string
+               :string,
+               expr(lazy({__MODULE__, :fred, []}))
              )
              |> Ash.read_one!()
   end

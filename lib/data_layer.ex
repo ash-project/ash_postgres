@@ -546,7 +546,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def set_context(resource, data_layer_query, context) do
-    AshSql.Query.set_context(resource, data_layer_query, context)
+    AshSql.Query.set_context(resource, data_layer_query, AshPostgres.SqlImplementation, context)
   end
 
   @impl true

@@ -1,4 +1,4 @@
-defmodule Ash.Type.StringWrapper do
+defmodule AshPostgres.Type.StringWrapper do
   @moduledoc false
   use Ash.Type
 

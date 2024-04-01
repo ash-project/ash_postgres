@@ -5,6 +5,18 @@ defmodule AshPostgres.SqlImplementation do
   require Ecto.Query
 
   @impl true
+  def manual_relationship_function, do: :ash_postgres_join
+
+  @impl true
+  def manual_relationship_subquery_function, do: :ash_postgres_subquery
+
+  @impl true
+  def require_ash_functions_for_or_and_and?, do: true
+
+  @impl true
+  def require_extension_for_citext, do: {true, "citext"}
+
+  @impl true
   def expr(
         query,
         %like{arguments: [arg1, arg2], embedded?: pred_embedded?},
@@ -136,11 +148,11 @@ defmodule AshPostgres.SqlImplementation do
   end
 
   def parameterized_type(Ash.Type.CiString, constraints, no_maps?) do
-    parameterized_type(Ash.Type.CiStringWrapper, constraints, no_maps?)
+    parameterized_type(AshPostgres.Type.CiStringWrapper, constraints, no_maps?)
   end
 
-  def parameterized_type(Ash.Type.String.EctoType, constraints, no_maps?) do
-    parameterized_type(Ash.Type.StringWrapper, constraints, no_maps?)
+  def parameterized_type(Ash.Type.String, constraints, no_maps?) do
+    parameterized_type(AshPostgres.Type.StringWrapper, constraints, no_maps?)
   end
 
   def parameterized_type(:tsquery, constraints, no_maps?) do
@@ -166,13 +178,6 @@ defmodule AshPostgres.SqlImplementation do
 
       if cast_in_query? do
         type = Ash.Type.ecto_type(type)
-
-        type =
-          if type.type(constraints) == :ci_string do
-            Ash.Type.CiStringWrapper
-          else
-            type
-          end
 
         parameterized_type(type, constraints, no_maps?)
       else

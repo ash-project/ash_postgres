@@ -154,7 +154,7 @@ defmodule AshPostgres.MixProject do
   defp deps do
     [
       {:ash, ash_version("~> 3.0.0-rc.0")},
-      {:ash_sql, "~> 0.1.1-rc.0"},
+      {:ash_sql, "~> 0.1.1-rc.3"},
       {:ecto_sql, "~> 3.9"},
       {:ecto, "~> 3.9"},
       {:jason, "~> 1.0"},
@@ -178,7 +178,7 @@ defmodule AshPostgres.MixProject do
         default_version
 
       "local" ->
-        [path: "../ash"]
+        [path: "../ash", override: true]
 
       "main" ->
         [git: "https://github.com/ash-project/ash.git"]

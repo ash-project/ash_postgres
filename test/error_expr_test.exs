@@ -28,8 +28,8 @@ defmodule AshPostgres.ErrorExprTest do
       Post
       |> Ash.Query.calculate(
         :test,
-        expr(error(Ash.Error.Query.InvalidFilterValue, message: "this is bad!", value: 10)),
-        :string
+        :string,
+        expr(error(Ash.Error.Query.InvalidFilterValue, message: "this is bad!", value: 10))
       )
       |> Ash.read!()
       |> Enum.map(& &1.calculations)
@@ -46,8 +46,8 @@ defmodule AshPostgres.ErrorExprTest do
         Post
         |> Ash.Query.calculate(
           :test,
-          expr(error(Ash.Error.Query.InvalidFilterValue, message: "this is bad!", value: 10)),
-          :string
+          :string,
+          expr(error(Ash.Error.Query.InvalidFilterValue, message: "this is bad!", value: 10))
         )
         |> Ash.read!()
         |> Enum.map(& &1.calculations)
