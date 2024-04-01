@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.0-rc.3](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.2...v2.0.0-rc.3) (2024-04-01)
+
+
+
+
+### Improvements:
+
+* fixes for 3.0 changes and AshSql changes
+
+* move many internals out to `AshSql` package
+
 ## [v2.0.0-rc.2](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.1...v2.0.0-rc.2) (2024-03-29)
 ### Breaking Changes:
 
