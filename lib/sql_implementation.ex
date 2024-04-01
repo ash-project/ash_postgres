@@ -1,8 +1,120 @@
-defmodule AshPostgres.Types do
+defmodule AshPostgres.SqlImplementation do
   @moduledoc false
+  use AshSql.Implementation
 
-  alias Ash.Query.Ref
+  require Ecto.Query
 
+  @impl true
+  def expr(
+        query,
+        %like{arguments: [arg1, arg2], embedded?: pred_embedded?},
+        bindings,
+        embedded?,
+        acc,
+        type
+      )
+      when like in [AshPostgres.Functions.Like, AshPostgres.Functions.ILike] do
+    {arg1, acc} =
+      AshSql.Expr.dynamic_expr(query, arg1, bindings, pred_embedded? || embedded?, :string, acc)
+
+    {arg2, acc} =
+      AshSql.Expr.dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?, :string, acc)
+
+    inner_dyn =
+      if like == AshPostgres.Functions.Like do
+        Ecto.Query.dynamic(like(^arg1, ^arg2))
+      else
+        Ecto.Query.dynamic(ilike(^arg1, ^arg2))
+      end
+
+    if type != Ash.Type.Boolean do
+      {:ok, inner_dyn, acc}
+    else
+      {:ok, Ecto.Query.dynamic(type(^inner_dyn, ^type)), acc}
+    end
+  end
+
+  def expr(
+        query,
+        %AshPostgres.Functions.TrigramSimilarity{
+          arguments: [arg1, arg2],
+          embedded?: pred_embedded?
+        },
+        bindings,
+        embedded?,
+        acc,
+        _type
+      ) do
+    {arg1, acc} =
+      AshSql.Expr.dynamic_expr(query, arg1, bindings, pred_embedded? || embedded?, :string, acc)
+
+    {arg2, acc} =
+      AshSql.Expr.dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?, :string, acc)
+
+    {:ok, Ecto.Query.dynamic(fragment("similarity(?, ?)", ^arg1, ^arg2)), acc}
+  end
+
+  def expr(
+        query,
+        %AshPostgres.Functions.VectorCosineDistance{
+          arguments: [arg1, arg2],
+          embedded?: pred_embedded?
+        },
+        bindings,
+        embedded?,
+        acc,
+        _type
+      ) do
+    {arg1, acc} =
+      AshSql.Expr.dynamic_expr(query, arg1, bindings, pred_embedded? || embedded?, :string, acc)
+
+    {arg2, acc} =
+      AshSql.Expr.dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?, :string, acc)
+
+    {:ok, Ecto.Query.dynamic(fragment("(? <=> ?)", ^arg1, ^arg2)), acc}
+  end
+
+  def expr(
+        _query,
+        _expr,
+        _bindings,
+        _embedded?,
+        _acc,
+        _type
+      ) do
+    :error
+  end
+
+  @impl true
+  def table(resource) do
+    AshPostgres.DataLayer.Info.table(resource)
+  end
+
+  @impl true
+  def schema(resource) do
+    AshPostgres.DataLayer.Info.schema(resource)
+  end
+
+  @impl true
+  def repo(resource, kind) do
+    AshPostgres.DataLayer.Info.repo(resource, kind)
+  end
+
+  @impl true
+  def simple_join_first_aggregates(resource) do
+    AshPostgres.DataLayer.Info.simple_join_first_aggregates(resource)
+  end
+
+  @impl true
+  def list_aggregate(resource) do
+    if AshPostgres.DataLayer.Info.pg_version_matches?(resource, ">= 16.0.0") do
+      "any_value"
+    else
+      "array_agg"
+    end
+  end
+
+  @impl true
   def parameterized_type(type, constraints, no_maps? \\ true)
 
   def parameterized_type({:parameterized, _, _} = type, _, _) do
@@ -82,6 +194,7 @@ defmodule AshPostgres.Types do
     end
   end
 
+  @impl true
   def determine_types(mod, values) do
     Code.ensure_compiled(mod)
 
@@ -198,7 +311,8 @@ defmodule AshPostgres.Types do
 
   defp fill_in_known_type(
          {{:array, type},
-          %Ref{attribute: %{type: {:array, type}, constraints: constraints} = attribute} = ref}
+          %Ash.Query.Ref{attribute: %{type: {:array, type}, constraints: constraints} = attribute} =
+            ref}
        ) do
     {:in,
      fill_in_known_type(
@@ -228,7 +342,7 @@ defmodule AshPostgres.Types do
   end
 
   defp fill_in_known_type(
-         {vague_type, %Ref{attribute: %{type: type, constraints: constraints}}} = ref
+         {vague_type, %Ash.Query.Ref{attribute: %{type: type, constraints: constraints}}} = ref
        )
        when vague_type in [:any, :same] do
     if Ash.Type.ash_type?(type) do

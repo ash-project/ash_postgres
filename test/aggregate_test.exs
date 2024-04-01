@@ -1,4 +1,4 @@
-defmodule AshPostgres.AggregateTest do
+defmodule AshSql.AggregateTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.{Author, Comment, Organization, Post, Rating, User}
 
