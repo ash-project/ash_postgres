@@ -701,8 +701,8 @@ defmodule AshPostgres.MigrationGenerator do
             #{unique_primary_key_names}
             """
 
-            message
-            |> Mix.shell().prompt()
+            opts
+            |> prompt(message)
             |> String.to_integer()
           end
 
@@ -757,6 +757,22 @@ defmodule AshPostgres.MigrationGenerator do
       {pkey_names, identities}
     else
       merge_primary_keys(nil, snapshots, opts)
+    end
+  end
+
+  defp yes?(opts, message) do
+    if opts.check do
+      true
+    else
+      Mix.shell().yes?(message)
+    end
+  end
+
+  defp prompt(opts, message) do
+    if opts.check do
+      "response"
+    else
+      Mix.shell().prompt(message)
     end
   end
 
@@ -2357,7 +2373,7 @@ defmodule AshPostgres.MigrationGenerator do
           if opts.no_shell? do
             raise "Unimplemented: Cannot get new_attribute without the shell!"
           else
-            get_new_attribute(adding)
+            get_new_attribute(adding, opts)
           end
 
         {Enum.reject(adding, &(&1.source == new_attribute.source)), [],
@@ -2375,7 +2391,7 @@ defmodule AshPostgres.MigrationGenerator do
     if opts.no_shell? do
       raise "Unimplemented: cannot determine: Are you renaming #{table}.#{removing} to #{table}.#{adding}? without shell input"
     else
-      Mix.shell().yes?("Are you renaming #{table}.#{removing} to #{table}.#{adding}?")
+      yes?(opts, "Are you renaming #{table}.#{removing} to #{table}.#{adding}?")
     end
   end
 
@@ -2383,19 +2399,20 @@ defmodule AshPostgres.MigrationGenerator do
     if opts.no_shell? do
       raise "Unimplemented: cannot determine: Are you renaming #{table}.#{removing.source}? without shell input"
     else
-      Mix.shell().yes?("Are you renaming #{table}.#{removing.source}?")
+      yes?(opts, "Are you renaming #{table}.#{removing.source}?")
     end
   end
 
-  defp get_new_attribute(adding, tries \\ 3)
+  defp get_new_attribute(adding, opts, tries \\ 3)
 
-  defp get_new_attribute(_adding, 0) do
+  defp get_new_attribute(_adding, _opts, 0) do
     raise "Could not get matching name after 3 attempts."
   end
 
-  defp get_new_attribute(adding, tries) do
+  defp get_new_attribute(adding, opts, tries) do
     name =
-      Mix.shell().prompt(
+      prompt(
+        opts,
         "What are you renaming it to?: #{Enum.map_join(adding, ", ", & &1.source)}"
       )
 
@@ -2407,7 +2424,7 @@ defmodule AshPostgres.MigrationGenerator do
       end
 
     case Enum.find(adding, &(to_string(&1.source) == name)) do
-      nil -> get_new_attribute(adding, tries - 1)
+      nil -> get_new_attribute(adding, opts, tries - 1)
       new_attribute -> new_attribute
     end
   end
