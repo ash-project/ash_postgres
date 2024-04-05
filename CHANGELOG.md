@@ -5,6 +5,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.0-rc.5](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.4...v2.0.0-rc.5) (2024-04-05)
+
+
+
+
+### Bug Fixes:
+
+* don't wait for shell input when checking migrations
+
+### Improvements:
+
+* don't fetch version in agent when using sandbox
+
 ## [v2.0.0-rc.4](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.3...v2.0.0-rc.4) (2024-04-02)
 
 
