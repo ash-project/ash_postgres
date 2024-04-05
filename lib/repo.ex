@@ -214,14 +214,37 @@ defmodule AshPostgres.Repo do
       end
 
       defp cached_version do
-        Agent.start_link(
-          fn ->
-            lookup_version()
-          end,
-          name: @agent
-        )
+        if config()[:pool] == Ecto.Adapters.SQL.Sandbox do
+          Agent.start_link(
+            fn ->
+              nil
+            end,
+            name: @agent
+          )
 
-        Agent.get(@agent, fn state -> state end)
+          case Agent.get(@agent, fn state -> state end) do
+            nil ->
+              version = lookup_version()
+
+              Agent.update(@agent, fn _ ->
+                version
+              end)
+
+              version
+
+            version ->
+              version
+          end
+        else
+          Agent.start_link(
+            fn ->
+              lookup_version()
+            end,
+            name: @agent
+          )
+
+          Agent.get(@agent, fn state -> state end)
+        end
       end
 
       defp lookup_version do
