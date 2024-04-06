@@ -45,7 +45,7 @@ defmodule AshPostgres.MixProject do
   if Mix.env() == :test do
     def application() do
       [
-        applications: [:ecto, :ecto_sql, :jason, :ash, :postgrex, :tools, :benchee, :xmerl, :ash_sql],
+        extra_applications: [:tools, :xmerl],
         mod: {AshPostgres.TestApp, []}
       ]
     end
