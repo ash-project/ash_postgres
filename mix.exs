@@ -45,7 +45,7 @@ defmodule AshPostgres.MixProject do
   if Mix.env() == :test do
     def application() do
       [
-        applications: [:ecto, :ecto_sql, :jason, :ash, :postgrex, :tools, :benchee, :xmerl],
+        applications: [:ecto, :ecto_sql, :jason, :ash, :postgrex, :tools, :benchee, :xmerl, :ash_sql],
         mod: {AshPostgres.TestApp, []}
       ]
     end
@@ -154,7 +154,7 @@ defmodule AshPostgres.MixProject do
   defp deps do
     [
       {:ash, ash_version("~> 3.0.0-rc")},
-      {:ash_sql, "~> 0.1.1-rc.3"},
+      {:ash_sql, "~> 0.1.1-rc"},
       {:ecto_sql, "~> 3.9"},
       {:ecto, "~> 3.9"},
       {:jason, "~> 1.0"},

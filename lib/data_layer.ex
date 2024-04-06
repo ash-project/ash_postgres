@@ -1211,14 +1211,14 @@ defmodule AshPostgres.DataLayer do
           nil ->
             {:ok,
              query
-             |> AshSql.Bindings.default_bindings(resource, AshSql.Implementation, context)
+             |> AshSql.Bindings.default_bindings(resource, AshPostgres.SqlImplementation, context)
              |> Ecto.Query.exclude(:select)
              |> Ecto.Query.exclude(:order_by)}
 
           %{qual: :inner} ->
             {:ok,
              query
-             |> AshSql.Bindings.default_bindings(resource, AshSql.Implementation, context)
+             |> AshSql.Bindings.default_bindings(resource, AshPostgres.SqlImplementation, context)
              |> Ecto.Query.exclude(:select)
              |> Ecto.Query.exclude(:order_by)}
 
