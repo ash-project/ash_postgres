@@ -52,7 +52,7 @@ end
 | [`migration_ignore_attributes`](#postgres-migration_ignore_attributes){: #postgres-migration_ignore_attributes } | `list(atom)` | `[]` | A list of attributes that will be ignored when generating migrations. |
 | [`table`](#postgres-table){: #postgres-table } | `String.t` |  | The table to store and read the resource from. If this is changed, the migration generator will not remove the old table. |
 | [`schema`](#postgres-schema){: #postgres-schema } | `String.t` |  | The schema that the table is located in. Schema-based multitenancy will supercede this option. If this is changed, the migration generator will not remove the old schema. |
-| [`polymorphic?`](#postgres-polymorphic?){: #postgres-polymorphic? } | `boolean` | `false` | Declares this resource as polymorphic. See the [polymorphic resources guide](/documentation/topics/polymorphic_resources.md) for more. |
+| [`polymorphic?`](#postgres-polymorphic?){: #postgres-polymorphic? } | `boolean` | `false` | Declares this resource as polymorphic. See the [polymorphic resources guide](/documentation/topics/resources/polymorphic-resources.md) for more. |
 
 
 ## postgres.custom_indexes

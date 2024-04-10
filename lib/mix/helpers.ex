@@ -1,4 +1,4 @@
-defmodule AshPostgres.MixHelpers do
+defmodule AshPostgres.Mix.Helpers do
   @moduledoc false
   def domains!(opts, args) do
     apps =

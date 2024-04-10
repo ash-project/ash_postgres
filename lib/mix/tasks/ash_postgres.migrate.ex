@@ -1,7 +1,7 @@
 defmodule Mix.Tasks.AshPostgres.Migrate do
   use Mix.Task
 
-  import AshPostgres.MixHelpers,
+  import AshPostgres.Mix.Helpers,
     only: [migrations_path: 2, tenant_migrations_path: 2, tenants: 2]
 
   @shortdoc "Runs the repository migrations for all repositories in the provided (or congigured) domains"
@@ -103,15 +103,15 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
   def run(args) do
     {opts, _} = OptionParser.parse!(args, strict: @switches, aliases: @aliases)
 
-    repos = AshPostgres.MixHelpers.repos!(opts, args)
+    repos = AshPostgres.Mix.Helpers.repos!(opts, args)
 
     rest_opts =
       args
-      |> AshPostgres.MixHelpers.delete_arg("--domains")
-      |> AshPostgres.MixHelpers.delete_arg("--migrations-path")
-      |> AshPostgres.MixHelpers.delete_flag("--tenants")
-      |> AshPostgres.MixHelpers.delete_flag("--only-tenants")
-      |> AshPostgres.MixHelpers.delete_flag("--except-tenants")
+      |> AshPostgres.Mix.Helpers.delete_arg("--domains")
+      |> AshPostgres.Mix.Helpers.delete_arg("--migrations-path")
+      |> AshPostgres.Mix.Helpers.delete_flag("--tenants")
+      |> AshPostgres.Mix.Helpers.delete_flag("--only-tenants")
+      |> AshPostgres.Mix.Helpers.delete_flag("--except-tenants")
 
     Mix.Task.reenable("ecto.migrate")
 
@@ -119,7 +119,7 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
       for repo <- repos do
         Ecto.Migrator.with_repo(repo, fn repo ->
           for tenant <- tenants(repo, opts) do
-            rest_opts = AshPostgres.MixHelpers.delete_arg(rest_opts, "--prefix")
+            rest_opts = AshPostgres.Mix.Helpers.delete_arg(rest_opts, "--prefix")
 
             Mix.Task.run(
               "ecto.migrate",

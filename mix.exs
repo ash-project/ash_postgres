@@ -68,7 +68,7 @@ defmodule AshPostgres.MixProject do
 
   defp docs do
     [
-      main: "get-started-with-postgres",
+      main: "home",
       source_ref: "v#{@version}",
       logo: "logos/small-logo.png",
       before_closing_head_tag: fn type ->
@@ -87,23 +87,44 @@ defmodule AshPostgres.MixProject do
         end
       end,
       extras: [
+        {"documentation/home.md", title: "Home"},
         "documentation/tutorials/get-started-with-postgres.md",
-        "documentation/how_to/join-manual-relationships.md",
-        "documentation/how_to/test-with-postgres.md",
-        "documentation/how_to/using-fragments.md",
-        "documentation/topics/migrations_and_tasks.md",
-        "documentation/topics/polymorphic_resources.md",
-        "documentation/topics/postgres-expressions.md",
-        "documentation/topics/references.md",
-        "documentation/topics/schema-based-multitenancy.md",
+        "documentation/topics/resources/references.md",
+        "documentation/topics/resources/polymorphic-resources.md",
+        "documentation/topics/development/migrations-and-tasks.md",
+        "documentation/topics/development/testing.md",
+        "documentation/topics/development/upgrading-to-2.0.md",
+        "documentation/topics/advanced/expressions.md",
+        "documentation/topics/advanced/schema-based-multitenancy.md",
+        "documentation/topics/advanced/manual-relationships.md",
         "documentation/dsls/DSL:-AshPostgres.DataLayer.md",
         "CHANGELOG.md"
       ],
       groups_for_extras: [
-        Tutorials: ~r'documentation/tutorials',
-        "How To": ~r'documentation/how_to',
-        Topics: ~r'documentation/topics',
-        DSLs: ~r'documentation/dsls'
+        Tutorials: [
+          "documentation/tutorials/get-started-with-postgres.md"
+        ],
+        Resources: [
+          "documentation/topics/resources/references.md",
+          "documentation/topics/resources/polymorphic-resources.md"
+        ],
+        Development: [
+          "documentation/topics/development/migrations-and-tasks.md",
+          "documentation/topics/development/testing.md",
+          "documentation/topics/development/upgrading-to-2.0.md"
+        ],
+        Advanced: [
+          "documentation/topics/advanced/expressions.md",
+          "documentation/topics/advanced/schema-based-multitenancy.md",
+          "documentation/topics/advanced/manual-relationships.md"
+        ],
+        Reference: [
+          "documentation/dsls/DSL:-AshPostgres.DataLayer.md"
+        ]
+      ],
+      skip_undefined_reference_warnings_on: [
+        "CHANGELOG.md",
+        "documentation/development/upgrading-to-2.0.md"
       ],
       nest_modules_by_prefix: [
         AshPostgres.Functions

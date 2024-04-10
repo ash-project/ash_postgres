@@ -45,7 +45,7 @@ defmodule Mix.Tasks.AshPostgres.Drop do
     opts = Keyword.merge(@default_opts, opts)
 
     repos =
-      AshPostgres.MixHelpers.repos!(opts, args)
+      AshPostgres.Mix.Helpers.repos!(opts, args)
       |> Enum.filter(fn repo -> repo.drop? end)
 
     repo_args =
@@ -53,7 +53,7 @@ defmodule Mix.Tasks.AshPostgres.Drop do
         ["-r", to_string(repo)]
       end)
 
-    rest_opts = AshPostgres.MixHelpers.delete_arg(args, "--domains")
+    rest_opts = AshPostgres.Mix.Helpers.delete_arg(args, "--domains")
 
     Mix.Task.reenable("ecto.drop")
     Mix.Task.run("ecto.drop", repo_args ++ rest_opts)

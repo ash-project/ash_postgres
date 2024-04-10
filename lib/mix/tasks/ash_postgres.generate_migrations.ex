@@ -100,7 +100,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
         ]
       )
 
-    domains = AshPostgres.MixHelpers.domains!(opts, args)
+    domains = AshPostgres.Mix.Helpers.domains!(opts, args)
 
     opts =
       opts

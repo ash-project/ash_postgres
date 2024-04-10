@@ -18,6 +18,8 @@ if Mix.env() == :test do
   config :ash, :validate_domain_resource_inclusion?, false
   config :ash, :validate_domain_config_inclusion?, false
 
+  config :ash_postgres, :ash_domains, [AshPostgres.Test.Domain]
+
   config :ash_postgres, AshPostgres.TestRepo,
     username: "postgres",
     database: "ash_postgres_test",

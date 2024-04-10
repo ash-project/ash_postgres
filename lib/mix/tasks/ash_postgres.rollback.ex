@@ -1,7 +1,7 @@
 defmodule Mix.Tasks.AshPostgres.Rollback do
   use Mix.Task
 
-  import AshPostgres.MixHelpers,
+  import AshPostgres.Mix.Helpers,
     only: [migrations_path: 2, tenant_migrations_path: 2, tenants: 2]
 
   @shortdoc "Rolls back the repository migrations for all repositories in the provided (or configured) domains"
@@ -62,15 +62,15 @@ defmodule Mix.Tasks.AshPostgres.Rollback do
         aliases: [n: :step, v: :to]
       )
 
-    repos = AshPostgres.MixHelpers.repos!(opts, args)
+    repos = AshPostgres.Mix.Helpers.repos!(opts, args)
 
     rest_opts =
       args
-      |> AshPostgres.MixHelpers.delete_arg("--domains")
-      |> AshPostgres.MixHelpers.delete_arg("--migrations-path")
-      |> AshPostgres.MixHelpers.delete_flag("--tenants")
-      |> AshPostgres.MixHelpers.delete_flag("--only-tenants")
-      |> AshPostgres.MixHelpers.delete_flag("--except-tenants")
+      |> AshPostgres.Mix.Helpers.delete_arg("--domains")
+      |> AshPostgres.Mix.Helpers.delete_arg("--migrations-path")
+      |> AshPostgres.Mix.Helpers.delete_flag("--tenants")
+      |> AshPostgres.Mix.Helpers.delete_flag("--only-tenants")
+      |> AshPostgres.Mix.Helpers.delete_flag("--except-tenants")
 
     Mix.Task.reenable("ecto.rollback")
 
@@ -78,7 +78,7 @@ defmodule Mix.Tasks.AshPostgres.Rollback do
       for repo <- repos do
         Ecto.Migrator.with_repo(repo, fn repo ->
           for tenant <- tenants(repo, opts) do
-            rest_opts = AshPostgres.MixHelpers.delete_arg(rest_opts, "--prefix")
+            rest_opts = AshPostgres.Mix.Helpers.delete_arg(rest_opts, "--prefix")
 
             Mix.Task.run(
               "ecto.rollback",

@@ -1,4 +1,4 @@
-# Join Manual Relationships
+# Manual Relationships
 
 See [Defining Manual Relationships](https://hexdocs.pm/ash/defining-manual-relationships.html) for an idea of manual relationships in general.
 Manual relationships allow for expressing complex/non-typical relationships between resources in a standard way.

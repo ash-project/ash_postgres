@@ -1,6 +1,6 @@
 # References
 
-To configure the foreign keys on a resource, we use the `references` block.
+To configure the behavior of generated foreign keys on a resource, we use the `references` section.
 
 For example:
 
@@ -10,9 +10,9 @@ references do
 end
 ```
 
-## Important
-
-No resource logic is applied with these operations! No authorization rules or validations take place, and no notifications are issued. This operation happens *directly* in the database. That
+> ### Actions are not used for this behavior {: .warning}
+>
+>  No resource logic is applied with these operations! No authorization rules or validations take place, and no notifications are issued. This operation happens *directly* in the database.
 
 ## Nothing vs Restrict
 
@@ -20,4 +20,4 @@ The difference between `:nothing` and `:restrict` is subtle and, if you are unsu
 
 ## On Delete
 
-This option is called `on_delete`, instead of `on_destroy`, because it is hooking into the database level deletion, *not* a `destroy` action in your resource.
+This option is called `on_delete`, instead of `on_destroy`, because it is hooking into the database level deletion, *not* a `destroy` action in your resource. See the warning above.

@@ -35,7 +35,7 @@ defmodule Mix.Tasks.AshPostgres.Create do
     {opts, _} = OptionParser.parse!(args, strict: @switches, aliases: @aliases)
 
     repos =
-      AshPostgres.MixHelpers.repos!(opts, args)
+      AshPostgres.Mix.Helpers.repos!(opts, args)
       |> Enum.filter(fn repo -> repo.create? end)
 
     repo_args =
@@ -43,7 +43,7 @@ defmodule Mix.Tasks.AshPostgres.Create do
         ["-r", to_string(repo)]
       end)
 
-    rest_opts = AshPostgres.MixHelpers.delete_arg(args, "--domains")
+    rest_opts = AshPostgres.Mix.Helpers.delete_arg(args, "--domains")
 
     Mix.Task.reenable("ecto.create")
     Mix.Task.run("ecto.create", repo_args ++ rest_opts)

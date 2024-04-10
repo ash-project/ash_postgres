@@ -1,4 +1,4 @@
-# Testing With Postgres
+# Testinging with AshPostgres
 
 When using AshPostgres resources in tests, you will likely want to include use a test case similar to the following. This will ensure that your repo runs everything in a transaction.
 
