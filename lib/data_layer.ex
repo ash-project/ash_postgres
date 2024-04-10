@@ -420,15 +420,18 @@ defmodule AshPostgres.DataLayer do
         |> Enum.map(fn {file, index} -> "#{index + 1}: #{file}" end)
 
       n =
-        Mix.shell().prompt("""
-        How many migrations should be rolled back#{for_repo}? (default: 0)
+        Mix.shell().prompt(
+          """
+          How many migrations should be rolled back#{for_repo}? (default: 0)
 
-        Last 20 migration names, with the input you must provide to
-        rollback up to *and including* that migration:
+          Last 20 migration names, with the input you must provide to
+          rollback up to *and including* that migration:
 
-        #{Enum.join(files, "\n")}
-        Rollback to:
-        """ |> String.trim_trailing())
+          #{Enum.join(files, "\n")}
+          Rollback to:
+          """
+          |> String.trim_trailing()
+        )
         |> String.trim()
         |> case do
           "" ->
@@ -484,7 +487,11 @@ defmodule AshPostgres.DataLayer do
               end
           end
 
-        Mix.Task.run("ash_postgres.rollback", args ++ ["--tenants", "-r", inspect(repo), "-n", to_string(n)])
+        Mix.Task.run(
+          "ash_postgres.rollback",
+          args ++ ["--tenants", "-r", inspect(repo), "-n", to_string(n)]
+        )
+
         Mix.Task.reenable("ash_postgres.rollback")
       end
     end
@@ -507,7 +514,23 @@ defmodule AshPostgres.DataLayer do
     # TODO: take args that we care about
     Mix.Task.run("ash_postgres.create", args)
     Mix.Task.run("ash_postgres.migrate", args)
-    Mix.Task.run("ash_postgres.migrate", ["--tenant" | args])
+
+    []
+    |> AshPostgres.Mix.Helpers.repos!(args)
+    |> Enum.all?(fn repo ->
+      []
+      |> AshPostgres.Mix.Helpers.tenant_migrations_path(repo)
+      |> Path.join("**/*.exs")
+      |> Path.wildcard()
+      |> Enum.empty?()
+    end)
+    |> case do
+      true ->
+        :ok
+
+      _ ->
+        Mix.Task.run("ash_postgres.migrate", ["--tenant" | args])
+    end
   end
 
   def tear_down(args) do
