@@ -5,6 +5,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.0-rc.6](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.5...v2.0.0-rc.6) (2024-04-10)
+
+
+
+
+### Bug Fixes:
+
+* use proper sql implementation in `default_bindings`
+
+### Improvements:
+
+* support `mix ash.rollback` with interactive rollback
+
 ## [v2.0.0-rc.5](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.4...v2.0.0-rc.5) (2024-04-05)
 
 
