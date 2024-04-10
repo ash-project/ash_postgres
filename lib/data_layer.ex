@@ -462,17 +462,20 @@ defmodule AshPostgres.DataLayer do
 
       if !Enum.empty?(tenant_files) do
         n =
-          Mix.shell().prompt("""
+          Mix.shell().prompt(
+            """
 
-          How many _tenant_ migrations should be rolled back#{for_repo}? (default: 0)
+            How many _tenant_ migrations should be rolled back#{for_repo}? (default: 0)
 
-          Last 20 migration names, with the input you must provide to
-          rollback up to *and including* that migration:
+            Last 20 migration names, with the input you must provide to
+            rollback up to *and including* that migration:
 
-          #{Enum.join(tenant_files, "\n")}
+            #{Enum.join(tenant_files, "\n")}
 
-          Rollback to:
-          """)
+            Rollback to:
+            """
+            |> String.trim_trailing()
+          )
           |> String.trim()
           |> case do
             "" ->
