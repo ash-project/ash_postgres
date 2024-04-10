@@ -1,9 +1,5 @@
 # Migrations
 
-## Migration Generator Primer
-
-<iframe width="560" height="315" src="https://www.youtube.com/embed/GtsL_lIis4Q?si=5G6-5ckzBEzL4zko" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
-
 ## Tasks
 
 Ash comes with its own tasks, and AshPostgres exposes lower level tasks that you can use if necessary. This guide shows the process using `ash.*` tasks, and the `ash_postgres.*` tasks are illustrated at the bottom.
