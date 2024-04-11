@@ -442,7 +442,7 @@ defmodule AshPostgres.DataLayer do
               String.to_integer(n)
             rescue
               _ ->
-                raise "Required an integer value, got: #{n}"
+                reraise "Required an integer value, got: #{n}", __STACKTRACE__
             end
         end
 
@@ -486,7 +486,7 @@ defmodule AshPostgres.DataLayer do
                 String.to_integer(n)
               rescue
                 _ ->
-                  raise "Required an integer value, got: #{n}"
+                  reraise "Required an integer value, got: #{n}", __STACKTRACE__
               end
           end
 
@@ -1745,7 +1745,7 @@ defmodule AshPostgres.DataLayer do
 
     case bulk_create(resource, [changeset], %{
            single?: true,
-           tenant: changeset.tenant,
+           tenant: Map.get(changeset, :to_tenant, changeset.tenant),
            return_records?: true
          }) do
       {:ok, [result]} ->
