@@ -44,7 +44,6 @@ defmodule AshPostgres.MixProject do
   if Mix.env() == :test do
     def application() do
       [
-        extra_applications: [:tools, :xmerl],
         mod: {AshPostgres.TestApp, []}
       ]
     end
