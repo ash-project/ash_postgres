@@ -297,11 +297,6 @@ You can also load individual aggregates on demand after queries have already bee
 
 require Ash.Query
 
-Helpdesk.Support.Representative
-|> Ash.Query.filter(closed_tickets < 4)
-|> Ash.Query.sort(closed_tickets: :desc)
-|> Helpdesk.Support.read!()
-
 representatives = Helpdesk.Support.read!(Helpdesk.Support.Representative)
 
 Helpdesk.Support.load!(representatives, :open_tickets)
@@ -309,7 +304,7 @@ Helpdesk.Support.load!(representatives, :open_tickets)
 
 ### Calculations
 
-Calculations can be pushed down into SQL in the same way. Calculations are similar to aggregates, except they work on individual records. They can, however, refer to calculations on the resource, which opens up powerful possibilities with very simple code.
+Calculations can be pushed down into SQL in the same way. Calculations are similar to aggregates, except they work on individual records. They can, however, refer to aggregates on the resource, which opens up powerful possibilities with very simple code.
 
 For example, we can determine the percentage of tickets that are open:
 
