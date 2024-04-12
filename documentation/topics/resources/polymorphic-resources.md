@@ -83,4 +83,4 @@ When a migration is marked as `polymorphic? true`, the migration generator will 
 all resources that are related to it, that set the `%{data_layer: %{table: "table"}}` context.
 For each of those, a migration is generated/managed automatically. This means that adding reactions
 to a new resource is as easy as adding the relationship and table context, and then running
-`mix ash_postgres.generate_migrations`.
+`mix ash.codegen`.
