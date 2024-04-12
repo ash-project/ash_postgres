@@ -6,7 +6,7 @@ defmodule AshPostgres.MixProject do
   support, and delegates to a configured repo.
   """
 
-  @version "2.0.0-rc.6"
+  @version "2.0.0-rc.7"
 
   def project do
     [
