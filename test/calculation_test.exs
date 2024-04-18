@@ -107,6 +107,32 @@ defmodule AshPostgres.CalculationTest do
              |> Ash.read!()
   end
 
+  test "calculations evaluate `exists` as expected" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{
+        first_name: "Foo",
+        bio: %{title: "Mr.", bio: "Bones"}
+      })
+      |> Ash.create!()
+
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "match"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    assert [%{has_author: true, has_comments: true}] =
+             Post
+             |> Ash.Query.load([:has_author, :has_comments])
+             |> Ash.read!()
+  end
+
   test "calculations can refer to embedded attributes" do
     author =
       Author
