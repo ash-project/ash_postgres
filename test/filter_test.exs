@@ -989,5 +989,32 @@ defmodule AshPostgres.FilterTest do
            |> Ash.Query.filter(first_member.id != ^cm2.id)
            |> Ash.read!()
            |> length == 4
+
+    assert Channel
+           |> Ash.Query.for_read(:read)
+           |> Ash.Query.filter(first_member.id == ^cm2.id)
+           |> Ash.read!()
+           |> length == 1
+  end
+
+  test "using exists with from_many?" do
+    c = Ash.Changeset.for_create(Channel, :create, %{}) |> Ash.create!()
+
+    [cm1, cm2 | _] =
+      for _ <- 1..5 do
+        Ash.Changeset.for_create(ChannelMember, :create, %{channel_id: c.id}) |> Ash.create!()
+      end
+
+    assert Channel
+           |> Ash.Query.for_read(:read)
+           |> Ash.Query.filter(exists(first_member, id == ^cm2.id))
+           |> Ash.read!()
+           |> length == 0
+
+    assert Channel
+           |> Ash.Query.for_read(:read)
+           |> Ash.Query.filter(exists(first_member, id == ^cm1.id))
+           |> Ash.read!()
+           |> length == 1
   end
 end
