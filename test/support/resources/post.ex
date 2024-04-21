@@ -79,6 +79,7 @@ defmodule AshPostgres.Test.Post do
     defaults([:destroy])
 
     destroy :destroy_with_confirm do
+      require_atomic?(false)
       argument(:confirm, :string, allow_nil?: false)
 
       change(fn changeset, _ ->
@@ -93,6 +94,7 @@ defmodule AshPostgres.Test.Post do
     end
 
     destroy :soft_destroy_with_confirm do
+      require_atomic?(false)
       argument(:confirm, :string, allow_nil?: false)
 
       change(fn changeset, _ ->

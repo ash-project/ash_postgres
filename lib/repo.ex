@@ -82,7 +82,7 @@ defmodule AshPostgres.Repo do
         otp_app = opts[:otp_app] || raise("Must configure OTP app")
 
         use Ecto.Repo,
-          adapter: Ecto.Adapters.Postgres,
+          adapter: opts[:adapter] || Ecto.Adapters.Postgres,
           otp_app: otp_app
       end
 
