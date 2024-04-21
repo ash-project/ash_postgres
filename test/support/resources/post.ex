@@ -78,6 +78,34 @@ defmodule AshPostgres.Test.Post do
 
     defaults([:destroy])
 
+    destroy :destroy_with_confirm do
+      argument(:confirm, :string, allow_nil?: false)
+
+      change(fn changeset, _ ->
+        Ash.Changeset.before_action(changeset, fn changeset ->
+          if changeset.arguments.confirm == "CONFIRM" do
+            changeset
+          else
+            Ash.Changeset.add_error(changeset, field: :confirm, message: "must type CONFIRM")
+          end
+        end)
+      end)
+    end
+
+    destroy :soft_destroy_with_confirm do
+      argument(:confirm, :string, allow_nil?: false)
+
+      change(fn changeset, _ ->
+        Ash.Changeset.before_action(changeset, fn changeset ->
+          if changeset.arguments.confirm == "CONFIRM" do
+            changeset
+          else
+            Ash.Changeset.add_error(changeset, field: :confirm, message: "must type CONFIRM")
+          end
+        end)
+      end)
+    end
+
     update :update do
       primary?(true)
       require_atomic?(false)
