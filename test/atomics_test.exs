@@ -33,6 +33,18 @@ defmodule AshPostgres.AtomicsTest do
              |> Ash.update!()
   end
 
+  test "an atomic validation is based on where it appears in the action" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "bar"})
+      |> Ash.create!()
+
+    # just asserting that there is no exception here
+    post
+    |> Ash.Changeset.for_update(:change_title_to_foo_unless_its_already_foo)
+    |> Ash.update!()
+  end
+
   test "an atomic works with a datetime" do
     post =
       Post

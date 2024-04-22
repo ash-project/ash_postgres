@@ -113,6 +113,11 @@ defmodule AshPostgres.Test.Post do
       require_atomic?(false)
     end
 
+    update :change_title_to_foo_unless_its_already_foo do
+      validate attribute_does_not_equal(:title, "foo")
+      change set_attribute(:title, "foo")
+    end
+
     read :title_is_foo do
       filter(expr(title == "foo"))
     end
