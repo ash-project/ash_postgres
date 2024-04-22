@@ -444,6 +444,32 @@ defmodule AshSql.AggregateTest do
                |> Ash.Query.load([:count_comment_titles, :count_uniq_comment_titles])
                |> Ash.read_one!()
     end
+
+    test "when related data that uses schema-based multitenancy, it returns the uniq" do
+      alias AshPostgres.MultitenancyTest.{Org, Post, User}
+
+      org =
+        Org
+        |> Ash.Changeset.for_create(:create, %{name: "BTTF"})
+        |> Ash.create!()
+
+      user =
+        User
+        |> Ash.Changeset.for_create(:create, %{name: "Marty", org_id: org.id})
+        |> Ash.create!()
+
+      posts =
+        ["Back to 1955", "Forwards to 1985", "Forward to 2015", "Back again to 1985"]
+        |> Enum.map(
+          &(Post
+            |> Ash.Changeset.for_create(:create, %{name: &1})
+            |> Ash.create!(tenant: "org_#{org.id}", load: [:last_word]))
+        )
+
+      user = Ash.load!(user, :years_visited, tenant: "org_#{org.id}")
+
+      assert Enum.sort(user.years_visited) == ["1955", "1985", "2015"]
+    end
   end
 
   describe "first" do
