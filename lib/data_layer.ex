@@ -571,8 +571,15 @@ defmodule AshPostgres.DataLayer do
 
   def can?(_, :transact), do: true
   def can?(_, :composite_primary_key), do: true
-  def can?(_, {:atomic, :update}), do: true
-  def can?(_, {:atomic, :upsert}), do: true
+
+  def can?(resource, {:atomic, :update}) do
+    "ash-functions" in AshPostgres.DataLayer.Info.repo(resource, :mutate).installed_extensions()
+  end
+
+  def can?(resource, {:atomic, :upsert}) do
+    "ash-functions" in AshPostgres.DataLayer.Info.repo(resource, :mutate).installed_extensions()
+  end
+
   def can?(_, :upsert), do: true
   def can?(_, :changeset_filter), do: true
 
