@@ -51,4 +51,8 @@ defmodule AshPostgres.MultitenancyTest.Post do
 
     has_one(:self, __MODULE__, destination_attribute: :id, source_attribute: :id, public?: true)
   end
+
+  calculations do
+    calculate(:last_word, :string, expr(fragment("split_part(?, ' ', -1)", name)))
+  end
 end

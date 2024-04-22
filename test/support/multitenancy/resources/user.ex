@@ -36,5 +36,9 @@ defmodule AshPostgres.MultitenancyTest.User do
     end
   end
 
+  aggregates do
+    list(:years_visited, :posts, :last_word)
+  end
+
   def parse_tenant("org_" <> id), do: id
 end
