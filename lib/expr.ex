@@ -603,7 +603,7 @@ defmodule AshPostgres.Expr do
          embedded?,
          acc,
          type
-       ) do
+       ) when is_list(values) do
     do_dynamic_expr(
       query,
       %Fragment{
@@ -612,6 +612,27 @@ defmodule AshPostgres.Expr do
           Enum.reduce(values, [raw: "(concat_ws(", expr: joiner], fn value, frag_acc ->
             frag_acc ++ [raw: ", ", expr: value]
           end) ++ [raw: "))"]
+      },
+      bindings,
+      embedded?,
+      acc,
+      type
+    )
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %StringJoin{arguments: [values, joiner], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         acc,
+         type
+       ) do
+    do_dynamic_expr(
+      query,
+      %Fragment{
+        embedded?: pred_embedded?,
+        arguments: [raw: "array_to_string(", expr: values, raw: ", ", expr: joiner, raw: ")"]
       },
       bindings,
       embedded?,
@@ -676,7 +697,7 @@ defmodule AshPostgres.Expr do
          embedded?,
          acc,
          type
-       ) do
+       ) when is_list(values) do
     do_dynamic_expr(
       query,
       %Fragment{
@@ -690,6 +711,24 @@ defmodule AshPostgres.Expr do
              |> Enum.intersperse({:raw, ", "})) ++
             [raw: "))"]
       },
+      bindings,
+      embedded?,
+      acc,
+      type
+    )
+  end
+
+  defp do_dynamic_expr(
+         query,
+         %StringJoin{arguments: [values], embedded?: pred_embedded?},
+         bindings,
+         embedded?,
+         acc,
+         type
+       ) do
+    do_dynamic_expr(
+      query,
+      %StringJoin{arguments: [values, ""], embedded?: pred_embedded?},
       bindings,
       embedded?,
       acc,

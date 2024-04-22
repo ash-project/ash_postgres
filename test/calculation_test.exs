@@ -238,6 +238,24 @@ defmodule AshPostgres.CalculationTest do
              |> Api.read_one!()
   end
 
+  test "concat calculation can use a non-literal value" do
+    author =
+      Author
+      |> Ash.Changeset.new(%{first_name: "is", last_name: "match", badges: [:foo, :bar]})
+      |> Api.create!()
+
+    string_badges =
+    Author
+    |> Ash.Query.filter(id == ^author.id)
+    |> Ash.Query.calculate(:string_badges, expr(string_join(badges, ", ")), :string)
+    |> Api.read_one!()
+    |> Map.get(:calculations)
+    |> Map.get(:string_badges)
+
+    assert string_badges == "foo, bar"
+
+  end
+
   test "calculations that refer to aggregates in comparison expressions can be filtered on" do
     Post
     |> Ash.Query.load(:has_future_comment)
