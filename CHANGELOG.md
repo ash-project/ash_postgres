@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.0-rc.8](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.7...v2.0.0-rc.8) (2024-04-22)
+
+
+
+
+### Bug Fixes:
+
+* ensure that `exists` with a filter paired with `from_many?` functions properly
+
 ## [v2.0.0-rc.7](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.6...v2.0.0-rc.7) (2024-04-12)
 
 
