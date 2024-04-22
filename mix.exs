@@ -173,7 +173,7 @@ defmodule AshPostgres.MixProject do
   defp deps do
     [
       {:ash, ash_version("~> 3.0.0-rc.27")},
-      {:ash_sql, "~> 0.1.1-rc.7"},
+      {:ash_sql, ash_sql_version("~> 0.1.1-rc.8 and >= 0.1.1-rc.8")},
       {:ecto_sql, "~> 3.9"},
       {:ecto, "~> 3.9"},
       {:jason, "~> 1.0"},
@@ -201,6 +201,25 @@ defmodule AshPostgres.MixProject do
 
       "main" ->
         [git: "https://github.com/ash-project/ash.git"]
+
+      version when is_binary(version) ->
+        "~> #{version}"
+
+      version ->
+        version
+    end
+  end
+
+  defp ash_sql_version(default_version) do
+    case System.get_env("ASH_SQL_VERSION") do
+      nil ->
+        default_version
+
+      "local" ->
+        [path: "../ash_sql", override: true]
+
+      "main" ->
+        [git: "https://github.com/ash-project/ash_sql.git"]
 
       version when is_binary(version) ->
         "~> #{version}"

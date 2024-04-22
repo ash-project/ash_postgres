@@ -238,6 +238,27 @@ defmodule AshPostgres.CalculationTest do
              |> Ash.read_one!()
   end
 
+  test "concat can be used with a reference" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{
+        first_name: "is",
+        last_name: "match",
+        badges: [:foo, :bar]
+      })
+      |> Ash.create!()
+
+    badges_string =
+      Author
+      |> Ash.Query.filter(id == ^author.id)
+      |> Ash.Query.calculate(:badges_string, :string, expr(string_join(badges)))
+      |> Ash.read_one!()
+      |> Map.get(:calculations)
+      |> Map.get(:badges_string)
+
+    assert badges_string == "foobar"
+  end
+
   test "calculations that refer to aggregates in comparison expressions can be filtered on" do
     Post
     |> Ash.Query.load(:has_future_comment)
