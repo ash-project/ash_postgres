@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.24](https://github.com/ash-project/ash_postgres/compare/v1.5.23...v1.5.24) (2024-04-22)
+
+
+
+
+### Bug Fixes:
+
+* make string concat work with non literal lists
+
+* properly handle non-filter aggregate filters
+
 ## [v1.5.23](https://github.com/ash-project/ash_postgres/compare/v1.5.22...v1.5.23) (2024-03-28)
 
 
