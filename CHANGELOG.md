@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.0-rc.10](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.9...v2.0.0-rc.10) (2024-04-23)
+
+
+
+
+### Bug Fixes:
+
+* undo change that expresses that atomics cant be done without `ash-functions`
+
 ## [v2.0.0-rc.9](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.8...v2.0.0-rc.9) (2024-04-23)
 ### Breaking Changes:
 
