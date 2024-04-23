@@ -344,42 +344,50 @@ defmodule AshPostgres.Repo do
                      create?: 0,
                      drop?: 0
 
-      def __after_compile__(_, _) do
-        if "ash-functions" in installed_extensions() || !@warn_on_missing_ash_functions do
+      # We do this switch because `!@warn_on_missing_ash_functions` in the function body triggers
+      # a dialyzer error
+      if @warn_on_missing_ash_functions do
+        def __after_compile__(_, _) do
+          if "ash-functions" in installed_extensions() do
+            :ok
+          else
+            IO.warn("""
+            AshPostgres: You have not installed the `ash-functions` extension.
+
+            The following features will not be available:
+
+            - atomics (using the `raise_ash_error` function)
+            - `string_trim` (using the `ash_trim_whitespace` function)
+            - the `||` and `&&` operators (using the `ash_elixir_and` and `ash_elixir_or` functions)
+
+            To address this warning, do one of two things:
+
+            1. add the `"ash-functions"` extension to your `installed_extensions/0` function, and then generate migrations.
+
+                def installed_extensions do
+                  ["ash-functions"]
+                end
+
+            If you are *not* using the migration generator, but would like to leverage these features, follow the above instructions,
+            and then visit the source for `ash_postgres` and copy the latest version of those functions into your own migrations:
+
+            2. disable this warning, by adding the following to your `use` statement:
+
+                use AshPostgres.Repo,
+                  ..
+                  warn_on_missing_ash_functions?: false
+
+            Keep in mind that if you disable this warning, you will not be able to use the features mentioned above.
+            If you are in an environment where you cannot define functions, you will have to use the second option.
+
+
+            https://github.com/ash-project/ash_postgres/blob/main/lib/migration_generator/ash_functions.ex
+            """)
+          end
+        end
+      else
+        def __after_compile__(_, _) do
           :ok
-        else
-          IO.warn("""
-          AshPostgres: You have not installed the `ash-functions` extension.
-
-          The following features will not be available:
-
-          - atomics (using the `raise_ash_error` function)
-          - `string_trim` (using the `ash_trim_whitespace` function)
-          - the `||` and `&&` operators (using the `ash_elixir_and` and `ash_elixir_or` functions)
-
-          To address this warning, do one of two things:
-
-          1. add the `"ash-functions"` extension to your `installed_extensions/0` function, and then generate migrations.
-
-              def installed_extensions do
-                ["ash-functions"]
-              end
-
-          If you are *not* using the migration generator, but would like to leverage these features, follow the above instructions,
-          and then visit the source for `ash_postgres` and copy the latest version of those functions into your own migrations:
-
-          2. disable this warning, by adding the following to your `use` statement:
-
-              use AshPostgres.Repo,
-                ..
-                warn_on_missing_ash_functions?: false
-
-          Keep in mind that if you disable this warning, you will not be able to use the features mentioned above.
-          If you are in an environment where you cannot define functions, you will have to use the second option.
-
-
-          https://github.com/ash-project/ash_postgres/blob/main/lib/migration_generator/ash_functions.ex
-          """)
         end
       end
     end
