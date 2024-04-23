@@ -34,6 +34,10 @@ defmodule AshPostgres.MultitenancyTest.User do
     belongs_to(:org, AshPostgres.MultitenancyTest.Org) do
       public?(true)
     end
+
+    has_many :posts, AshPostgres.MultitenancyTest.Post do
+      public?(true)
+    end
   end
 
   aggregates do

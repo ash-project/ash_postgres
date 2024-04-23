@@ -12,7 +12,16 @@ defmodule AshPostgres.Verifiers.PreventMultidimensionalArrayAggregates do
     |> Stream.filter(& &1.field)
     |> Enum.each(fn aggregate ->
       related = Ash.Resource.Info.related(resource, aggregate.relationship_path)
-      type = Ash.Resource.Info.field(related, aggregate.field).type
+
+      related_field =
+        if related do
+          Ash.Resource.Info.field(related, aggregate.field)
+        end
+
+      type =
+        if related_field do
+          related_field.type
+        end
 
       case type do
         {:array, _} ->

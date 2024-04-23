@@ -458,17 +458,16 @@ defmodule AshSql.AggregateTest do
         |> Ash.Changeset.for_create(:create, %{name: "Marty", org_id: org.id})
         |> Ash.create!()
 
-      posts =
-        ["Back to 1955", "Forwards to 1985", "Forward to 2015", "Back again to 1985"]
-        |> Enum.map(
-          &(Post
-            |> Ash.Changeset.for_create(:create, %{name: &1})
-            |> Ash.create!(tenant: "org_#{org.id}", load: [:last_word]))
-        )
+      ["Back to 1955", "Forwards to 1985", "Forward to 2015", "Back again to 1985"]
+      |> Enum.map(
+        &(Post
+          |> Ash.Changeset.for_create(:create, %{name: &1, user_id: user.id})
+          |> Ash.create!(tenant: "org_#{org.id}", load: [:last_word]))
+      )
 
       user = Ash.load!(user, :years_visited, tenant: "org_#{org.id}")
 
-      assert Enum.sort(user.years_visited) == ["1955", "1985", "2015"]
+      assert Enum.sort(user.years_visited) == ["1955", "1985", "1985", "2015"]
     end
   end
 
