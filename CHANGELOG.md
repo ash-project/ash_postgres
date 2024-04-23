@@ -5,6 +5,63 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.0-rc.9](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.8...v2.0.0-rc.9) (2024-04-23)
+### Breaking Changes:
+
+* change defaults for uuids to `gen_random_uuid()`
+
+* Use UTC for default generated timestamps (#131)
+
+* 3.0 (#227)
+
+
+
+### Features:
+
+* add `create?` and `drop?` callbacks to `AshPostgres.Repo` (#143)
+
+### Bug Fixes:
+
+* handle missing aggregate relationships and fields better in transformers
+
+* update ash_sql for bug fixes
+
+* reproduce issue around atomic updates & validations
+
+* ensure that `exists` with a filter paired with `from_many?` functions properly
+
+* update ash_sql, fix credo
+
+* use proper sql implementation in `default_bindings`
+
+* don't wait for shell input when checking migrations
+
+* properly handle non-filter aggregate filters
+
+* ensure timestamps are present in extension migrations
+
+* handle fully fleshed out aggregate fields
+
+### Improvements:
+
+* warn on missing ash-functions at compile time
+
+* support `mix ash.rollback` with interactive rollback
+
+* don't fetch version in agent when using sandbox
+
+* loosen 3.0 release candidate requirement
+
+* fixes for 3.0 changes and AshSql changes
+
+* move many internals out to `AshSql` package
+
+* add default implementation for pg_version, and rename to `min_pg_version`
+
+* upgrade to 3.0
+
+* properly show unsupported error expression
+
 ## [v2.0.0-rc.8](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.7...v2.0.0-rc.8) (2024-04-22)
 
 
