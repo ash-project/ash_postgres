@@ -22,6 +22,15 @@ defmodule AshPostgres.Aggregate do
   def add_aggregates(query, aggregates, resource, select?, source_binding, root_data) do
     case resource_aggregates_to_aggregates(resource, aggregates) do
       {:ok, aggregates} ->
+        tenant =
+          case Enum.at(aggregates, 0) do
+            %{context: %{tenant: tenant}} ->
+              tenant
+
+            _ ->
+              nil
+          end
+
         query = AshPostgres.DataLayer.default_bindings(query, resource)
 
         {query, aggregates} =
@@ -215,7 +224,7 @@ defmodule AshPostgres.Aggregate do
 
                                    AshPostgres.Join.set_join_prefix(
                                      subquery,
-                                     query,
+                                     %{query | prefix: tenant},
                                      first_relationship.destination
                                    )
                                  else
@@ -242,7 +251,7 @@ defmodule AshPostgres.Aggregate do
 
                                      AshPostgres.Join.set_join_prefix(
                                        subquery,
-                                       query,
+                                       %{query | prefix: tenant},
                                        first_relationship.destination
                                      )
                                    else
@@ -266,7 +275,7 @@ defmodule AshPostgres.Aggregate do
                              subquery =
                                AshPostgres.Join.set_join_prefix(
                                  subquery,
-                                 query,
+                                 %{query | prefix: tenant},
                                  first_relationship.destination
                                )
 
