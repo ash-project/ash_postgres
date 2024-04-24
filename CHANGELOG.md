@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.0-rc.11](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.10...v2.0.0-rc.11) (2024-04-24)
+
+
+
+
+### Bug Fixes:
+
+* properly honor `limit` in bulk operations
+
 ## [v2.0.0-rc.10](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.9...v2.0.0-rc.10) (2024-04-23)
 
 
