@@ -190,7 +190,7 @@ First, we'll create the database with `mix ash.setup`.
 Then we will generate database migrations. This is one of the many ways that AshPostgres can save time and reduce complexity.
 
 ```bash
-mix ash.codegen --name add_tickets_and_representatives
+mix ash.codegen add_tickets_and_representatives
 ```
 
 If you are unfamiliar with database migrations, it is a good idea to get a rough idea of what they are and how they work. See the links at the bottom of this guide for more. A rough overview of how migrations work is that each time you need to make changes to your database, they are saved as small, reproducible scripts that can be applied in order. This is necessary both for clean deploys as well as working with multiple developers making changes to the structure of a single database.
