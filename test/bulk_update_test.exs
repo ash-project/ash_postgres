@@ -61,6 +61,23 @@ defmodule AshPostgres.BulkUpdateTest do
     assert titles == ["fred_stuff", "george"]
   end
 
+  test "bulk updates can be limited" do
+    Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
+
+    Post
+    |> Ash.Query.limit(1)
+    |> Ash.Query.sort(:title)
+    |> Ash.bulk_update!(:update, %{}, atomic_update: %{title: Ash.Expr.expr(title <> "_stuff")})
+
+    titles =
+      Post
+      |> Ash.read!()
+      |> Enum.map(& &1.title)
+      |> Enum.sort()
+
+    assert titles == ["fred_stuff", "george"]
+  end
+
   test "the query can join to related tables when necessary" do
     Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
 

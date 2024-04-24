@@ -1237,7 +1237,13 @@ defmodule AshPostgres.DataLayer do
       |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
       |> ecto_changeset(changeset, :update, true)
 
-    case bulk_updatable_query(query, resource, changeset.atomics, changeset.context) do
+    case bulk_updatable_query(
+           query,
+           resource,
+           changeset.atomics,
+           options[:calculations] || [],
+           changeset.context
+         ) do
       {:error, error} ->
         {:error, error}
 
@@ -1276,9 +1282,13 @@ defmodule AshPostgres.DataLayer do
             {:ok, query} ->
               query =
                 if options[:return_records?] do
+                  {:ok, query} =
+                    query
+                    |> Ecto.Query.exclude(:select)
+                    |> Ecto.Query.select([row], row)
+                    |> add_calculations(options[:calculations] || [], resource)
+
                   query
-                  |> Ecto.Query.exclude(:select)
-                  |> Ecto.Query.select([row], row)
                 else
                   Ecto.Query.exclude(query, :select)
                 end
@@ -1293,7 +1303,7 @@ defmodule AshPostgres.DataLayer do
                 end)
 
               if options[:return_records?] do
-                {:ok, results}
+                {:ok, remap_mapped_fields(results, query)}
               else
                 :ok
               end
@@ -1308,8 +1318,8 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp bulk_updatable_query(query, resource, atomics, context) do
-    Enum.reduce_while(atomics, {:ok, query}, fn {_, expr}, {:ok, query} ->
+  defp bulk_updatable_query(query, resource, atomics, calculations, context) do
+    Enum.reduce_while(atomics ++ calculations, {:ok, query}, fn {_, expr}, {:ok, query} ->
       used_aggregates =
         Ash.Filter.used_aggregates(expr, [])
 
@@ -1332,63 +1342,76 @@ defmodule AshPostgres.DataLayer do
     end)
     |> case do
       {:ok, query} ->
-        case Enum.at(query.joins, 0) do
-          nil ->
-            {:ok,
-             query
-             |> AshSql.Bindings.default_bindings(resource, AshPostgres.SqlImplementation, context)
-             |> Ecto.Query.exclude(:select)
-             |> Ecto.Query.exclude(:order_by)}
+        needs_to_join? =
+          case Enum.at(query.joins, 0) do
+            nil ->
+              query.limit || query.offset
 
-          %{qual: :inner} ->
-            {:ok,
-             query
-             |> AshSql.Bindings.default_bindings(resource, AshPostgres.SqlImplementation, context)
-             |> Ecto.Query.exclude(:select)
-             |> Ecto.Query.exclude(:order_by)}
+            %{qual: :inner} ->
+              query.limit || query.offset
 
-          _other_type_of_join ->
-            root_query =
-              from(row in query.from.source, [])
-              |> Map.put(:__ash_bindings__, query.__ash_bindings__)
-              |> Ecto.Query.exclude(:select)
-              |> Ecto.Query.exclude(:order_by)
+            _other_type_of_join ->
+              true
+          end
 
-            dynamic =
-              Enum.reduce(Ash.Resource.Info.primary_key(resource), nil, fn pkey, dynamic ->
-                if dynamic do
-                  Ecto.Query.dynamic(
-                    [row, joining],
-                    field(row, ^pkey) == field(joining, ^pkey) and ^dynamic
-                  )
-                else
-                  Ecto.Query.dynamic([row, joining], field(row, ^pkey) == field(joining, ^pkey))
-                end
-              end)
+        if needs_to_join? do
+          root_query =
+            from(row in query.from.source, [])
+            |> Map.put(:__ash_bindings__, query.__ash_bindings__)
+            |> Ecto.Query.exclude(:select)
+            |> Map.put(:limit, query.limit)
+            |> Map.put(:offset, query.offset)
 
-            faked_query =
-              from(row in root_query,
-                inner_join: limiter in ^root_query,
-                as: ^0,
-                on: ^dynamic
-              )
+          root_query =
+            if query.limit || query.offset do
+              root_query
+            else
+              Ecto.Query.exclude(root_query, :order_by)
+            end
 
-            joins_to_add =
-              for {%{on: on} = join, ix} <- Enum.with_index(query.joins) do
-                %{join | on: Ecto.Query.Planner.rewrite_sources(on, &(&1 + 1)), ix: ix + 1}
+          dynamic =
+            Enum.reduce(Ash.Resource.Info.primary_key(resource), nil, fn pkey, dynamic ->
+              if dynamic do
+                Ecto.Query.dynamic(
+                  [row, joining],
+                  field(row, ^pkey) == field(joining, ^pkey) and ^dynamic
+                )
+              else
+                Ecto.Query.dynamic([row, joining], field(row, ^pkey) == field(joining, ^pkey))
               end
+            end)
 
-            {:ok,
-             %{
-               faked_query
-               | joins: faked_query.joins ++ joins_to_add,
-                 aliases: Map.new(query.aliases, fn {key, val} -> {key, val + 1} end),
-                 wheres:
-                   faked_query.wheres ++
-                     Enum.map(query.wheres, fn where ->
-                       Ecto.Query.Planner.rewrite_sources(where, &(&1 + 1))
-                     end)
-             }}
+          faked_query =
+            from(row in root_query,
+              inner_join: limiter in ^subquery(root_query),
+              as: ^0,
+              on: ^dynamic
+            )
+
+          joins_to_add =
+            for {%{on: on} = join, ix} <- Enum.with_index(query.joins) do
+              %{join | on: Ecto.Query.Planner.rewrite_sources(on, &(&1 + 1)), ix: ix + 1}
+            end
+
+          {:ok,
+           %{
+             faked_query
+             | joins: faked_query.joins ++ joins_to_add,
+               aliases: Map.new(query.aliases, fn {key, val} -> {key, val + 1} end),
+               limit: nil,
+               offset: nil,
+               wheres:
+                 faked_query.wheres ++
+                   Enum.map(query.wheres, fn where ->
+                     Ecto.Query.Planner.rewrite_sources(where, &(&1 + 1))
+                   end)
+           }}
+        else
+          {:ok,
+           query
+           |> AshSql.Bindings.default_bindings(resource, AshPostgres.SqlImplementation, context)
+           |> Ecto.Query.exclude(:select)
+           |> Ecto.Query.exclude(:order_by)}
         end
 
       {:error, error} ->
@@ -1441,7 +1464,7 @@ defmodule AshPostgres.DataLayer do
 
       query =
         if Enum.any?(query.joins, &(&1.qual != :inner)) do
-          root_query =
+          {:ok, root_query} =
             from(row in query.from.source, [])
             |> AshSql.Bindings.default_bindings(
               resource,
@@ -1450,6 +1473,7 @@ defmodule AshPostgres.DataLayer do
             )
             |> Ecto.Query.exclude(:select)
             |> Ecto.Query.exclude(:order_by)
+            |> add_calculations(options[:calculations] || [], resource)
 
           on =
             Enum.reduce(Ash.Resource.Info.primary_key(resource), nil, fn key, dynamic ->
@@ -1466,6 +1490,7 @@ defmodule AshPostgres.DataLayer do
           from(row in root_query,
             select: row,
             join: subquery(query),
+            as: :sub,
             on: ^on
           )
         else
@@ -1476,7 +1501,7 @@ defmodule AshPostgres.DataLayer do
         if options[:return_records?] do
           query
           |> Ecto.Query.exclude(:select)
-          |> Ecto.Query.select([row], row)
+          |> Ecto.Query.select([sub: sub], sub)
         else
           query
           |> Ecto.Query.exclude(:select)
@@ -1491,7 +1516,7 @@ defmodule AshPostgres.DataLayer do
         end)
 
       if options[:return_records?] do
-        {:ok, results}
+        {:ok, remap_mapped_fields(results, query)}
       else
         :ok
       end
@@ -2446,7 +2471,7 @@ defmodule AshPostgres.DataLayer do
 
     select = Keyword.keys(changeset.atomics) ++ Ash.Resource.Info.primary_key(resource)
 
-    case bulk_updatable_query(query, resource, changeset.atomics, changeset.context) do
+    case bulk_updatable_query(query, resource, changeset.atomics, [], changeset.context) do
       {:error, error} ->
         {:error, error}
 
