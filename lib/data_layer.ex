@@ -692,7 +692,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def run_query(query, resource) do
-    query = AshSql.Bindings.default_bindings(query, AshPostgres.SqlImplementation, resource)
+    query = AshSql.Bindings.default_bindings(query, resource, AshPostgres.SqlImplementation)
 
     if AshPostgres.DataLayer.Info.polymorphic?(resource) && no_table?(query) do
       raise_table_error!(resource, :read)
@@ -793,8 +793,8 @@ defmodule AshPostgres.DataLayer do
         subquery =
           AshSql.Bindings.default_bindings(
             subquery,
-            AshPostgres.SqlImplementation,
-            source_resource
+            source_resource,
+            AshPostgres.SqlImplementation
           )
 
         {global_filter, can_group} =
