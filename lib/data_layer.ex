@@ -1343,16 +1343,7 @@ defmodule AshPostgres.DataLayer do
     |> case do
       {:ok, query} ->
         needs_to_join? =
-          case Enum.at(query.joins, 0) do
-            nil ->
-              query.limit || query.offset
-
-            %{qual: :inner} ->
-              query.limit || query.offset
-
-            _other_type_of_join ->
-              true
-          end
+          Enum.any?(query.joins, &(&1.qual != :inner)) || query.limit || query.offset
 
         if needs_to_join? do
           root_query =
@@ -1462,8 +1453,11 @@ defmodule AshPostgres.DataLayer do
           changeset.resource
         )
 
+      needs_to_join? =
+        Enum.any?(query.joins, &(&1.qual != :inner)) || query.limit || query.offset
+
       query =
-        if Enum.any?(query.joins, &(&1.qual != :inner)) do
+        if needs_to_join? do
           {:ok, root_query} =
             from(row in query.from.source, [])
             |> AshSql.Bindings.default_bindings(
