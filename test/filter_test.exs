@@ -1,4 +1,5 @@
 defmodule AshPostgres.FilterTest do
+  alias AshPostgres.Test.Organization
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.{Author, Comment, Post}
   alias AshPostgres.Test.ComplexCalculations.{Channel, ChannelMember}
@@ -1016,5 +1017,29 @@ defmodule AshPostgres.FilterTest do
            |> Ash.Query.filter(exists(first_member, id == ^cm1.id))
            |> Ash.read!()
            |> length == 1
+  end
+
+  test "using `(is_nil(relationship) and other_relation_filter)` will trigger left join" do
+    organization =
+      Organization
+      |> Ash.Changeset.for_create(:create, %{name: "foo"})
+      |> Ash.create!()
+
+    Post
+    |> Ash.Changeset.for_create(:create, %{organization_id: organization.id})
+    |> Ash.create!()
+
+    assert [_] =
+             Post
+             |> Ash.Query.filter(
+               # it isn't smart enough to know we can left join here
+               # and there isn't currently a way to hint that it can
+               is_nil(author) and
+                 contains(
+                   fragment("lower(?)", organization.name),
+                   fragment("lower(?)", "foo")
+                 )
+             )
+             |> Ash.read!()
   end
 end

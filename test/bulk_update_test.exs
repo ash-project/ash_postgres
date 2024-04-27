@@ -119,12 +119,13 @@ defmodule AshPostgres.BulkUpdateTest do
 
     assert_raise Ash.Error.Invalid, ~r/had no matching bulk strategy that could be used/, fn ->
       Post
-      |> Ash.Query.for_read(:paginated, authorize?: true)
+      |> Ash.Query.for_read(:paginated, %{}, authorize?: true)
       |> Ash.bulk_update!(:requires_initial_data, %{},
         authorize?: true,
         allow_stream_with: :full_read,
         authorize_query?: false,
-        return_errors?: true
+        return_errors?: true,
+        return_records?: true
       )
     end
   end
