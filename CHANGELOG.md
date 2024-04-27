@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.0-rc.13](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.12...v2.0.0-rc.13) (2024-04-27)
+
+
+
+
+### Bug Fixes:
+
+* ensure limit/offset triggers joining for update/destroy query
+
+* only reference `sub` if a subquery is created
+
 ## [v2.0.0-rc.12](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.11...v2.0.0-rc.12) (2024-04-27)
 
 
