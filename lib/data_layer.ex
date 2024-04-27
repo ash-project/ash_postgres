@@ -1499,9 +1499,15 @@ defmodule AshPostgres.DataLayer do
 
       query =
         if options[:return_records?] do
-          query
-          |> Ecto.Query.exclude(:select)
-          |> Ecto.Query.select([sub: sub], sub)
+          if Enum.any?(query.joins, &(&1.qual != :inner)) do
+            query
+            |> Ecto.Query.exclude(:select)
+            |> Ecto.Query.select([sub: sub], sub)
+          else
+            query
+            |> Ecto.Query.exclude(:select)
+            |> Ecto.Query.select([row], row)
+          end
         else
           query
           |> Ecto.Query.exclude(:select)
