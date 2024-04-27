@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.0-rc.12](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.11...v2.0.0-rc.12) (2024-04-27)
+
+
+
+
+### Bug Fixes:
+
+* update ash_sql for inner join fixes
+
+* fix argument order in AshSql.Bindings.default_bindings/4 (#251)
+
 ## [v2.0.0-rc.11](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.10...v2.0.0-rc.11) (2024-04-24)
 
 
