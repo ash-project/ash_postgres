@@ -606,6 +606,7 @@ defmodule AshPostgres.DataLayer do
 
   def can?(_, :aggregate_filter), do: true
   def can?(_, :aggregate_sort), do: true
+  def can?(_, :calculate), do: true
   def can?(_, :expression_calculation), do: true
   def can?(_, :expression_calculation_sort), do: true
   def can?(_, :create), do: true
@@ -1523,6 +1524,47 @@ defmodule AshPostgres.DataLayer do
     rescue
       e ->
         handle_raised_error(e, __STACKTRACE__, ecto_changeset, resource)
+    end
+  end
+
+  @impl true
+  def calculate(resource, expressions, context) do
+    ash_query =
+      resource
+      |> Ash.Query.new()
+      |> Map.put(:context, context)
+
+    {:ok, query} = Ash.Query.data_layer_query(ash_query)
+
+    query =
+      AshSql.Bindings.default_bindings(query, resource, AshPostgres.SqlImplementation)
+
+    try do
+      {dynamics, query} =
+        Enum.reduce(expressions, {[], query}, fn expression, {dynamics, query} ->
+          {dynamic, acc} = AshSql.Expr.dynamic_expr(query, expression, query.__ash_bindings__)
+          {[dynamic | dynamics], AshSql.Bindings.merge_expr_accumulator(query, acc)}
+        end)
+
+      dynamics =
+        dynamics
+        |> Enum.with_index()
+        |> Map.new(fn {dynamic, index} -> {index, dynamic} end)
+
+      query =
+        Ecto.Query.from(row in fragment("UNNEST(ARRAY[1])"), select: ^dynamics)
+        |> Map.put(:__ash_bindings__, query.__ash_bindings__)
+
+      repo =
+        AshSql.dynamic_repo(resource, AshPostgres.SqlImplementation, ash_query)
+
+      with_savepoint(repo, query, fn ->
+        {:ok,
+         repo.one(query) |> Enum.sort_by(&elem(&1, 0)) |> Enum.map(&elem(&1, 1)) |> Enum.reverse()}
+      end)
+    rescue
+      e ->
+        handle_raised_error(e, __STACKTRACE__, query, resource)
     end
   end
 
