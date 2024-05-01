@@ -8,7 +8,7 @@
 
 # AshPostgres
 
-Welcome! This documentation is for `AshPostgres`, the PostgreSQL data layer for [Ash Framework](https://hexdocs.pm/ash).
+Welcome! `AshPostgres` is the PostgreSQL data layer for [Ash Framework](https://hexdocs.pm/ash).
 
 ## Tutorials
 
