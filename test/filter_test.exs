@@ -325,6 +325,34 @@ defmodule AshPostgres.FilterTest do
     end
   end
 
+  describe "using actor in filters" do
+    test "actor templates work in relationships" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{badges: [:author_of_the_year]})
+        |> Ash.create!()
+
+      author2 =
+        Author
+        |> Ash.Changeset.for_create(:create, %{badges: [:author_of_the_year]})
+        |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "match", author_id: author.id})
+      |> Ash.create!()
+
+      assert [_] =
+               Post
+               |> Ash.Query.filter(not is_nil(current_user_author.id))
+               |> Ash.read!(actor: author, authorize?: false)
+
+      assert [] =
+               Post
+               |> Ash.Query.filter(not is_nil(current_user_author.id))
+               |> Ash.read!(actor: author2, authorize?: false)
+    end
+  end
+
   describe "accessing embeds" do
     setup do
       Author

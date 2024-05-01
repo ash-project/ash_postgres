@@ -219,6 +219,12 @@ defmodule AshPostgres.Test.Post do
       attribute_writable?(true)
     end
 
+    belongs_to(:current_user_author, AshPostgres.Test.Author) do
+      source_attribute(:author_id)
+      define_attribute?(false)
+      filter(expr(^actor(:id) == id))
+    end
+
     belongs_to(:author, AshPostgres.Test.Author) do
       public?(true)
     end
