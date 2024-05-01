@@ -67,7 +67,7 @@ defmodule AshPostgres.MixProject do
 
   defp docs do
     [
-      main: "home",
+      main: "readme",
       source_ref: "v#{@version}",
       logo: "logos/small-logo.png",
       before_closing_head_tag: fn type ->
@@ -86,8 +86,9 @@ defmodule AshPostgres.MixProject do
         end
       end,
       extras: [
-        {"documentation/home.md", title: "Home"},
-        "documentation/tutorials/get-started-with-postgres.md",
+        {"README.md", title: "Home"},
+        "documentation/tutorials/get-started-with-ash-postgres.md",
+        "documentation/topics/about-ash-postgres/what-is-ash-postgres.md",
         "documentation/topics/resources/references.md",
         "documentation/topics/resources/polymorphic-resources.md",
         "documentation/topics/development/migrations-and-tasks.md",
@@ -100,26 +101,13 @@ defmodule AshPostgres.MixProject do
         "CHANGELOG.md"
       ],
       groups_for_extras: [
-        Tutorials: [
-          "documentation/tutorials/get-started-with-postgres.md"
-        ],
-        Resources: [
-          "documentation/topics/resources/references.md",
-          "documentation/topics/resources/polymorphic-resources.md"
-        ],
-        Development: [
-          "documentation/topics/development/migrations-and-tasks.md",
-          "documentation/topics/development/testing.md",
-          "documentation/topics/development/upgrading-to-2.0.md"
-        ],
-        Advanced: [
-          "documentation/topics/advanced/expressions.md",
-          "documentation/topics/advanced/schema-based-multitenancy.md",
-          "documentation/topics/advanced/manual-relationships.md"
-        ],
-        Reference: [
-          "documentation/dsls/DSL:-AshPostgres.DataLayer.md"
-        ]
+        Tutorials: ~r"documentation/tutorials",
+        Resources: ~r"documentation/topics",
+        Development: ~r"documentation/topics/development",
+        "About AshPostgres": ["CHANGELOG.md"],
+        Advanced: ~r"documentation/topics/advanced",
+        Reference: ~r"documentation/topics/dsls",
+        DSLs: ~r"documentation/dsls"
       ],
       skip_undefined_reference_warnings_on: [
         "CHANGELOG.md",

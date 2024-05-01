@@ -1,59 +1,40 @@
+![Logo](https://github.com/ash-project/ash/blob/main/logos/cropped-for-header-black-text.png?raw=true#gh-light-mode-only)
+![Logo](https://github.com/ash-project/ash/blob/main/logos/cropped-for-header-white-text.png?raw=true#gh-dark-mode-only)
+
+![Elixir CI](https://github.com/ash-project/ash_postgres/workflows/CI/badge.svg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Hex version badge](https://img.shields.io/hexpm/v/ash_postgres.svg)](https://hex.pm/packages/ash_postgres)
+[![Hexdocs badge](https://img.shields.io/badge/docs-hexdocs-purple)](https://hexdocs.pm/ash_postgres)
+
 # AshPostgres
 
-![Elixir CI](https://github.com/ash-project/ash_postgres/workflows/Elixir%20CI/badge.svg)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Coverage Status](https://coveralls.io/repos/github/ash-project/ash_postgres/badge.svg?branch=main)](https://coveralls.io/github/ash-project/ash_postgres?branch=main)
-[![Hex version badge](https://img.shields.io/hexpm/v/ash_postgres.svg)](https://hex.pm/packages/ash_postgres)
+Welcome! This documentation is for `AshPostgres`, the PostgreSQL data layer for [Ash Framework](https://hexdocs.pm/ash).
 
-AshPostgres supports all the capabilities of an Ash data layer. AshPostgres is the primary Ash data layer.
+## Tutorials
 
-Custom Predicates:
+- [Get Started](documentation/tutorials/get-started-with-ash-postgres.md)
 
-- `AshPostgres.Predicates.Trigram`
+## Topics
 
-## DSL
+- [What is AshPostgres?](documentation/topics/about_ash_postgres/what-is-ash-postgres.md)
 
-See the DSL documentation in `AshPostgres.DataLayer` for DSL documentation
+### Resources
 
-## Usage
+- [References](documentation/topics/resources/references.md)
+- [Polymorphic Resources](documentation/topics/resources/polymorphic-resources.md)
 
-Add `ash_postgres` to your `mix.exs` file.
+### Development
 
-```elixir
-{:ash_postgres, "~> 1.3.6"}
-```
+- [Migrations and tasks](documentation/topics/development/migrations-and-tasks.md)
+- [Testing](documentation/topics/development/testing.md)
+- [Upgrading to 2.0](documentation/topics/development/upgrading-to-2.0.md)
 
-To use this data layer, you need to chage your Ecto Repo's from `use Ecto.Repo`,
-to `use AshPostgres.Repo`. because AshPostgres adds functionality to Ecto Repos.
+### Advanced
 
-Then, configure each of your `Ash.Resource` resources by adding `use Ash.Resource, data_layer: AshPostgres.DataLayer` like so:
+- [Expressions](documentation/topics/advanced/expressions.md)
+- [Manual Relationships](documentation/topics/advanced/manual-relationships.md)
+- [Schema Based Multitenancy](documentation/topics/advanced/schema-based-multitenancy.md)
 
-```elixir
-defmodule MyApp.SomeResource do
-  use Ash.Resource, domain: MyDomain, data_layer: AshPostgres.DataLayer
+## Reference
 
-  postgres do
-    repo MyApp.Repo
-    table "table_name"
-  end
-
-  attributes do
-    # ... Attribute definitions
-  end
-end
-```
-
-## Generating Migrations
-
-See the documentation for `Mix.Tasks.AshPostgres.GenerateMigrations` for how to generate
-migrations from your resources
-
-# Contributors
-
-Ash is made possible by its excellent community!
-
-<a href="https://github.com/ash-project/ash_postgres/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=ash-project/ash_postgres" />
-</a>
-
-[Become a contributor](https://ash-hq.org/docs/guides/ash/latest/how_to/contribute.md)
+- [AshPostgres.DataLayer DSL](documentation/dsls/DSL:-AshPostgres.DataLayer.md)
