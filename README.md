@@ -16,7 +16,7 @@ Welcome! `AshPostgres` is the PostgreSQL data layer for [Ash Framework](https://
 
 ## Topics
 
-- [What is AshPostgres?](documentation/topics/about_ash_postgres/what-is-ash-postgres.md)
+- [What is AshPostgres?](documentation/topics/about-ash-postgres/what-is-ash-postgres.md)
 
 ### Resources
 
