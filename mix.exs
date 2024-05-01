@@ -2,8 +2,7 @@ defmodule AshPostgres.MixProject do
   use Mix.Project
 
   @description """
-  A postgres data layer for `Ash` resources. Leverages Ecto's postgres
-  support, and delegates to a configured repo.
+  The PostgreSQL data layer for Ash Framework
   """
 
   @version "2.0.0-rc.14"
