@@ -1140,12 +1140,15 @@ defmodule AshPostgres.DataLayer do
         Map.get(relationship, :manual) ->
           {module, opts} = relationship.manual
 
-          module.ash_postgres_subquery(
-            opts,
-            0,
-            0,
-            base_query
-          )
+          {:ok, subquery} =
+            module.ash_postgres_subquery(
+              opts,
+              0,
+              0,
+              base_query
+            )
+
+          subquery
 
         Map.get(relationship, :no_attributes?) ->
           base_query

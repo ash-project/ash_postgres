@@ -603,7 +603,8 @@ defmodule AshPostgres.Expr do
          embedded?,
          acc,
          type
-       ) when is_list(values) do
+       )
+       when is_list(values) do
     do_dynamic_expr(
       query,
       %Fragment{
@@ -697,7 +698,8 @@ defmodule AshPostgres.Expr do
          embedded?,
          acc,
          type
-       ) when is_list(values) do
+       )
+       when is_list(values) do
     do_dynamic_expr(
       query,
       %Fragment{
@@ -1565,6 +1567,27 @@ defmodule AshPostgres.Expr do
 
           cond do
             Map.get(first_relationship, :manual) ->
+              {module, opts} = first_relationship.manual
+
+              source_binding =
+                ref_binding(
+                  %Ref{
+                    attribute:
+                      Ash.Resource.Info.attribute(resource, first_relationship.source_attribute),
+                    relationship_path: at_path,
+                    resource: resource
+                  },
+                  bindings
+                )
+
+              {:ok, subquery} =
+                module.ash_postgres_subquery(
+                  opts,
+                  source_binding,
+                  0,
+                  subquery
+                )
+
               subquery
 
             Map.get(first_relationship, :no_attributes?) ->

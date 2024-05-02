@@ -245,15 +245,14 @@ defmodule AshPostgres.CalculationTest do
       |> Api.create!()
 
     string_badges =
-    Author
-    |> Ash.Query.filter(id == ^author.id)
-    |> Ash.Query.calculate(:string_badges, expr(string_join(badges, ", ")), :string)
-    |> Api.read_one!()
-    |> Map.get(:calculations)
-    |> Map.get(:string_badges)
+      Author
+      |> Ash.Query.filter(id == ^author.id)
+      |> Ash.Query.calculate(:string_badges, expr(string_join(badges, ", ")), :string)
+      |> Api.read_one!()
+      |> Map.get(:calculations)
+      |> Map.get(:string_badges)
 
     assert string_badges == "foo, bar"
-
   end
 
   test "calculations that refer to aggregates in comparison expressions can be filtered on" do
