@@ -5,6 +5,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.25](https://github.com/ash-project/ash_postgres/compare/v1.5.24...v1.5.25) (2024-05-02)
+
+
+
+
+### Bug Fixes:
+
+* properly use `ash_postgres_subquery` callback for `exists` on manual relationships
+
+* properly set tenant on aggregate queries
+
+* make string concat work with non literal lists
+
+* properly handle non-filter aggregate filters
+
 ## [v1.5.24](https://github.com/ash-project/ash_postgres/compare/v1.5.23...v1.5.24) (2024-04-22)
 
 
