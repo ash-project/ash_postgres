@@ -15,6 +15,21 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
                Ash.load!(post, :count_of_comments_containing_title)
     end
 
+    test "exists can be used" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "title"})
+      |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "title2"})
+      |> Ash.create!()
+
+      assert [] =
+               Post
+               |> Ash.Query.filter(exists(comments_containing_title, true))
+               |> Ash.read!()
+    end
+
     test "aggregates can be loaded with data" do
       post =
         Post
