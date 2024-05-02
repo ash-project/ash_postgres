@@ -1,6 +1,6 @@
 defmodule AshPostgres.BulkUpdateTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.Post
+  alias AshPostgres.Test.{Post, Record}
 
   require Ash.Expr
   require Ash.Query
@@ -128,5 +128,39 @@ defmodule AshPostgres.BulkUpdateTest do
         return_records?: true
       )
     end
+  end
+
+  test "bulk updates return error for null value if allow_nil? false with strategy :stream" do
+    Ash.bulk_create!([%{full_name: "foo"}], Record, :create)
+
+    assert %Ash.BulkResult{
+             error_count: 1,
+             errors: [
+               %Ash.Error.Invalid{errors: [%Ash.Error.Changes.Required{field: :full_name}]}
+             ]
+           } =
+             Ash.bulk_update(Record, :update, %{full_name: ""},
+               strategy: :stream,
+               return_records?: true,
+               return_errors?: true,
+               authorize?: false
+             )
+  end
+
+  test "bulk updates return error for null value if allow_nil? false with strategy :atomic" do
+    Ash.bulk_create!([%{full_name: "foo"}], Record, :create)
+
+    assert %Ash.BulkResult{
+             error_count: 1,
+             errors: [
+               %Ash.Error.Invalid{errors: [%Ash.Error.Changes.Required{field: :full_name}]}
+             ]
+           } =
+             Ash.bulk_update(Record, :update, %{full_name: ""},
+               strategy: :atomic,
+               return_records?: true,
+               return_errors?: true,
+               authorize?: false
+             )
   end
 end

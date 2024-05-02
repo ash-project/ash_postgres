@@ -1,6 +1,6 @@
 defmodule AshPostgres.BulkCreateTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.Post
+  alias AshPostgres.Test.{Post, Record}
 
   describe "bulk creates" do
     test "bulk creates insert each input" do
@@ -203,6 +203,18 @@ defmodule AshPostgres.BulkCreateTest do
                  return_errors?: true
                )
                |> Enum.to_list()
+    end
+
+    test "handle allow_nil? false correctly" do
+      assert %{
+               errors: [
+                 %Ash.Error.Invalid{errors: [%Ash.Error.Changes.Required{field: :full_name}]}
+               ]
+             } =
+               Ash.bulk_create([%{full_name: ""}], Record, :create,
+                 return_records?: true,
+                 return_errors?: true
+               )
     end
   end
 
