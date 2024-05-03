@@ -35,4 +35,26 @@ defmodule AshPostgres.Test.TypeTest do
     |> Ash.Query.filter(fragment("? = ?", id, type(^uuid, :uuid)))
     |> Ash.read!()
   end
+
+  test "timestamptz keeps the correct timezone" do
+    before =
+      DateTime.utc_now()
+
+    created_post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "title", datetime: before})
+      |> Ash.create!()
+
+    now = DateTime.utc_now()
+
+    updated_post =
+      created_post
+      |> Ash.Changeset.for_update(:update, %{datetime: now})
+      |> Ash.update!()
+
+    updated_post.datetime
+
+    assert DateTime.compare(created_post.datetime, before) == :eq
+    assert DateTime.compare(updated_post.datetime, now) == :eq
+  end
 end

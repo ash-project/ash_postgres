@@ -54,6 +54,8 @@ defmodule AshPostgres.Test.Post do
     repo(AshPostgres.TestRepo)
     base_filter_sql("type = 'sponsored'")
 
+    migration_types datetime: :timestamptz
+
     check_constraints do
       check_constraint(:price, "price_must_be_positive",
         message: "yo, bad price",
