@@ -34,6 +34,6 @@ defmodule AshPostgres.Test.Record do
   actions do
     default_accept(:*)
 
-    defaults([:create, :read])
+    defaults([:create, :read, :update])
   end
 end
