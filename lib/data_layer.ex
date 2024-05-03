@@ -1348,7 +1348,7 @@ defmodule AshPostgres.DataLayer do
 
         if needs_to_join? do
           root_query =
-            from(row in query.from.source, [])
+            from(row in query.from.source, as: ^0)
             |> Map.put(:__ash_bindings__, query.__ash_bindings__)
             |> Ecto.Query.exclude(:select)
             |> Map.put(:limit, query.limit)
@@ -1356,7 +1356,7 @@ defmodule AshPostgres.DataLayer do
 
           root_query =
             if query.limit || query.offset do
-              root_query
+              Map.put(root_query, :order_bys, query.order_bys)
             else
               Ecto.Query.exclude(root_query, :order_by)
             end
@@ -1374,11 +1374,12 @@ defmodule AshPostgres.DataLayer do
             end)
 
           faked_query =
-            from(row in root_query,
+            from(row in query.from.source,
               inner_join: limiter in ^subquery(root_query),
               as: ^0,
               on: ^dynamic
             )
+            |> Map.put(:__ash_bindings__, query.__ash_bindings__)
 
           joins_to_add =
             for {%{on: on} = join, ix} <- Enum.with_index(query.joins) do

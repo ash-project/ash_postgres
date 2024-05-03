@@ -38,12 +38,13 @@ defmodule AshPostgres.Test.MultitenancyTest do
   end
 
   test "context multitenancy works with policies", %{org1: org1} do
-    Post
-    |> Ash.Changeset.for_create(:create, %{name: "foo"})
-    |> Ash.Changeset.set_tenant(tenant(org1))
-    |> Ash.create!()
-    |> Ash.Changeset.for_update(:update_with_policy, %{}, authorize?: true)
-    |> Ash.Changeset.set_tenant(tenant(org1))
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "foo"}, tenant: tenant(org1))
+      |> Ash.create!()
+
+    post
+    |> Ash.Changeset.for_update(:update_with_policy, %{}, authorize?: true, tenant: tenant(org1))
     |> Ash.update!()
   end
 

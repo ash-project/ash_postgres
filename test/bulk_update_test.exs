@@ -21,11 +21,17 @@ defmodule AshPostgres.BulkUpdateTest do
   end
 
   test "bulk updates can set datetimes" do
-    Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
+    Post
+    |> Ash.Changeset.for_create(:create, %{title: "fred"})
+    |> Ash.create!()
+
+    Post
+    |> Ash.Changeset.for_create(:create, %{title: "george"})
+    |> Ash.create!()
 
     now = DateTime.utc_now()
 
-    Ash.bulk_update!(Post, :update, %{datetime: now})
+    Ash.bulk_update!(Post, :update, %{datetime: now}, strategy: :atomic)
 
     posts = Ash.read!(Post)
 
@@ -81,7 +87,10 @@ defmodule AshPostgres.BulkUpdateTest do
     Post
     |> Ash.Query.limit(1)
     |> Ash.Query.sort(:title)
-    |> Ash.bulk_update!(:update, %{}, atomic_update: %{title: Ash.Expr.expr(title <> "_stuff")})
+    |> Ash.bulk_update!(:update, %{},
+      atomic_update: %{title: Ash.Expr.expr(title <> "_stuff")},
+      strategy: :atomic
+    )
 
     titles =
       Post
