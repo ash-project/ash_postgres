@@ -308,6 +308,10 @@ defmodule AshPostgres.Test.Post do
       )
     )
 
+    calculate(:has_author, :boolean, expr(exists(author, true == true)))
+
+    calculate(:has_comments, :boolean, expr(exists(comments, true == true)))
+
     calculate(
       :has_no_followers,
       :boolean,
