@@ -174,6 +174,7 @@ defmodule AshPostgres.Test.Post do
       source(:title_column)
     end
 
+    attribute(:datetime, :utc_datetime_usec, public?: true)
     attribute(:score, :integer, public?: true)
     attribute(:public, :boolean, public?: true)
     attribute(:category, :ci_string, public?: true)

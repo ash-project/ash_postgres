@@ -20,6 +20,20 @@ defmodule AshPostgres.BulkUpdateTest do
     assert Enum.all?(posts, &String.ends_with?(&1.title, "_stuff"))
   end
 
+  test "bulk updates can set datetimes" do
+    Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
+
+    now = DateTime.utc_now()
+
+    Ash.bulk_update!(Post, :update, %{datetime: now})
+
+    posts = Ash.read!(Post)
+
+    assert Enum.all?(posts, fn post ->
+             DateTime.compare(post.datetime, now) == :eq
+           end)
+  end
+
   test "a map can be given as input" do
     Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
 

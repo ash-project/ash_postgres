@@ -1543,6 +1543,16 @@ defmodule AshPostgres.DataLayer do
       {dynamics, query} =
         Enum.reduce(expressions, {[], query}, fn expression, {dynamics, query} ->
           {dynamic, acc} = AshSql.Expr.dynamic_expr(query, expression, query.__ash_bindings__)
+
+          dynamic =
+            case dynamic do
+              %Ecto.Query.DynamicExpr{} ->
+                dynamic
+
+              other ->
+                Ecto.Query.dynamic(^other)
+            end
+
           {[dynamic | dynamics], AshSql.Bindings.merge_expr_accumulator(query, acc)}
         end)
 
