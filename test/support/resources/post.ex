@@ -77,7 +77,7 @@ defmodule AshPostgres.Test.Post do
   actions do
     default_accept(:*)
 
-    defaults([:destroy])
+    defaults([:read, :destroy])
 
     destroy :destroy_with_confirm do
       require_atomic?(false)
@@ -121,10 +121,6 @@ defmodule AshPostgres.Test.Post do
 
     read :title_is_foo do
       filter(expr(title == "foo"))
-    end
-
-    read :read do
-      primary?(true)
     end
 
     read(:allow_any)

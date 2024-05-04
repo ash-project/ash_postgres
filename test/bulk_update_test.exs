@@ -81,6 +81,25 @@ defmodule AshPostgres.BulkUpdateTest do
     assert titles == ["fred_stuff", "george"]
   end
 
+  test "errors in streaming bulk updates that would result in rollbacks are handled" do
+    Ash.bulk_create!(
+      [
+        %{uniq_custom_one: "fred", uniq_custom_two: "weasley1"},
+        %{uniq_custom_one: "fred", uniq_custom_two: "weasley2"}
+      ],
+      Post,
+      :create,
+      return_records?: true
+    )
+
+    assert %Ash.BulkResult{errors: [%Ash.Error.Invalid{}]} =
+             Post
+             |> Ash.bulk_update(:update, %{uniq_custom_two: "weasley"},
+               strategy: :stream,
+               return_errors?: true
+             )
+  end
+
   test "bulk updates can be limited" do
     Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
 

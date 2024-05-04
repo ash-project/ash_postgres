@@ -2771,6 +2771,7 @@ defmodule AshPostgres.DataLayer do
 
     func = fn ->
       repo.on_transaction_begin(reason)
+
       func.()
     end
 
