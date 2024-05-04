@@ -15,6 +15,10 @@ defmodule AshPostgres.Test.PostFollower do
     defaults([:create, :read, :update, :destroy])
   end
 
+  attributes do
+    attribute(:order, :integer, public?: true)
+  end
+
   relationships do
     belongs_to :post, AshPostgres.Test.Post do
       primary_key?(true)
