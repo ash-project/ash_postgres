@@ -135,7 +135,9 @@ defmodule AshPostgres.MixProject do
         Types: [
           AshPostgres.Type,
           AshPostgres.Tsquery,
-          AshPostgres.Tsvector
+          AshPostgres.Tsvector,
+          AshPostgres.Timestamptz,
+          AshPostgres.TimestamptzUsec
         ],
         Extensions: [
           AshPostgres.Extensions.Vector

@@ -174,7 +174,7 @@ defmodule AshPostgres.Test.Post do
       source(:title_column)
     end
 
-    attribute(:datetime, :utc_datetime_usec, public?: true)
+    attribute(:datetime, AshPostgres.TimestamptzUsec, public?: true)
     attribute(:score, :integer, public?: true)
     attribute(:public, :boolean, public?: true)
     attribute(:category, :ci_string, public?: true)
@@ -204,7 +204,12 @@ defmodule AshPostgres.Test.Post do
     end
 
     create_timestamp(:created_at, writable?: true, public?: true)
-    update_timestamp(:updated_at, writable?: true, public?: true)
+
+    update_timestamp(:updated_at,
+      type: AshPostgres.TimestamptzUsec,
+      writable?: true,
+      public?: true
+    )
   end
 
   code_interface do

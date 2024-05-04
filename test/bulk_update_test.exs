@@ -38,6 +38,10 @@ defmodule AshPostgres.BulkUpdateTest do
     assert Enum.all?(posts, fn post ->
              DateTime.compare(post.datetime, now) == :eq
            end)
+
+    assert Enum.all?(posts, fn post ->
+             DateTime.diff(now, post.updated_at, :minute) < 1
+           end)
   end
 
   test "a map can be given as input" do
