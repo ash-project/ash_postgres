@@ -5,6 +5,89 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.0-rc.15](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.14...v2.0.0-rc.15) (2024-05-05)
+### Breaking Changes:
+
+* change defaults for uuids to `gen_random_uuid()`
+
+* Use UTC for default generated timestamps (#131)
+
+* 3.0 (#227)
+
+
+
+### Features:
+
+* add timestamptz types (#266)
+
+* test with calculations using `exists` (#240)
+
+* add `create?` and `drop?` callbacks to `AshPostgres.Repo` (#143)
+
+### Bug Fixes:
+
+* properly pass old version in when migrating extensions
+
+* honor dry_run option in extension migrations
+
+* update ash & fix subquery sort references
+
+* fix calculate when exprs aren't dynamics
+
+* ensure limit/offset triggers joining for update/destroy query
+
+* only reference `sub` if a subquery is created
+
+* update ash_sql for inner join fixes
+
+* fix argument order in AshSql.Bindings.default_bindings/4 (#251)
+
+* properly honor `limit` in bulk operations
+
+* undo change that expresses that atomics cant be done without `ash-functions`
+
+* handle missing aggregate relationships and fields better in transformers
+
+* update ash_sql for bug fixes
+
+* reproduce issue around atomic updates & validations
+
+* ensure that `exists` with a filter paired with `from_many?` functions properly
+
+* update ash_sql, fix credo
+
+* use proper sql implementation in `default_bindings`
+
+* don't wait for shell input when checking migrations
+
+* properly handle non-filter aggregate filters
+
+* ensure timestamps are present in extension migrations
+
+* handle fully fleshed out aggregate fields
+
+### Improvements:
+
+* support latest ash & calculate/3 capability
+
+* warn on missing ash-functions at compile time
+
+* support `mix ash.rollback` with interactive rollback
+
+* don't fetch version in agent when using sandbox
+
+* loosen 3.0 release candidate requirement
+
+* fixes for 3.0 changes and AshSql changes
+
+* move many internals out to `AshSql` package
+
+* add default implementation for pg_version, and rename to `min_pg_version`
+
+* upgrade to 3.0
+
+* properly show unsupported error expression
+
 ## [v2.0.0-rc.14](https://github.com/ash-project/ash_postgres/compare/v2.0.0-rc.13...v2.0.0-rc.14) (2024-04-29)
 
 
