@@ -306,8 +306,14 @@ defmodule AshPostgres.MigrationGenerator do
           )
 
         contents = format(migration_file, contents, opts)
-        create_file(snapshot_file, snapshot_contents, force: true)
-        create_file(migration_file, contents)
+
+        if opts.dry_run do
+          Mix.shell().info(snapshot_contents)
+          Mix.shell().info(contents)
+        else
+          create_file(snapshot_file, snapshot_contents, force: true)
+          create_file(migration_file, contents)
+        end
       end
     end
   end
