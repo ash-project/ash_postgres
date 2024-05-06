@@ -2400,7 +2400,7 @@ defmodule AshPostgres.MigrationGenerator do
 
     {rest_adding, rest_removing, rest_renames} = resolve_renames(table, new_adding, rest, opts)
 
-    {new_adding ++ rest_adding, new_removing ++ rest_removing, rest_renames ++ new_renames}
+    {rest_adding, new_removing ++ rest_removing, rest_renames ++ new_renames}
   end
 
   defp renaming_to?(table, removing, adding, opts) do
