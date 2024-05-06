@@ -22,10 +22,10 @@ defmodule AshPostgres.BulkDestroyTest do
 
     Post
     |> Ash.Query.filter(title == "fred")
-    |> Ash.bulk_destroy!(:update, %{})
+    |> Ash.bulk_destroy!(:destroy, %{})
 
     # 😢 sad
-    assert [%{title: "george"}] = Ash.read!(Post)
+    assert ["george"] = Ash.read!(Post) |> Enum.map(& &1.title)
   end
 
   test "the query can join to related tables when necessary" do
@@ -33,6 +33,7 @@ defmodule AshPostgres.BulkDestroyTest do
 
     Post
     |> Ash.Query.filter(author.first_name == "fred" or title == "fred")
+    |> Ash.Query.select([:title])
     |> Ash.bulk_destroy!(:update, %{}, return_records?: true)
 
     assert [%{title: "george"}] = Ash.read!(Post)
