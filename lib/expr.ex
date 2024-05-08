@@ -1561,7 +1561,7 @@ defmodule AshPostgres.Expr do
         on_subquery: fn subquery ->
           subquery =
             Ecto.Query.from(row in Ecto.Query.exclude(subquery, :select),
-              select: fragment("1")
+              select: row
             )
             |> Map.put(:__ash_bindings__, subquery.__ash_bindings__)
 

@@ -16,10 +16,9 @@ defmodule AshPostgres.Test.ManualRelationshipsTest do
     end
 
     test "exists can be used" do
-      post =
-        Post
-        |> Ash.Changeset.new(%{title: "title"})
-        |> Api.create!()
+      Post
+      |> Ash.Changeset.new(%{title: "title"})
+      |> Api.create!()
 
       Comment
       |> Ash.Changeset.new(%{title: "title2"})
