@@ -5,6 +5,23 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v1.5.26](https://github.com/ash-project/ash_postgres/compare/v1.5.25...v1.5.26) (2024-05-08)
+
+
+
+
+### Bug Fixes:
+
+* don't use `fragment("1")` because ecto requires a proper source
+
+* properly use `ash_postgres_subquery` callback for `exists` on manual relationships
+
+* properly set tenant on aggregate queries
+
+* make string concat work with non literal lists
+
+* properly handle non-filter aggregate filters
+
 ## [v1.5.25](https://github.com/ash-project/ash_postgres/compare/v1.5.24...v1.5.25) (2024-05-02)
 
 
