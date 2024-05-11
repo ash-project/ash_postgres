@@ -25,7 +25,7 @@ In this guide we will:
 
 Add the `:ash_postgres` dependency to your application
 
-`{:ash_postgres, "~> 1.3.6"}`
+`{:ash_postgres, "~> 2.0.0"}`
 
 Add `:ash_postgres` to your `.formatter.exs` file
 
@@ -158,7 +158,7 @@ And finally, add the repo to your application
 Now we can add the data layer to our resources. The basic configuration for a resource requires the `d:AshPostgres.postgres|table` and the `d:AshPostgres.postgres|repo`.
 
 ```elixir
-# in lib/helpdesk/support/resources/ticket.ex
+# in lib/helpdesk/support/ticket.ex
 
   use Ash.Resource,
     domain: Helpdesk.Support,
@@ -171,7 +171,7 @@ Now we can add the data layer to our resources. The basic configuration for a re
 ```
 
 ```elixir
-# in lib/helpdesk/support/resources/representative.ex
+# in lib/helpdesk/support/representative.ex
 
   use Ash.Resource,
     domain: Helpdesk.Support,
@@ -217,7 +217,7 @@ require Ash.Query
 representative = (
   Helpdesk.Support.Representative
   |> Ash.Changeset.for_create(:create, %{name: "Joe Armstrong"})
-  |> Helpdesk.Support.create!()
+  |> Ash.create!()
 )
 
 for i <- 0..5 do
@@ -226,12 +226,12 @@ for i <- 0..5 do
     |> Ash.Changeset.for_create(:open, %{subject: "Issue #{i}"})
     |> Helpdesk.Support.create!()
     |> Ash.Changeset.for_update(:assign, %{representative_id: representative.id})
-    |> Helpdesk.Support.update!()
+    |> Ash.update!()
 
   if rem(i, 2) == 0 do
     ticket
     |> Ash.Changeset.for_update(:close)
-    |> Helpdesk.Support.update!()
+    |> Ash.update!()
   end
 end
 ```
@@ -244,7 +244,7 @@ require Ash.Query
 # Show the tickets where the subject contains "2"
 Helpdesk.Support.Ticket
 |> Ash.Query.filter(contains(subject, "2"))
-|> Helpdesk.Support.read!()
+|> Ash.read!()
 ```
 
 ```elixir
@@ -253,7 +253,7 @@ require Ash.Query
 # Show the tickets that are closed and their subject does not contain "4"
 Helpdesk.Support.Ticket
 |> Ash.Query.filter(status == :closed and not(contains(subject, "4")))
-|> Helpdesk.Support.read!()
+|> Ash.read!()
 ```
 
 And, naturally, now that we are storing this in postgres, this database is persisted even if we stop/start our application. The nice thing, however, is that this was the _exact_ same code that we ran against our resources when they were backed by ETS.
@@ -265,7 +265,7 @@ Lets add some aggregates to our representatives resource. Aggregates are a tool 
 Here we will add an aggregate to easily query how many tickets are assigned to a representative, and how many of those tickets are open/closed.
 
 ```elixir
-# in lib/helpdesk/support/resources/representative.ex
+# in lib/helpdesk/support/representative.ex
 
   aggregates do
     # The first argument here is the name of the aggregate
@@ -293,7 +293,7 @@ require Ash.Query
 Helpdesk.Support.Representative
 |> Ash.Query.filter(closed_tickets < 4)
 |> Ash.Query.sort(closed_tickets: :desc)
-|> Helpdesk.Support.read!()
+|> Ash.read!()
 ```
 
 You can also load individual aggregates on demand after queries have already been run, and minimal SQL will be issued to run the aggregate.
@@ -305,7 +305,7 @@ require Ash.Query
 
 representatives = Helpdesk.Support.read!(Helpdesk.Support.Representative)
 
-Helpdesk.Support.load!(representatives, :open_tickets)
+Ash.load!(representatives, :open_tickets)
 ```
 
 ### Calculations
@@ -315,7 +315,7 @@ Calculations can be pushed down into SQL in the same way. Calculations are simil
 For example, we can determine the percentage of tickets that are open:
 
 ```elixir
-# in lib/helpdesk/support/resources/representative.ex
+# in lib/helpdesk/support/representative.ex
 
   calculations do
     calculate :percent_open, :float, expr(open_tickets / total_tickets )
@@ -331,7 +331,7 @@ Helpdesk.Support.Representative
 |> Ash.Query.filter(percent_open > 0.25)
 |> Ash.Query.sort(:percent_open)
 |> Ash.Query.load(:percent_open)
-|> Helpdesk.Support.read!()
+|> Ash.read!()
 ```
 
 ### Rich Configuration Options
@@ -344,6 +344,6 @@ Take a look at the DSL documentation for more information on what you can config
 
 - [Ecto's documentation](https://hexdocs.pm/ecto/Ecto.html). AshPostgres (and much of Ash itself) is made possible by the amazing Ecto. If you find yourself looking for escape hatches when using Ash or ways to work directly with your database, you will want to know how Ecto works. Ash and AshPostgres intentionally do not hide Ecto, and in fact encourages its use whenever you need an escape hatch.
 
-- [Postgres' documentation](https://www.postgresql.org/docs/). Although AshPostgres makes things a lot easier, you generally can't get away with not understanding the basics of postgres and SQL.
+- [Postgres' documentation](https://www.postgresql.org/docs/). Although AshPostgres makes things a lot easier, you should understand the basics of postgres and SQL.
 
 - [Ecto's Migration documentation](https://hexdocs.pm/ecto_sql/Ecto.Migration.html) read more about migrations. Even with the ash_postgres migration generator, you will very likely need to modify your own migrations some day.
