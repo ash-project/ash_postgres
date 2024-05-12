@@ -254,7 +254,7 @@ defmodule AshPostgres.MigrationGenerator do
             {ext_name, _version, up_fn, _down_fn} when is_function(up_fn, 1) ->
               current_version =
                 Enum.find_value(extensions_snapshot[:installed] || [], 0, fn name ->
-                  with ["", "v" <> version] <- String.split(name, to_string(ext_name)),
+                  with ["", "_v" <> version] <- String.split(name, to_string(ext_name)),
                        {integer, ""} <- Integer.parse(version) do
                     integer
                   else
