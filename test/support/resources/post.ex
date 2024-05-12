@@ -79,6 +79,14 @@ defmodule AshPostgres.Test.Post do
 
     defaults([:read, :destroy])
 
+    destroy :destroy_only_freds do
+      change(filter(expr(title == "fred")))
+    end
+
+    update :update_only_freds do
+      change(filter(expr(title == "fred")))
+    end
+
     destroy :destroy_with_confirm do
       require_atomic?(false)
       argument(:confirm, :string, allow_nil?: false)

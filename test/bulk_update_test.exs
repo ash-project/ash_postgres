@@ -85,6 +85,43 @@ defmodule AshPostgres.BulkUpdateTest do
     assert titles == ["fred_stuff", "george"]
   end
 
+  test "bulk updates honor update action filters" do
+    Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
+
+    Post
+    |> Ash.bulk_update!(:update_only_freds, %{},
+      return_errors?: true,
+      atomic_update: %{title: Ash.Expr.expr(title <> "_stuff")}
+    )
+
+    titles =
+      Post
+      |> Ash.read!()
+      |> Enum.map(& &1.title)
+      |> Enum.sort()
+
+    assert titles == ["fred_stuff", "george"]
+  end
+
+  test "bulk updates honor update action filters when streaming" do
+    Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
+
+    Post
+    |> Ash.bulk_update!(:update_only_freds, %{},
+      strategy: :stream,
+      return_errors?: true,
+      atomic_update: %{title: Ash.Expr.expr(title <> "_stuff")}
+    )
+
+    titles =
+      Post
+      |> Ash.read!()
+      |> Enum.map(& &1.title)
+      |> Enum.sort()
+
+    assert titles == ["fred_stuff", "george"]
+  end
+
   test "errors in streaming bulk updates that would result in rollbacks are handled" do
     Ash.bulk_create!(
       [

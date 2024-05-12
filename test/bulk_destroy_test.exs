@@ -28,6 +28,26 @@ defmodule AshPostgres.BulkDestroyTest do
     assert ["george"] = Ash.read!(Post) |> Enum.map(& &1.title)
   end
 
+  test "bulk destroys honor changeset filters" do
+    Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
+
+    Post
+    |> Ash.bulk_destroy!(:destroy_only_freds, %{})
+
+    # 😢 sad
+    assert ["george"] = Ash.read!(Post) |> Enum.map(& &1.title)
+  end
+
+  test "bulk destroys honor changeset filters when streaming" do
+    Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
+
+    Post
+    |> Ash.bulk_destroy!(:destroy_only_freds, %{}, strategy: :stream)
+
+    # 😢 sad
+    assert ["george"] = Ash.read!(Post) |> Enum.map(& &1.title)
+  end
+
   test "the query can join to related tables when necessary" do
     Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
 

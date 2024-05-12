@@ -1861,7 +1861,7 @@ defmodule AshPostgres.DataLayer do
          resource
        ) do
     handle_raised_error(
-      Ash.Error.Changes.StaleRecord.exception(resource: resource, filters: filters),
+      Ash.Error.Changes.StaleRecord.exception(resource: resource, filter: filters),
       stacktrace,
       context,
       resource
@@ -2494,7 +2494,7 @@ defmodule AshPostgres.DataLayer do
                   {:error,
                    Ash.Error.Changes.StaleRecord.exception(
                      resource: resource,
-                     filters: changeset.filter
+                     filter: changeset.filter
                    )}
 
                 {1, [result]} ->
