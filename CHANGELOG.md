@@ -5,6 +5,12 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.1](https://github.com/ash-project/ash_postgres/compare/v2.0.0...v2.0.1) (2024-05-12)
+
+### Bug Fixes:
+
+- [AshPostgres.MigrationGenerator] properly parse previous version of custom extensions when generating migrations
+
 ## [v2.0.0](https://github.com/ash-project/ash_postgres/compare/v2.0.0...2.0)
 
 The changelog is starting over. Please see `/documentation/1.0-CHANGELOG.md` in GitHub for previous changelogs.
