@@ -30,7 +30,7 @@ fragment("points > (SELECT SUM(points) FROM games WHERE user_id = ? AND id != ?)
 >
 > Using entire queries as shown above is a last resort, but can sometimes be the best way to accomplish a given task.
 
-####  In calculations
+#### In calculations
 
 ```elixir
 calculations do
@@ -52,7 +52,7 @@ end
 
 These wrap the postgres builtin like and ilike operators.
 
-Please be aware, these match *patterns* not raw text. Use `contains/1` if you want to match text without supporting patterns, i.e `%` and `_` have semantic meaning!
+Please be aware, these match _patterns_ not raw text. Use `contains/1` if you want to match text without supporting patterns, i.e `%` and `_` have semantic meaning!
 
 For example:
 
@@ -68,7 +68,7 @@ Ash.Query.filter(User, ilike(name, "%ObO%")) # name contains ObO anywhere in the
 
 To use this expression, you must have the `pg_trgm` extension in your repos `installed_extensions` list.
 
-This calls the `similarity` function from that extension. See more https://www.postgresql.org/docs/current/pgtrgm.htmlhere: https://www.postgresql.org/docs/current/pgtrgm.html
+This calls the `similarity` function from that extension. See more in the [pgtrgm guide](https://www.postgresql.org/docs/current/pgtrgm.html)
 
 For example:
 
