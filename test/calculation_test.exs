@@ -59,6 +59,8 @@ defmodule AshPostgres.CalculationTest do
              |> Ash.Query.filter(c_times_p == 6)
              |> Ash.read!()
 
+    Logger.configure(level: :debug)
+
     assert [] =
              Post
              |> Ash.Query.filter(author: [has_posts: true])
@@ -131,6 +133,13 @@ defmodule AshPostgres.CalculationTest do
              Post
              |> Ash.Query.load([:has_author, :has_comments])
              |> Ash.read!()
+
+    # building on top of an exists also works
+    author =
+      author |> Ash.load!([:has_posts, :has_no_posts])
+
+    assert author.has_posts
+    refute author.has_no_posts
   end
 
   test "calculations can refer to embedded attributes" do
