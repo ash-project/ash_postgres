@@ -59,8 +59,6 @@ defmodule AshPostgres.CalculationTest do
              |> Ash.Query.filter(c_times_p == 6)
              |> Ash.read!()
 
-    Logger.configure(level: :debug)
-
     assert [] =
              Post
              |> Ash.Query.filter(author: [has_posts: true])
