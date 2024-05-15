@@ -4,6 +4,7 @@ defmodule AshPostgres.AtomicsTest do
   alias AshPostgres.Test.Post
 
   import Ash.Expr
+  require Ash.Query
 
   test "atomics work on upserts" do
     id = Ash.UUID.generate()
@@ -103,7 +104,7 @@ defmodule AshPostgres.AtomicsTest do
     assert Post.increment_score!(post, 2).score == 4
   end
 
-  test "use rel in atomic update" do
+  test "relationships can be used in atomic update" do
     author =
       Author
       |> Ash.Changeset.for_create(:create, %{first_name: "John", last_name: "Doe"})
@@ -120,5 +121,42 @@ defmodule AshPostgres.AtomicsTest do
       |> Ash.update!()
 
     assert post.title == "John"
+  end
+
+  test "relationships can be used in atomic update and in an atomic update filter" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "John", last_name: "Doe"})
+      |> Ash.create!()
+
+    Post
+    |> Ash.Changeset.for_create(:create, %{price: 1, author_id: author.id})
+    |> Ash.create!()
+
+    post =
+      Post
+      |> Ash.Query.filter(author.last_name == "Doe")
+      |> Ash.bulk_update!(:set_title_from_author, %{}, return_records?: true)
+      |> Map.get(:records)
+      |> List.first()
+
+    assert post.title == "John"
+  end
+
+  test "relationships can be used in atomic update and in an atomic update filter when first join is a left join" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "John", last_name: "Doe"})
+      |> Ash.create!()
+
+    Post
+    |> Ash.Changeset.for_create(:create, %{price: 1, author_id: author.id})
+    |> Ash.create!()
+
+    assert [] =
+             Post
+             |> Ash.Query.filter(is_nil(author.last_name))
+             |> Ash.bulk_update!(:set_title_from_author, %{}, return_records?: true)
+             |> Map.get(:records)
   end
 end

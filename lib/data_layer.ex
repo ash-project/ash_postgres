@@ -1310,7 +1310,98 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp bulk_updatable_query(query, resource, atomics, calculations, context) do
+  defp bulk_updatable_query(query, resource, atomics, calculations, context, type \\ :update) do
+    requires_adding_inner_join? =
+      case type do
+        :update ->
+          # could potentially optimize this to avoid the subquery by shuffling free
+          # inner joins to the top of the query
+          has_inner_join_to_start? =
+            case Enum.at(query.joins, 0) do
+              nil ->
+                false
+
+              %{qual: :inner} ->
+                true
+
+              _ ->
+                false
+            end
+
+          cond do
+            has_inner_join_to_start? ->
+              false
+
+            Enum.any?(query.joins, &(&1.qual != :inner)) ->
+              true
+
+            Enum.any?(atomics ++ calculations, fn {_, expr} ->
+              Ash.Filter.list_refs(expr) |> Enum.any?(&(&1.relationship_path != []))
+            end) ->
+              true
+
+            true ->
+              false
+          end
+
+        :destroy ->
+          Enum.any?(query.joins, &(&1.qual != :inner)) ||
+            Enum.any?(atomics ++ calculations, fn {_, expr} ->
+              expr |> Ash.Filter.list_refs() |> Enum.any?(&(&1.relationship_path != []))
+            end)
+      end
+
+    needs_to_join? =
+      requires_adding_inner_join? ||
+        query.limit || query.offset
+
+    query =
+      if needs_to_join? do
+        root_query = Ecto.Query.exclude(query, :select)
+
+        root_query =
+          cond do
+            query.limit || query.offset ->
+              from(row in Ecto.Query.subquery(root_query), [])
+
+            !Enum.empty?(query.joins) ->
+              from(row in Ecto.Query.subquery(Ecto.Query.exclude(root_query, :order_by)), [])
+
+            true ->
+              Ecto.Query.exclude(root_query, :order_by)
+          end
+
+        dynamic =
+          Enum.reduce(Ash.Resource.Info.primary_key(resource), nil, fn pkey, dynamic ->
+            if dynamic do
+              Ecto.Query.dynamic(
+                [row, joining],
+                field(row, ^pkey) == field(joining, ^pkey) and ^dynamic
+              )
+            else
+              Ecto.Query.dynamic([row, joining], field(row, ^pkey) == field(joining, ^pkey))
+            end
+          end)
+
+        faked_query =
+          from(row in query.from.source,
+            inner_join: limiter in ^root_query,
+            as: ^0,
+            on: ^dynamic
+          )
+          |> AshSql.Bindings.default_bindings(
+            query.__ash_bindings__.resource,
+            AshPostgres.SqlImplementation,
+            context
+          )
+
+        faked_query
+      else
+        query
+        |> Ecto.Query.exclude(:select)
+        |> Ecto.Query.exclude(:order_by)
+      end
+
     Enum.reduce_while(atomics ++ calculations, {:ok, query}, fn {_, expr}, {:ok, query} ->
       used_aggregates =
         Ash.Filter.used_aggregates(expr, [])
@@ -1332,53 +1423,6 @@ defmodule AshPostgres.DataLayer do
           {:halt, {:error, error}}
       end
     end)
-    |> case do
-      {:ok, query} ->
-        needs_to_join? =
-          Enum.any?(query.joins, &(&1.qual != :inner)) || query.limit || query.offset
-
-        if needs_to_join? do
-          root_query = Ecto.Query.exclude(query, :select)
-
-          root_query =
-            if query.limit || query.offset do
-              Map.put(root_query, :order_bys, query.order_bys)
-            else
-              Ecto.Query.exclude(root_query, :order_by)
-            end
-
-          dynamic =
-            Enum.reduce(Ash.Resource.Info.primary_key(resource), nil, fn pkey, dynamic ->
-              if dynamic do
-                Ecto.Query.dynamic(
-                  [row, joining],
-                  field(row, ^pkey) == field(joining, ^pkey) and ^dynamic
-                )
-              else
-                Ecto.Query.dynamic([row, joining], field(row, ^pkey) == field(joining, ^pkey))
-              end
-            end)
-
-          faked_query =
-            from(row in query.from.source,
-              inner_join: limiter in ^subquery(root_query),
-              as: ^0,
-              on: ^dynamic
-            )
-            |> Map.put(:__ash_bindings__, query.__ash_bindings__)
-
-          {:ok, faked_query}
-        else
-          {:ok,
-           query
-           |> AshSql.Bindings.default_bindings(resource, AshPostgres.SqlImplementation, context)
-           |> Ecto.Query.exclude(:select)
-           |> Ecto.Query.exclude(:order_by)}
-        end
-
-      {:error, error} ->
-        {:error, error}
-    end
   end
 
   @impl true
@@ -1399,7 +1443,8 @@ defmodule AshPostgres.DataLayer do
            resource,
            changeset.atomics,
            options[:calculations] || [],
-           changeset.context
+           changeset.context,
+           :destroy
          ) do
       {:error, error} ->
         {:error, error}
