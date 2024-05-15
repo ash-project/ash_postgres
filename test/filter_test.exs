@@ -1091,7 +1091,7 @@ defmodule AshPostgres.FilterTest do
 
     fetched_org =
       Organization
-      |> Ash.Query.filter(^ref(:id, [:posts, :comments]) == ^comment.id)
+      |> Ash.Query.filter(^ref([:posts, :comments], :id) == ^comment.id)
       |> Ash.read_one!()
 
     assert fetched_org.id == organization.id
