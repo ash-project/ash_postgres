@@ -150,6 +150,10 @@ defmodule AshPostgres.Test.Post do
       )
     end
 
+    update :set_title_from_author do
+      change(atomic_update(:title, expr(author.first_name)))
+    end
+
     update :increment_score do
       argument(:amount, :integer, default: 1)
       change(atomic_update(:score, expr((score || 0) + ^arg(:amount))))

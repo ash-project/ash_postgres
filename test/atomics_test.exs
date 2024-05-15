@@ -1,4 +1,5 @@
 defmodule AshPostgres.AtomicsTest do
+  alias AshPostgres.Test.Author
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.Post
 
@@ -100,5 +101,24 @@ defmodule AshPostgres.AtomicsTest do
     assert Post.increment_score!(post, 2).score == 2
 
     assert Post.increment_score!(post, 2).score == 4
+  end
+
+  test "use rel in atomic update" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "John", last_name: "Doe"})
+      |> Ash.create!()
+
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{price: 1, author_id: author.id})
+      |> Ash.create!()
+
+    post =
+      post
+      |> Ash.Changeset.for_update(:set_title_from_author, %{})
+      |> Ash.update!()
+
+    assert post.title == "John"
   end
 end
