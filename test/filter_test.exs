@@ -1,10 +1,11 @@
 defmodule AshPostgres.FilterTest do
-  alias AshPostgres.Test.Organization
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Author, Comment, Post}
+
+  alias AshPostgres.Test.{Author, Comment, Post, Organization}
   alias AshPostgres.Test.ComplexCalculations.{Channel, ChannelMember}
 
   require Ash.Query
+  import Ash.Expr
 
   describe "with no filter applied" do
     test "with no data" do
@@ -1069,5 +1070,30 @@ defmodule AshPostgres.FilterTest do
                  )
              )
              |> Ash.read!()
+  end
+
+  test "filter with ref" do
+    organization =
+      Organization
+      |> Ash.Changeset.for_create(:create, %{name: "foo"})
+      |> Ash.create!()
+
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{organization_id: organization.id})
+      |> Ash.create!()
+
+    comment =
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "not match"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+    fetched_org =
+      Organization
+      |> Ash.Query.filter(^ref(:id, [:posts, :comments]) == ^comment.id)
+      |> Ash.read_one!()
+
+    assert fetched_org.id == organization.id
   end
 end
