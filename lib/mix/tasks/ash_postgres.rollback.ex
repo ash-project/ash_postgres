@@ -71,6 +71,7 @@ defmodule Mix.Tasks.AshPostgres.Rollback do
       |> AshPostgres.Mix.Helpers.delete_flag("--tenants")
       |> AshPostgres.Mix.Helpers.delete_flag("--only-tenants")
       |> AshPostgres.Mix.Helpers.delete_flag("--except-tenants")
+      |> AshPostgres.Mix.Helpers.delete_arg("-r")
 
     Mix.Task.reenable("ecto.rollback")
 
