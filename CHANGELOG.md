@@ -5,6 +5,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.2](https://github.com/ash-project/ash_postgres/compare/v2.0.1...v2.0.2) (2024-05-15)
+
+
+
+
+### Bug Fixes:
+
+* [update_query/destroy_query] rework the update and destroy query builder to support multiple kinds of joining
+
+* [mix ash_postgres.migrate] remove duplicate repo flags (#285)
+
+* [Ash.Error.Changes.StaleRecord] ensure filter is included in stale record error messages we return
+
+* [AshPostgres.MigrationGenerator] properly parse previous version from migration generation
+
 ## [v2.0.1](https://github.com/ash-project/ash_postgres/compare/v2.0.0...v2.0.1) (2024-05-12)
 
 ### Bug Fixes:
