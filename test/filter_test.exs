@@ -1,7 +1,7 @@
 defmodule AshPostgres.FilterTest do
   use AshPostgres.RepoCase, async: false
 
-  alias AshPostgres.Test.{Author, Comment, Post, Organization}
+  alias AshPostgres.Test.{Author, Comment, Organization, Post}
   alias AshPostgres.Test.ComplexCalculations.{Channel, ChannelMember}
 
   require Ash.Query
