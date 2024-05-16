@@ -1721,9 +1721,10 @@ defmodule AshPostgres.MigrationGenerator do
 
     custom_indexes_to_add =
       Enum.filter(snapshot.custom_indexes, fn index ->
-        !Enum.find(old_snapshot.custom_indexes, fn old_custom_index ->
-          indexes_match?(snapshot.table, old_custom_index, index)
-        end)
+        (rewrite_all_identities? && !index.all_tenants?) ||
+          !Enum.find(old_snapshot.custom_indexes, fn old_custom_index ->
+            indexes_match?(snapshot.table, old_custom_index, index)
+          end)
       end)
       |> Enum.map(fn custom_index ->
         %Operation.AddCustomIndex{
