@@ -24,7 +24,12 @@ defmodule AshPostgres.Reference do
           "If set to true, no reference is created for the given relationship. This is useful if you need to define it in some custom way"
       ],
       on_delete: [
-        type: {:one_of, [:delete, :nilify, :nothing, :restrict]},
+        type:
+          {:or,
+           [
+             {:one_of, [:delete, :nilify, :nothing, :restrict]},
+             {:tagged_tuple, :nilify, {:wrap_list, :atom}}
+           ]},
         doc: """
         What should happen to records of this resource when the referenced record of the *destination* resource is deleted.
         """

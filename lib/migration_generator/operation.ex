@@ -42,6 +42,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       end
     end
 
+    def on_delete(%{on_delete: {:nilify, columns}}) when is_list(columns) do
+      "on_delete: {:nilify, #{inspect(columns)}}"
+    end
+
     def on_delete(%{on_delete: on_delete}) when on_delete in [:delete, :nilify] do
       "on_delete: :#{on_delete}_all"
     end
