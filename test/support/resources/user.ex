@@ -11,6 +11,21 @@ defmodule AshPostgres.Test.User do
 
     read :active do
       filter(expr(active))
+
+      pagination do
+        offset?(true)
+        keyset?(true)
+        countable(true)
+        required?(false)
+      end
+    end
+
+    read :keyset do
+      pagination do
+        keyset?(true)
+        countable(true)
+        required?(false)
+      end
     end
   end
 

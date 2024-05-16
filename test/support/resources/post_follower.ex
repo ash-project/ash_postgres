@@ -15,17 +15,15 @@ defmodule AshPostgres.Test.PostFollower do
     defaults([:create, :read, :update, :destroy])
   end
 
-  attributes do
-    uuid_primary_key(:id)
-  end
-
   relationships do
     belongs_to :post, AshPostgres.Test.Post do
+      primary_key?(true)
       public?(true)
       allow_nil?(false)
     end
 
     belongs_to :follower, AshPostgres.Test.User do
+      primary_key?(true)
       public?(true)
       allow_nil?(false)
     end

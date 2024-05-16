@@ -1,6 +1,6 @@
 defmodule AshPostgres.Test.LoadTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Comment, Post, Record, TempEntity}
+  alias AshPostgres.Test.{Author, Comment, Post, Record, TempEntity, User}
 
   require Ash.Query
 
@@ -344,6 +344,332 @@ defmodule AshPostgres.Test.LoadTest do
       assert %{entity: entity} = Ash.load!(record, :entity)
 
       assert temp_entity.id == entity.id
+    end
+  end
+
+  describe "relationship pagination" do
+    test "it allows paginating has_many relationships with offset pagination" do
+      author1 =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "a"})
+        |> Ash.create!()
+
+      author2 =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "b"})
+        |> Ash.create!()
+
+      for i <- 0..9 do
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "author1 post#{i}", author_id: author1.id})
+        |> Ash.create!()
+
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "author2 post#{i}", author_id: author2.id})
+        |> Ash.create!()
+      end
+
+      paginated_posts =
+        Post
+        |> Ash.Query.for_read(:paginated)
+        |> Ash.Query.page(limit: 2, offset: 2)
+        |> Ash.Query.sort(:title)
+
+      assert [author1, author2] =
+               Author
+               |> Ash.Query.sort(:first_name)
+               |> Ash.Query.load(posts: paginated_posts)
+               |> Ash.read!()
+
+      assert %Ash.Page.Offset{
+               results: [%{title: "author1 post2"}, %{title: "author1 post3"}]
+             } = author1.posts
+
+      assert %Ash.Page.Offset{
+               results: [%{title: "author2 post2"}, %{title: "author2 post3"}]
+             } = author2.posts
+
+      assert %Ash.Page.Offset{
+               results: [%{title: "author1 post4"}, %{title: "author1 post5"}]
+             } = Ash.page!(author1.posts, :next)
+    end
+
+    test "it allows paginating has_many relationships with keyset pagination" do
+      author1 =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "a"})
+        |> Ash.create!()
+
+      author2 =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "b"})
+        |> Ash.create!()
+
+      for i <- 0..9 do
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "author1 post#{i}", author_id: author1.id})
+        |> Ash.create!()
+
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "author2 post#{i}", author_id: author2.id})
+        |> Ash.create!()
+      end
+
+      paginated_posts =
+        Post
+        |> Ash.Query.for_read(:keyset)
+        |> Ash.Query.page(limit: 2)
+        |> Ash.Query.sort(:title)
+
+      assert [author1, author2] =
+               Author
+               |> Ash.Query.sort(:first_name)
+               |> Ash.Query.load(posts: paginated_posts)
+               |> Ash.read!()
+
+      assert %Ash.Page.Keyset{
+               results: [%{title: "author1 post0"}, %{title: "author1 post1"}]
+             } = author1.posts
+
+      assert %Ash.Page.Keyset{
+               results: [%{title: "author2 post0"}, %{title: "author2 post1"}]
+             } = author2.posts
+
+      assert %Ash.Page.Keyset{
+               results: [%{title: "author1 post2"}, %{title: "author1 post3"}]
+             } = Ash.page!(author1.posts, :next)
+    end
+
+    test "it allows paginating many_to_many relationships with offset pagination" do
+      followers =
+        for i <- 0..9 do
+          User
+          |> Ash.Changeset.for_create(:create, %{name: "user#{i}", is_active: true})
+          |> Ash.create!()
+        end
+
+      followers_0_to_6 = Enum.take(followers, 6)
+      followers_5_to_9 = Enum.slice(followers, 5..9)
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "a"})
+      |> Ash.Changeset.manage_relationship(:followers, followers_0_to_6, type: :append_and_remove)
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "b"})
+      |> Ash.Changeset.manage_relationship(:followers, followers_5_to_9, type: :append_and_remove)
+      |> Ash.create!()
+
+      paginated_followers =
+        User
+        |> Ash.Query.page(limit: 2)
+        |> Ash.Query.sort(:name)
+
+      assert [post1, post2] =
+               Post
+               |> Ash.Query.sort(:title)
+               |> Ash.Query.load(followers: paginated_followers)
+               |> Ash.read!()
+
+      assert %Ash.Page.Offset{
+               results: [%{name: "user0"}, %{name: "user1"}]
+             } = post1.followers
+
+      assert %Ash.Page.Offset{
+               results: [%{name: "user5"}, %{name: "user6"}]
+             } = post2.followers
+
+      assert %Ash.Page.Offset{
+               results: [%{name: "user2"}, %{name: "user3"}]
+             } = Ash.page!(post1.followers, :next)
+    end
+
+    test "it allows paginating many_to_many relationships with keyset pagination" do
+      followers =
+        for i <- 0..9 do
+          User
+          |> Ash.Changeset.for_create(:create, %{name: "user#{i}"})
+          |> Ash.create!()
+        end
+
+      followers_0_to_6 = Enum.take(followers, 6)
+      followers_5_to_9 = Enum.slice(followers, 5..9)
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "a"})
+      |> Ash.Changeset.manage_relationship(:followers, followers_0_to_6, type: :append_and_remove)
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "b"})
+      |> Ash.Changeset.manage_relationship(:followers, followers_5_to_9, type: :append_and_remove)
+      |> Ash.create!()
+
+      paginated_followers =
+        User
+        |> Ash.Query.for_read(:keyset)
+        |> Ash.Query.page(limit: 2)
+        |> Ash.Query.sort(:name)
+
+      assert [post1, post2] =
+               Post
+               |> Ash.Query.sort(:title)
+               |> Ash.Query.load(followers: paginated_followers)
+               |> Ash.read!()
+
+      assert %Ash.Page.Keyset{
+               results: [%{name: "user0"}, %{name: "user1"}]
+             } = post1.followers
+
+      assert %Ash.Page.Keyset{
+               results: [%{name: "user5"}, %{name: "user6"}]
+             } = post2.followers
+
+      assert %Ash.Page.Keyset{
+               results: [%{name: "user2"}, %{name: "user3"}]
+             } = Ash.page!(post1.followers, :next)
+    end
+
+    test "works when nested with offset" do
+      author1 =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "a"})
+        |> Ash.create!()
+
+      author2 =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "b"})
+        |> Ash.create!()
+
+      followers =
+        for i <- 0..9 do
+          User
+          |> Ash.Changeset.for_create(:create, %{name: "user#{i}", is_active: true})
+          |> Ash.create!()
+        end
+
+      followers_0_to_6 = Enum.take(followers, 6)
+      followers_5_to_9 = Enum.slice(followers, 5..9)
+
+      for i <- 0..5 do
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "author1 post#{i}", author_id: author1.id})
+        |> Ash.Changeset.manage_relationship(:followers, followers_0_to_6,
+          type: :append_and_remove
+        )
+        |> Ash.create!()
+
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "author2 post#{i}", author_id: author2.id})
+        |> Ash.Changeset.manage_relationship(:followers, followers_5_to_9,
+          type: :append_and_remove
+        )
+        |> Ash.create!()
+      end
+
+      paginated_followers =
+        User
+        |> Ash.Query.page(limit: 1)
+        |> Ash.Query.sort(:name)
+
+      paginated_posts =
+        Post
+        |> Ash.Query.for_read(:paginated)
+        |> Ash.Query.load(followers: paginated_followers)
+        |> Ash.Query.page(limit: 1)
+        |> Ash.Query.sort(:title)
+
+      assert %Ash.Page.Offset{results: [author1]} =
+               Author
+               |> Ash.Query.sort(:first_name)
+               |> Ash.Query.load(posts: paginated_posts)
+               |> Ash.read!(page: [limit: 1])
+
+      assert %Ash.Page.Offset{
+               results: [
+                 %{
+                   title: "author1 post0",
+                   followers: %Ash.Page.Offset{results: [%{name: "user0"}]} = followers_page
+                 }
+               ]
+             } = author1.posts
+
+      assert %Ash.Page.Offset{results: [%{title: "author1 post1"}]} =
+               Ash.page!(author1.posts, :next)
+
+      assert %Ash.Page.Offset{results: [%{name: "user1"}]} = Ash.page!(followers_page, :next)
+    end
+
+    test "works when nested with keyset" do
+      author1 =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "a"})
+        |> Ash.create!()
+
+      author2 =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "b"})
+        |> Ash.create!()
+
+      followers =
+        for i <- 0..9 do
+          User
+          |> Ash.Changeset.for_create(:create, %{name: "user#{i}", is_active: true})
+          |> Ash.create!()
+        end
+
+      followers_0_to_6 = Enum.take(followers, 6)
+      followers_5_to_9 = Enum.slice(followers, 5..9)
+
+      for i <- 0..5 do
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "author1 post#{i}", author_id: author1.id})
+        |> Ash.Changeset.manage_relationship(:followers, followers_0_to_6,
+          type: :append_and_remove
+        )
+        |> Ash.create!()
+
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "author2 post#{i}", author_id: author2.id})
+        |> Ash.Changeset.manage_relationship(:followers, followers_5_to_9,
+          type: :append_and_remove
+        )
+        |> Ash.create!()
+      end
+
+      paginated_followers =
+        User
+        |> Ash.Query.for_read(:keyset)
+        |> Ash.Query.page(limit: 1)
+        |> Ash.Query.sort(:name)
+
+      paginated_posts =
+        Post
+        |> Ash.Query.for_read(:keyset)
+        |> Ash.Query.load(followers: paginated_followers)
+        |> Ash.Query.page(limit: 1)
+        |> Ash.Query.sort(:title)
+
+      assert [author1, _author2] =
+               Author
+               |> Ash.Query.sort(:first_name)
+               |> Ash.Query.load(posts: paginated_posts)
+               |> Ash.read!()
+
+      assert %Ash.Page.Keyset{
+               results: [
+                 %{
+                   title: "author1 post0",
+                   followers: %Ash.Page.Keyset{results: [%{name: "user0"}]} = followers_page
+                 }
+               ]
+             } = author1.posts
+
+      assert %Ash.Page.Keyset{results: [%{title: "author1 post1"}]} =
+               Ash.page!(author1.posts, :next)
+
+      assert %Ash.Page.Keyset{results: [%{name: "user1"}]} = Ash.page!(followers_page, :next)
     end
   end
 end
