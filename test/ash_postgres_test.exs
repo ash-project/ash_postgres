@@ -15,7 +15,7 @@ defmodule AshPostgresTest do
   test "filter policies are applied in create" do
     assert_raise Ash.Error.Forbidden, fn ->
       AshPostgres.Test.Post
-      |> Ash.Changeset.for_create(:create, %{title: "worst"})
+      |> Ash.Changeset.for_create(:create, %{title: "worst"}, authorize?: true)
       |> Ash.create!()
     end
   end
@@ -39,10 +39,5 @@ defmodule AshPostgresTest do
       )
       |> Map.get(:title)
     end
-
-    # post
-    # |> Ash.Changeset.for_update(:update, %{title: "okay"}, authorize?: true)
-    # |> Ash.update!()
-    # |> Map.get(:title)
   end
 end
