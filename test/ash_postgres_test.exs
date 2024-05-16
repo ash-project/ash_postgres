@@ -12,7 +12,15 @@ defmodule AshPostgresTest do
     }
   end
 
-  test "filter policies are applied" do
+  test "filter policies are applied in create" do
+    assert_raise Ash.Error.Forbidden, fn ->
+      AshPostgres.Test.Post
+      |> Ash.Changeset.for_create(:create, %{title: "worst"})
+      |> Ash.create!()
+    end
+  end
+
+  test "filter policies are applied in update" do
     post =
       AshPostgres.Test.Post
       |> Ash.Changeset.for_create(:create, %{title: "good"})
