@@ -6,13 +6,13 @@ defmodule AshPostgres.BulkDestroyTest do
   require Ash.Query
 
   test "bulk destroys can run with nothing in the table" do
-    Ash.bulk_destroy!(Post, :update, %{title: "new_title"})
+    Ash.bulk_destroy!(Post, :destroy, %{})
   end
 
   test "bulk destroys destroy everything pertaining to the query" do
     Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
 
-    Ash.bulk_destroy!(Post, :update, %{})
+    Ash.bulk_destroy!(Post, :destroy, %{})
 
     assert Ash.read!(Post) == []
   end
@@ -54,7 +54,7 @@ defmodule AshPostgres.BulkDestroyTest do
     Post
     |> Ash.Query.filter(author.first_name == "fred" or title == "fred")
     |> Ash.Query.select([:title])
-    |> Ash.bulk_destroy!(:update, %{}, return_records?: true)
+    |> Ash.bulk_destroy!(:destroy, %{}, return_records?: true)
 
     assert [%{title: "george"}] = Ash.read!(Post)
   end
