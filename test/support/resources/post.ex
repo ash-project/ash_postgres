@@ -135,6 +135,14 @@ defmodule AshPostgres.Test.Post do
       filter(expr(title == "foo"))
     end
 
+    read :keyset do
+      pagination do
+        keyset?(true)
+        countable(true)
+        required?(false)
+      end
+    end
+
     read(:allow_any)
 
     read :paginated do

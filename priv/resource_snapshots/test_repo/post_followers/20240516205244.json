@@ -1,0 +1,75 @@
+{
+  "attributes": [
+    {
+      "default": "nil",
+      "size": null,
+      "type": "uuid",
+      "source": "post_id",
+      "references": {
+        "name": "post_followers_post_id_fkey",
+        "table": "posts",
+        "primary_key?": true,
+        "schema": "public",
+        "destination_attribute": "id",
+        "multitenancy": {
+          "global": null,
+          "strategy": null,
+          "attribute": null
+        },
+        "on_update": null,
+        "on_delete": null,
+        "match_with": null,
+        "match_type": null,
+        "deferrable": false,
+        "destination_attribute_generated": null,
+        "destination_attribute_default": null
+      },
+      "primary_key?": true,
+      "allow_nil?": false,
+      "generated?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "uuid",
+      "source": "follower_id",
+      "references": {
+        "name": "post_followers_follower_id_fkey",
+        "table": "users",
+        "primary_key?": true,
+        "schema": "public",
+        "destination_attribute": "id",
+        "multitenancy": {
+          "global": null,
+          "strategy": null,
+          "attribute": null
+        },
+        "on_update": null,
+        "on_delete": null,
+        "match_with": null,
+        "match_type": null,
+        "deferrable": false,
+        "destination_attribute_generated": null,
+        "destination_attribute_default": null
+      },
+      "primary_key?": true,
+      "allow_nil?": false,
+      "generated?": false
+    }
+  ],
+  "table": "post_followers",
+  "hash": "B24262368E31327DD90234615B1CA9D569FFCA39CDE74EA434D568AD319D13E3",
+  "repo": "Elixir.AshPostgres.TestRepo",
+  "schema": null,
+  "identities": [],
+  "multitenancy": {
+    "global": null,
+    "strategy": null,
+    "attribute": null
+  },
+  "base_filter": null,
+  "check_constraints": [],
+  "custom_indexes": [],
+  "custom_statements": [],
+  "has_create_action": true
+}
