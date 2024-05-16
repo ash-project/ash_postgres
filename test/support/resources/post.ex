@@ -41,6 +41,10 @@ defmodule AshPostgres.Test.Post do
       authorize_if(relates_to_actor_via([:author, :authors_with_same_first_name]))
       authorize_unless(changing_attributes(title: [from: "good", to: "bad"]))
     end
+
+    policy action(:create) do
+      authorize_unless(changing_attributes(title: [to: "worst"]))
+    end
   end
 
   field_policies do
