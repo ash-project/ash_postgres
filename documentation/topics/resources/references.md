@@ -1,12 +1,16 @@
 # References
 
-To configure the behavior of generated foreign keys on a resource, we use the `references` section.
+To configure the behavior of generated foreign keys on a resource, we use the `references` section, within the `postgres` configuration block.
 
 For example:
 
 ```elixir
-references do
-  reference :post, on_delete: :delete, on_update: :update, name: "comments_to_posts_fkey"
+postgres do
+  # other PostgreSQL config here
+
+  references do
+    reference :post, on_delete: :delete, on_update: :update, name: "comments_to_posts_fkey"
+  end
 end
 ```
 
