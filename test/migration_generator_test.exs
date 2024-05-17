@@ -1246,6 +1246,81 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert File.read!(file) =~
                ~S[references(:users, column: :id, name: "user_things2_user_id_fkey", type: :uuid, prefix: "public")]
     end
+
+    test "references on_delete: {:nilify, columns} works with multitenant resources" do
+      defresource Tenant, "tenants" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:id)
+        end
+      end
+
+      defresource Group, "groups" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:tenant_id)
+        end
+
+        relationships do
+          belongs_to(:tenant, Tenant)
+        end
+
+        postgres do
+          references do
+            reference(:tenant, on_delete: :delete)
+          end
+        end
+      end
+
+      defresource Item, "items" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:tenant_id)
+        end
+
+        relationships do
+          belongs_to(:group, Group)
+          belongs_to(:tenant, Tenant)
+        end
+
+        postgres do
+          references do
+            reference(:group,
+              match_with: [tenant_id: :tenant_id],
+              on_delete: {:nilify, [:group_id]}
+            )
+
+            reference(:tenant, on_delete: :delete)
+          end
+        end
+      end
+
+      defdomain([Tenant, Group, Item])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+
+      assert File.read!(file) =~
+               ~S<references(:groups, column: :id, with: [tenant_id: :tenant_id], name: "items_group_id_fkey", type: :uuid, prefix: "public", on_delete: {:nilify, [:group_id]}>
+    end
   end
 
   describe "check constraints" do

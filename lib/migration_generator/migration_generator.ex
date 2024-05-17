@@ -2920,9 +2920,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp snapshot_to_binary(snapshot) do
     snapshot
     |> Map.update!(:attributes, fn attributes ->
-      Enum.map(attributes, fn attribute ->
-        %{attribute | type: sanitize_type(attribute.type, attribute[:size])}
-      end)
+      Enum.map(attributes, &attribute_to_binary/1)
     end)
     |> Map.update!(:custom_indexes, fn indexes ->
       Enum.map(indexes, fn index ->
@@ -2937,6 +2935,22 @@ defmodule AshPostgres.MigrationGenerator do
     end)
     |> Jason.encode!(pretty: true)
   end
+
+  defp attribute_to_binary(attribute) do
+    attribute
+    |> Map.update!(:references, fn
+      nil ->
+        nil
+
+      references ->
+        references
+        |> Map.update!(:on_delete, &(&1 && references_on_delete_to_binary(&1)))
+    end)
+    |> Map.update!(:type, fn type -> sanitize_type(type, attribute[:size]) end)
+  end
+
+  defp references_on_delete_to_binary(value) when is_atom(value), do: value
+  defp references_on_delete_to_binary({:nilify, columns}), do: [:nilify, columns]
 
   defp sanitize_type({:array, type}, size) do
     ["array", sanitize_type(type, size)]
@@ -3094,7 +3108,7 @@ defmodule AshPostgres.MigrationGenerator do
         |> Map.put_new(:destination_attribute_generated, false)
         |> Map.put_new(:on_delete, nil)
         |> Map.put_new(:on_update, nil)
-        |> Map.update!(:on_delete, &(&1 && maybe_to_atom(&1)))
+        |> Map.update!(:on_delete, &(&1 && load_references_on_delete(&1)))
         |> Map.update!(:on_update, &(&1 && maybe_to_atom(&1)))
         |> Map.put_new(:match_with, nil)
         |> Map.put_new(:match_type, nil)
@@ -3176,6 +3190,14 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp add_index_name(%{name: name} = index, table) do
     Map.put_new(index, :index_name, "#{table}_#{name}_unique_index")
+  end
+
+  defp load_references_on_delete(["nilify", columns]) when is_list(columns) do
+    {:nilify, Enum.map(columns, &maybe_to_atom/1)}
+  end
+
+  defp load_references_on_delete(value) do
+    maybe_to_atom(value)
   end
 
   defp maybe_to_atom(value) when is_atom(value), do: value

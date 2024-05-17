@@ -154,7 +154,12 @@ defmodule AshPostgres.DataLayer do
     entities: [@reference],
     schema: [
       polymorphic_on_delete: [
-        type: {:one_of, [:delete, :nilify, :nothing, :restrict]},
+        type:
+          {:or,
+           [
+             {:one_of, [:delete, :nilify, :nothing, :restrict]},
+             {:tagged_tuple, :nilify, {:wrap_list, :atom}}
+           ]},
         doc:
           "For polymorphic resources, configures the on_delete behavior of the automatically generated foreign keys to source tables."
       ],
@@ -227,7 +232,12 @@ defmodule AshPostgres.DataLayer do
     entities: [@reference],
     schema: [
       polymorphic_on_delete: [
-        type: {:one_of, [:delete, :nilify, :nothing, :restrict]},
+        type:
+          {:or,
+           [
+             {:one_of, [:delete, :nilify, :nothing, :restrict]},
+             {:tagged_tuple, :nilify, {:wrap_list, :atom}}
+           ]},
         doc:
           "For polymorphic resources, configures the on_delete behavior of the automatically generated foreign keys to source tables."
       ],
