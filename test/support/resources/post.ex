@@ -22,6 +22,8 @@ defmodule AshPostgres.Test.Post do
       Ash.Policy.Authorizer
     ]
 
+  require Ash.Sort
+
   policies do
     bypass action_type(:read) do
       # Check that the post is in the same org as actor
@@ -310,6 +312,17 @@ defmodule AshPostgres.Test.Post do
       source_attribute_on_join_resource: :post_id,
       destination_attribute_on_join_resource: :follower_id,
       read_action: :active
+    )
+
+    has_many(:post_followers, AshPostgres.Test.PostFollower)
+
+    many_to_many(:sorted_followers, AshPostgres.Test.User,
+      public?: true,
+      through: AshPostgres.Test.PostFollower,
+      join_relationship: :post_followers,
+      source_attribute_on_join_resource: :post_id,
+      destination_attribute_on_join_resource: :follower_id,
+      sort: [Ash.Sort.expr_sort(parent(post_followers.order))]
     )
 
     has_many(:views, AshPostgres.Test.PostView) do

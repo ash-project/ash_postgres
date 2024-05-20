@@ -531,6 +531,117 @@ defmodule AshPostgres.Test.LoadTest do
              } = Ash.page!(post1.followers, :next)
     end
 
+    test "it allows paginating calculation ordered many_to_many relationships with offset" do
+      followers =
+        for i <- 0..9 do
+          User
+          |> Ash.Changeset.for_create(:create, %{name: "user#{i}", is_active: true})
+          |> Ash.create!()
+        end
+
+      followers_0_to_6_reversed =
+        Enum.take(followers, 7)
+        |> Enum.with_index()
+        |> Enum.map(fn {follower, idx} -> %{id: follower.id, order: 6 - idx} end)
+
+      followers_5_to_9_reversed =
+        Enum.slice(followers, 5..9)
+        |> Enum.with_index()
+        |> Enum.map(fn {follower, idx} -> %{id: follower.id, order: 9 - idx} end)
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "a"})
+      |> Ash.Changeset.manage_relationship(:followers, followers_0_to_6_reversed,
+        on_lookup: {:relate_and_update, :create, :read, [:order]}
+      )
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "b"})
+      |> Ash.Changeset.manage_relationship(:followers, followers_5_to_9_reversed,
+        on_lookup: {:relate_and_update, :create, :read, [:order]}
+      )
+      |> Ash.create!()
+
+      paginated_sorted_followers =
+        User
+        |> Ash.Query.page(limit: 2)
+
+      assert [post1, post2] =
+               Post
+               |> Ash.Query.sort(:title)
+               |> Ash.Query.load(sorted_followers: paginated_sorted_followers)
+               |> Ash.read!()
+
+      assert %Ash.Page.Offset{
+               results: [%{name: "user6"}, %{name: "user5"}]
+             } = post1.sorted_followers
+
+      assert %Ash.Page.Offset{
+               results: [%{name: "user9"}, %{name: "user8"}]
+             } = post2.sorted_followers
+
+      assert %Ash.Page.Offset{
+               results: [%{name: "user4"}, %{name: "user3"}]
+             } = Ash.page!(post1.sorted_followers, :next)
+    end
+
+    test "it allows paginating calculation ordered many_to_many relationships with keyset" do
+      followers =
+        for i <- 0..9 do
+          User
+          |> Ash.Changeset.for_create(:create, %{name: "user#{i}", is_active: true})
+          |> Ash.create!()
+        end
+
+      followers_0_to_6_reversed =
+        Enum.take(followers, 7)
+        |> Enum.with_index()
+        |> Enum.map(fn {follower, idx} -> %{id: follower.id, order: 6 - idx} end)
+
+      followers_5_to_9_reversed =
+        Enum.slice(followers, 5..9)
+        |> Enum.with_index()
+        |> Enum.map(fn {follower, idx} -> %{id: follower.id, order: 9 - idx} end)
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "a"})
+      |> Ash.Changeset.manage_relationship(:followers, followers_0_to_6_reversed,
+        on_lookup: {:relate_and_update, :create, :read, [:order]}
+      )
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "b"})
+      |> Ash.Changeset.manage_relationship(:followers, followers_5_to_9_reversed,
+        on_lookup: {:relate_and_update, :create, :read, [:order]}
+      )
+      |> Ash.create!()
+
+      paginated_sorted_followers =
+        User
+        |> Ash.Query.for_read(:keyset)
+        |> Ash.Query.page(limit: 2)
+
+      assert [post1, post2] =
+               Post
+               |> Ash.Query.sort(:title)
+               |> Ash.Query.load(sorted_followers: paginated_sorted_followers)
+               |> Ash.read!()
+
+      assert %Ash.Page.Keyset{
+               results: [%{name: "user6"}, %{name: "user5"}]
+             } = post1.sorted_followers
+
+      assert %Ash.Page.Keyset{
+               results: [%{name: "user9"}, %{name: "user8"}]
+             } = post2.sorted_followers
+
+      assert %Ash.Page.Keyset{
+               results: [%{name: "user4"}, %{name: "user3"}]
+             } = Ash.page!(post1.sorted_followers, :next)
+    end
+
     test "works when nested with offset" do
       author1 =
         Author
