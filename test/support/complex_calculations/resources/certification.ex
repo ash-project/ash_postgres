@@ -21,6 +21,13 @@ defmodule AshPostgres.Test.ComplexCalculations.Certification do
     count :count_of_skills, :skills do
       filter(expr(removed == false))
     end
+
+    sum :count_of_skills_ever_demonstrated,
+        :skills,
+        :count_ever_demonstrated do
+      filter(expr(removed == false))
+      public?(true)
+    end
   end
 
   attributes do

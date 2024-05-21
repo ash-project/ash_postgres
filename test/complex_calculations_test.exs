@@ -62,6 +62,30 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
     assert certification.some_documentation_created
   end
 
+  test "complex aggregates" do
+    certification =
+      AshPostgres.Test.ComplexCalculations.Certification
+      |> Ash.Changeset.new()
+      |> Ash.create!()
+
+    skill =
+      AshPostgres.Test.ComplexCalculations.Skill
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.manage_relationship(:certification, certification, type: :append)
+      |> Ash.create!()
+
+    AshPostgres.Test.ComplexCalculations.Documentation
+    |> Ash.Changeset.for_create(:create, %{status: :demonstrated})
+    |> Ash.Changeset.manage_relationship(:skill, skill, type: :append)
+    |> Ash.create!()
+
+    certification =
+      certification
+      |> Ash.load!([:count_of_skills_ever_demonstrated])
+
+    assert certification.count_of_skills_ever_demonstrated == 1
+  end
+
   test "channel: first_member and second member" do
     channel =
       AshPostgres.Test.ComplexCalculations.Channel
