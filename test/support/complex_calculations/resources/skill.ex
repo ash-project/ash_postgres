@@ -14,6 +14,11 @@ defmodule AshPostgres.Test.ComplexCalculations.Skill do
     first :latest_documentation_status, [:documentations], :status do
       sort(timestamp: :desc)
     end
+
+    count :count_of_demonstrated_documentations, :documentations do
+      filter(expr(status == :demonstrated))
+      public?(true)
+    end
   end
 
   attributes do
@@ -32,6 +37,21 @@ defmodule AshPostgres.Test.ComplexCalculations.Skill do
           end
         )
       )
+    end
+
+    calculate :count_ever_demonstrated, :integer do
+      calculation(
+        expr(
+          if count_of_demonstrated_documentations == 0 do
+            0
+          else
+            1
+          end
+        )
+      )
+
+      load([:count_of_demonstrated_documentations])
+      public?(true)
     end
   end
 
