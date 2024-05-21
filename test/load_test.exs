@@ -782,5 +782,150 @@ defmodule AshPostgres.Test.LoadTest do
 
       assert %Ash.Page.Keyset{results: [%{name: "user1"}]} = Ash.page!(followers_page, :next)
     end
+
+    test "it allows counting has_many relationships" do
+      author1 =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "a"})
+        |> Ash.create!()
+
+      author2 =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "b"})
+        |> Ash.create!()
+
+      for i <- 1..3 do
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "author1 post#{i}", author_id: author1.id})
+        |> Ash.create!()
+      end
+
+      for i <- 1..6 do
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "author2 post#{i}", author_id: author2.id})
+        |> Ash.create!()
+      end
+
+      paginated_posts =
+        Post
+        |> Ash.Query.for_read(:paginated)
+        |> Ash.Query.page(limit: 2, offset: 2, count: true)
+
+      assert [author1, author2] =
+               Author
+               |> Ash.Query.sort(:first_name)
+               |> Ash.Query.load(posts: paginated_posts)
+               |> Ash.read!()
+
+      assert %Ash.Page.Offset{count: 3} = author1.posts
+      assert %Ash.Page.Offset{count: 6} = author2.posts
+    end
+
+    test "it allows counting many_to_many relationships" do
+      followers =
+        for i <- 1..9 do
+          User
+          |> Ash.Changeset.for_create(:create, %{name: "user#{i}", is_active: true})
+          |> Ash.create!()
+        end
+
+      followers_1_to_3 = Enum.take(followers, 3)
+      followers_4_to_9 = Enum.slice(followers, 3..9)
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "a"})
+      |> Ash.Changeset.manage_relationship(:followers, followers_1_to_3, type: :append_and_remove)
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "b"})
+      |> Ash.Changeset.manage_relationship(:followers, followers_4_to_9, type: :append_and_remove)
+      |> Ash.create!()
+
+      paginated_followers =
+        User
+        |> Ash.Query.page(limit: 2, count: true)
+        |> Ash.Query.sort(:name)
+
+      assert [post1, post2] =
+               Post
+               |> Ash.Query.sort(:title)
+               |> Ash.Query.load(followers: paginated_followers)
+               |> Ash.read!()
+
+      assert %Ash.Page.Offset{count: 3} = post1.followers
+      assert %Ash.Page.Offset{count: 6} = post2.followers
+    end
+
+    test "allows counting nested relationships" do
+      author1 =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "a"})
+        |> Ash.create!()
+
+      _author2 =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "b"})
+        |> Ash.create!()
+
+      followers =
+        for i <- 1..3 do
+          User
+          |> Ash.Changeset.for_create(:create, %{name: "user#{i}", is_active: true})
+          |> Ash.create!()
+        end
+
+      for i <- 1..5 do
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "author1 post#{i}", author_id: author1.id})
+        |> Ash.Changeset.manage_relationship(:followers, followers, type: :append_and_remove)
+        |> Ash.create!()
+      end
+
+      paginated_followers =
+        User
+        |> Ash.Query.page(limit: 1, count: true)
+
+      paginated_posts =
+        Post
+        |> Ash.Query.for_read(:paginated)
+        |> Ash.Query.load(followers: paginated_followers)
+        |> Ash.Query.page(limit: 1, count: true)
+
+      assert %Ash.Page.Offset{results: [author1], count: 2} =
+               Author
+               |> Ash.Query.sort(:first_name)
+               |> Ash.Query.load(posts: paginated_posts)
+               |> Ash.read!(page: [limit: 1, count: true])
+
+      assert %Ash.Page.Offset{count: 5, results: [%{followers: %Ash.Page.Offset{count: 3}}]} =
+               author1.posts
+    end
+
+    test "doesn't leak the internal count aggregate when counting" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "a"})
+        |> Ash.create!()
+
+      for i <- 1..3 do
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "author1 post#{i}", author_id: author.id})
+        |> Ash.create!()
+      end
+
+      paginated_posts =
+        Post
+        |> Ash.Query.for_read(:paginated)
+        |> Ash.Query.page(limit: 2, offset: 2, count: true)
+
+      assert [author] =
+               Author
+               |> Ash.Query.load(posts: paginated_posts)
+               |> Ash.read!()
+
+      assert %Ash.Page.Offset{count: 3} = author.posts
+      assert %{} == author.aggregates
+    end
   end
 end
