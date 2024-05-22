@@ -5,6 +5,25 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.3](https://github.com/ash-project/ash_postgres/compare/v2.0.2...v2.0.3) (2024-05-22)
+
+
+
+
+### Bug Fixes:
+
+* handle complex maps/list on update
+
+* support anonymous aggregates in sorts
+
+* ensure parent_as bindings properly reference binding names
+
+* add and remove custom indexes in tandem properly
+
+### Improvements:
+
+* support `on_delete: :nilify` for specific columns (#289)
+
 ## [v2.0.2](https://github.com/ash-project/ash_postgres/compare/v2.0.1...v2.0.2) (2024-05-15)
 
 
