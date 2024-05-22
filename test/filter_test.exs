@@ -1,7 +1,7 @@
 defmodule AshPostgres.FilterTest do
   use AshPostgres.RepoCase, async: false
 
-  alias AshPostgres.Test.{Author, Comment, Organization, Post}
+  alias AshPostgres.Test.{Author, Comment, Organization, Post, PostLink}
   alias AshPostgres.Test.ComplexCalculations.{Channel, ChannelMember}
 
   require Ash.Query
@@ -650,6 +650,18 @@ defmodule AshPostgres.FilterTest do
       Post
       |> Ash.Changeset.for_create(:create, %{title: "b"})
       |> Ash.Changeset.manage_relationship(:linked_posts, [post], type: :append_and_remove)
+      |> Ash.create!()
+
+      other_post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "b"})
+        |> Ash.create!()
+
+      PostLink
+      |> Ash.Changeset.for_create(:create, %{
+        source_post_id: post.id,
+        destination_post_id: other_post.id
+      })
       |> Ash.create!()
 
       assert [%{title: "b"}] =

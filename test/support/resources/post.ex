@@ -322,7 +322,7 @@ defmodule AshPostgres.Test.Post do
       join_relationship: :post_followers,
       source_attribute_on_join_resource: :post_id,
       destination_attribute_on_join_resource: :follower_id,
-      sort: [Ash.Sort.expr_sort(parent(post_followers.order))]
+      sort: [Ash.Sort.expr_sort(parent(post_followers.order), :integer)]
     )
 
     has_many(:views, AshPostgres.Test.PostView) do

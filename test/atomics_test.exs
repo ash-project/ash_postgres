@@ -35,6 +35,49 @@ defmodule AshPostgres.AtomicsTest do
              |> Ash.update!()
   end
 
+  test "atomics work with maps that contain lists" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "foo", price: 1})
+      |> Ash.create!()
+
+    assert %{list_of_stuff: [%{"foo" => [%{"a" => 1}]}]} =
+             post
+             |> Ash.Changeset.for_update(:update, %{list_of_stuff: [%{foo: [%{a: 1}]}]})
+             |> Ash.update!()
+  end
+
+  test "atomics work with maps that contain lists that contain maps that contain lists etc." do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "foo", price: 1})
+      |> Ash.create!()
+
+    assert %{list_of_stuff: [%{"foo" => [%{"a" => 1, "b" => %{"c" => [1, 2, 3]}}]}]} =
+             post
+             |> Ash.Changeset.for_update(:update, %{
+               list_of_stuff: [%{foo: [%{a: 1, b: %{c: [1, 2, 3]}}]}]
+             })
+             |> Ash.update!()
+  end
+
+  test "atomics work with maps that contain expressions in a deep structure" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "foo", price: 1})
+      |> Ash.create!()
+
+    assert %{list_of_stuff: [%{"foo" => [%{"a" => 1, "b" => %{"c" => [1, 2, 3]}}]}]} =
+             post
+             |> Ash.Changeset.for_update(:update, %{})
+             |> Ash.Changeset.atomic_update(%{
+               list_of_stuff: [
+                 %{foo: [%{a: 1, b: %{c: [1, 2, expr(type(fragment("3"), :integer))]}}]}
+               ]
+             })
+             |> Ash.update!()
+  end
+
   test "an atomic validation is based on where it appears in the action" do
     post =
       Post

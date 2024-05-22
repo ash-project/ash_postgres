@@ -258,7 +258,7 @@ end
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`polymorphic_on_delete`](#postgres-references-polymorphic_on_delete){: #postgres-references-polymorphic_on_delete } | `:delete \| :nilify \| {:nilify, columns} \| :nothing \| :restrict` |  | For polymorphic resources, configures the on_delete behavior of the automatically generated foreign keys to source tables. |
+| [`polymorphic_on_delete`](#postgres-references-polymorphic_on_delete){: #postgres-references-polymorphic_on_delete } | `:delete \| :nilify \| :nothing \| :restrict \| {:nilify, atom \| list(atom)}` |  | For polymorphic resources, configures the on_delete behavior of the automatically generated foreign keys to source tables. |
 | [`polymorphic_on_update`](#postgres-references-polymorphic_on_update){: #postgres-references-polymorphic_on_update } | `:update \| :nilify \| :nothing \| :restrict` |  | For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables. |
 
 
@@ -297,7 +297,7 @@ reference :post, on_delete: :delete, on_update: :update, name: "comments_to_post
 | Name | Type | Default | Docs |
 |------|------|---------|------|
 | [`ignore?`](#postgres-references-reference-ignore?){: #postgres-references-reference-ignore? } | `boolean` |  | If set to true, no reference is created for the given relationship. This is useful if you need to define it in some custom way |
-| [`on_delete`](#postgres-references-reference-on_delete){: #postgres-references-reference-on_delete } | `:delete \| :nilify \| {:nilify, columns} \| :nothing \| :restrict` |  | What should happen to records of this resource when the referenced record of the *destination* resource is deleted. |
+| [`on_delete`](#postgres-references-reference-on_delete){: #postgres-references-reference-on_delete } | `:delete \| :nilify \| :nothing \| :restrict \| {:nilify, atom \| list(atom)}` |  | What should happen to records of this resource when the referenced record of the *destination* resource is deleted. |
 | [`on_update`](#postgres-references-reference-on_update){: #postgres-references-reference-on_update } | `:update \| :nilify \| :nothing \| :restrict` |  | What should happen to records of this resource when the referenced destination_attribute of the *destination* record is update. |
 | [`deferrable`](#postgres-references-reference-deferrable){: #postgres-references-reference-deferrable } | `false \| true \| :initially` | `false` | Wether or not the constraint is deferrable. This only affects the migration generator. |
 | [`name`](#postgres-references-reference-name){: #postgres-references-reference-name } | `String.t` |  | The name of the foreign key to generate in the database. Defaults to <table>_<source_attribute>_fkey |
