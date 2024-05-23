@@ -2600,14 +2600,13 @@ defmodule AshPostgres.DataLayer do
       )
       |> pkey_filter(changeset.data)
 
-    select = Keyword.keys(changeset.atomics) ++ Ash.Resource.Info.primary_key(resource)
-
     case bulk_updatable_query(query, resource, changeset.atomics, [], changeset.context) do
       {:error, error} ->
         {:error, error}
 
       {:ok, query} ->
-        query = Ecto.Query.select(query, ^select)
+        modifying = Map.keys(changeset.attributes) ++ Keyword.keys(changeset.atomics)
+        query = Ecto.Query.select(query, ^modifying)
 
         try do
           case AshSql.Atomics.query_with_atomics(
@@ -2656,8 +2655,7 @@ defmodule AshPostgres.DataLayer do
                 {1, [result]} ->
                   record =
                     changeset.data
-                    |> Map.merge(changeset.attributes)
-                    |> Map.merge(Map.take(result, Keyword.keys(changeset.atomics)))
+                    |> Map.merge(Map.take(result, modifying))
 
                   maybe_update_tenant(resource, changeset, record)
 

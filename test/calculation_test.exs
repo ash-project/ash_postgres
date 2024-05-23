@@ -304,7 +304,12 @@ defmodule AshPostgres.CalculationTest do
       |> Ash.Changeset.for_create(:create, %{title: "title"})
       |> Ash.create!()
 
-    Ash.calculate!(post, :author_has_post_with_follower_named_fred)
+    assert_raise Ash.Error.Invalid, ~r/Primary key is required for/, fn ->
+      refute Ash.calculate!(Post, :author_has_post_with_follower_named_fred)
+    end
+
+    refute Ash.calculate!(post, :author_has_post_with_follower_named_fred)
+    refute Ash.calculate!(Post, :author_has_post_with_follower_named_fred, refs: %{id: post.id})
   end
 
   test "calculations that refer to aggregates can be authorized" do
