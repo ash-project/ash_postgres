@@ -298,6 +298,15 @@ defmodule AshPostgres.CalculationTest do
     |> Ash.read!()
   end
 
+  test ".calculate works with `exists`" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "title"})
+      |> Ash.create!()
+
+    Ash.calculate!(post, :author_has_post_with_follower_named_fred)
+  end
+
   test "calculations that refer to aggregates can be authorized" do
     post =
       Post
