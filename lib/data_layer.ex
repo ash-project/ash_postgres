@@ -300,6 +300,16 @@ defmodule AshPostgres.DataLayer do
         A keyword list of attribute names to the ecto migration default that should be used for that attribute. The string you use will be placed verbatim in the migration. Use fragments like `fragment(\\\\"now()\\\\")`, or for `nil`, use `\\\\"nil\\\\"`.
         """
       ],
+      calculations_to_sql: [
+        type: :keyword_list,
+        doc:
+          "A keyword list of calculations and their SQL representation. Used when creating unique indexes for identities over calculations"
+      ],
+      identity_wheres_to_sql: [
+        type: :keyword_list,
+        doc:
+          "A keyword list of identity names and the SQL representation of their `where` clause. Used when creating unique indexes for identities over calculations"
+      ],
       base_filter_sql: [
         type: :string,
         doc:

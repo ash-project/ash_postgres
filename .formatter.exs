@@ -1,6 +1,7 @@
 spark_locals_without_parens = [
   all_tenants?: 1,
   base_filter_sql: 1,
+  calculations_to_sql: 1,
   check: 1,
   check_constraint: 2,
   check_constraint: 3,
@@ -13,6 +14,7 @@ spark_locals_without_parens = [
   exclusion_constraint_names: 1,
   foreign_key_names: 1,
   identity_index_names: 1,
+  identity_wheres_to_sql: 1,
   ignore?: 1,
   include: 1,
   index: 1,

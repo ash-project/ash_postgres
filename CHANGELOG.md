@@ -7,46 +7,37 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 ## [v2.0.4](https://github.com/ash-project/ash_postgres/compare/v2.0.3...v2.0.4) (2024-05-23)
 
-
-
-
 ### Bug Fixes:
 
-* ensure update's reselect all changing values
+[updates] ensure update's reselect all changing values
 
 ## [v2.0.3](https://github.com/ash-project/ash_postgres/compare/v2.0.2...v2.0.3) (2024-05-22)
 
-
-
-
 ### Bug Fixes:
 
-* handle complex maps/list on update
+[updates] handle complex maps/list on update
 
-* support anonymous aggregates in sorts
+[Ash.Query] support anonymous aggregates in sorts
 
-* ensure parent_as bindings properly reference binding names
+[exists] ensure parent_as bindings properly reference binding names
 
-* add and remove custom indexes in tandem properly
+[migration generator] add and remove custom indexes in tandem properly
 
 ### Improvements:
 
-* support `on_delete: :nilify` for specific columns (#289)
+[references] support `on_delete: :nilify` for specific columns (#289)
 
 ## [v2.0.2](https://github.com/ash-project/ash_postgres/compare/v2.0.1...v2.0.2) (2024-05-15)
 
-
-
-
 ### Bug Fixes:
 
-* [update_query/destroy_query] rework the update and destroy query builder to support multiple kinds of joining
+- [update_query/destroy_query] rework the update and destroy query builder to support multiple kinds of joining
 
-* [mix ash_postgres.migrate] remove duplicate repo flags (#285)
+- [mix ash_postgres.migrate] remove duplicate repo flags (#285)
 
-* [Ash.Error.Changes.StaleRecord] ensure filter is included in stale record error messages we return
+- [Ash.Error.Changes.StaleRecord] ensure filter is included in stale record error messages we return
 
-* [AshPostgres.MigrationGenerator] properly parse previous version from migration generation
+- [AshPostgres.MigrationGenerator] properly parse previous version from migration generation
 
 ## [v2.0.1](https://github.com/ash-project/ash_postgres/compare/v2.0.0...v2.0.1) (2024-05-12)
 

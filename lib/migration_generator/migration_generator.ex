@@ -1817,7 +1817,9 @@ defmodule AshPostgres.MigrationGenerator do
               old_identity.name == identity.name &&
                 Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
                 old_identity.base_filter == identity.base_filter &&
-                old_identity.all_tenants? == identity.all_tenants?
+                old_identity.all_tenants? == identity.all_tenants? &&
+                old_identity.nils_distinct? == identity.nils_distinct? &&
+                old_identity.where == identity.where
             end)
           else
             false
@@ -1829,7 +1831,9 @@ defmodule AshPostgres.MigrationGenerator do
             old_identity.name == identity.name &&
               Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
               old_identity.base_filter == identity.base_filter &&
-              old_identity.all_tenants? == identity.all_tenants?
+              old_identity.all_tenants? == identity.all_tenants? &&
+              old_identity.nils_distinct? == identity.nils_distinct? &&
+              old_identity.where == identity.where
           end)
         end)
       end
@@ -2820,23 +2824,32 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.reject(fn identity ->
       identity.name in AshPostgres.DataLayer.Info.skip_unique_indexes(resource)
     end)
-    |> Enum.filter(fn identity ->
-      Enum.all?(identity.keys, fn key ->
-        Ash.Resource.Info.attribute(resource, key)
-      end)
-    end)
     |> Enum.sort_by(& &1.name)
-    |> Enum.map(&Map.take(&1, [:name, :keys, :all_tenants?]))
     |> Enum.map(fn %{keys: keys} = identity ->
       %{
         identity
         | keys:
             Enum.map(keys, fn key ->
-              attribute = Ash.Resource.Info.attribute(resource, key)
-              attribute.source || attribute.name
+              case Ash.Resource.Info.field(resource, key) do
+                %Ash.Resource.Attribute{} = attribute ->
+                  to_string(attribute.source || attribute.name)
+
+                %Ash.Resource.Calculation{} ->
+                  AshPostgres.DataLayer.Info.calculation_to_sql(resource, key) ||
+                    raise "Must define an entry for :#{key} in `postgres.calculations_to_sql`, or skip this identity with `postgres.skip_unique_indexes`"
+              end
             end)
+            |> Enum.sort(),
+          where:
+            if identity.where do
+              AshPostgres.DataLayer.Info.identity_where_to_sql(resource, identity.name) ||
+                raise(
+                  "Must provide an entry for :#{identity.name} in `postgres.identity_wheres_to_sql`, or skip this identity with `postgres.skip_unique_indexes`"
+                )
+            end
       }
     end)
+    |> Enum.map(&Map.take(&1, [:name, :keys, :where, :all_tenants?, :nils_distinct?]))
     |> Enum.map(fn identity ->
       Map.put(
         identity,
@@ -3179,13 +3192,13 @@ defmodule AshPostgres.MigrationGenerator do
     identity
     |> Map.update!(:name, &maybe_to_atom/1)
     |> Map.update!(:keys, fn keys ->
-      keys
-      |> Enum.map(&maybe_to_atom/1)
-      |> Enum.sort()
+      Enum.sort(keys)
     end)
     |> add_index_name(table)
     |> Map.put_new(:base_filter, nil)
     |> Map.put_new(:all_tenants?, false)
+    |> Map.put_new(:where, nil)
+    |> Map.put_new(:nils_distinct?, true)
   end
 
   defp add_index_name(%{name: name} = index, table) do

@@ -30,7 +30,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     # sobelow_skip ["DOS.StringToAtom"]
     def as_atom(value), do: Macro.inspect_atom(:remote_call, String.to_atom(value))
 
-    def option(:nulls_distinct = key, value) do
+    def option(key, value) when key in [:nulls_distinct, "nulls_distinct"] do
       if !value do
         "#{as_atom(key)}: #{inspect(value)}"
       end
@@ -790,6 +790,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           identity: %{
             name: name,
             keys: keys,
+            nils_distinct?: nils_distinct?,
+            where: where,
             base_filter: base_filter,
             index_name: index_name,
             all_tenants?: all_tenants?
@@ -813,10 +815,17 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       index_name = index_name || "#{table}_#{name}_index"
 
-      if base_filter do
-        "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option("prefix", schema)])})"
-      else
-        "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema)])})"
+      cond do
+        base_filter && where ->
+          where = "(#{where}) AND (#{base_filter})"
+
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where)])})"
+
+        base_filter ->
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?)])})"
+
+        true ->
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where)])})"
       end
     end
 

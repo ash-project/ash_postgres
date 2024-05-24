@@ -60,6 +60,9 @@ defmodule AshPostgres.Test.Post do
     repo(AshPostgres.TestRepo)
     base_filter_sql("type = 'sponsored'")
 
+    calculations_to_sql(upper_thing: "UPPER(uniq_on_upper)")
+    identity_wheres_to_sql(uniq_if_contains_foo: "(uniq_if_contains_foo LIKE '%foo%')")
+
     check_constraints do
       check_constraint(:price, "price_must_be_positive",
         message: "yo, bad price",
@@ -186,6 +189,11 @@ defmodule AshPostgres.Test.Post do
 
   identities do
     identity(:uniq_one_and_two, [:uniq_one, :uniq_two])
+    identity(:uniq_on_upper, [:upper_thing])
+
+    identity(:uniq_if_contains_foo, [:uniq_if_contains_foo]) do
+      where expr(contains(title, "foo"))
+    end
   end
 
   attributes do
@@ -219,6 +227,8 @@ defmodule AshPostgres.Test.Post do
     attribute(:uniq_two, :string, public?: true)
     attribute(:uniq_custom_one, :string, public?: true)
     attribute(:uniq_custom_two, :string, public?: true)
+    attribute(:uniq_on_upper, :string, public?: true)
+    attribute(:uniq_if_contains_foo, :string, public?: true)
 
     attribute :list_containing_nils, {:array, :string} do
       public?(true)
@@ -335,6 +345,8 @@ defmodule AshPostgres.Test.Post do
   end
 
   calculations do
+    calculate(:upper_thing, :string, expr(fragment("UPPER(?)", uniq_on_upper)))
+
     calculate(
       :author_has_post_with_follower_named_fred,
       :boolean,

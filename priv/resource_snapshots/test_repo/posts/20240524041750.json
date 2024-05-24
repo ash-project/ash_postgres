@@ -1,0 +1,396 @@
+{
+  "attributes": [
+    {
+      "default": "fragment(\"gen_random_uuid()\")",
+      "size": null,
+      "type": "uuid",
+      "source": "id",
+      "references": null,
+      "generated?": false,
+      "primary_key?": true,
+      "allow_nil?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "text",
+      "source": "title_column",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "timestamptz(6)",
+      "source": "datetime",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "bigint",
+      "source": "score",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "boolean",
+      "source": "public",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "citext",
+      "source": "category",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "\"sponsored\"",
+      "size": null,
+      "type": "text",
+      "source": "type",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "bigint",
+      "source": "price",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "\"0\"",
+      "size": null,
+      "type": "decimal",
+      "source": "decimal",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "text",
+      "source": "status",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "status",
+      "source": "status_enum",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": [
+        "array",
+        "float"
+      ],
+      "source": "point",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "custom_point",
+      "source": "composite_point",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "map",
+      "source": "stuff",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": [
+        "array",
+        "map"
+      ],
+      "source": "list_of_stuff",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "text",
+      "source": "uniq_one",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "text",
+      "source": "uniq_two",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "text",
+      "source": "uniq_custom_one",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "text",
+      "source": "uniq_custom_two",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "text",
+      "source": "uniq_on_upper",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "text",
+      "source": "uniq_if_contains_foo",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": [
+        "array",
+        "text"
+      ],
+      "source": "list_containing_nils",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "fragment(\"(now() AT TIME ZONE 'utc')\")",
+      "size": null,
+      "type": "utc_datetime_usec",
+      "source": "created_at",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": false
+    },
+    {
+      "default": "fragment(\"(now() AT TIME ZONE 'utc')\")",
+      "size": null,
+      "type": "timestamptz(6)",
+      "source": "updated_at",
+      "references": null,
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "uuid",
+      "source": "organization_id",
+      "references": {
+        "name": "posts_organization_id_fkey",
+        "table": "orgs",
+        "on_delete": null,
+        "on_update": null,
+        "destination_attribute_generated": null,
+        "destination_attribute_default": null,
+        "primary_key?": true,
+        "destination_attribute": "id",
+        "multitenancy": {
+          "global": null,
+          "attribute": null,
+          "strategy": null
+        },
+        "match_with": null,
+        "match_type": null,
+        "schema": "public",
+        "deferrable": false
+      },
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "uuid",
+      "source": "author_id",
+      "references": {
+        "name": "posts_author_id_fkey",
+        "table": "authors",
+        "on_delete": null,
+        "on_update": null,
+        "destination_attribute_generated": null,
+        "destination_attribute_default": null,
+        "primary_key?": true,
+        "destination_attribute": "id",
+        "multitenancy": {
+          "global": null,
+          "attribute": null,
+          "strategy": null
+        },
+        "match_with": null,
+        "match_type": null,
+        "schema": "public",
+        "deferrable": false
+      },
+      "generated?": false,
+      "primary_key?": false,
+      "allow_nil?": true
+    }
+  ],
+  "table": "posts",
+  "hash": "1C2BE60C682696F09AC2505B2B8844DFA449834F0E05B4C69D8E8F40B8C9CA89",
+  "repo": "Elixir.AshPostgres.TestRepo",
+  "multitenancy": {
+    "global": null,
+    "attribute": null,
+    "strategy": null
+  },
+  "schema": null,
+  "base_filter": "type = 'sponsored'",
+  "custom_indexes": [
+    {
+      "message": "dude what the heck",
+      "name": null,
+      "table": null,
+      "include": null,
+      "where": null,
+      "prefix": null,
+      "fields": [
+        {
+          "type": "atom",
+          "value": "uniq_custom_one"
+        },
+        {
+          "type": "atom",
+          "value": "uniq_custom_two"
+        }
+      ],
+      "unique": true,
+      "nulls_distinct": true,
+      "all_tenants?": false,
+      "concurrently": true,
+      "using": null,
+      "error_fields": [
+        "uniq_custom_one",
+        "uniq_custom_two"
+      ]
+    }
+  ],
+  "has_create_action": true,
+  "identities": [
+    {
+      "name": "uniq_on_upper",
+      "keys": [
+        "UPPER(uniq_on_upper)"
+      ],
+      "where": null,
+      "nils_distinct?": true,
+      "base_filter": "type = 'sponsored'",
+      "index_name": "posts_uniq_on_upper_index",
+      "all_tenants?": false
+    },
+    {
+      "name": "uniq_one_and_two",
+      "keys": [
+        "uniq_one",
+        "uniq_two"
+      ],
+      "where": null,
+      "nils_distinct?": true,
+      "base_filter": "type = 'sponsored'",
+      "index_name": "posts_uniq_one_and_two_index",
+      "all_tenants?": false
+    },
+    {
+      "name": "uniq_if_contains_foo",
+      "keys": [
+        "uniq_if_contains_foo"
+      ],
+      "where": "(uniq_if_contains_foo LIKE '%foo%')",
+      "nils_distinct?": true,
+      "base_filter": "type = 'sponsored'",
+      "index_name": "posts_uniq_if_contains_foo_index",
+      "all_tenants?": false
+    }
+  ],
+  "custom_statements": [],
+  "check_constraints": [
+    {
+      "name": "price_must_be_positive",
+      "check": "price > 0",
+      "attribute": [
+        "price"
+      ],
+      "base_filter": "type = 'sponsored'"
+    }
+  ]
+}

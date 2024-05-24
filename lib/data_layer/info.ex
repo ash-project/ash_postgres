@@ -14,6 +14,24 @@ defmodule AshPostgres.DataLayer.Info do
     end
   end
 
+  @doc "A keyword list of calculations to their sql representation"
+  def calculations_to_sql(resource) do
+    Extension.get_opt(resource, [:postgres], :calculations_to_sql, [])
+  end
+
+  def calculation_to_sql(resource, calc) do
+    calculations_to_sql(resource)[calc]
+  end
+
+  @doc "A keyword list of identity names to the sql representation of their where clauses"
+  def identity_wheres_to_sql(resource) do
+    Extension.get_opt(resource, [:postgres], :identity_wheres_to_sql, [])
+  end
+
+  def identity_where_to_sql(resource, identity) do
+    identity_wheres_to_sql(resource)[identity]
+  end
+
   @doc "Checks a version requirement against the resource's repo's postgres version"
   def pg_version_matches?(resource, requirement) do
     resource

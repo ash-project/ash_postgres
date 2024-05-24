@@ -155,15 +155,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert file_contents =~ ~S[add :second_title, :varchar, size: 16]
 
       # the migration creates unique_indexes based on the identities of the resource
-      assert file_contents =~ ~S{create unique_index(:posts, [:title], name: "posts_title_index")}
+      assert file_contents =~
+               ~S{create unique_index(:posts, ["title"], name: "posts_title_index")}
 
       # the migration creates unique_indexes based on the identities of the resource
       assert file_contents =~
-               ~S{create unique_index(:posts, [:title, :second_title], name: "posts_thing_index")}
+               ~S{create unique_index(:posts, ["second_title", "title"], name: "posts_thing_index")}
 
       # the migration creates unique_indexes using the `source` on the attributes of the identity on the resource
       assert file_contents =~
-               ~S{create unique_index(:posts, [:title, :t_w_s], name: "posts_thing_with_source_index")}
+               ~S{create unique_index(:posts, ["t_w_s", "title"], name: "posts_thing_with_source_index")}
     end
   end
 
@@ -177,11 +178,19 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defposts do
         postgres do
           migration_types(second_title: {:varchar, 16})
+
+          identity_wheres_to_sql(second_title: "(second_title like '%foo%')")
+
           schema("example")
         end
 
         identities do
           identity(:title, [:title])
+
+          identity :second_title, [:second_title] do
+            nils_distinct?(false)
+            where expr(contains(second_title, "foo"))
+          end
         end
 
         attributes do
@@ -231,6 +240,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert file_contents =~ ~S{create index(:posts, ["id"]}
 
+      assert file_contents =~
+               ~S{create unique_index(:posts, ["second_title"], name: "posts_second_title_index", prefix: "example", nulls_distinct: false, where: "(second_title like '%foo%')")}
+
       # the migration adds the id, with its default
       assert file_contents =~
                ~S[add :id, :uuid, null: false, default: fragment("gen_random_uuid()"), primary_key: true]
@@ -243,7 +255,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       # the migration creates unique_indexes based on the identities of the resource
       assert file_contents =~
-               ~S{create unique_index(:posts, [:title], name: "posts_title_index", prefix: "example")}
+               ~S{create unique_index(:posts, ["title"], name: "posts_title_index", prefix: "example")}
     end
   end
 
@@ -703,18 +715,18 @@ defmodule AshPostgres.MigrationGeneratorTest do
       file1_content = File.read!(file1)
 
       assert file1_content =~
-               "create unique_index(:posts, [:title], name: \"posts_title_index\")"
+               "create unique_index(:posts, [\"title\"], name: \"posts_title_index\")"
 
       file2_content = File.read!(file2)
 
       assert file2_content =~
-               "drop_if_exists unique_index(:posts, [:title], name: \"posts_title_index\")"
+               "drop_if_exists unique_index(:posts, [\"title\"], name: \"posts_title_index\")"
 
       assert file2_content =~
-               "create unique_index(:posts, [:name], name: \"posts_unique_name_index\")"
+               "create unique_index(:posts, [\"name\"], name: \"posts_unique_name_index\")"
 
       assert file2_content =~
-               "create unique_index(:posts, [:title], name: \"posts_unique_title_index\")"
+               "create unique_index(:posts, [\"title\"], name: \"posts_unique_title_index\")"
     end
 
     test "when an attribute exists only on some of the resources that use the same table, it isn't marked as null: false" do
@@ -1073,7 +1085,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
-               ~S{create unique_index(:users, [:name], name: "users_unique_name_index")}
+               ~S{create unique_index(:users, ["name"], name: "users_unique_name_index")}
     end
 
     test "when modified, the foreign key is dropped before modification" do
