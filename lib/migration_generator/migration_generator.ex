@@ -18,7 +18,7 @@ defmodule AshPostgres.MigrationGenerator do
             format: true,
             dry_run: false,
             check: false,
-            drop_columns: false
+            dont_drop_columns: false
 
   def generate(domains, opts \\ []) do
     domains = List.wrap(domains)
@@ -1984,7 +1984,7 @@ defmodule AshPostgres.MigrationGenerator do
           %Operation.RemovePrimaryKey{schema: snapshot.schema, table: snapshot.table},
         must_drop_pkey? && drop_in_down? &&
           %Operation.RemovePrimaryKeyDown{
-            commented?: !opts.drop_columns && drop_in_down_commented?,
+            commented?: opts.dont_drop_columns && drop_in_down_commented?,
             schema: snapshot.schema,
             table: snapshot.table
           }
@@ -2189,7 +2189,7 @@ defmodule AshPostgres.MigrationGenerator do
           attribute: attribute,
           table: snapshot.table,
           schema: snapshot.schema,
-          commented?: !opts.drop_columns
+          commented?: opts.dont_drop_columns
         }
       end)
 

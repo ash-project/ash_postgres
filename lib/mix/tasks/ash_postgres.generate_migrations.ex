@@ -38,9 +38,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
   won't be able to roll back, because the data has been deleted. In a rolling restart situation, some of
   the machines/pods/whatever may still be running after the column has been deleted, causing errors. With
   this in mind, its best not to delete those columns until later, after the data has been confirmed unnecessary.
-  To that end, the migration generator leaves the column dropping code commented. You can pass `--drop_columns`
-  to tell it to uncomment those statements. Additionally, you can just uncomment that code on a case by case
-  basis.
+  To that end, you can pass `--dont-drop-columns` to tell it to comment out those statements.
 
   #### Conflicts/Multiple Resources
 
@@ -96,7 +94,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
           no_format: :boolean,
           dry_run: :boolean,
           check: :boolean,
-          drop_columns: :boolean
+          dont_drop_columns: :boolean
         ]
       )
 
