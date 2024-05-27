@@ -2830,9 +2830,9 @@ defmodule AshPostgres.MigrationGenerator do
             |> Enum.sort(),
           where:
             if identity.where do
-              AshPostgres.DataLayer.Info.identity_where_to_sql(resource, identity.name) ||
+              AshPostgres.DataLayer.Info.identity_where_to_sql(resource, identity.where) ||
                 raise(
-                  "Must provide an entry for :#{identity.name} in `postgres.identity_wheres_to_sql`, or skip this identity with `postgres.skip_unique_indexes`"
+                  "Must provide an entry for :#{identity.where} in `postgres.identity_wheres_to_sql`, or skip this identity with `postgres.skip_unique_indexes`"
                 )
             end
       }
