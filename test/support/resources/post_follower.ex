@@ -9,6 +9,10 @@ defmodule AshPostgres.Test.PostFollower do
     repo AshPostgres.TestRepo
   end
 
+  identities do
+    identity(:join_attributes, [:post_id, :follower_id])
+  end
+
   actions do
     default_accept(:*)
 
@@ -16,18 +20,23 @@ defmodule AshPostgres.Test.PostFollower do
   end
 
   attributes do
+    uuid_primary_key(:id)
     attribute(:order, :integer, public?: true)
+
+    attribute :state, :atom do
+      public?(true)
+      constraints(one_of: [:active, :inactive])
+      default(:active)
+    end
   end
 
   relationships do
     belongs_to :post, AshPostgres.Test.Post do
-      primary_key?(true)
       public?(true)
       allow_nil?(false)
     end
 
     belongs_to :follower, AshPostgres.Test.User do
-      primary_key?(true)
       public?(true)
       allow_nil?(false)
     end
