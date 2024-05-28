@@ -2614,7 +2614,11 @@ defmodule AshPostgres.DataLayer do
     source = resolve_source(resource, changeset)
     query = from(row in source, as: ^0) |> default_bindings(resource, changeset.context)
 
-    select = Keyword.keys(changeset.atomics) ++ Ash.Resource.Info.primary_key(resource)
+    select =
+      Keyword.keys(changeset.atomics) ++
+        Ash.Resource.Info.primary_key(resource) ++ Map.keys(changeset.attributes)
+
+    IO.inspect(select)
 
     case bulk_updatable_query(query, resource, changeset.atomics, changeset.context) do
       {:error, error} ->
@@ -2638,9 +2642,6 @@ defmodule AshPostgres.DataLayer do
             {:ok, query} ->
               repo_opts = repo_opts(changeset.timeout, changeset.tenant, changeset.resource)
 
-              repo_opts =
-                Keyword.put(repo_opts, :returning, Keyword.keys(changeset.atomics))
-
               repo = dynamic_repo(resource, changeset)
 
               result =
@@ -2663,7 +2664,7 @@ defmodule AshPostgres.DataLayer do
                 {1, [result]} ->
                   record =
                     changeset.data
-                    |> Map.merge(changeset.attributes)
+                    |> Map.merge(Map.take(result, Map.keys(changeset.attributes)))
                     |> Map.merge(Map.take(result, Keyword.keys(changeset.atomics)))
 
                   maybe_update_tenant(resource, changeset, record)
