@@ -2615,7 +2615,10 @@ defmodule AshPostgres.DataLayer do
         {:error, error}
 
       {:ok, query} ->
-        modifying = Map.keys(changeset.attributes) ++ Keyword.keys(changeset.atomics)
+        modifying =
+          Map.keys(changeset.attributes) ++
+            Keyword.keys(changeset.atomics) ++ Ash.Resource.Info.primary_key(resource)
+
         query = Ecto.Query.select(query, ^modifying)
 
         try do
