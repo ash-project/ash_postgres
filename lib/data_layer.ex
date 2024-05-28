@@ -2618,8 +2618,6 @@ defmodule AshPostgres.DataLayer do
       Keyword.keys(changeset.atomics) ++
         Ash.Resource.Info.primary_key(resource) ++ Map.keys(changeset.attributes)
 
-    IO.inspect(select)
-
     case bulk_updatable_query(query, resource, changeset.atomics, changeset.context) do
       {:error, error} ->
         {:error, error}
