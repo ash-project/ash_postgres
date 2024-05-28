@@ -504,6 +504,44 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[ALTER INDEX posts_title_index RENAME TO titles_r_unique_dawg]
     end
 
+    test "when changing the where clause, it is properly dropped and recreated" do
+      defposts do
+        postgres do
+          identity_wheres_to_sql(title: "title != 'fred' and title != 'george'")
+        end
+
+        identities do
+          identity(:title, [:title], where: expr(title not in ["fred", "george"]))
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+
+      assert [file_before, _] =
+               String.split(
+                 File.read!(file2),
+                 ~S{create unique_index(:posts, ["title"], name: "posts_title_index", where: "(title != 'fred' and title != 'george')")}
+               )
+
+      assert file_before =~
+               ~S{drop_if_exists unique_index(:posts, ["title"], name: "posts_title_index")}
+    end
+
     test "when adding a field, it adds the field" do
       defposts do
         identities do

@@ -1762,7 +1762,9 @@ defmodule AshPostgres.MigrationGenerator do
             identity.name == old_identity.name &&
               Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
               old_identity.base_filter == identity.base_filter &&
-              old_identity.all_tenants? == identity.all_tenants?
+              old_identity.all_tenants? == identity.all_tenants? &&
+              old_identity.nils_distinct? == identity.nils_distinct? &&
+              old_identity.where == identity.where
           end)
         end)
       end
