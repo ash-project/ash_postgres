@@ -94,13 +94,6 @@ defmodule AshPostgres.Test.LoadTest do
     |> Ash.Changeset.for_update(:update, %{state: :inactive})
     |> Ash.update!()
 
-    StatefulPostFollower
-    |> Ash.Query.for_read(:read, %{})
-    |> Ash.read!()
-    |> IO.inspect()
-
-    Logger.configure(level: :debug)
-
     [post] =
       Post
       |> Ash.Query.for_read(:read, %{})
