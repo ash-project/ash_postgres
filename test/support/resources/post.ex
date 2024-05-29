@@ -96,6 +96,10 @@ defmodule AshPostgres.Test.Post do
       change(filter(expr(title == "fred")))
     end
 
+    update :set_title_to_sum_of_author_count_of_posts do
+      change(atomic_update(:title, expr("#{sum_of_author_count_of_posts}")))
+    end
+
     destroy :destroy_with_confirm do
       require_atomic?(false)
       argument(:confirm, :string, allow_nil?: false)

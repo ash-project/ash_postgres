@@ -241,7 +241,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert file_contents =~ ~S{create index(:posts, ["id"]}
 
       assert file_contents =~
-               ~S{create unique_index(:posts, ["second_title"], name: "posts_second_title_index", prefix: "example", nulls_distinct: false, where: "(second_title like '%foo%')")}
+               ~S{create unique_index(:posts, ["second_title"], name: "posts_second_title_index", prefix: "example", nulls_distinct: false, where: "((second_title like '%foo%'))")}
 
       # the migration adds the id, with its default
       assert file_contents =~

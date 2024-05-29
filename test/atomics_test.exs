@@ -78,6 +78,23 @@ defmodule AshPostgres.AtomicsTest do
              |> Ash.update!()
   end
 
+  test "an atomic update can be set to the value of an aggregate" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "John", last_name: "Doe"})
+      |> Ash.create!()
+
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "bar", author_id: author.id})
+      |> Ash.create!()
+
+    # just asserting that there is no exception here
+    post
+    |> Ash.Changeset.for_update(:set_title_to_sum_of_author_count_of_posts)
+    |> Ash.update!()
+  end
+
   test "an atomic validation is based on where it appears in the action" do
     post =
       Post
