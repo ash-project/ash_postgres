@@ -7,8 +7,8 @@
       "source": "id",
       "references": null,
       "allow_nil?": false,
-      "generated?": false,
-      "primary_key?": true
+      "primary_key?": true,
+      "generated?": false
     },
     {
       "default": "nil",
@@ -17,8 +17,18 @@
       "source": "order",
       "references": null,
       "allow_nil?": true,
-      "generated?": false,
-      "primary_key?": false
+      "primary_key?": false,
+      "generated?": false
+    },
+    {
+      "default": "\"active\"",
+      "size": null,
+      "type": "text",
+      "source": "state",
+      "references": null,
+      "allow_nil?": true,
+      "primary_key?": false,
+      "generated?": false
     },
     {
       "default": "nil",
@@ -26,27 +36,27 @@
       "type": "uuid",
       "source": "post_id",
       "references": {
-        "name": "post_followers_post_id_fkey",
+        "name": "stateful_post_followers_post_id_fkey",
         "table": "posts",
+        "primary_key?": true,
+        "destination_attribute": "id",
         "schema": "public",
-        "on_delete": null,
         "multitenancy": {
           "global": null,
           "attribute": null,
           "strategy": null
         },
-        "primary_key?": true,
-        "destination_attribute": "id",
+        "on_delete": null,
         "on_update": null,
         "deferrable": false,
-        "match_type": null,
         "match_with": null,
+        "match_type": null,
         "destination_attribute_default": null,
         "destination_attribute_generated": null
       },
       "allow_nil?": false,
-      "generated?": false,
-      "primary_key?": false
+      "primary_key?": false,
+      "generated?": false
     },
     {
       "default": "nil",
@@ -54,50 +64,51 @@
       "type": "uuid",
       "source": "follower_id",
       "references": {
-        "name": "post_followers_follower_id_fkey",
+        "name": "stateful_post_followers_follower_id_fkey",
         "table": "users",
+        "primary_key?": true,
+        "destination_attribute": "id",
         "schema": "public",
-        "on_delete": null,
         "multitenancy": {
           "global": null,
           "attribute": null,
           "strategy": null
         },
-        "primary_key?": true,
-        "destination_attribute": "id",
+        "on_delete": null,
         "on_update": null,
         "deferrable": false,
-        "match_type": null,
         "match_with": null,
+        "match_type": null,
         "destination_attribute_default": null,
         "destination_attribute_generated": null
       },
       "allow_nil?": false,
-      "generated?": false,
-      "primary_key?": false
+      "primary_key?": false,
+      "generated?": false
     }
   ],
-  "table": "post_followers",
-  "hash": "9BAFF682E73CBFDA82F7AE21BEE571C7390BACAE3DDCD658232753A0424300A5",
+  "table": "stateful_post_followers",
+  "hash": "8E28B293E05160B8D10ACF7906DCEDE01EB4E60103922CCB83F8D6B32AAA57B3",
   "repo": "Elixir.AshPostgres.TestRepo",
   "identities": [
     {
       "name": "join_attributes",
       "keys": [
         "follower_id",
-        "post_id"
+        "post_id",
+        "state"
       ],
       "where": null,
       "base_filter": null,
-      "nils_distinct?": true,
       "all_tenants?": false,
-      "index_name": "post_followers_join_attributes_index"
+      "nils_distinct?": true,
+      "index_name": "stateful_post_followers_join_attributes_index"
     }
   ],
-  "schema": null,
   "check_constraints": [],
   "custom_indexes": [],
   "base_filter": null,
+  "schema": null,
   "multitenancy": {
     "global": null,
     "attribute": null,

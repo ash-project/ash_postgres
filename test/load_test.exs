@@ -1,6 +1,6 @@
 defmodule AshPostgres.Test.LoadTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Author, Comment, Post, Record, TempEntity, User, PostFollower}
+  alias AshPostgres.Test.{Author, Comment, Post, Record, TempEntity, User, StatefulPostFollower}
 
   require Ash.Query
 
@@ -84,17 +84,22 @@ defmodule AshPostgres.Test.LoadTest do
 
     Post
     |> Ash.Changeset.for_create(:create, %{title: "a"})
-    |> Ash.Changeset.manage_relationship(:followers, followers, type: :append_and_remove)
+    |> Ash.Changeset.manage_relationship(:stateful_followers, followers, type: :append_and_remove)
     |> Ash.create!()
 
-    PostFollower
+    StatefulPostFollower
     |> Ash.Query.for_read(:read, %{})
     |> Ash.Query.limit(1)
     |> Ash.read_one!()
     |> Ash.Changeset.for_update(:update, %{state: :inactive})
     |> Ash.update!()
 
-    # Logger.configure(level: :debug)
+    StatefulPostFollower
+    |> Ash.Query.for_read(:read, %{})
+    |> Ash.read!()
+    |> IO.inspect()
+
+    Logger.configure(level: :debug)
 
     [post] =
       Post
@@ -102,7 +107,7 @@ defmodule AshPostgres.Test.LoadTest do
       |> Ash.Query.load(:active_followers)
       |> Ash.read!()
 
-    assert length(post.active_followers) == 1
+    assert length(post.active_followers) == 2
   end
 
   test "many_to_many loads work when nested" do
