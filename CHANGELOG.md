@@ -5,6 +5,24 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.6](https://github.com/ash-project/ash_postgres/compare/v2.0.5...v2.0.6) (2024-05-29)
+
+### Bug Fixes:
+
+- [atomic updates] properly support aggregate references in atomic updates
+
+- [migration generator] ensure that identities are dropped when where/nils_distinct? are changed
+
+- [migration generator] ensure that `where` is wrapped in parenthesis
+
+- [ecto compatibility] support old/new parameterized type format
+
+### Improvements:
+
+- [identities] require clarification of index names > 63 characters
+
+- [mix ash_postgres.squash_snapshots] add `ash_postgres.squash_snapshots` mix task (#302)
+
 ## [v2.0.5](https://github.com/ash-project/ash_postgres/compare/v2.0.4...v2.0.5) (2024-05-24)
 
 ### Improvements:
