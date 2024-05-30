@@ -100,6 +100,10 @@ defmodule AshPostgres.Test.Post do
       change(atomic_update(:title, expr("#{sum_of_author_count_of_posts}")))
     end
 
+    update :set_title_to_author_profile_description do
+      change(atomic_update(:title, expr(author.profile_description)))
+    end
+
     destroy :destroy_with_confirm do
       require_atomic?(false)
       argument(:confirm, :string, allow_nil?: false)
