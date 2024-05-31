@@ -251,18 +251,8 @@ defmodule AshPostgres.MigrationGenerator do
                 extensions_snapshot[:ash_functions_version]
               )
 
-            {ext_name, _version, up_fn, _down_fn} when is_function(up_fn, 1) ->
-              current_version =
-                Enum.find_value(extensions_snapshot[:installed] || [], 0, fn name ->
-                  with ["", "_v" <> version] <- String.split(name, to_string(ext_name)),
-                       {integer, ""} <- Integer.parse(version) do
-                    integer
-                  else
-                    _ -> nil
-                  end
-                end)
-
-              up_fn.(current_version)
+            {_ext_name, version, up_fn, _down_fn} when is_function(up_fn, 1) ->
+              up_fn.(version)
 
             extension ->
               "execute(\"CREATE EXTENSION IF NOT EXISTS \\\"#{extension}\\\"\")"

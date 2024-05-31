@@ -4,7 +4,7 @@
     "uuid-ossp",
     "pg_trgm",
     "citext",
-    "demo-functions_v1"
+    "demo-functions_v2"
   ],
   "ash_functions_version": 3
 }
