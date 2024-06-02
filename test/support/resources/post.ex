@@ -139,6 +139,8 @@ defmodule AshPostgres.Test.Post do
       require_atomic?(false)
     end
 
+    update(:dont_validate)
+
     update :change_title_to_foo_unless_its_already_foo do
       validate(attribute_does_not_equal(:title, "foo"))
       change(set_attribute(:title, "foo"))
@@ -349,7 +351,9 @@ defmodule AshPostgres.Test.Post do
   end
 
   validations do
-    validate(attribute_does_not_equal(:title, "not allowed"))
+    validate(attribute_does_not_equal(:title, "not allowed"),
+      where: [negate(action_is(:dont_validate))]
+    )
   end
 
   calculations do

@@ -147,7 +147,7 @@ defmodule AshPostgres.BulkUpdateTest do
     Post
     |> Ash.Query.limit(1)
     |> Ash.Query.sort(:title)
-    |> Ash.bulk_update!(:update, %{},
+    |> Ash.bulk_update!(:dont_validate, %{},
       atomic_update: %{title: Ash.Expr.expr(title <> "_stuff")},
       strategy: :atomic
     )
