@@ -318,7 +318,7 @@ For example, we can determine the percentage of tickets that are open:
 # in lib/helpdesk/support/representative.ex
 
   calculations do
-    calculate :percent_open, :float, expr(open_tickets / total_tickets )
+    calculate :percent_open, :float, expr(open_tickets / total_tickets)
   end
 ```
 
