@@ -71,5 +71,12 @@ defmodule AshPostgres.Test.Comment do
       relationship_context: %{data_layer: %{table: "comment_ratings"}},
       filter: expr(score > 5)
     )
+
+    has_many(:ratings_with_same_score_as_post, AshPostgres.Test.Rating,
+      public?: true,
+      destination_attribute: :resource_id,
+      relationship_context: %{data_layer: %{table: "comment_ratings"}},
+      filter: expr(parent(post.score) == score)
+    )
   end
 end
