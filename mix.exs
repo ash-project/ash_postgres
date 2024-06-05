@@ -164,10 +164,12 @@ defmodule AshPostgres.MixProject do
     [
       {:ash, ash_version("~> 3.0 and >= 3.0.7")},
       {:ash_sql, ash_sql_version("~> 0.2 and >= 0.2.3")},
+      {:igniter, path: "../igniter", optional: true},
       {:ecto_sql, "~> 3.9"},
       {:ecto, "~> 3.9"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
+      {:spark, path: "../spark", override: true},
       # dev/test dependencies
       {:simple_sat, "~> 0.1", only: [:dev, :test]},
       {:benchee, "~> 1.1", only: [:dev, :test]},

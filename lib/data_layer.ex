@@ -401,6 +401,8 @@ defmodule AshPostgres.DataLayer do
   A postgres data layer that leverages Ecto's postgres capabilities.
   """
 
+  require Igniter.Common
+
   use Spark.Dsl.Extension,
     sections: @sections,
     verifiers: [
@@ -2941,6 +2943,24 @@ defmodule AshPostgres.DataLayer do
     else
       repo.transaction(func)
     end
+  end
+
+  if Code.ensure_loaded?(Igniter) do
+    def install(igniter, module, Ash.Resource, path, _argv) do
+      table_name =
+        module
+        |> Module.split()
+        |> List.last()
+        |> Macro.underscore()
+
+      repo = Igniter.Module.module_name(Repo)
+
+      igniter
+      |> Spark.Igniter.set_option(Ash.Resource, path, [:postgres, :table], table_name, & &1)
+      |> Spark.Igniter.set_option(Ash.Resource, path, [:postgres, :repo], repo, & &1)
+    end
+
+    def install(igniter, _, _, _), do: igniter
   end
 
   @impl true
