@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.7](https://github.com/ash-project/ash_postgres/compare/v2.0.6...v2.0.7) (2024-06-06)
+
+
+
+
+### Bug Fixes:
+
+* update ash_sql and fix issues retaining lateral join context
+
+* ensure that all current attribute values are selected on bulk update shifted root query
+
 ## [v2.0.6](https://github.com/ash-project/ash_postgres/compare/v2.0.5...v2.0.6) (2024-05-29)
 
 ### Bug Fixes:
