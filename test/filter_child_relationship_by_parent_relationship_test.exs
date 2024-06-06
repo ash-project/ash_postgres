@@ -1,4 +1,4 @@
-defmodule AshPostgres.Test.Support.Relationships.FilterChileRelationshipByParentRelationship do
+defmodule AshPostgres.Test.Support.Relationships.FilterChileRelationshipByParentRelationshipTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.{Comment, Post}
 

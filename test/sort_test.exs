@@ -218,7 +218,7 @@ defmodule AshPostgres.SortTest do
     |> Ash.create!()
 
     posts_query =
-      Ash.Query.sort(Post, Ash.Sort.expr_sort(source(post_links.state)))
+      Ash.Query.sort(Post, Ash.Sort.expr_sort(parent(post_links.state)))
 
     Post
     |> Ash.Query.load(linked_posts: posts_query)

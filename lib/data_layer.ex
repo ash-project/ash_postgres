@@ -1105,18 +1105,7 @@ defmodule AshPostgres.DataLayer do
 
     source_pkey = Ash.Resource.Info.primary_key(source_query.resource)
 
-    source_query.resource
-    |> Ash.Query.set_context(%{:data_layer => source_query.context[:data_layer]})
-    |> Ash.Query.set_tenant(source_query.tenant)
-    |> set_lateral_join_prefix(query)
-    |> case do
-      %{valid?: true} = query ->
-        Ash.Query.data_layer_query(query)
-
-      query ->
-        {:error, query}
-    end
-    |> case do
+    case lateral_join_source_query(query, source_query) do
       {:ok, data_layer_query} ->
         source_values = Enum.map(root_data, &Map.get(&1, source_attribute))
 
@@ -1164,44 +1153,27 @@ defmodule AshPostgres.DataLayer do
     source_values = Enum.map(root_data, &Map.get(&1, source_attribute))
     source_pkey = Ash.Resource.Info.primary_key(source_query.resource)
 
-    through_resource
-    |> Ash.Query.new()
-    |> Ash.Query.set_context(through_relationship.context)
-    |> Ash.Query.do_filter(through_relationship.filter)
-    |> Ash.Query.set_tenant(source_query.tenant)
-    |> Ash.Query.put_context(:data_layer, %{
-      start_bindings_at: query.__ash_bindings__.current
-    })
-    |> set_lateral_join_prefix(query)
-    |> case do
-      %{valid?: true} = through_query ->
-        through_query
-        |> Ash.Query.data_layer_query()
-
-      query ->
-        {:error, query}
-    end
-    |> case do
-      {:ok, through_query} ->
-        source_query.resource
+    case lateral_join_source_query(query, source_query) do
+      {:ok, data_layer_query} ->
+        through_resource
         |> Ash.Query.new()
-        |> Ash.Query.set_context(relationship.context)
-        |> Ash.Query.set_context(%{:data_layer => source_query.context[:data_layer]})
         |> Ash.Query.put_context(:data_layer, %{
-          start_bindings_at: through_query.__ash_bindings__.current
+          start_bindings_at: data_layer_query.__ash_bindings__.current
         })
+        |> Ash.Query.set_context(through_relationship.context)
+        |> Ash.Query.do_filter(through_relationship.filter)
+        |> Ash.Query.set_tenant(source_query.tenant)
         |> set_lateral_join_prefix(query)
-        |> Ash.Query.do_filter(relationship.filter)
         |> case do
-          %{valid?: true} = query ->
-            query
+          %{valid?: true} = through_query ->
+            through_query
             |> Ash.Query.data_layer_query()
 
           query ->
             {:error, query}
         end
         |> case do
-          {:ok, data_layer_query} ->
+          {:ok, through_query} ->
             if query.__ash_bindings__[:__order__?] do
               subquery =
                 subquery(
@@ -1214,14 +1186,14 @@ defmodule AshPostgres.DataLayer do
                         source_query,
                         relationship.through
                       ),
-                    as: ^query.__ash_bindings__.current,
+                    as: ^data_layer_query.__ash_bindings__.current,
                     on:
                       field(through, ^destination_attribute_on_join_resource) ==
                         field(destination, ^destination_attribute),
                     where:
                       field(through, ^source_attribute_on_join_resource) ==
                         field(
-                          parent_as(^through_query.__ash_bindings__.current),
+                          parent_as(^0),
                           ^source_attribute
                         )
                   )
@@ -1252,14 +1224,14 @@ defmodule AshPostgres.DataLayer do
                         source_query,
                         relationship.through
                       ),
-                    as: ^query.__ash_bindings__.current,
+                    as: ^data_layer_query.__ash_bindings__.current,
                     on:
                       field(through, ^destination_attribute_on_join_resource) ==
                         field(destination, ^destination_attribute),
                     where:
                       field(through, ^source_attribute_on_join_resource) ==
                         field(
-                          parent_as(^through_query.__ash_bindings__.current),
+                          parent_as(^0),
                           ^source_attribute
                         )
                   )
@@ -1286,6 +1258,28 @@ defmodule AshPostgres.DataLayer do
 
       {:error, error} ->
         {:error, error}
+    end
+  end
+
+  defp lateral_join_source_query(
+         %{__ash_bindings__: %{lateral_join_source_query: lateral_join_source_query}},
+         _
+       )
+       when not is_nil(lateral_join_source_query) do
+    {:ok, lateral_join_source_query}
+  end
+
+  defp lateral_join_source_query(query, source_query) do
+    source_query.resource
+    |> Ash.Query.set_context(%{:data_layer => source_query.context[:data_layer]})
+    |> Ash.Query.set_tenant(source_query.tenant)
+    |> set_lateral_join_prefix(query)
+    |> case do
+      %{valid?: true} = query ->
+        Ash.Query.data_layer_query(query)
+
+      query ->
+        {:error, query}
     end
   end
 
