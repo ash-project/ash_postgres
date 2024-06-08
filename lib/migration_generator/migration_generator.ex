@@ -1778,7 +1778,7 @@ defmodule AshPostgres.MigrationGenerator do
           end)
 
         has_removed_index? = attribute && not attribute.index? && old_attribute.index?
-        attribute_doesnt_exist? = !attribute
+        attribute_doesnt_exist? = !attribute && old_attribute.index?
 
         has_removed_index? or attribute_doesnt_exist?
       end)
