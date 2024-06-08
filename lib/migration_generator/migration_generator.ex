@@ -625,6 +625,7 @@ defmodule AshPostgres.MigrationGenerator do
         %{
           destination_attribute: merge_uniq!(references, table, :destination_attribute, name),
           deferrable: merge_uniq!(references, table, :deferrable, name),
+          index?: merge_uniq!(references, table, :index?, name),
           destination_attribute_default:
             merge_uniq!(references, table, :destination_attribute_default, name),
           destination_attribute_generated:
@@ -1238,6 +1239,16 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp after?(
+         %Operation.AddReferenceIndex{
+           table: table,
+           schema: schema
+         },
+         %{table: table, schema: schema}
+       ) do
+    true
+  end
+
+  defp after?(
          %Operation.AddCheckConstraint{
            constraint: %{attribute: attribute_or_attributes},
            table: table,
@@ -1252,6 +1263,16 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp after?(
          %Operation.AddCustomIndex{
+           table: table,
+           schema: schema
+         },
+         %Operation.AddAttribute{table: table, schema: schema}
+       ) do
+    true
+  end
+
+  defp after?(
+         %Operation.AddReferenceIndex{
            table: table,
            schema: schema
          },
@@ -1736,6 +1757,40 @@ defmodule AshPostgres.MigrationGenerator do
         }
       end)
 
+    reference_indexes_to_add =
+      Enum.filter(snapshot.attributes, fn attribute ->
+        if attribute.references, do: attribute.references.index?
+      end)
+      |> Enum.map(fn attribute ->
+        %Operation.AddReferenceIndex{
+          table: snapshot.table,
+          schema: snapshot.schema,
+          source: attribute.source,
+          multitenancy: snapshot.multitenancy
+        }
+      end)
+
+    reference_indexes_to_remove =
+      Enum.filter(old_snapshot.attributes, fn old_attribute ->
+        attribute =
+          Enum.find(snapshot.attributes, fn attribute ->
+            attribute.source == old_attribute.source
+          end)
+
+        has_removed_index? = attribute && not attribute.index? && old_attribute.index?
+        attribute_doesnt_exist? = !attribute
+
+        has_removed_index? or attribute_doesnt_exist?
+      end)
+      |> Enum.map(fn attribute ->
+        %Operation.RemoveReferenceIndex{
+          table: snapshot.table,
+          schema: snapshot.schema,
+          source: attribute.source,
+          multitenancy: snapshot.multitenancy
+        }
+      end)
+
     custom_indexes_to_remove =
       Enum.filter(old_snapshot.custom_indexes, fn old_custom_index ->
         (rewrite_all_identities? && !old_custom_index.all_tenants?) ||
@@ -1881,6 +1936,8 @@ defmodule AshPostgres.MigrationGenerator do
       pkey_operations,
       unique_indexes_to_remove,
       attribute_operations,
+      reference_indexes_to_add,
+      reference_indexes_to_remove,
       unique_indexes_to_add,
       unique_indexes_to_rename,
       constraints_to_remove,
@@ -2500,6 +2557,7 @@ defmodule AshPostgres.MigrationGenerator do
                     AshPostgres.DataLayer.Info.repo(relationship.destination, :mutate)
                   ),
                 deferrable: false,
+                index?: false,
                 destination_attribute_generated: source_attribute.generated?,
                 multitenancy: multitenancy(relationship.source),
                 table: AshPostgres.DataLayer.Info.table(relationship.source),
@@ -2710,6 +2768,7 @@ defmodule AshPostgres.MigrationGenerator do
           %{
             destination_attribute: destination_attribute_source,
             deferrable: configured_reference.deferrable,
+            index?: configured_reference.index?,
             multitenancy: multitenancy(relationship.destination),
             on_delete: configured_reference.on_delete,
             on_update: configured_reference.on_update,
@@ -2743,6 +2802,7 @@ defmodule AshPostgres.MigrationGenerator do
         match_with: nil,
         match_type: nil,
         deferrable: false,
+        index?: false,
         schema:
           relationship.context[:data_layer][:schema] ||
             AshPostgres.DataLayer.Info.schema(relationship.destination) ||

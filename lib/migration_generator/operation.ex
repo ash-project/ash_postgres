@@ -967,6 +967,57 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     end
   end
 
+  defmodule AddReferenceIndex do
+    @moduledoc false
+    defstruct [:table, :schema, :source, :multitenancy, no_phase: true]
+    import Helper
+
+    def up(%{
+          source: source,
+          table: table,
+          schema: schema,
+          multitenancy: multitenancy
+        }) do
+      keys =
+        if multitenancy.strategy == :attribute do
+          [multitenancy.attribute, source]
+        else
+          [source]
+        end
+
+      opts =
+        join([
+          option(:prefix, schema)
+        ])
+
+      if opts == "" do
+        "create index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}])"
+      else
+        "create index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{opts})"
+      end
+    end
+
+    def down(%{schema: schema, source: source, table: table, multitenancy: multitenancy}) do
+      keys =
+        if multitenancy.strategy == :attribute do
+          [multitenancy.attribute, source]
+        else
+          [source]
+        end
+
+      opts =
+        join([
+          option(:prefix, schema)
+        ])
+
+      if opts == "" do
+        "drop_if_exists index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}])"
+      else
+        "drop_if_exists index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{opts})"
+      end
+    end
+  end
+
   defmodule RemovePrimaryKey do
     @moduledoc false
     defstruct [:schema, :table, no_phase: true]
@@ -1022,6 +1073,20 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def down(operation) do
       AddCustomIndex.up(operation)
+    end
+  end
+
+  defmodule RemoveReferenceIndex do
+    @moduledoc false
+    defstruct [:schema, :table, :source, :multitenancy, no_phase: true]
+    import Helper
+
+    def up(operation) do
+      AddReferenceIndex.down(operation)
+    end
+
+    def down(operation) do
+      AddReferenceIndex.up(operation)
     end
   end
 
