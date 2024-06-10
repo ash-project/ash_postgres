@@ -8,6 +8,7 @@ defmodule AshPostgres.Reference do
     :match_with,
     :match_type,
     :deferrable,
+    :index?,
     ignore?: false
   ]
 
@@ -44,7 +45,7 @@ defmodule AshPostgres.Reference do
         type: {:one_of, [false, true, :initially]},
         default: false,
         doc: """
-        Wether or not the constraint is deferrable. This only affects the migration generator.
+        Whether or not the constraint is deferrable. This only affects the migration generator.
         """
       ],
       name: [
@@ -60,6 +61,11 @@ defmodule AshPostgres.Reference do
       match_type: [
         type: {:one_of, [:simple, :partial, :full]},
         doc: "select if the match is `:simple`, `:partial`, or `:full`"
+      ],
+      index?: [
+        type: :boolean,
+        default: false,
+        doc: "Whether to create or not a corresponding index"
       ]
     ]
   end
