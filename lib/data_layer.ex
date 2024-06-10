@@ -447,7 +447,7 @@ defmodule AshPostgres.DataLayer do
             |> Enum.sort()
             |> Enum.reverse()
             |> Enum.filter(fn file ->
-              Enum.any?(current_migrations, &String.starts_with?(file, &1))
+              Enum.any?(current_migrations, &String.starts_with?(Path.basename(file), &1))
             end)
             |> Enum.take(20)
             |> Enum.map(&String.trim_leading(&1, migrations_path))
@@ -484,31 +484,37 @@ defmodule AshPostgres.DataLayer do
           Mix.Task.run("ash_postgres.rollback", args ++ ["-r", inspect(repo), "-n", to_string(n)])
           Mix.Task.reenable("ash_postgres.rollback")
 
-          first_tenant = repo.list_tenants() |> Enum.at(0)
+          tenant_files =
+            tenant_migrations_path
+            |> Path.join("**/*.exs")
+            |> Path.wildcard()
+            |> Enum.sort()
+            |> Enum.reverse()
 
-          if first_tenant do
-            current_tenant_migrations =
-              Ecto.Query.from(row in "schema_migrations",
-                select: row.version
-              )
-              |> repo.all(prefix: first_tenant)
-              |> Enum.map(&to_string/1)
+          if !Enum.empty?(tenant_files) do
+            first_tenant = repo.all_tenants() |> Enum.at(0)
 
-            tenant_files =
-              tenant_migrations_path
-              |> Path.join("**/*.exs")
-              |> Path.wildcard()
-              |> Enum.sort()
-              |> Enum.reverse()
-              |> Enum.filter(fn file ->
-                Enum.any?(current_tenant_migrations, &String.starts_with?(file, &1))
-              end)
-              |> Enum.take(20)
-              |> Enum.map(&String.trim_leading(&1, tenant_migrations_path))
-              |> Enum.with_index()
-              |> Enum.map(fn {file, index} -> "#{index + 1}: #{file}" end)
+            if first_tenant do
+              current_tenant_migrations =
+                Ecto.Query.from(row in "schema_migrations",
+                  select: row.version
+                )
+                |> repo.all(prefix: first_tenant)
+                |> Enum.map(&to_string/1)
 
-            if !Enum.empty?(tenant_files) do
+              tenant_files =
+                tenant_files
+                |> Enum.filter(fn file ->
+                  Enum.any?(
+                    current_tenant_migrations,
+                    &String.starts_with?(Path.basename(file), &1)
+                  )
+                end)
+                |> Enum.take(20)
+                |> Enum.map(&String.trim_leading(&1, tenant_migrations_path))
+                |> Enum.with_index()
+                |> Enum.map(fn {file, index} -> "#{index + 1}: #{file}" end)
+
               n =
                 Mix.shell().prompt(
                   """
@@ -565,13 +571,7 @@ defmodule AshPostgres.DataLayer do
 
     []
     |> AshPostgres.Mix.Helpers.repos!(args)
-    |> Enum.all?(fn repo ->
-      []
-      |> AshPostgres.Mix.Helpers.tenant_migrations_path(repo)
-      |> Path.join("**/*.exs")
-      |> Path.wildcard()
-      |> Enum.empty?()
-    end)
+    |> Enum.all?(&(not has_tenant_migrations?(&1)))
     |> case do
       true ->
         :ok
@@ -584,6 +584,14 @@ defmodule AshPostgres.DataLayer do
   def tear_down(args) do
     # TODO: take args that we care about
     Mix.Task.run("ash_postgres.drop", args)
+  end
+
+  defp has_tenant_migrations?(repo) do
+    []
+    |> AshPostgres.Mix.Helpers.tenant_migrations_path(repo)
+    |> Path.join("**/*.exs")
+    |> Path.wildcard()
+    |> Enum.empty?()
   end
 
   import Ecto.Query, only: [from: 2, subquery: 1]
