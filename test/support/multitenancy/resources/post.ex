@@ -50,6 +50,12 @@ defmodule AshPostgres.MultitenancyTest.Post do
     end
 
     has_one(:self, __MODULE__, destination_attribute: :id, source_attribute: :id, public?: true)
+
+    many_to_many :linked_posts, __MODULE__ do
+      through(AshPostgres.MultitenancyTest.PostLink)
+      source_attribute_on_join_resource(:source_id)
+      destination_attribute_on_join_resource(:dest_id)
+    end
   end
 
   calculations do

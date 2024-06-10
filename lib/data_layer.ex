@@ -1270,11 +1270,17 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp lateral_join_source_query(
-         %{__ash_bindings__: %{lateral_join_source_query: lateral_join_source_query}},
-         _
+         %{
+           __ash_bindings__: %{
+             lateral_join_source_query: lateral_join_source_query
+           }
+         },
+         source_query
        )
        when not is_nil(lateral_join_source_query) do
-    {:ok, lateral_join_source_query}
+    {:ok,
+     lateral_join_source_query
+     |> set_subquery_prefix(source_query, lateral_join_source_query.__ash_bindings__.resource)}
   end
 
   defp lateral_join_source_query(query, source_query) do

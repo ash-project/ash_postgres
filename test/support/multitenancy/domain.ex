@@ -6,5 +6,6 @@ defmodule AshPostgres.MultitenancyTest.Domain do
     resource(AshPostgres.MultitenancyTest.Org)
     resource(AshPostgres.MultitenancyTest.User)
     resource(AshPostgres.MultitenancyTest.Post)
+    resource(AshPostgres.MultitenancyTest.PostLink)
   end
 end

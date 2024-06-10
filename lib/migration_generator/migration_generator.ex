@@ -1777,8 +1777,10 @@ defmodule AshPostgres.MigrationGenerator do
             attribute.source == old_attribute.source
           end)
 
-        has_removed_index? = attribute && !attribute[:index?] && old_attribute[:index?]
-        attribute_doesnt_exist? = !attribute && old_attribute[:index?]
+        has_removed_index? =
+          attribute && !attribute[:references][:index?] && old_attribute[:references][:index?]
+
+        attribute_doesnt_exist? = !attribute && old_attribute[:references][:index?]
 
         has_removed_index? || attribute_doesnt_exist?
       end)
@@ -3173,6 +3175,7 @@ defmodule AshPostgres.MigrationGenerator do
         |> Map.put_new(:on_update, nil)
         |> Map.update!(:on_delete, &(&1 && load_references_on_delete(&1)))
         |> Map.update!(:on_update, &(&1 && maybe_to_atom(&1)))
+        |> Map.put_new(:index?, false)
         |> Map.put_new(:match_with, nil)
         |> Map.put_new(:match_type, nil)
         |> Map.update!(

@@ -109,23 +109,74 @@ defmodule AshPostgres.Test.MultitenancyTest do
       |> Ash.Changeset.new()
       |> Ash.create!()
 
-    user1 =
+    user =
       User
-      |> Ash.Changeset.for_create(:create, %{name: "a"})
+      |> Ash.Changeset.for_create(:create, %{name: "a"}, tenant: "org_#{org.id}")
       |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
       |> Ash.create!()
 
     user2 =
       User
-      |> Ash.Changeset.for_create(:create, %{name: "b"})
+      |> Ash.Changeset.for_create(:create, %{name: "a"}, tenant: "org_#{org.id}")
       |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
       |> Ash.create!()
 
-    user1_id = user1.id
-    user2_id = user2.id
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "foobar"},
+        authorize?: false,
+        tenant: "org_#{org.id}"
+      )
+      |> Ash.Changeset.manage_relationship(:user, user, type: :append_and_remove)
+      |> Ash.create!()
 
-    assert [%{id: ^user1_id}, %{id: ^user2_id}] =
-             Ash.load!(org, users: Ash.Query.sort(User, :name)).users
+    post_id = post.id
+
+    assert [%{posts: [%{id: ^post_id}]}, _] =
+             Ash.load!([user, user2], [posts: Ash.Query.limit(Post, 2)],
+               tenant: "org_#{org.id}",
+               authorize?: false
+             )
+  end
+
+  test "loading context multitenant resources across a many-to-many with a limit works" do
+    org =
+      Org
+      |> Ash.Changeset.new()
+      |> Ash.create!()
+
+    user =
+      User
+      |> Ash.Changeset.for_create(:create, %{name: "a"}, tenant: "org_#{org.id}")
+      |> Ash.Changeset.manage_relationship(:org, org, type: :append_and_remove)
+      |> Ash.create!()
+
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "foobar"},
+        authorize?: false,
+        tenant: "org_#{org.id}"
+      )
+      |> Ash.Changeset.manage_relationship(:user, user, type: :append_and_remove)
+      |> Ash.create!()
+
+    post2 =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "foobar"},
+        authorize?: false,
+        tenant: "org_#{org.id}"
+      )
+      |> Ash.Changeset.manage_relationship(:user, user, type: :append_and_remove)
+      |> Ash.Changeset.manage_relationship(:linked_posts, post, type: :append_and_remove)
+      |> Ash.create!()
+
+    post_id = post.id
+
+    assert [%{linked_posts: [%{id: ^post_id}]}, _] =
+             Ash.load!([post2, post], [linked_posts: Ash.Query.limit(Post, 2)],
+               tenant: "org_#{org.id}",
+               authorize?: false
+             )
   end
 
   test "manage_relationship from context multitenant resource to attribute multitenant resource doesn't raise an error" do

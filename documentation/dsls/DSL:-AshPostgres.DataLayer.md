@@ -301,10 +301,11 @@ reference :post, on_delete: :delete, on_update: :update, name: "comments_to_post
 | [`ignore?`](#postgres-references-reference-ignore?){: #postgres-references-reference-ignore? } | `boolean` |  | If set to true, no reference is created for the given relationship. This is useful if you need to define it in some custom way |
 | [`on_delete`](#postgres-references-reference-on_delete){: #postgres-references-reference-on_delete } | `:delete \| :nilify \| :nothing \| :restrict \| {:nilify, atom \| list(atom)}` |  | What should happen to records of this resource when the referenced record of the *destination* resource is deleted. |
 | [`on_update`](#postgres-references-reference-on_update){: #postgres-references-reference-on_update } | `:update \| :nilify \| :nothing \| :restrict` |  | What should happen to records of this resource when the referenced destination_attribute of the *destination* record is update. |
-| [`deferrable`](#postgres-references-reference-deferrable){: #postgres-references-reference-deferrable } | `false \| true \| :initially` | `false` | Wether or not the constraint is deferrable. This only affects the migration generator. |
+| [`deferrable`](#postgres-references-reference-deferrable){: #postgres-references-reference-deferrable } | `false \| true \| :initially` | `false` | Whether or not the constraint is deferrable. This only affects the migration generator. |
 | [`name`](#postgres-references-reference-name){: #postgres-references-reference-name } | `String.t` |  | The name of the foreign key to generate in the database. Defaults to <table>_<source_attribute>_fkey |
 | [`match_with`](#postgres-references-reference-match_with){: #postgres-references-reference-match_with } | `keyword` |  | Defines additional keys to the foreign key in order to build a composite foreign key. The key should be the name of the source attribute (in the current resource), the value the name of the destination attribute. |
 | [`match_type`](#postgres-references-reference-match_type){: #postgres-references-reference-match_type } | `:simple \| :partial \| :full` |  | select if the match is `:simple`, `:partial`, or `:full` |
+| [`index?`](#postgres-references-reference-index?){: #postgres-references-reference-index? } | `boolean` | `false` | Whether to create or not a corresponding index |
 
 
 
