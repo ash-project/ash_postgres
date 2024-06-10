@@ -26,7 +26,7 @@ defmodule AshPostgres.Verifiers.ValidateIdentityIndexNames do
       |> Enum.map(fn identity ->
         {identity, identity_index_names[identity.name] || "#{table}_#{identity.name}_index"}
       end)
-      |> Enum.group_by(&elem(&1, 1))
+      |> Enum.group_by(&elem(&1, 1), &elem(&1, 0))
       |> Enum.each(fn
         {name, [_, _ | _] = identities} ->
           raise Spark.Error.DslError,
