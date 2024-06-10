@@ -557,7 +557,7 @@ defmodule AshPostgres.MigrationGenerator do
           |> Kernel.!()
         end)
         |> Enum.uniq_by(fn identity ->
-          {Enum.sort(identity.keys), identity.base_filter}
+          {identity.keys, identity.base_filter}
         end)
 
       new_snapshot = %{new_snapshot | identities: all_identities}
@@ -740,7 +740,7 @@ defmodule AshPostgres.MigrationGenerator do
 
         identities =
           Enum.reject(identities, fn identity ->
-            Enum.sort(identity.keys) == primary_key
+            identity.keys == primary_key
           end)
 
         {primary_key, identities}
@@ -1817,7 +1817,7 @@ defmodule AshPostgres.MigrationGenerator do
         Enum.reject(old_snapshot.identities, fn old_identity ->
           Enum.find(snapshot.identities, fn identity ->
             identity.name == old_identity.name &&
-              Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
+              old_identity.keys == identity.keys &&
               old_identity.base_filter == identity.base_filter &&
               old_identity.all_tenants? == identity.all_tenants? &&
               old_identity.nils_distinct? == identity.nils_distinct? &&
@@ -1874,7 +1874,7 @@ defmodule AshPostgres.MigrationGenerator do
           if identity.all_tenants? do
             Enum.find(old_snapshot.identities, fn old_identity ->
               old_identity.name == identity.name &&
-                Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
+                old_identity.keys == identity.keys &&
                 old_identity.base_filter == identity.base_filter &&
                 old_identity.all_tenants? == identity.all_tenants? &&
                 old_identity.nils_distinct? == identity.nils_distinct? &&
@@ -1888,7 +1888,7 @@ defmodule AshPostgres.MigrationGenerator do
         Enum.reject(snapshot.identities, fn identity ->
           Enum.find(old_snapshot.identities, fn old_identity ->
             old_identity.name == identity.name &&
-              Enum.sort(old_identity.keys) == Enum.sort(identity.keys) &&
+              old_identity.keys == identity.keys &&
               old_identity.base_filter == identity.base_filter &&
               old_identity.all_tenants? == identity.all_tenants? &&
               old_identity.nils_distinct? == identity.nils_distinct? &&
@@ -3244,9 +3244,6 @@ defmodule AshPostgres.MigrationGenerator do
   defp load_identity(identity, table) do
     identity
     |> Map.update!(:name, &maybe_to_atom/1)
-    |> Map.update!(:keys, fn keys ->
-      Enum.sort(keys)
-    end)
     |> add_index_name(table)
     |> Map.put_new(:base_filter, nil)
     |> Map.put_new(:all_tenants?, false)
