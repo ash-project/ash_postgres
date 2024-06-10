@@ -9,8 +9,168 @@ defmodule Mix.Tasks.AshPostgres.Install do
     igniter
     |> Igniter.Formatter.import_dep(:ash_postgres)
     |> setup_repo_module(otp_app, repo)
-    |> Igniter.Config.configure("config.exs", :ash_postgres, [repo, :username], "postgres")
+    |> configure_config(otp_app, repo)
+    |> configure_dev(otp_app)
+    |> configure_test(otp_app)
+    |> configure_runtime(repo, otp_app)
+    |> Igniter.Application.add_child(repo)
   end
+
+  defp configure_config(igniter, otp_app, repo) do
+    Igniter.Config.configure(
+      igniter,
+      "config.exs",
+      otp_app,
+      [:ecto_repos],
+      [repo],
+      fn zipper ->
+        Igniter.Common.prepend_new_to_list(zipper, repo, &Igniter.Common.equal_modules?/2)
+      end
+    )
+  end
+
+  defp configure_runtime(igniter, repo, otp_app) do
+    default_runtime = """
+    import Config
+
+    if config_env() == :prod do
+      database_url =
+        System.get_env("DATABASE_URL") ||
+          raise \"\"\"
+          environment variable DATABASE_URL is missing.
+          For example: ecto://USER:PASS@HOST/DATABASE
+          \"\"\"
+
+      config #{inspect(otp_app)}, Helpdesk.Repo,
+        url: database_url,
+        pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
+    end
+    """
+    igniter
+    |> Igniter.create_or_update_elixir_file("config/runtime.exs", default_runtime, fn zipper ->
+      if Igniter.Config.configures?(zipper, [repo, :url], otp_app) do
+        zipper
+      else
+        patterns = [
+          """
+          if config_env() == :prod do
+            __cursor__
+          end
+          """,
+          """
+          if :prod == config_env() do
+            __cursor__
+          end
+          """
+        ]
+
+        zipper
+        |> Igniter.Common.match_pattern_in_scope(patterns)
+        |> case do
+          {:ok, zipper} ->
+            case Igniter.Common.move_to_function_call_in_current_scope(zipper, :=, 2, fn call ->
+                   Igniter.Common.argument_matches_predicate?(
+                     call,
+                     0,
+                     &match?({:database_url, _, Elixir}, &1)
+                   )
+                 end) do
+              {:ok, zipper} ->
+                zipper
+                |> Igniter.Config.modify_configuration_code(
+                  zipper,
+                  [repo, :url],
+                  otp_app,
+                  {:database_url, [], Elixir}
+                )
+                |> Igniter.Config.modify_configuration_code(
+                  zipper,
+                  [repo, :pool_size],
+                  otp_app,
+                  quote do
+                    String.to_integer(System.get_env("POOL_SIZE") || "10")
+                  end
+                )
+
+              {:error, _error} ->
+                Igniter.Common.add_code(zipper, """
+                  database_url =
+                    System.get_env("DATABASE_URL") ||
+                      raise \"\"\"
+                      environment variable DATABASE_URL is missing.
+                      For example: ecto://USER:PASS@HOST/DATABASE
+                      \"\"\"
+
+                  config #{inspect(otp_app)}, Helpdesk.Repo,
+                    url: database_url,
+                    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
+                """)
+            end
+
+          {:error, _error} ->
+            Igniter.Common.add_code(zipper, """
+            if config_env() == :prod do
+              database_url =
+                System.get_env("DATABASE_URL") ||
+                  raise \"\"\"
+                  environment variable DATABASE_URL is missing.
+                  For example: ecto://USER:PASS@HOST/DATABASE
+                  \"\"\"
+
+              config #{inspect(otp_app)}, Helpdesk.Repo,
+                url: database_url,
+                pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
+            end
+            """)
+        end
+      end
+    end)
+  end
+
+  defp configure_dev(igniter, otp_app) do
+    igniter
+    |> Igniter.Config.configure_new("dev.exs", otp_app, [:username], "postgres")
+    |> Igniter.Config.configure_new("dev.exs", otp_app, [:password], "postgres")
+    |> Igniter.Config.configure_new("dev.exs", otp_app, [:hostname], "localhost")
+    |> Igniter.Config.configure_new("dev.exs", otp_app, [:database], "#{otp_app}_dev")
+    |> Igniter.Config.configure_new("dev.exs", otp_app, [:port], 5432)
+    |> Igniter.Config.configure_new(
+      "dev.exs",
+      otp_app,
+      [:show_sensitive_data_on_connection_error],
+      true
+    )
+    |> Igniter.Config.configure_new("dev.exs", otp_app, [:pool_size], 10)
+  end
+
+  defp configure_test(igniter, otp_app) do
+    database =
+      {:<<>>, [],
+      [
+        "#{otp_app}_test",
+        {:"::", [],
+          [
+            {{:., [], [Kernel, :to_string]}, [from_interpolation: true],
+            [
+              {{:., [], [{:__aliases__, [alias: false], [:System]}, :get_env]}, [],
+                ["MIX_TEST_PARTITION"]}
+            ]},
+            {:binary, [], Elixir}
+          ]}
+      ]}
+      |> Sourceror.to_string()
+      |> Sourceror.parse_string!()
+
+    igniter
+    |> Igniter.Config.configure_new("test.exs", otp_app, [:username], "postgres")
+    |> Igniter.Config.configure_new("test.exs", otp_app, [:password], "postgres")
+    |> Igniter.Config.configure_new("test.exs", otp_app, [:hostname], "localhost")
+    |> Igniter.Config.configure_new("test.exs", otp_app, [:database], {:code, database})
+    |> Igniter.Config.configure_new("test.exs", otp_app, [:port], 5432)
+    |> Igniter.Config.configure_new("test.exs", otp_app, [:pool], Ecto.Adapters.SQL.Sandbox)
+    |> Igniter.Config.configure_new("test.exs", otp_app, [:pool_size], 10)
+  end
+
 
   defp setup_repo_module(igniter, otp_app, repo) do
     path = Igniter.Module.proper_location(repo)
@@ -38,7 +198,6 @@ defmodule Mix.Tasks.AshPostgres.Install do
       |> Sourceror.Zipper.top()
       |> remove_adapter_option()
     end)
-    |> Igniter.add_task("ash.codegen")
   end
 
   defp use_ash_postgres_instead_of_ecto(zipper) do
