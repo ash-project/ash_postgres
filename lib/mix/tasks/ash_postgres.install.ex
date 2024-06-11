@@ -10,10 +10,11 @@ defmodule Mix.Tasks.AshPostgres.Install do
     |> Igniter.Formatter.import_dep(:ash_postgres)
     |> setup_repo_module(otp_app, repo)
     |> configure_config(otp_app, repo)
-    |> configure_dev(otp_app)
-    |> configure_test(otp_app)
+    |> configure_dev(otp_app, repo)
+    |> configure_test(otp_app, repo)
     |> configure_runtime(repo, otp_app)
     |> Igniter.Application.add_child(repo)
+    |> Igniter.add_task("ash.codegen", ["install_ash_postgres"])
   end
 
   defp configure_config(igniter, otp_app, repo) do
@@ -29,7 +30,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
     )
   end
 
-  defp configure_runtime(igniter, repo, otp_app) do
+  defp configure_runtime(igniter, otp_app, repo) do
     default_runtime = """
     import Config
 
@@ -46,6 +47,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
         pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
     end
     """
+
     igniter
     |> Igniter.create_or_update_elixir_file("config/runtime.exs", default_runtime, fn zipper ->
       if Igniter.Config.configures?(zipper, [repo, :url], otp_app) do
@@ -54,12 +56,12 @@ defmodule Mix.Tasks.AshPostgres.Install do
         patterns = [
           """
           if config_env() == :prod do
-            __cursor__
+            __cursor__()
           end
           """,
           """
           if :prod == config_env() do
-            __cursor__
+            __cursor__()
           end
           """
         ]
@@ -127,50 +129,49 @@ defmodule Mix.Tasks.AshPostgres.Install do
     end)
   end
 
-  defp configure_dev(igniter, otp_app) do
+  defp configure_dev(igniter, otp_app, repo) do
     igniter
-    |> Igniter.Config.configure_new("dev.exs", otp_app, [:username], "postgres")
-    |> Igniter.Config.configure_new("dev.exs", otp_app, [:password], "postgres")
-    |> Igniter.Config.configure_new("dev.exs", otp_app, [:hostname], "localhost")
-    |> Igniter.Config.configure_new("dev.exs", otp_app, [:database], "#{otp_app}_dev")
-    |> Igniter.Config.configure_new("dev.exs", otp_app, [:port], 5432)
+    |> Igniter.Config.configure_new("dev.exs", otp_app, [repo, :username], "postgres")
+    |> Igniter.Config.configure_new("dev.exs", otp_app, [repo, :password], "postgres")
+    |> Igniter.Config.configure_new("dev.exs", otp_app, [repo, :hostname], "localhost")
+    |> Igniter.Config.configure_new("dev.exs", otp_app, [repo, :database], "#{otp_app}_dev")
+    |> Igniter.Config.configure_new("dev.exs", otp_app, [repo, :port], 5432)
     |> Igniter.Config.configure_new(
       "dev.exs",
       otp_app,
-      [:show_sensitive_data_on_connection_error],
+      [repo, :show_sensitive_data_on_connection_error],
       true
     )
-    |> Igniter.Config.configure_new("dev.exs", otp_app, [:pool_size], 10)
+    |> Igniter.Config.configure_new("dev.exs", otp_app, [repo, :pool_size], 10)
   end
 
-  defp configure_test(igniter, otp_app) do
+  defp configure_test(igniter, otp_app, repo) do
     database =
       {:<<>>, [],
-      [
-        "#{otp_app}_test",
-        {:"::", [],
+       [
+         "#{otp_app}_test",
+         {:"::", [],
           [
             {{:., [], [Kernel, :to_string]}, [from_interpolation: true],
-            [
-              {{:., [], [{:__aliases__, [alias: false], [:System]}, :get_env]}, [],
+             [
+               {{:., [], [{:__aliases__, [alias: false], [:System]}, :get_env]}, [],
                 ["MIX_TEST_PARTITION"]}
-            ]},
+             ]},
             {:binary, [], Elixir}
           ]}
-      ]}
+       ]}
       |> Sourceror.to_string()
       |> Sourceror.parse_string!()
 
     igniter
-    |> Igniter.Config.configure_new("test.exs", otp_app, [:username], "postgres")
-    |> Igniter.Config.configure_new("test.exs", otp_app, [:password], "postgres")
-    |> Igniter.Config.configure_new("test.exs", otp_app, [:hostname], "localhost")
-    |> Igniter.Config.configure_new("test.exs", otp_app, [:database], {:code, database})
-    |> Igniter.Config.configure_new("test.exs", otp_app, [:port], 5432)
-    |> Igniter.Config.configure_new("test.exs", otp_app, [:pool], Ecto.Adapters.SQL.Sandbox)
-    |> Igniter.Config.configure_new("test.exs", otp_app, [:pool_size], 10)
+    |> Igniter.Config.configure_new("test.exs", otp_app, [repo, :username], "postgres")
+    |> Igniter.Config.configure_new("test.exs", otp_app, [repo, :password], "postgres")
+    |> Igniter.Config.configure_new("test.exs", otp_app, [repo, :hostname], "localhost")
+    |> Igniter.Config.configure_new("test.exs", otp_app, [repo, :database], {:code, database})
+    |> Igniter.Config.configure_new("test.exs", otp_app, [repo, :port], 5432)
+    |> Igniter.Config.configure_new("test.exs", otp_app, [repo, :pool], Ecto.Adapters.SQL.Sandbox)
+    |> Igniter.Config.configure_new("test.exs", otp_app, [repo, :pool_size], 10)
   end
-
 
   defp setup_repo_module(igniter, otp_app, repo) do
     path = Igniter.Module.proper_location(repo)

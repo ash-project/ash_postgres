@@ -98,7 +98,14 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
         ]
       )
 
-    domains = AshPostgres.Mix.Helpers.domains!(opts, args)
+    domains = AshPostgres.Mix.Helpers.domains!(opts, args, false)
+
+    if Enum.empty?(domains) do
+      IO.warn("""
+      No domains found, so no resource-related migrations will be generated.
+      Pass the `--domains` option or configure `config :your_app, ash_domains: [...]`
+      """)
+    end
 
     opts =
       opts
