@@ -257,8 +257,8 @@ defmodule AshPostgres.SortTest do
              )
 
     assert [
-             %{title: "bbb", views: [%{browser: :firefox}]},
-             %{title: "aaa", views: [%{browser: :chrome}]}
+             %{title: "bbb", views: [%{browser: :chrome}]},
+             %{title: "aaa", views: [%{browser: :firefox}]}
            ] =
              Ash.read!(
                Post
