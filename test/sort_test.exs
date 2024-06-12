@@ -263,7 +263,7 @@ defmodule AshPostgres.SortTest do
              Ash.read!(
                Post
                |> Ash.Query.load(:views)
-               |> Ash.Query.sort({Ash.Sort.expr_sort(views.time, :datetime), :desc}, title: :desc)
+               |> Ash.Query.sort({Ash.Sort.expr_sort(views.time, :datetime), :desc}, title: :asc)
              )
   end
 end
