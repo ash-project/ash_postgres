@@ -5,6 +5,35 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.9](https://github.com/ash-project/ash_postgres/compare/v2.0.8...v2.0.9) (2024-06-13)
+
+
+
+
+### Features:
+
+* autogenerate index in references (#321)
+
+* autogenerate index in references
+
+### Bug Fixes:
+
+* fix invalid select on sorting by some calculations
+
+* fix error message displaying in identity verifier
+
+* ensure that context multitenancy is properly applied to lateral many-to-many joins
+
+* don't assume old snapshots have `index?` key for attributes
+
+* `list_tenants` -> `all_tenants`
+
+* when checking for roll back-able migrations, only check `Path.basename`
+
+### Improvements:
+
+* don't sort identity keys.
+
 ## [v2.0.8](https://github.com/ash-project/ash_postgres/compare/v2.0.7...v2.0.8) (2024-06-06)
 
 
