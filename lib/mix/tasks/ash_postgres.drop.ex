@@ -46,7 +46,7 @@ defmodule Mix.Tasks.AshPostgres.Drop do
 
     repos =
       AshPostgres.Mix.Helpers.repos!(opts, args)
-      |> Enum.filter(fn repo -> repo.drop? end)
+      |> Enum.filter(fn repo -> repo.drop?() end)
 
     repo_args =
       Enum.flat_map(repos, fn repo ->
