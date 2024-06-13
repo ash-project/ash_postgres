@@ -1,7 +1,7 @@
 defmodule AshPostgres.SortTest do
   @moduledoc false
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Comment, Post, PostLink}
+  alias AshPostgres.Test.{Comment, Post, PostLink, PostView}
 
   require Ash.Query
   require Ash.Sort
@@ -223,5 +223,47 @@ defmodule AshPostgres.SortTest do
     Post
     |> Ash.Query.load(linked_posts: posts_query)
     |> Ash.read!()
+  end
+
+  test "sorting on relationship attributes work" do
+    post1 =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "aaa", score: 0})
+      |> Ash.create!()
+
+    view1 =
+      PostView
+      |> Ash.Changeset.for_action(:create, %{browser: :firefox, post_id: post1.id})
+      |> Ash.create!()
+
+    post2 =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "bbb", score: 0})
+      |> Ash.create!()
+
+    view2 =
+      PostView
+      |> Ash.Changeset.for_action(:create, %{browser: :chrome, post_id: post2.id})
+      |> Ash.create!()
+
+    assert [
+             %{title: "aaa", views: [%{browser: :firefox}]},
+             %{title: "bbb", views: [%{browser: :chrome}]}
+           ] =
+             Ash.read!(
+               Post
+               |> Ash.Query.load(:views)
+               |> Ash.Query.sort(title: :asc)
+             )
+
+    assert [
+             %{title: "bbb", views: [%{browser: :chrome}]},
+             %{title: "aaa", views: [%{browser: :firefox}]}
+           ] =
+             Ash.read!(
+               Post
+               |> Ash.Query.load(:views)
+               |> Ash.Query.sort({Ash.Sort.expr_sort(views.time, :datetime), :desc}, title: :asc)
+             )
   end
 end
