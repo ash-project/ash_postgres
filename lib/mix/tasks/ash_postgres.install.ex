@@ -1,9 +1,9 @@
 defmodule Mix.Tasks.AshPostgres.Install do
-  require Igniter.Common
+  require Igniter.Code.Common
   use Igniter.Mix.Task
 
-  def igniter(igniter, argv) do
-    repo = Igniter.Module.module_name("Repo")
+  def igniter(igniter, _argv) do
+    repo = Igniter.Code.Module.module_name("Repo")
     otp_app = Igniter.Application.app_name()
 
     igniter
@@ -13,7 +13,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
     |> configure_dev(otp_app, repo)
     |> configure_test(otp_app, repo)
     |> configure_runtime(repo, otp_app)
-    |> Igniter.Application.add_child(repo)
+    |> Igniter.Application.add_new_child(repo)
     |> Igniter.add_task("ash.codegen", ["install_ash_postgres"])
   end
 
@@ -25,7 +25,10 @@ defmodule Mix.Tasks.AshPostgres.Install do
       [:ecto_repos],
       [repo],
       fn zipper ->
-        Igniter.Common.prepend_new_to_list(zipper, repo, &Igniter.Common.equal_modules?/2)
+        Igniter.Code.List.prepend_new_to_list(
+          zipper,
+          repo
+        )
       end
     )
   end
@@ -67,16 +70,21 @@ defmodule Mix.Tasks.AshPostgres.Install do
         ]
 
         zipper
-        |> Igniter.Common.match_pattern_in_scope(patterns)
+        |> Igniter.Code.Common.move_to_cursor_match_in_scope(patterns)
         |> case do
           {:ok, zipper} ->
-            case Igniter.Common.move_to_function_call_in_current_scope(zipper, :=, 2, fn call ->
-                   Igniter.Common.argument_matches_predicate?(
-                     call,
-                     0,
-                     &match?({:database_url, _, Elixir}, &1)
-                   )
-                 end) do
+            case Igniter.Code.Function.move_to_function_call_in_current_scope(
+                   zipper,
+                   :=,
+                   2,
+                   fn call ->
+                     Igniter.Code.Function.argument_matches_predicate?(
+                       call,
+                       0,
+                       &match?({:database_url, _, Elixir}, &1)
+                     )
+                   end
+                 ) do
               {:ok, zipper} ->
                 zipper
                 |> Igniter.Config.modify_configuration_code(
@@ -95,7 +103,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
                 )
 
               {:error, _error} ->
-                Igniter.Common.add_code(zipper, """
+                Igniter.Code.Common.add_code(zipper, """
                   database_url =
                     System.get_env("DATABASE_URL") ||
                       raise \"\"\"
@@ -110,7 +118,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
             end
 
           {:error, _error} ->
-            Igniter.Common.add_code(zipper, """
+            Igniter.Code.Common.add_code(zipper, """
             if config_env() == :prod do
               database_url =
                 System.get_env("DATABASE_URL") ||
@@ -174,7 +182,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
   end
 
   defp setup_repo_module(igniter, otp_app, repo) do
-    path = Igniter.Module.proper_location(repo)
+    path = Igniter.Code.Module.proper_location(repo)
 
     default_repo_contents =
       """
@@ -202,10 +210,10 @@ defmodule Mix.Tasks.AshPostgres.Install do
   end
 
   defp use_ash_postgres_instead_of_ecto(zipper) do
-    with {:ok, zipper} <- Igniter.Common.move_to_module_using(zipper, Ecto.Repo),
-         {:ok, zipper} <- Igniter.Common.move_to_use(zipper, Ecto.Repo),
+    with {:ok, zipper} <- Igniter.Code.Module.move_to_module_using(zipper, Ecto.Repo),
+         {:ok, zipper} <- Igniter.Code.Module.move_to_use(zipper, Ecto.Repo),
          {:ok, zipper} <-
-           Igniter.Common.update_nth_argument(zipper, 0, fn _ ->
+           Igniter.Code.Function.update_nth_argument(zipper, 0, fn _ ->
              AshPostgres.Repo
            end) do
       zipper
@@ -216,12 +224,12 @@ defmodule Mix.Tasks.AshPostgres.Install do
   end
 
   defp remove_adapter_option(zipper) do
-    with {:ok, zipper} <- Igniter.Common.move_to_module_using(zipper, Ecto.Repo),
-         {:ok, zipper} <- Igniter.Common.move_to_use(zipper, Ecto.Repo),
+    with {:ok, zipper} <- Igniter.Code.Module.move_to_module_using(zipper, Ecto.Repo),
+         {:ok, zipper} <- Igniter.Code.Module.move_to_use(zipper, Ecto.Repo),
          {:ok, zipper} <-
-           Igniter.Common.update_nth_argument(zipper, 1, fn values_zipper ->
+           Igniter.Code.Function.update_nth_argument(zipper, 1, fn values_zipper ->
              values_zipper
-             |> Igniter.Common.remove_keyword_key(:adapter)
+             |> Igniter.Code.Keyword.remove_keyword_key(:adapter)
            end) do
       zipper
     else
@@ -231,16 +239,16 @@ defmodule Mix.Tasks.AshPostgres.Install do
   end
 
   defp set_otp_app(zipper, otp_app) do
-    with {:ok, zipper} <- Igniter.Common.move_to_module_using(zipper, Ecto.Repo),
-         {:ok, zipper} <- Igniter.Common.move_to_use(zipper, Ecto.Repo),
+    with {:ok, zipper} <- Igniter.Code.Module.move_to_module_using(zipper, Ecto.Repo),
+         {:ok, zipper} <- Igniter.Code.Module.move_to_use(zipper, Ecto.Repo),
          {:ok, zipper} <-
-           Igniter.Common.update_nth_argument(zipper, 0, fn _ ->
+           Igniter.Code.Function.update_nth_argument(zipper, 0, fn _ ->
              AshPostgres.Repo
            end),
          {:ok, zipper} <-
-           Igniter.Common.update_nth_argument(zipper, 1, fn values_zipper ->
+           Igniter.Code.Function.update_nth_argument(zipper, 1, fn values_zipper ->
              values_zipper
-             |> Igniter.Common.set_keyword_key(:otp_app, otp_app, fn x -> x end)
+             |> Igniter.Code.Keyword.set_keyword_key(:otp_app, otp_app, fn x -> x end)
            end) do
       zipper
     else
@@ -250,8 +258,8 @@ defmodule Mix.Tasks.AshPostgres.Install do
   end
 
   defp add_installed_extensions_function(zipper) do
-    with {:ok, zipper} <- Igniter.Common.move_to_module_using(zipper, Ecto.Repo) do
-      Igniter.Common.add_code(zipper, """
+    with {:ok, zipper} <- Igniter.Code.Module.move_to_module_using(zipper, Ecto.Repo) do
+      Igniter.Code.Common.add_code(zipper, """
       def installed_extensions do
         # Add extensions here, and the migration generator will install them.
         ["ash-functions"]
