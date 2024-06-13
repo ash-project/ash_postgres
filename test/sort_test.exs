@@ -261,8 +261,9 @@ defmodule AshPostgres.SortTest do
              Ash.read!(
                Post
                |> Ash.Query.load(:views)
-               # this doesn't really make sense to do, you'd want to do something like `max(views, field: :time)` or something.
-               # but it illustrates a bug fix, and nothing currently prevents you from doing it, so we keep the test for now.
+               # this doesn't really make sense to do, you'd want to do something like
+               # `max(views, field: :time)` or something. but it illustrates a bug fix,
+               # and nothing currently prevents you from doing it, so we keep the test for now.
                |> Ash.Query.sort({Ash.Sort.expr_sort(views.time, :datetime), :desc}, title: :asc)
              )
   end
