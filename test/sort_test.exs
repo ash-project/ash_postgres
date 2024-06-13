@@ -231,20 +231,18 @@ defmodule AshPostgres.SortTest do
       |> Ash.Changeset.for_create(:create, %{title: "aaa", score: 0})
       |> Ash.create!()
 
-    view1 =
-      PostView
-      |> Ash.Changeset.for_action(:create, %{browser: :firefox, post_id: post1.id})
-      |> Ash.create!()
+    PostView
+    |> Ash.Changeset.for_action(:create, %{browser: :firefox, post_id: post1.id})
+    |> Ash.create!()
 
     post2 =
       Post
       |> Ash.Changeset.for_create(:create, %{title: "bbb", score: 0})
       |> Ash.create!()
 
-    view2 =
-      PostView
-      |> Ash.Changeset.for_action(:create, %{browser: :chrome, post_id: post2.id})
-      |> Ash.create!()
+    PostView
+    |> Ash.Changeset.for_action(:create, %{browser: :chrome, post_id: post2.id})
+    |> Ash.create!()
 
     assert [
              %{title: "aaa", views: [%{browser: :firefox}]},
@@ -263,6 +261,8 @@ defmodule AshPostgres.SortTest do
              Ash.read!(
                Post
                |> Ash.Query.load(:views)
+               # this doesn't really make sense to do, you'd want to do something like `max(views, field: :time)` or something.
+               # but it illustrates a bug fix, and nothing currently prevents you from doing it, so we keep the test for now.
                |> Ash.Query.sort({Ash.Sort.expr_sort(views.time, :datetime), :desc}, title: :asc)
              )
   end

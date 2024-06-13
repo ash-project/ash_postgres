@@ -759,7 +759,7 @@ defmodule AshPostgres.DataLayer do
            query,
            AshSql.repo_opts(repo, AshPostgres.SqlImplementation, nil, nil, resource)
          )
-         |> remap_mapped_fields(query)}
+         |> AshSql.Query.remap_mapped_fields(query)}
       end)
     end
   rescue
@@ -942,7 +942,7 @@ defmodule AshPostgres.DataLayer do
         path
       ) do
     {calculations_require_rewrite, aggregates_require_rewrite, query} =
-      rewrite_nested_selects(query)
+      AshSql.Query.rewrite_nested_selects(query)
 
     case lateral_join_query(
            query,
@@ -964,107 +964,17 @@ defmodule AshPostgres.DataLayer do
             lateral_join_query,
             AshSql.repo_opts(repo, AshPostgres.SqlImplementation, nil, nil, source_resource)
           )
-          |> remap_mapped_fields(query, calculations_require_rewrite, aggregates_require_rewrite)
+          |> AshSql.Query.remap_mapped_fields(
+            query,
+            calculations_require_rewrite,
+            aggregates_require_rewrite
+          )
 
         {:ok, results}
 
       {:error, error} ->
         {:error, error}
     end
-  end
-
-  defp rewrite_nested_selects(query) do
-    case query.select do
-      %Ecto.Query.SelectExpr{
-        expr:
-          {:merge, [],
-           [
-             {:&, [], [0]},
-             {:%{}, [], merging}
-           ]}
-      } = select ->
-        {merging, aggregate_merges} = remap_sub_select(merging, :aggregates)
-
-        {new_sub_selects, calculation_merges} =
-          remap_sub_select(merging, :calculations)
-
-        new_query =
-          %{
-            query
-            | select: %{select | expr: {:merge, [], [{:&, [], [0]}, {:%{}, [], new_sub_selects}]}}
-          }
-
-        {calculation_merges, aggregate_merges, new_query}
-
-      _ ->
-        {%{}, %{}, query}
-    end
-  end
-
-  # sobelow_skip ["DOS.StringToAtom"]
-  defp remap_sub_select(merging, sub_key) do
-    case Keyword.fetch(merging, sub_key) do
-      {:ok, {:%{}, [], nested}} ->
-        Enum.reduce(nested, {Keyword.delete(merging, sub_key), %{}}, fn {name, expr},
-                                                                        {subselect, remapping} ->
-          new_name = String.to_atom("__#{sub_key}__#{name}")
-          {Keyword.put(subselect, new_name, expr), Map.put(remapping, new_name, name)}
-        end)
-
-      :error ->
-        {merging, %{}}
-    end
-  end
-
-  defp remap_mapped_fields(
-         results,
-         query,
-         calculations_require_rewrite \\ %{},
-         aggregates_require_rewrite \\ %{}
-       ) do
-    calculation_names = query.__ash_bindings__.calculation_names
-    aggregate_names = query.__ash_bindings__.aggregate_names
-
-    if Enum.empty?(calculation_names) and Enum.empty?(aggregate_names) and
-         Enum.empty?(calculations_require_rewrite) and Enum.empty?(aggregates_require_rewrite) do
-      results
-    else
-      Enum.map(results, fn result ->
-        result
-        |> remap_to_nested(:calculations, calculations_require_rewrite)
-        |> remap_to_nested(:aggregates, aggregates_require_rewrite)
-        |> remap(:calculations, calculation_names)
-        |> remap(:aggregates, aggregate_names)
-      end)
-    end
-  end
-
-  defp remap_to_nested(record, _subfield, mapping) when mapping == %{} do
-    record
-  end
-
-  defp remap_to_nested(record, subfield, mapping) do
-    Map.update!(record, subfield, fn subfield_values ->
-      Enum.reduce(mapping, subfield_values, fn {source, dest}, subfield_values ->
-        subfield_values
-        |> Map.put(dest, Map.get(record, source))
-        |> Map.delete(source)
-      end)
-    end)
-  end
-
-  defp remap(record, _subfield, mapping) when mapping == %{} do
-    record
-  end
-
-  defp remap(record, subfield, mapping) do
-    Map.update!(record, subfield, fn subfield_values ->
-      Enum.reduce(mapping, subfield_values, fn {dest, source}, subfield_values ->
-        subfield_values
-        |> Map.put(dest, Map.get(subfield_values, source))
-        |> Map.delete(source)
-      end)
-    end)
   end
 
   defp lateral_join_query(
@@ -1425,7 +1335,7 @@ defmodule AshPostgres.DataLayer do
                 end)
 
               if options[:return_records?] do
-                {:ok, remap_mapped_fields(results, query)}
+                {:ok, AshSql.Query.remap_mapped_fields(results, query)}
               else
                 :ok
               end
@@ -1691,7 +1601,7 @@ defmodule AshPostgres.DataLayer do
             end)
 
           if options[:return_records?] do
-            {:ok, remap_mapped_fields(results, query)}
+            {:ok, AshSql.Query.remap_mapped_fields(results, query)}
           else
             :ok
           end
