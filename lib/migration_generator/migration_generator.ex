@@ -2887,11 +2887,13 @@ defmodule AshPostgres.MigrationGenerator do
                   to_string(attribute.source || attribute.name)
 
                 %Ash.Resource.Calculation{} ->
-                  AshPostgres.DataLayer.Info.calculation_to_sql(resource, key) ||
-                    raise "Must define an entry for :#{key} in `postgres.calculations_to_sql`, or skip this identity with `postgres.skip_unique_indexes`"
+                  sql =
+                    AshPostgres.DataLayer.Info.calculation_to_sql(resource, key) ||
+                      raise "Must define an entry for :#{key} in `postgres.calculations_to_sql`, or skip this identity with `postgres.skip_unique_indexes`"
+
+                  "(" <> sql <> ")"
               end
-            end)
-            |> Enum.sort(),
+            end),
           where:
             if identity.where do
               AshPostgres.DataLayer.Info.identity_where_to_sql(resource, identity.name) ||
