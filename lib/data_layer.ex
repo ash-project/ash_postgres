@@ -2561,7 +2561,7 @@ defmodule AshPostgres.DataLayer do
           ~s("#{source || name}")
 
         %Ash.Resource.Calculation{name: name} ->
-          if sql = AshPostgres.DataLayer.Info.calculations_to_sql(name) do
+          if sql = AshPostgres.DataLayer.Info.calculation_to_sql(resource, name) do
             "(" <> sql <> ")"
           else
             raise ArgumentError,
