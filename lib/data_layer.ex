@@ -2562,7 +2562,7 @@ defmodule AshPostgres.DataLayer do
 
         %Ash.Resource.Calculation{name: name} ->
           if sql = AshPostgres.DataLayer.Info.calculation_to_sql(resource, name) do
-            "(" <> sql <> ")"
+            sql
           else
             raise ArgumentError,
                   "Calculation #{inspect(key)} used in `AshPostgres.DataLayer` conflict target must have its sql defined in `calculations_to_sql`"
