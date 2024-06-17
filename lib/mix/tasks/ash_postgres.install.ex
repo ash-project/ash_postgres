@@ -101,6 +101,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
                     String.to_integer(System.get_env("POOL_SIZE") || "10")
                   end
                 )
+                |> then(&{:ok, &1})
 
               {:error, _error} ->
                 Igniter.Code.Common.add_code(zipper, """
