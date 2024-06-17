@@ -42,4 +42,26 @@ defmodule AshPostgres.Test.UniqueIdentityTest do
     assert new_post.id == post.id
     assert new_post.price == 10
   end
+
+  test "a unique constraint can be used to upsert when backed by a calculation" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{
+        title: "title",
+        uniq_if_contains_foo: "abcfoodef",
+        price: 10
+      })
+      |> Ash.create!()
+
+    new_post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{
+        title: "title2",
+        uniq_if_contains_foo: "abcfoodef"
+      })
+      |> Ash.create!(upsert?: true, upsert_identity: :uniq_if_contains_foo)
+
+    assert new_post.id == post.id
+    assert new_post.price == 10
+  end
 end

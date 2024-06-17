@@ -1721,6 +1721,7 @@ defmodule AshPostgres.DataLayer do
             :conflict_target,
             conflict_target(
               resource,
+              options[:identity],
               options[:upsert_keys] || Ash.Resource.Info.primary_key(resource)
             )
           )
@@ -2469,7 +2470,7 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def upsert(resource, changeset, keys \\ nil) do
+  def upsert(resource, changeset, keys, identity) do
     if AshPostgres.DataLayer.Info.manage_tenant_update?(resource) do
       {:error, "Cannot currently upsert a resource that owns a tenant"}
     else
@@ -2491,6 +2492,7 @@ defmodule AshPostgres.DataLayer do
              single?: true,
              upsert?: true,
              tenant: changeset.tenant,
+             identity: identity,
              upsert_keys: keys,
              upsert_fields: upsert_fields,
              return_records?: true
@@ -2504,23 +2506,73 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp conflict_target(resource, keys) do
-    if Ash.Resource.Info.base_filter(resource) do
-      base_filter_sql =
-        AshPostgres.DataLayer.Info.base_filter_sql(resource) ||
-          raise """
-          Cannot use upserts with resources that have a base_filter without also adding `base_filter_sql` in the postgres section.
-          """
+  defp conflict_target(resource, identity, keys) do
+    identity_where =
+      case identity do
+        %{name: name, where: where} when not is_nil(where) ->
+          AshPostgres.DataLayer.Info.identity_where_to_sql(resource, name) ||
+            raise(
+              "Must provide an entry for :#{identity.name} in `postgres.identity_wheres_to_sql` to use it as an upsert_identity"
+            )
 
-      sources =
-        Enum.map(keys, fn key ->
-          ~s("#{Ash.Resource.Info.attribute(resource, key).source || key}")
-        end)
+        _ ->
+          nil
+      end
 
-      {:unsafe_fragment, "(" <> Enum.join(sources, ", ") <> ") WHERE (#{base_filter_sql})"}
-    else
+    base_filter_sql =
+      case Ash.Resource.Info.base_filter(resource) do
+        nil ->
+          nil
+
+        _base_filter ->
+          AshPostgres.DataLayer.Info.base_filter_sql(resource) ||
+            raise """
+            Cannot use upserts with resources that have a base_filter without also adding `base_filter_sql` in the postgres section.
+            """
+      end
+
+    where =
+      case {base_filter_sql, identity_where} do
+        {nil, nil} ->
+          nil
+
+        {base_filter_sql, nil} ->
+          " WHERE (#{base_filter_sql})"
+
+        {nil, identity_where} ->
+          " WHERE (#{identity_where})"
+
+        {base_filter_sql, identity_where} ->
+          " WHERE ((#{base_filter_sql}) AND (#{identity_where}))"
+      end
+
+    if is_nil(where) && Enum.all?(keys, &Ash.Resource.Info.attribute(resource, &1)) do
       keys
+    else
+      sources = sources_to_sql(resource, keys)
+      {:unsafe_fragment, "(" <> Enum.join(sources, ", ") <> ")#{where}"}
     end
+  end
+
+  defp sources_to_sql(resource, keys) do
+    Enum.map(keys, fn key ->
+      case Ash.Resource.Info.field(resource, key) do
+        %Ash.Resource.Attribute{source: source, name: name} ->
+          ~s("#{source || name}")
+
+        %Ash.Resource.Calculation{name: name} ->
+          if sql = AshPostgres.DataLayer.Info.calculations_to_sql(name) do
+            "(" <> sql <> ")"
+          else
+            raise ArgumentError,
+                  "Calculation #{inspect(key)} used in `AshPostgres.DataLayer` conflict target must have its sql defined in `calculations_to_sql`"
+          end
+
+        _other ->
+          raise ArgumentError,
+                "Unsupported field #{inspect(key)} used in `AshPostgres.DataLayer` conflict target"
+      end
+    end)
   end
 
   defp update_defaults(resource) do
