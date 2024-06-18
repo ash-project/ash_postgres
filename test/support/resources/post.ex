@@ -355,6 +355,27 @@ defmodule AshPostgres.Test.Post do
       read_action: :active
     )
 
+    has_many :active_followers_assoc, AshPostgres.Test.StatefulPostFollower do
+      public?(true)
+      filter(expr(state == :active))
+    end
+
+    many_to_many(:active_followers, AshPostgres.Test.User,
+      public?: true,
+      through: AshPostgres.Test.StatefulPostFollower,
+      join_relationship: :active_followers_assoc,
+      source_attribute_on_join_resource: :post_id,
+      destination_attribute_on_join_resource: :follower_id
+    )
+
+    many_to_many(:stateful_followers, AshPostgres.Test.User,
+      public?: true,
+      through: AshPostgres.Test.StatefulPostFollower,
+      source_attribute_on_join_resource: :post_id,
+      destination_attribute_on_join_resource: :follower_id,
+      read_action: :active
+    )
+
     has_many(:post_followers, AshPostgres.Test.PostFollower)
 
     many_to_many(:sorted_followers, AshPostgres.Test.User,
