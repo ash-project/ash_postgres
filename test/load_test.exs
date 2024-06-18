@@ -1,6 +1,6 @@
 defmodule AshPostgres.Test.LoadTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Author, Comment, Post, Record, TempEntity, User, StatefulPostFollower}
+  alias AshPostgres.Test.{Author, Comment, Post, Record, StatefulPostFollower, TempEntity, User}
 
   require Ash.Query
 

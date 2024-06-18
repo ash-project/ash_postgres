@@ -229,8 +229,10 @@ defmodule AshPostgres.SqlImplementation do
       true ->
         [:any]
     end
-    |> Enum.concat(Map.keys(Ash.Query.Operator.operator_overloads(name) || %{}))
-    |> Enum.map(fn types ->
+    |> then(fn types ->
+      Enum.concat(Map.keys(Ash.Query.Operator.operator_overloads(name) || %{}), types)
+    end)
+    |> Enum.flat_map(fn types ->
       case types do
         :same ->
           types =
@@ -238,32 +240,58 @@ defmodule AshPostgres.SqlImplementation do
               :same
             end
 
-          closest_fitting_type(types, values)
+          [closest_fitting_type(types, values)]
 
         :any ->
-          for _ <- values do
-            :any
-          end
+          []
 
         types ->
-          closest_fitting_type(types, values)
+          [types]
       end
     end)
+    # this doesn't seem right to me
     |> Enum.filter(fn types ->
       Enum.all?(types, &(vagueness(&1) == 0))
     end)
     |> case do
-      [type] ->
-        if type == :any || type == {:in, :any} do
-          nil
-        else
-          type
-        end
+      [types] ->
+        types
 
-      # There are things we could likely do here
-      # We only say "we know what types these are" when we explicitly know
-      _ ->
-        Enum.map(values, fn _ -> nil end)
+      types ->
+        Enum.find_value(types, Enum.map(values, fn _ -> nil end), fn types ->
+          if length(types) == length(values) do
+            types
+            |> Enum.zip(values)
+            |> Enum.reduce_while([], fn {type, value}, vals ->
+              type = Ash.Type.get_type(type)
+              # this means its a known type
+              if Ash.Type.ash_type?(type) do
+                {type, constraints} =
+                  case type do
+                    {type, constraints} -> {type, constraints}
+                    type -> {type, []}
+                  end
+
+                case value do
+                  %Ash.Query.Function.Type{arguments: [_, ^type | _]} ->
+                    {:cont, vals ++ [:any]}
+
+                  %Ash.Query.Ref{attribute: %{type: ^type}} ->
+                    {:cont, vals ++ [:any]}
+
+                  _ ->
+                    if Ash.Type.matches_type?(type, value, constraints) do
+                      {:cont, vals ++ [parameterized_type(type, constraints)]}
+                    else
+                      {:halt, nil}
+                    end
+                end
+              else
+                {:halt, nil}
+              end
+            end)
+          end
+        end)
     end
   end
 
@@ -370,7 +398,8 @@ defmodule AshPostgres.SqlImplementation do
     end
   end
 
-  defp fill_in_known_type({type, value}), do: {array_to_in(type), value}
+  defp fill_in_known_type({type, value}),
+    do: {array_to_in(type), value}
 
   defp array_to_in({:array, v}), do: {:in, array_to_in(v)}
 
