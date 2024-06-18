@@ -184,12 +184,24 @@ defmodule AshPostgres.AtomicsTest do
   test "relationships can be used in atomic update" do
     author =
       Author
-      |> Ash.Changeset.for_create(:create, %{first_name: "John", last_name: "Doe"})
+      |> Ash.Changeset.for_create(:create, %{
+        first_name: "John",
+        last_name: "Doe"
+      })
+      |> Ash.create!()
+
+    parent_post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{price: 42, author_id: author.id})
       |> Ash.create!()
 
     post =
       Post
-      |> Ash.Changeset.for_create(:create, %{price: 1, author_id: author.id})
+      |> Ash.Changeset.for_create(:create, %{
+        price: 1,
+        author_id: author.id,
+        parent_post_id: parent_post.id
+      })
       |> Ash.create!()
 
     post =

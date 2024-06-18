@@ -160,7 +160,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       # the migration creates unique_indexes based on the identities of the resource
       assert file_contents =~
-               ~S{create unique_index(:posts, ["second_title", "title"], name: "posts_thing_index")}
+               ~S{create unique_index(:posts, ["title", "second_title"], name: "posts_thing_index")}
 
       # the migration creates unique_indexes using the `source` on the attributes of the identity on the resource
       assert file_contents =~

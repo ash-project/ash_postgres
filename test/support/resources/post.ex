@@ -144,7 +144,7 @@ defmodule AshPostgres.Test.Post do
             if is_nil(parent_post_id) do
               author.title
             else
-              parent_post.author.title
+              parent_post.author.first_name
             end
           )
         )
