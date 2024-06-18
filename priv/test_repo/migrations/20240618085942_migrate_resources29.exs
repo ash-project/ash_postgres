@@ -1,4 +1,4 @@
-defmodule AshPostgres.TestRepo.Migrations.MigrateResources27 do
+defmodule AshPostgres.TestRepo.Migrations.MigrateResources29 do
   @moduledoc """
   Updates resources based on their most recent snapshots.
 
@@ -37,7 +37,7 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources27 do
     end
 
     create(
-      unique_index(:stateful_post_followers, ["follower_id", "post_id", "state"],
+      unique_index(:stateful_post_followers, ["post_id", "follower_id", "state"],
         name: "stateful_post_followers_join_attributes_index"
       )
     )
@@ -45,7 +45,7 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources27 do
 
   def down do
     drop_if_exists(
-      unique_index(:stateful_post_followers, ["follower_id", "post_id", "state"],
+      unique_index(:stateful_post_followers, ["post_id", "follower_id", "state"],
         name: "stateful_post_followers_join_attributes_index"
       )
     )
