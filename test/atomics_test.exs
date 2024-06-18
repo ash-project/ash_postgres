@@ -198,6 +198,13 @@ defmodule AshPostgres.AtomicsTest do
       |> Ash.update!()
 
     assert post.title == "John"
+
+    post =
+      post
+      |> Ash.Changeset.for_update(:set_attributes_from_parent, %{})
+      |> Ash.update!()
+
+    assert post.title == "John"
   end
 
   test "relationships can be used in atomic update and in an atomic update filter" do
