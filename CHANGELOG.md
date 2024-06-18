@@ -5,6 +5,25 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.10](https://github.com/ash-project/ash_postgres/compare/v2.0.9...v2.0.10) (2024-06-18)
+
+
+
+
+### Bug Fixes:
+
+* update ash_sql to fix query generation issues
+
+* ensure that parens are always added to calculation generated SQL
+
+* properly get calculation sql
+
+### Improvements:
+
+* better type handling using new type inference
+
+* identities w/ calculations and where clauses in upserts
+
 ## [v2.0.9](https://github.com/ash-project/ash_postgres/compare/v2.0.8...v2.0.9) (2024-06-13)
 
 
