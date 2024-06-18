@@ -3266,7 +3266,7 @@ defmodule AshPostgres.MigrationGenerator do
       :keys,
       &Enum.map(&1, fn
         ["sql", value] when is_binary(value) -> {:sql, value}
-        key -> maybe_to_atom(key)
+        key -> key
       end)
     )
   end
