@@ -30,6 +30,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     # sobelow_skip ["DOS.StringToAtom"]
     def as_atom(value), do: Macro.inspect_atom(:remote_call, String.to_atom(value))
 
+    def index_key({:sql, value}) when is_binary(value), do: inspect(value)
+    def index_key(value) when is_binary(value) or is_atom(value), do: inspect(value)
+
     def option(key, value) when key in [:nulls_distinct, "nulls_distinct"] do
       if !value do
         "#{as_atom(key)}: #{inspect(value)}"
@@ -819,20 +822,20 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         base_filter && where ->
           where = "(#{where}) AND (#{base_filter})"
 
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where)])})"
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &index_key/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where)])})"
 
         base_filter ->
           base_filter = "(#{base_filter})"
 
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?)])})"
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &index_key/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?)])})"
 
         where ->
           where = "(#{where})"
 
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where)])})"
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &index_key/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where)])})"
 
         true ->
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?)])})"
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &index_key/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?)])})"
       end
     end
 
@@ -853,7 +856,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       index_name = index_name || "#{table}_#{name}_index"
 
-      "drop_if_exists unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema)])})"
+      "drop_if_exists unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &index_key/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema)])})"
     end
   end
 
@@ -939,9 +942,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         ])
 
       if opts == "" do
-        "create index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}])"
+        "create index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &index_key/1)}])"
       else
-        "create index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{opts})"
+        "create index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &index_key/1)}], #{opts})"
       end
     end
 
@@ -960,9 +963,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         ])
 
       if opts == "" do
-        "drop_if_exists index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}])"
+        "drop_if_exists index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &index_key/1)}])"
       else
-        "drop_if_exists index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{opts})"
+        "drop_if_exists index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &index_key/1)}], #{opts})"
       end
     end
   end
@@ -991,9 +994,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         ])
 
       if opts == "" do
-        "create index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}])"
+        "create index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &index_key/1)}])"
       else
-        "create index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{opts})"
+        "create index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &index_key/1)}], #{opts})"
       end
     end
 
@@ -1011,9 +1014,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         ])
 
       if opts == "" do
-        "drop_if_exists index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}])"
+        "drop_if_exists index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &index_key/1)}])"
       else
-        "drop_if_exists index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{opts})"
+        "drop_if_exists index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &index_key/1)}], #{opts})"
       end
     end
   end
@@ -1158,7 +1161,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       index_name = index_name || "#{table}_#{name}_index"
 
-      "drop_if_exists unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
+      "drop_if_exists unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &index_key/1)}], #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
     end
 
     def down(%{
@@ -1179,9 +1182,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       index_name = index_name || "#{table}_#{name}_index"
 
       if base_filter do
-        "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
+        "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &index_key/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
       else
-        "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
+        "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &index_key/1)}], #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
       end
     end
   end

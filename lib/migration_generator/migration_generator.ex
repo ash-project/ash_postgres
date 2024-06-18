@@ -2884,14 +2884,14 @@ defmodule AshPostgres.MigrationGenerator do
             Enum.map(keys, fn key ->
               case Ash.Resource.Info.field(resource, key) do
                 %Ash.Resource.Attribute{} = attribute ->
-                  to_string(attribute.source || attribute.name)
+                  attribute.source || attribute.name
 
                 %Ash.Resource.Calculation{} ->
                   sql =
                     AshPostgres.DataLayer.Info.calculation_to_sql(resource, key) ||
                       raise "Must define an entry for :#{key} in `postgres.calculations_to_sql`, or skip this identity with `postgres.skip_unique_indexes`"
 
-                  "(" <> sql <> ")"
+                  {:sql, "(" <> sql <> ")"}
               end
             end),
           where:
@@ -2998,6 +2998,17 @@ defmodule AshPostgres.MigrationGenerator do
           end)
 
         %{index | fields: fields}
+      end)
+    end)
+    |> Map.update!(:identities, fn identities ->
+      Enum.map(identities, fn identity ->
+        keys =
+          Enum.map(identity.keys, fn
+            {:sql, value} when is_binary(value) -> ["sql", value]
+            key -> key
+          end)
+
+        %{identity | keys: keys}
       end)
     end)
     |> Jason.encode!(pretty: true)
@@ -3251,6 +3262,13 @@ defmodule AshPostgres.MigrationGenerator do
     |> Map.put_new(:all_tenants?, false)
     |> Map.put_new(:where, nil)
     |> Map.put_new(:nils_distinct?, true)
+    |> Map.update!(
+      :keys,
+      &Enum.map(&1, fn
+        ["sql", value] when is_binary(value) -> {:sql, value}
+        key -> maybe_to_atom(key)
+      end)
+    )
   end
 
   defp add_index_name(%{name: name} = index, table) do
