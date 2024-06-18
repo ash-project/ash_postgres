@@ -134,6 +134,23 @@ defmodule AshPostgres.Test.Post do
       end)
     end
 
+    update :set_attributes_from_parent do
+      require_atomic?(false)
+
+      change(
+        atomic_update(
+          :title,
+          expr(
+            if is_nil(parent_post_id) do
+              author.title
+            else
+              parent_post.author.title
+            end
+          )
+        )
+      )
+    end
+
     update :update do
       primary?(true)
       require_atomic?(false)
@@ -271,6 +288,10 @@ defmodule AshPostgres.Test.Post do
       source_attribute(:author_id)
       define_attribute?(false)
       filter(expr(^actor(:id) == id))
+    end
+
+    belongs_to :parent_post, __MODULE__ do
+      public?(true)
     end
 
     belongs_to(:author, AshPostgres.Test.Author) do
