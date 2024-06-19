@@ -30,7 +30,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     # sobelow_skip ["DOS.StringToAtom"]
     def as_atom(value), do: Macro.inspect_atom(:remote_call, String.to_atom(value))
 
-    def index_key({:sql, value}) when is_binary(value), do: inspect(value)
+    def index_key(value) when is_binary(value), do: inspect(value)
     def index_key(value) when is_binary(value) or is_atom(value), do: ":#{as_atom(value)}"
 
     def option(key, value) when key in [:nulls_distinct, "nulls_distinct"] do

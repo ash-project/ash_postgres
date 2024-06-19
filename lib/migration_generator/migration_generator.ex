@@ -2891,7 +2891,7 @@ defmodule AshPostgres.MigrationGenerator do
                     AshPostgres.DataLayer.Info.calculation_to_sql(resource, key) ||
                       raise "Must define an entry for :#{key} in `postgres.calculations_to_sql`, or skip this identity with `postgres.skip_unique_indexes`"
 
-                  {:sql, "(" <> sql <> ")"}
+                  "(" <> sql <> ")"
               end
             end),
           where:
@@ -3004,8 +3004,8 @@ defmodule AshPostgres.MigrationGenerator do
       Enum.map(identities, fn identity ->
         keys =
           Enum.map(identity.keys, fn
-            {:sql, value} when is_binary(value) -> ["sql", value]
-            key -> key
+            value when is_binary(value) -> %{"type" => "string", "value" => value}
+            value when is_atom(value) -> %{"type" => "atom", "value" => value}
           end)
 
         %{identity | keys: keys}
@@ -3265,8 +3265,18 @@ defmodule AshPostgres.MigrationGenerator do
     |> Map.update!(
       :keys,
       &Enum.map(&1, fn
-        ["sql", value] when is_binary(value) -> {:sql, value}
-        key -> key
+        %{type: "atom", value: value} ->
+          maybe_to_atom(value)
+
+        %{type: "string", value: value} ->
+          value
+
+        value ->
+          if String.contains?(value, "(") do
+            value
+          else
+            maybe_to_atom(value)
+          end
       end)
     )
   end
