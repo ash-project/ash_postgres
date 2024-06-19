@@ -156,15 +156,15 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       # the migration creates unique_indexes based on the identities of the resource
       assert file_contents =~
-               ~S{create unique_index(:posts, ["title"], name: "posts_title_index")}
+               ~S{create unique_index(:posts, [:title], name: "posts_title_index")}
 
       # the migration creates unique_indexes based on the identities of the resource
       assert file_contents =~
-               ~S{create unique_index(:posts, ["title", "second_title"], name: "posts_thing_index")}
+               ~S{create unique_index(:posts, [:title, :second_title], name: "posts_thing_index")}
 
       # the migration creates unique_indexes using the `source` on the attributes of the identity on the resource
       assert file_contents =~
-               ~S{create unique_index(:posts, ["title", "t_w_s"], name: "posts_thing_with_source_index")}
+               ~S{create unique_index(:posts, [:title, :t_w_s], name: "posts_thing_with_source_index")}
     end
   end
 
@@ -241,7 +241,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert file_contents =~ ~S{create index(:posts, ["id"]}
 
       assert file_contents =~
-               ~S{create unique_index(:posts, ["second_title"], name: "posts_second_title_index", prefix: "example", nulls_distinct: false, where: "((second_title like '%foo%'))")}
+               ~S{create unique_index(:posts, [:second_title], name: "posts_second_title_index", prefix: "example", nulls_distinct: false, where: "((second_title like '%foo%'))")}
 
       # the migration adds the id, with its default
       assert file_contents =~
@@ -255,7 +255,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       # the migration creates unique_indexes based on the identities of the resource
       assert file_contents =~
-               ~S{create unique_index(:posts, ["title"], name: "posts_title_index", prefix: "example")}
+               ~S{create unique_index(:posts, [:title], name: "posts_title_index", prefix: "example")}
     end
   end
 
@@ -535,11 +535,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert [file_before, _] =
                String.split(
                  File.read!(file2),
-                 ~S{create unique_index(:posts, ["title"], name: "posts_title_index", where: "(title != 'fred' and title != 'george')")}
+                 ~S{create unique_index(:posts, [:title], name: "posts_title_index", where: "(title != 'fred' and title != 'george')")}
                )
 
       assert file_before =~
-               ~S{drop_if_exists unique_index(:posts, ["title"], name: "posts_title_index")}
+               ~S{drop_if_exists unique_index(:posts, [:title], name: "posts_title_index")}
     end
 
     test "when adding a field, it adds the field" do
@@ -753,18 +753,18 @@ defmodule AshPostgres.MigrationGeneratorTest do
       file1_content = File.read!(file1)
 
       assert file1_content =~
-               "create unique_index(:posts, [\"title\"], name: \"posts_title_index\")"
+               "create unique_index(:posts, [:title], name: \"posts_title_index\")"
 
       file2_content = File.read!(file2)
 
       assert file2_content =~
-               "drop_if_exists unique_index(:posts, [\"title\"], name: \"posts_title_index\")"
+               "drop_if_exists unique_index(:posts, [:title], name: \"posts_title_index\")"
 
       assert file2_content =~
-               "create unique_index(:posts, [\"name\"], name: \"posts_unique_name_index\")"
+               "create unique_index(:posts, [:name], name: \"posts_unique_name_index\")"
 
       assert file2_content =~
-               "create unique_index(:posts, [\"title\"], name: \"posts_unique_title_index\")"
+               "create unique_index(:posts, [:title], name: \"posts_unique_title_index\")"
     end
 
     test "when an attribute exists only on some of the resources that use the same table, it isn't marked as null: false" do
@@ -1241,7 +1241,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
 
       assert File.read!(file) =~
-               ~S{create unique_index(:users, ["name"], name: "users_unique_name_index")}
+               ~S{create unique_index(:users, [:name], name: "users_unique_name_index")}
     end
 
     test "when modified, the foreign key is dropped before modification" do
