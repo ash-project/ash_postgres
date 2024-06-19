@@ -247,18 +247,22 @@ defmodule AshPostgres.SqlImplementation do
 
       types_and_values
       |> Enum.with_index()
-      |> Enum.reduce_while(%{must_adopt_basis: [], basis: nil, types: []}, fn
+      |> Enum.reduce_while(%{must_adopt_basis: [], basis: nil, types: [], fallback_basis: nil}, fn
         {{vague_type, value}, index}, acc when vague_type in [:any, :same] ->
           case determine_type(value) do
             {:ok, {type, constraints}} ->
               case acc[:basis] do
                 nil ->
                   if vague_type == :any do
-                    acc = Map.update!(acc, :types, &[nil | &1])
-                    {:cont, Map.update!(acc, :must_adopt_basis, &[{index, fn x -> x end} | &1])}
-                  else
                     acc = Map.update!(acc, :types, &[{type, constraints} | &1])
                     {:cont, Map.put(acc, :basis, {type, constraints})}
+                  else
+                    acc =
+                      acc
+                      |> Map.update!(:types, &[nil | &1])
+                      |> Map.put(:fallback_basis, {type, constraints})
+
+                    {:cont, Map.update!(acc, :must_adopt_basis, &[{index, fn x -> x end} | &1])}
                   end
 
                 {^type, matched_constraints} ->
@@ -279,7 +283,13 @@ defmodule AshPostgres.SqlImplementation do
               case acc[:basis] do
                 nil ->
                   if vague_type == :any do
-                    acc = Map.update!(acc, :types, &[nil | &1])
+                    acc = Map.update!(acc, :types, &[{:array, {type, constraints}} | &1])
+                    {:cont, Map.put(acc, :basis, {type, constraints})}
+                  else
+                    acc =
+                      acc
+                      |> Map.update!(:types, &[nil | &1])
+                      |> Map.put(:fallback_basis, {type, constraints})
 
                     {:cont,
                      Map.update!(
@@ -291,9 +301,6 @@ defmodule AshPostgres.SqlImplementation do
                          | &1
                        ]
                      )}
-                  else
-                    acc = Map.update!(acc, :types, &[{:array, {type, constraints}} | &1])
-                    {:cont, Map.put(acc, :basis, {type, constraints})}
                   end
 
                 {^type, matched_constraints} ->
@@ -319,7 +326,7 @@ defmodule AshPostgres.SqlImplementation do
 
         {{{type, constraints}, value}, _index}, acc ->
           cond do
-            !Ash.Expr.expr?(value) && !Ash.Type.matches_type?(type, value, constraints) ->
+            !Ash.Expr.expr?(value) && !matches_type?(type, value, constraints) ->
               {:halt, :error}
 
             Ash.Expr.expr?(value) ->
@@ -337,7 +344,7 @@ defmodule AshPostgres.SqlImplementation do
 
         {{type, value}, _index}, acc ->
           cond do
-            !Ash.Expr.expr?(value) && !Ash.Type.matches_type?(type, value, []) ->
+            !Ash.Expr.expr?(value) && !matches_type?(type, value, []) ->
               {:halt, :error}
 
             Ash.Expr.expr?(value) ->
@@ -352,6 +359,13 @@ defmodule AshPostgres.SqlImplementation do
             true ->
               {:cont, Map.update!(acc, :types, &[{type, []} | &1])}
           end
+      end)
+      |> then(fn
+        %{basis: nil, fallback_basis: fallback_basis} = data when not is_nil(fallback_basis) ->
+          %{data | basis: fallback_basis}
+
+        data ->
+          data
       end)
       |> case do
         :error ->
@@ -415,5 +429,13 @@ defmodule AshPostgres.SqlImplementation do
       _ ->
         :error
     end
+  end
+
+  defp matches_type?({:array, type}, %MapSet{} = value, constraints) do
+    Enum.all?(value, &matches_type?(&1, type, constraints[:items]))
+  end
+
+  defp matches_type?(type, value, constraints) do
+    Ash.Type.matches_type?(type, value, constraints)
   end
 end
