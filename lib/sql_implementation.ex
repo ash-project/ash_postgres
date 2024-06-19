@@ -232,181 +232,188 @@ defmodule AshPostgres.SqlImplementation do
     |> then(fn types ->
       Enum.concat(Map.keys(Ash.Query.Operator.operator_overloads(name) || %{}), types)
     end)
-    |> Enum.flat_map(fn types ->
-      case types do
-        :same ->
-          types =
-            for _ <- values do
-              :same
-            end
-
-          [closest_fitting_type(types, values)]
-
-        :any ->
-          []
-
-        types ->
-          [types]
-      end
+    |> Enum.reject(&(&1 == :any))
+    |> Enum.filter(fn typeset ->
+      typeset == :same ||
+        length(typeset) == length(values)
     end)
-    # this doesn't seem right to me
-    |> Enum.filter(fn types ->
-      Enum.all?(types, &(vagueness(&1) == 0))
-    end)
-    |> case do
-      [types] ->
-        types
+    |> Enum.find_value(Enum.map(values, fn _ -> nil end), fn typeset ->
+      types_and_values =
+        if typeset == :same do
+          Enum.map(values, &{:same, &1})
+        else
+          Enum.zip(typeset, values)
+        end
 
-      types ->
-        Enum.find_value(types, Enum.map(values, fn _ -> nil end), fn types ->
-          if length(types) == length(values) do
-            types
-            |> Enum.zip(values)
-            |> Enum.reduce_while([], fn {type, value}, vals ->
-              type = Ash.Type.get_type(type)
-              # this means its a known type
-              if Ash.Type.ash_type?(type) do
-                {type, constraints} =
-                  case type do
-                    {type, constraints} -> {type, constraints}
-                    type -> {type, []}
+      types_and_values
+      |> Enum.with_index()
+      |> Enum.reduce_while(%{must_adopt_basis: [], basis: nil, types: []}, fn
+        {{vague_type, value}, index}, acc when vague_type in [:any, :same] ->
+          case determine_type(value) do
+            {:ok, {type, constraints}} ->
+              case acc[:basis] do
+                nil ->
+                  if vague_type == :any do
+                    acc = Map.update!(acc, :types, &[nil | &1])
+                    {:cont, Map.update!(acc, :must_adopt_basis, &[{index, fn x -> x end} | &1])}
+                  else
+                    acc = Map.update!(acc, :types, &[{type, constraints} | &1])
+                    {:cont, Map.put(acc, :basis, {type, constraints})}
                   end
 
-                case value do
-                  %Ash.Query.Function.Type{arguments: [_, ^type | _]} ->
-                    {:cont, vals ++ [:any]}
+                {^type, matched_constraints} ->
+                  {:cont, Map.update!(acc, :types, &[{type, matched_constraints} | &1])}
 
-                  %Ash.Query.Ref{attribute: %{type: ^type}} ->
-                    {:cont, vals ++ [:any]}
-
-                  _ ->
-                    if Ash.Type.matches_type?(type, value, constraints) do
-                      {:cont, vals ++ [parameterized_type(type, constraints)]}
-                    else
-                      {:halt, nil}
-                    end
-                end
-              else
-                {:halt, nil}
+                _ ->
+                  {:halt, :error}
               end
-            end)
+
+            :error ->
+              acc = Map.update!(acc, :types, &[nil | &1])
+              {:cont, Map.update!(acc, :must_adopt_basis, &[{index, fn x -> x end} | &1])}
           end
-        end)
-    end
-  end
 
-  defp closest_fitting_type(types, values) do
-    types_with_values = Enum.zip(types, values)
+        {{{:array, vague_type}, value}, index}, acc when vague_type in [:any, :same] ->
+          case determine_type(value) do
+            {:ok, {{:array, type}, constraints}} ->
+              case acc[:basis] do
+                nil ->
+                  if vague_type == :any do
+                    acc = Map.update!(acc, :types, &[nil | &1])
 
-    types_with_values
-    |> fill_in_known_types()
-    |> clarify_types()
-  end
+                    {:cont,
+                     Map.update!(
+                       acc,
+                       :must_adopt_basis,
+                       &[
+                         {index,
+                          fn {type, constraints} -> {{:array, type}, items: constraints} end}
+                         | &1
+                       ]
+                     )}
+                  else
+                    acc = Map.update!(acc, :types, &[{:array, {type, constraints}} | &1])
+                    {:cont, Map.put(acc, :basis, {type, constraints})}
+                  end
 
-  defp clarify_types(types) do
-    basis =
-      types
-      |> Enum.map(&elem(&1, 0))
-      |> Enum.min_by(&vagueness(&1))
+                {^type, matched_constraints} ->
+                  {:cont, Map.update!(acc, :types, &[{:array, {type, matched_constraints}} | &1])}
 
-    Enum.map(types, fn {type, _value} ->
-      replace_same(type, basis)
+                _ ->
+                  {:halt, :error}
+              end
+
+            _ ->
+              acc = Map.update!(acc, :types, &[nil | &1])
+
+              {:cont,
+               Map.update!(
+                 acc,
+                 :must_adopt_basis,
+                 &[
+                   {index, fn {type, constraints} -> {{:array, type}, items: constraints} end}
+                   | &1
+                 ]
+               )}
+          end
+
+        {{{type, constraints}, value}, _index}, acc ->
+          cond do
+            !Ash.Expr.expr?(value) && !Ash.Type.matches_type?(type, value, constraints) ->
+              {:halt, :error}
+
+            Ash.Expr.expr?(value) ->
+              case determine_type(value) do
+                {:ok, {^type, matched_constraints}} ->
+                  {:cont, Map.update!(acc, :types, &[{type, matched_constraints} | &1])}
+
+                _ ->
+                  {:halt, :error}
+              end
+
+            true ->
+              {:cont, Map.update!(acc, :types, &[{type, constraints} | &1])}
+          end
+
+        {{type, value}, _index}, acc ->
+          cond do
+            !Ash.Expr.expr?(value) && !Ash.Type.matches_type?(type, value, []) ->
+              {:halt, :error}
+
+            Ash.Expr.expr?(value) ->
+              case determine_type(value) do
+                {:ok, {^type, matched_constraints}} ->
+                  {:cont, Map.update!(acc, :types, &[{type, matched_constraints} | &1])}
+
+                _ ->
+                  {:halt, :error}
+              end
+
+            true ->
+              {:cont, Map.update!(acc, :types, &[{type, []} | &1])}
+          end
+      end)
+      |> case do
+        :error ->
+          nil
+
+        %{basis: nil, must_adopt_basis: [], types: types} ->
+          types
+          |> Enum.reverse()
+          |> Enum.map(fn {type, constraints} ->
+            parameterized_type(type, constraints)
+          end)
+
+        %{basis: nil, must_adopt_basis: _} ->
+          nil
+
+        %{basis: basis, must_adopt_basis: basis_adopters, types: types} ->
+          basis_adopters
+          |> Enum.reduce(
+            Enum.reverse(types),
+            fn {index, function_of_basis}, types ->
+              List.replace_at(types, index, function_of_basis.(basis))
+            end
+          )
+          |> Enum.map(fn {type, constraints} ->
+            parameterized_type(type, constraints)
+          end)
+      end
     end)
   end
 
-  defp replace_same({:in, type}, basis) do
-    {:in, replace_same(type, basis)}
-  end
-
-  defp replace_same(:same, :same) do
-    :any
-  end
-
-  defp replace_same(:same, {:in, :same}) do
-    {:in, :any}
-  end
-
-  defp replace_same(:same, basis) do
-    basis
-  end
-
-  defp replace_same(other, _basis) do
-    other
-  end
-
-  defp fill_in_known_types(types) do
-    Enum.map(types, &fill_in_known_type/1)
-  end
-
-  defp fill_in_known_type(
-         {{:array, type},
-          %Ash.Query.Function.Type{arguments: [inner, {:array, type}, constraints]} = func}
-       ) do
-    {:in,
-     fill_in_known_type({type, %{func | arguments: [inner, type, constraints[:items] || []]}})}
-  end
-
-  defp fill_in_known_type(
-         {{:array, type},
-          %Ash.Query.Ref{attribute: %{type: {:array, type}, constraints: constraints} = attribute} =
-            ref}
-       ) do
-    {:in,
-     fill_in_known_type(
-       {type,
-        %{ref | attribute: %{attribute | type: type, constraints: constraints[:items] || []}}}
-     )}
-  end
-
-  defp fill_in_known_type(
-         {vague_type, %Ash.Query.Function.Type{arguments: [_, type, constraints]}} = func
-       )
-       when vague_type in [:any, :same] do
-    if Ash.Type.ash_type?(type) do
-      type = type |> parameterized_type(constraints) |> array_to_in()
-
-      {type || :any, func}
-    else
-      type =
-        if is_atom(type) && :erlang.function_exported(type, :type, 1) do
-          Ecto.ParameterizedType.init(type, []) |> array_to_in()
+  defp determine_type(value) do
+    case value do
+      %Ash.Query.Function.Type{arguments: [_, type, constraints]} ->
+        if Ash.Type.ash_type?(type) do
+          {:ok, {type, constraints}}
         else
-          type |> array_to_in()
+          :error
         end
 
-      {type, func}
-    end
-  end
-
-  defp fill_in_known_type(
-         {vague_type, %Ash.Query.Ref{attribute: %{type: type, constraints: constraints}}} = ref
-       )
-       when vague_type in [:any, :same] do
-    if Ash.Type.ash_type?(type) do
-      type = type |> parameterized_type(constraints) |> array_to_in()
-
-      {type || :any, ref}
-    else
-      type =
-        if is_atom(type) && :erlang.function_exported(type, :type, 1) do
-          Ecto.ParameterizedType.init(type, []) |> array_to_in()
+      %Ash.Query.Function.Type{arguments: [_, type]} ->
+        if Ash.Type.ash_type?(type) do
+          {:ok, {type, []}}
         else
-          type |> array_to_in()
+          :error
         end
 
-      {type, ref}
+      %Ash.Query.Ref{attribute: %{type: type, constraints: constraints}} ->
+        if Ash.Type.ash_type?(type) do
+          {:ok, {type, constraints}}
+        else
+          :error
+        end
+
+      %Ash.Query.Ref{attribute: %{type: type}} ->
+        if Ash.Type.ash_type?(type) do
+          {:ok, {type, []}}
+        else
+          :error
+        end
+
+      _ ->
+        :error
     end
   end
-
-  defp fill_in_known_type({type, value}),
-    do: {array_to_in(type), value}
-
-  defp array_to_in({:array, v}), do: {:in, array_to_in(v)}
-
-  defp array_to_in(v), do: v
-
-  defp vagueness({:in, type}), do: vagueness(type)
-  defp vagueness(:same), do: 2
-  defp vagueness(:any), do: 1
-  defp vagueness(_), do: 0
 end
