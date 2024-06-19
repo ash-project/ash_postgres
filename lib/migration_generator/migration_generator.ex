@@ -2884,7 +2884,7 @@ defmodule AshPostgres.MigrationGenerator do
             Enum.map(keys, fn key ->
               case Ash.Resource.Info.field(resource, key) do
                 %Ash.Resource.Attribute{} = attribute ->
-                  to_string(attribute.source || attribute.name)
+                  attribute.source || attribute.name
 
                 %Ash.Resource.Calculation{} ->
                   sql =
@@ -2998,6 +2998,17 @@ defmodule AshPostgres.MigrationGenerator do
           end)
 
         %{index | fields: fields}
+      end)
+    end)
+    |> Map.update!(:identities, fn identities ->
+      Enum.map(identities, fn identity ->
+        keys =
+          Enum.map(identity.keys, fn
+            value when is_binary(value) -> %{"type" => "string", "value" => value}
+            value when is_atom(value) -> %{"type" => "atom", "value" => value}
+          end)
+
+        %{identity | keys: keys}
       end)
     end)
     |> Jason.encode!(pretty: true)
@@ -3251,6 +3262,23 @@ defmodule AshPostgres.MigrationGenerator do
     |> Map.put_new(:all_tenants?, false)
     |> Map.put_new(:where, nil)
     |> Map.put_new(:nils_distinct?, true)
+    |> Map.update!(
+      :keys,
+      &Enum.map(&1, fn
+        %{type: "atom", value: value} ->
+          maybe_to_atom(value)
+
+        %{type: "string", value: value} ->
+          value
+
+        value ->
+          if String.contains?(value, "(") do
+            value
+          else
+            maybe_to_atom(value)
+          end
+      end)
+    )
   end
 
   defp add_index_name(%{name: name} = index, table) do

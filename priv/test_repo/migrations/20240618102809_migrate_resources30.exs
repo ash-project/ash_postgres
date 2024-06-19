@@ -1,4 +1,4 @@
-defmodule AshPostgres.TestRepo.Migrations.MigrateResources29 do
+defmodule AshPostgres.TestRepo.Migrations.MigrateResources30 do
   @moduledoc """
   Updates resources based on their most recent snapshots.
 
