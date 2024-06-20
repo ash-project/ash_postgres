@@ -5,58 +5,55 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
-## [v2.0.10](https://github.com/ash-project/ash_postgres/compare/v2.0.9...v2.0.10) (2024-06-18)
-
-
-
+## [v2.0.11](https://github.com/ash-project/ash_postgres/compare/v2.0.10...v2.0.11) (2024-06-19)
 
 ### Bug Fixes:
 
-* update ash_sql to fix query generation issues
+- [AshPostgres.DataLayer] rework expression type detection
 
-* ensure that parens are always added to calculation generated SQL
+- [migration generator] ensure index keys are atoms in generated migrations (#332)
 
-* properly get calculation sql
+## [v2.0.10](https://github.com/ash-project/ash_postgres/compare/v2.0.9...v2.0.10) (2024-06-18)
+
+### Bug Fixes:
+
+- [AshPostgres.DataLayer] update ash_sql to fix query generation issues
+
+- [migration generator] ensure that parens are always added to calculation generated SQL
+
+- [migration generator] properly get calculation sql
 
 ### Improvements:
 
-* better type handling using new type inference
+- [AshPostgres.DataLayer] better type handling using new type inference
 
-* identities w/ calculations and where clauses in upserts
+- [identities] identities w/ calculations and where clauses in upserts
 
 ## [v2.0.9](https://github.com/ash-project/ash_postgres/compare/v2.0.8...v2.0.9) (2024-06-13)
 
-
-
-
 ### Features:
 
-* autogenerate index in references (#321)
-
-* autogenerate index in references
+- [migration generator] autogenerate index in references (#321)
 
 ### Bug Fixes:
 
-* fix invalid select on sorting by some calculations
+- [AshPostgres.DataLayer] fix invalid select on sorting by some calculations
 
-* fix error message displaying in identity verifier
+- [AshPostgres.DataLayer] fix error message displaying in identity verifier
 
-* ensure that context multitenancy is properly applied to lateral many-to-many joins
+- [lateral joining] ensure that context multitenancy is properly applied to lateral many-to-many joins
 
-* don't assume old snapshots have `index?` key for attributes
+- [migration generator] don't assume old snapshots have `index?` key for attributes
 
-* `list_tenants` -> `all_tenants`
+- [ash.rollback] `list_tenants` -> `all_tenants`
 
-* when checking for roll back-able migrations, only check `Path.basename`
+- [ash.rollback] when checking for roll back-able migrations, only check `Path.basename`
 
 ### Improvements:
 
-* don't sort identity keys.
+- [migration generator] don't sort identity keys.
 
 ## [v2.0.8](https://github.com/ash-project/ash_postgres/compare/v2.0.7...v2.0.8) (2024-06-06)
-
-
-
 
 ## [v2.0.7](https://github.com/ash-project/ash_postgres/compare/v2.0.6...v2.0.7) (2024-06-06)
 
