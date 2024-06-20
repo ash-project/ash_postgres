@@ -1759,7 +1759,16 @@ defmodule AshPostgres.MigrationGenerator do
 
     reference_indexes_to_add =
       Enum.filter(snapshot.attributes, fn attribute ->
-        if attribute.references, do: attribute.references[:index?]
+        case Enum.find(old_snapshot.attributes, fn old_attribute ->
+               old_attribute.source == attribute.source
+             end) do
+          nil ->
+            attribute.references && attribute.references[:index?]
+
+          old_attribute ->
+            (old_attribute.references && old_attribute.references[:index?]) !=
+              (attribute.references && attribute.references[:index?])
+        end
       end)
       |> Enum.map(fn attribute ->
         %Operation.AddReferenceIndex{
