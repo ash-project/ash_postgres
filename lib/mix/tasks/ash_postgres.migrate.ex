@@ -42,10 +42,9 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
   specific version number, supply `--to version_number`. To migrate a
   specific number of times, use `--step n`.
 
-  This is only really useful if your domains only use a single repo.
   If you have multiple repos and you want to run a single migration and/or
-  migrate/roll them back to different points, you will need to use the
-  ecto specific task, `mix ecto.migrate` and provide your repo name.
+  migrate them to different points, you will need to use the ecto specific task,
+  `mix ecto.migrate` and provide your repo name.
 
   If a repository has not yet been started, one will be started outside
   your application supervision tree and shutdown afterwards.
