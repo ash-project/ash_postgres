@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.0.12](https://github.com/ash-project/ash_postgres/compare/v2.0.11...v2.0.12) (2024-06-20)
+
+
+
+
+### Bug Fixes:
+
+* only add references indexes if they've changed
+
 ## [v2.0.11](https://github.com/ash-project/ash_postgres/compare/v2.0.10...v2.0.11) (2024-06-19)
 
 ### Bug Fixes:
