@@ -45,6 +45,7 @@ defmodule AshPostgres.MigrationGenerator do
     repos =
       (snapshots ++ tenant_snapshots)
       |> Enum.map(& &1.repo)
+      |> Enum.concat(find_repos())
       |> Enum.uniq()
 
     Mix.shell().info("\nExtension Migrations: ")
@@ -53,6 +54,14 @@ defmodule AshPostgres.MigrationGenerator do
     create_migrations(tenant_snapshots, opts, true, snapshots)
     Mix.shell().info("\nGenerating Migrations:")
     create_migrations(snapshots, opts, false)
+  end
+
+  defp find_repos do
+    Mix.Project.config()[:app]
+    |> Application.get_env(:ecto_repos, [])
+    |> Enum.filter(fn repo ->
+      Spark.implements_behaviour?(repo, AshPostgres.Repo)
+    end)
   end
 
   @doc """

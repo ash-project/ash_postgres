@@ -1,6 +1,6 @@
 defmodule AshPostgres.Mix.Helpers do
   @moduledoc false
-  def domains!(opts, args) do
+  def domains!(opts, args, error_on_no_domains? \\ true) do
     apps =
       if apps_paths = Mix.Project.apps_paths() do
         apps_paths |> Map.keys() |> Enum.sort()
@@ -30,7 +30,11 @@ defmodule AshPostgres.Mix.Helpers do
     |> Enum.map(&ensure_compiled(&1, args))
     |> case do
       [] ->
-        raise "must supply the --domains argument, or set `config :my_app, ash_domains: [...]` in config"
+        if error_on_no_domains? do
+          raise "must supply the --domains argument, or set `config :my_app, ash_domains: [...]` in config"
+        else
+          []
+        end
 
       domains ->
         domains
@@ -38,43 +42,54 @@ defmodule AshPostgres.Mix.Helpers do
   end
 
   def repos!(opts, args) do
-    domains = domains!(opts, args)
+    if opts[:domains] && opts[:domains] != "" do
+      domains = domains!(opts, args)
 
-    resources =
-      domains
-      |> Enum.flat_map(&Ash.Domain.Info.resources/1)
-      |> Enum.filter(&(Ash.DataLayer.data_layer(&1) == AshPostgres.DataLayer))
+      resources =
+        domains
+        |> Enum.flat_map(&Ash.Domain.Info.resources/1)
+        |> Enum.filter(&(Ash.DataLayer.data_layer(&1) == AshPostgres.DataLayer))
+        |> case do
+          [] ->
+            raise """
+            No resources with `data_layer: AshPostgres.DataLayer` found in the domains #{Enum.map_join(domains, ",", &inspect/1)}.
+
+            Must be able to find at least one resource with `data_layer: AshPostgres.DataLayer`.
+            """
+
+          resources ->
+            resources
+        end
+
+      resources
+      |> Enum.flat_map(
+        &[
+          AshPostgres.DataLayer.Info.repo(&1, :read),
+          AshPostgres.DataLayer.Info.repo(&1, :mutate)
+        ]
+      )
+      |> Enum.uniq()
       |> case do
         [] ->
           raise """
-          No resources with `data_layer: AshPostgres.DataLayer` found in the domains #{Enum.map_join(domains, ",", &inspect/1)}.
+          No repos could be found configured on the resources in the domains: #{Enum.map_join(domains, ",", &inspect/1)}
 
-          Must be able to find at least one resource with `data_layer: AshPostgres.DataLayer`.
+          At least one resource must have a repo configured.
+
+          The following resources were found with `data_layer: AshPostgres.DataLayer`:
+
+          #{Enum.map_join(resources, "\n", &"* #{inspect(&1)}")}
           """
 
-        resources ->
-          resources
+        repos ->
+          repos
       end
-
-    resources
-    |> Enum.flat_map(
-      &[AshPostgres.DataLayer.Info.repo(&1, :read), AshPostgres.DataLayer.Info.repo(&1, :mutate)]
-    )
-    |> Enum.uniq()
-    |> case do
-      [] ->
-        raise """
-        No repos could be found configured on the resources in the domains: #{Enum.map_join(domains, ",", &inspect/1)}
-
-        At least one resource must have a repo configured.
-
-        The following resources were found with `data_layer: AshPostgres.DataLayer`:
-
-        #{Enum.map_join(resources, "\n", &"* #{inspect(&1)}")}
-        """
-
-      repos ->
-        repos
+    else
+      Mix.Project.config()[:app]
+      |> Application.get_env(:ecto_repos, [])
+      |> Enum.filter(fn repo ->
+        Spark.implements_behaviour?(repo, AshPostgres.Repo)
+      end)
     end
   end
 
