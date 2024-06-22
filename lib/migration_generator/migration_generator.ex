@@ -2842,6 +2842,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp migration_type(Ash.Type.CiString, _), do: :citext
   defp migration_type(Ash.Type.UUID, _), do: :uuid
+  defp migration_type(Ash.Type.UUIDv7, _), do: :uuid
   defp migration_type(Ash.Type.Integer, _), do: :bigint
 
   defp migration_type(other, constraints) do
@@ -2931,6 +2932,9 @@ defmodule AshPostgres.MigrationGenerator do
       cond do
         default in @uuid_functions ->
           ~S[fragment("gen_random_uuid()")]
+
+        default == (&Ash.UUIDv7.generate/0) ->
+          ~S[fragment("uuid_generate_v7()")]
 
         default == (&DateTime.utc_now/0) ->
           ~S[fragment("(now() AT TIME ZONE 'utc')")]
