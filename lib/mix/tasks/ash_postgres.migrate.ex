@@ -109,8 +109,8 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
       |> AshPostgres.Mix.Helpers.delete_arg("--domains")
       |> AshPostgres.Mix.Helpers.delete_arg("--migrations-path")
       |> AshPostgres.Mix.Helpers.delete_flag("--tenants")
-      |> AshPostgres.Mix.Helpers.delete_flag("--only-tenants")
-      |> AshPostgres.Mix.Helpers.delete_flag("--except-tenants")
+      |> AshPostgres.Mix.Helpers.delete_arg("--only-tenants")
+      |> AshPostgres.Mix.Helpers.delete_arg("--except-tenants")
 
     Mix.Task.reenable("ecto.migrate")
 
