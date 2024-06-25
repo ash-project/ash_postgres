@@ -46,7 +46,7 @@ defmodule AshPostgres.Verifiers.ValidateIdentityIndexNames do
               message: """
               Identity #{identity.name} has a name that is too long. Names must be 63 characters or less.
 
-              Please configure an index name for this identity in the `identity_index_names` configuration. For example:application
+              Please configure an index name for this identity in the `identity_index_names` configuration. For example:
 
               postgres do
                 identity_index_names #{inspect(identity.name)}: "a_shorter_name"
