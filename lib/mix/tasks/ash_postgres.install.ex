@@ -14,7 +14,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
     |> configure_config(otp_app, repo)
     |> configure_dev(otp_app, repo)
     |> configure_test(otp_app, repo)
-    |> configure_runtime(repo, otp_app)
+    |> configure_runtime(otp_app, repo)
     |> Igniter.Project.Application.add_new_child(repo)
     |> Igniter.add_task("ash.codegen", ["install_ash_postgres"])
   end
@@ -47,7 +47,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
           For example: ecto://USER:PASS@HOST/DATABASE
           \"\"\"
 
-      config #{inspect(otp_app)}, Helpdesk.Repo,
+      config #{inspect(otp_app)}, #{inspect(repo),
         url: database_url,
         pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
     end
