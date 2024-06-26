@@ -47,7 +47,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
           For example: ecto://USER:PASS@HOST/DATABASE
           \"\"\"
 
-      config #{inspect(otp_app)}, #{inspect(repo),
+      config #{inspect(otp_app)}, #{inspect(repo)},
         url: database_url,
         pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
     end
