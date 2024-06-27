@@ -217,9 +217,9 @@ defmodule Mix.Tasks.AshPostgres.Install do
       |> Sourceror.Zipper.top()
       |> use_ash_postgres_instead_of_ecto()
       |> Sourceror.Zipper.top()
-      |> add_installed_extensions_function()
-      |> Sourceror.Zipper.top()
       |> remove_adapter_option()
+      |> Sourceror.Zipper.top()
+      |> configure_installed_extensions_function()
     end)
   end
 
@@ -270,15 +270,27 @@ defmodule Mix.Tasks.AshPostgres.Install do
     end
   end
 
-  defp add_installed_extensions_function(zipper) do
+  defp configure_installed_extensions_function(zipper) do
     case Igniter.Code.Module.move_to_module_using(zipper, AshPostgres.Repo) do
       {:ok, zipper} ->
-        Igniter.Code.Common.add_code(zipper, """
-        def installed_extensions do
-          # Add extensions here, and the migration generator will install them.
-          ["ash-functions"]
+        case Igniter.Code.Module.move_to_def(zipper, :installed_extensions, 0) do
+          {:ok, zipper} ->
+            case Igniter.Code.Common.move_right(zipper, &Igniter.Code.List.list?/1) do
+              {:ok, zipper} ->
+                Igniter.Code.List.append_new_to_list(zipper, "ash-functions")
+
+              :error ->
+                {:error, "installed_extensions/0 doesn't return a list"}
+            end
+
+          _ ->
+            Igniter.Code.Common.add_code(zipper, """
+            def installed_extensions do
+              # Add extensions here, and the migration generator will install them.
+              ["ash-functions"]
+            end
+            """)
         end
-        """)
 
       _ ->
         zipper
