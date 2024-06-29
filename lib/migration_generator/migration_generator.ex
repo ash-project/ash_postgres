@@ -316,13 +316,10 @@ defmodule AshPostgres.MigrationGenerator do
         installed = Enum.map(requesteds, fn {name, _extension} -> name end)
 
         snapshot_contents =
-          Jason.encode!(
-            %{
-              installed: installed
-            }
-            |> set_ash_functions(installed),
-            pretty: true
-          )
+          %{installed: installed}
+          |> set_ash_functions(installed)
+          |> to_ordered_object()
+          |> Jason.encode!(pretty: true)
 
         contents = format(migration_file, contents, opts)
 
@@ -3029,6 +3026,7 @@ defmodule AshPostgres.MigrationGenerator do
         %{identity | keys: keys}
       end)
     end)
+    |> to_ordered_object()
     |> Jason.encode!(pretty: true)
   end
 
@@ -3313,4 +3311,15 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp maybe_to_atom(value) when is_atom(value), do: value
   defp maybe_to_atom(value), do: String.to_atom(value)
+
+  defp to_ordered_object(value) when is_map(value) do
+    value
+    |> Map.to_list()
+    |> List.keysort(0)
+    |> Enum.map(fn {key, value} -> {key, to_ordered_object(value)} end)
+    |> Jason.OrderedObject.new()
+  end
+
+  defp to_ordered_object(value) when is_list(value), do: Enum.map(value, &to_ordered_object/1)
+  defp to_ordered_object(value), do: value
 end
