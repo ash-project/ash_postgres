@@ -2,7 +2,18 @@ defmodule AshPostgres.MultitenancyTest.Org do
   @moduledoc false
   use Ash.Resource,
     domain: AshPostgres.MultitenancyTest.Domain,
-    data_layer: AshPostgres.DataLayer
+    data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer]
+
+  policies do
+    policy action(:has_policies) do
+      authorize_if(relates_to_actor_via(:owner))
+    end
+
+    # policy always() do
+    #   authorize_if(always())
+    # end
+  end
 
   identities do
     identity(:unique_by_name, [:name])
@@ -17,6 +28,8 @@ defmodule AshPostgres.MultitenancyTest.Org do
     default_accept(:*)
 
     defaults([:create, :read, :update, :destroy])
+
+    read(:has_policies)
   end
 
   postgres do
@@ -36,6 +49,12 @@ defmodule AshPostgres.MultitenancyTest.Org do
   end
 
   relationships do
+    belongs_to :owner, AshPostgres.MultitenancyTest.User do
+      attribute_public?(false)
+      public?(false)
+      attribute_type(:string)
+    end
+
     has_many(:posts, AshPostgres.MultitenancyTest.Post,
       destination_attribute: :org_id,
       public?: true

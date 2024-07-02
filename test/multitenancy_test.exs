@@ -6,12 +6,12 @@ defmodule AshPostgres.Test.MultitenancyTest do
   setup do
     org1 =
       Org
-      |> Ash.Changeset.for_create(:create, %{name: "test1"})
+      |> Ash.Changeset.for_create(:create, %{name: "test1"}, authorize?: false)
       |> Ash.create!()
 
     org2 =
       Org
-      |> Ash.Changeset.for_create(:create, %{name: "test2"})
+      |> Ash.Changeset.for_create(:create, %{name: "test2"}, authorize?: false)
       |> Ash.create!()
 
     [org1: org1, org2: org2]
@@ -35,6 +35,23 @@ defmodule AshPostgres.Test.MultitenancyTest do
              Org
              |> Ash.Query.set_tenant(tenant(org1))
              |> Ash.read!()
+  end
+
+  test "attribute multitenancy works with authorization", %{org1: org1} do
+    user =
+      User
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.manage_relationship(:org, org1, type: :append_and_remove)
+      |> Ash.create!()
+
+    Logger.configure(level: :debug)
+
+    assert [] =
+             Org
+             |> Ash.Query.set_tenant(tenant(org1))
+             |> Ash.Query.for_read(:has_policies, %{}, actor: user, authorize?: true)
+             |> Ash.read!()
+             |> IO.inspect()
   end
 
   test "context multitenancy works with policies", %{org1: org1} do
