@@ -2922,7 +2922,7 @@ defmodule AshPostgres.DataLayer do
   end
 
   if Code.ensure_loaded?(Igniter) do
-    def install(igniter, module, Ash.Resource, path, _argv) do
+    def install(igniter, module, Ash.Resource, _path, _argv) do
       table_name =
         module
         |> Module.split()
@@ -2932,8 +2932,8 @@ defmodule AshPostgres.DataLayer do
       repo = Igniter.Code.Module.module_name("Repo")
 
       igniter
-      |> Spark.Igniter.set_option(Ash.Resource, path, [:postgres, :table], table_name)
-      |> Spark.Igniter.set_option(Ash.Resource, path, [:postgres, :repo], repo)
+      |> Spark.Igniter.set_option(module, [:postgres, :table], table_name)
+      |> Spark.Igniter.set_option(module, [:postgres, :repo], repo)
     end
 
     def install(igniter, _, _, _), do: igniter

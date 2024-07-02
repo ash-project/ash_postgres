@@ -196,8 +196,6 @@ defmodule Mix.Tasks.AshPostgres.Install do
   end
 
   defp setup_repo_module(igniter, otp_app, repo) do
-    path = Igniter.Code.Module.proper_location(repo)
-
     default_repo_contents =
       """
       defmodule #{inspect(repo)} do
@@ -210,17 +208,21 @@ defmodule Mix.Tasks.AshPostgres.Install do
       end
       """
 
-    igniter
-    |> Igniter.create_or_update_elixir_file(path, default_repo_contents, fn zipper ->
-      zipper
-      |> set_otp_app(otp_app)
-      |> Sourceror.Zipper.top()
-      |> use_ash_postgres_instead_of_ecto()
-      |> Sourceror.Zipper.top()
-      |> remove_adapter_option()
-      |> Sourceror.Zipper.top()
-      |> configure_installed_extensions_function()
-    end)
+    Igniter.Code.Module.find_and_update_or_create_module(
+      igniter,
+      repo,
+      default_repo_contents,
+      fn zipper ->
+        zipper
+        |> set_otp_app(otp_app)
+        |> Sourceror.Zipper.top()
+        |> use_ash_postgres_instead_of_ecto()
+        |> Sourceror.Zipper.top()
+        |> remove_adapter_option()
+        |> Sourceror.Zipper.top()
+        |> configure_installed_extensions_function()
+      end
+    )
   end
 
   defp use_ash_postgres_instead_of_ecto(zipper) do
