@@ -44,14 +44,11 @@ defmodule AshPostgres.Test.MultitenancyTest do
       |> Ash.Changeset.manage_relationship(:org, org1, type: :append_and_remove)
       |> Ash.create!()
 
-    Logger.configure(level: :debug)
-
     assert [] =
              Org
              |> Ash.Query.set_tenant(tenant(org1))
              |> Ash.Query.for_read(:has_policies, %{}, actor: user, authorize?: true)
              |> Ash.read!()
-             |> IO.inspect()
   end
 
   test "context multitenancy works with policies", %{org1: org1} do

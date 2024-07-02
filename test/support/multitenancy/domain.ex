@@ -8,4 +8,8 @@ defmodule AshPostgres.MultitenancyTest.Domain do
     resource(AshPostgres.MultitenancyTest.Post)
     resource(AshPostgres.MultitenancyTest.PostLink)
   end
+
+  authorization do
+    authorize(:when_requested)
+  end
 end

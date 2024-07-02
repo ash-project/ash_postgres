@@ -55,5 +55,9 @@ if Mix.env() == :test do
       AshPostgres.Test.ComplexCalculations.Domain
     ]
 
+  config :ash, :compatible_foreign_key_types, [
+    {Ash.Type.String, Ash.Type.UUID}
+  ]
+
   config :logger, level: :warning
 end
