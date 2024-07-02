@@ -52,7 +52,6 @@ defmodule AshPostgres.MultitenancyTest.Org do
     belongs_to :owner, AshPostgres.MultitenancyTest.User do
       attribute_public?(false)
       public?(false)
-      attribute_type(:string)
     end
 
     has_many(:posts, AshPostgres.MultitenancyTest.Post,
