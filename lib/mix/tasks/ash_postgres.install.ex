@@ -198,13 +198,11 @@ defmodule Mix.Tasks.AshPostgres.Install do
   defp setup_repo_module(igniter, otp_app, repo) do
     default_repo_contents =
       """
-      defmodule #{inspect(repo)} do
-        use AshPostgres.Repo, otp_app: #{inspect(otp_app)}
+      use AshPostgres.Repo, otp_app: #{inspect(otp_app)}
 
-        def installed_extensions do
-          # Add extensions here, and the migration generator will install them.
-          ["ash-functions"]
-        end
+      def installed_extensions do
+        # Add extensions here, and the migration generator will install them.
+        ["ash-functions"]
       end
       """
 
