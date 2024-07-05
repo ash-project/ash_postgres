@@ -1263,7 +1263,7 @@ defmodule AshPostgres.DataLayer do
     ecto_changeset =
       case changeset.data do
         %Ash.Changeset.OriginalDataNotAvailable{} ->
-          changeset.resource.__struct__
+          changeset.resource.__struct__()
 
         data ->
           data
