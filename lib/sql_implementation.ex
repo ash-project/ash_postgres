@@ -17,6 +17,30 @@ defmodule AshPostgres.SqlImplementation do
   def require_extension_for_citext, do: {true, "citext"}
 
   @impl true
+  def storage_type(resource, field) do
+    case AshPostgres.DataLayer.Info.storage_types(resource)[field] do
+      nil ->
+        nil
+
+      {:array, type} ->
+        parameterized_type({:array, Ash.Type.get_type(type)}, [], false)
+
+      {:array, type, constraints} ->
+        parameterized_type({:array, Ash.Type.get_type(type)}, constraints, false)
+
+      {type, constraints} ->
+        parameterized_type(type, constraints, false)
+
+      type ->
+        parameterized_type(type, [], false)
+    end
+  end
+
+  @impl true
+  def expr(_query, [], _bindings, _embedded?, acc, type) when type in [:map, :jsonb] do
+    {:ok, Ecto.Query.dynamic(fragment("'[]'::jsonb")), acc}
+  end
+
   def expr(
         query,
         %like{arguments: [arg1, arg2], embedded?: pred_embedded?},
