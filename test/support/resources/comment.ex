@@ -50,6 +50,19 @@ defmodule AshPostgres.Test.Comment do
     list(:posts_for_comments_containing_title, [:post, :comments_containing_title, :post], :title)
   end
 
+  calculations do
+    calculate(:expects_only_one_comment, :string, fn records, _ ->
+      if Enum.count(records) > 1 do
+        raise "expected only one comment"
+      end
+
+      {:ok,
+       Enum.map(records, fn _ ->
+         "hello"
+       end)}
+    end)
+  end
+
   relationships do
     belongs_to(:post, AshPostgres.Test.Post) do
       public?(true)

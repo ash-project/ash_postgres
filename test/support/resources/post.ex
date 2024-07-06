@@ -306,6 +306,12 @@ defmodule AshPostgres.Test.Post do
 
     has_many(:comments, AshPostgres.Test.Comment, destination_attribute: :post_id, public?: true)
 
+    has_one :latest_comment, AshPostgres.Test.Comment do
+      sort(created_at: :desc)
+      from_many?(true)
+      public?(true)
+    end
+
     has_many :comments_matching_post_title, AshPostgres.Test.Comment do
       public?(true)
       filter(expr(title == parent_expr(title)))

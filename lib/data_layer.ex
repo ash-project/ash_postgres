@@ -996,6 +996,13 @@ defmodule AshPostgres.DataLayer do
       end
 
     base_query =
+      if Map.get(relationship, :from_many?) do
+        from(row in base_query, limit: 1)
+      else
+        base_query
+      end
+
+    base_query =
       cond do
         Map.get(relationship, :manual) ->
           {module, opts} = relationship.manual

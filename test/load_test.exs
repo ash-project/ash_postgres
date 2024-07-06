@@ -24,6 +24,35 @@ defmodule AshPostgres.Test.LoadTest do
     assert [%Post{comments: [%{title: "match"}]}] = results
   end
 
+  test "has_one relationships properly limit in the data layer" do
+    assert %Post{comments: %Ash.NotLoaded{type: :relationship}} =
+             post =
+             Post
+             |> Ash.Changeset.for_create(:create, %{title: "title"})
+             |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "match"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    :timer.sleep(1)
+
+    assert %{id: second_comment_id} =
+             Comment
+             |> Ash.Changeset.for_create(:create, %{title: "match"})
+             |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+             |> Ash.create!()
+
+    Logger.configure(level: :debug)
+
+    assert %{id: ^second_comment_id} =
+             Post
+             |> Ash.Query.load(latest_comment: [:expects_only_one_comment])
+             |> Ash.read_one!()
+             |> Map.get(:latest_comment)
+  end
+
   test "belongs_to relationships can be loaded" do
     assert %Comment{post: %Ash.NotLoaded{type: :relationship}} =
              comment =
