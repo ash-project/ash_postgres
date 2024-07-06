@@ -1,8 +1,8 @@
 defmodule AshPostgres.StorageTypesTest do
   use AshPostgres.RepoCase, async: false
 
-  alias AshPostgres.Test.Author
   alias Ash.BulkResult
+  alias AshPostgres.Test.Author
 
   require Ash.Query
 

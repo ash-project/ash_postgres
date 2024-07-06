@@ -40,6 +40,7 @@ end
 |------|------|---------|------|
 | [`repo`](#postgres-repo){: #postgres-repo .spark-required} | `module \| (any, any -> any)` |  | The repo that will be used to fetch your data. See the `AshPostgres.Repo` documentation for more. Can also be a function that takes a resource and a type `:read \| :mutate` and returns the repo |
 | [`migrate?`](#postgres-migrate?){: #postgres-migrate? } | `boolean` | `true` | Whether or not to include this resource in the generated migrations with `mix ash.generate_migrations` |
+| [`storage_types`](#postgres-storage_types){: #postgres-storage_types } | `keyword` | `[]` | A keyword list of attribute names to the ecto type that should be used for that attribute. Only necessary if you need to override the defaults. |
 | [`migration_types`](#postgres-migration_types){: #postgres-migration_types } | `keyword` | `[]` | A keyword list of attribute names to the ecto migration type that should be used for that attribute. Only necessary if you need to override the defaults. |
 | [`migration_defaults`](#postgres-migration_defaults){: #postgres-migration_defaults } | `keyword` | `[]` | A keyword list of attribute names to the ecto migration default that should be used for that attribute. The string you use will be placed verbatim in the migration. Use fragments like `fragment(\\"now()\\")`, or for `nil`, use `\\"nil\\"`. |
 | [`calculations_to_sql`](#postgres-calculations_to_sql){: #postgres-calculations_to_sql } | `keyword` |  | A keyword list of calculations and their SQL representation. Used when creating unique indexes for identities over calculations |
@@ -114,7 +115,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
 | [`prefix`](#postgres-custom_indexes-index-prefix){: #postgres-custom_indexes-index-prefix } | `String.t` |  | specify an optional prefix for the index. |
 | [`where`](#postgres-custom_indexes-index-where){: #postgres-custom_indexes-index-where } | `String.t` |  | specify conditions for a partial index. |
 | [`include`](#postgres-custom_indexes-index-include){: #postgres-custom_indexes-index-include } | `list(String.t)` |  | specify fields for a covering index. This is not supported by all databases. For more information on PostgreSQL support, please read the official docs. |
-| [`nulls_distinct`](#postgres-custom_indexes-index-nulls_distinct){: #postgres-custom_indexes-index-nulls_distinct } | `boolean` | `true` | specify whether null values should be considered distinct for a unique index. |
+| [`nulls_distinct`](#postgres-custom_indexes-index-nulls_distinct){: #postgres-custom_indexes-index-nulls_distinct } | `boolean` | `true` | specify whether null values should be considered distinct for a unique index. Requires PostgreSQL 15 or later |
 | [`message`](#postgres-custom_indexes-index-message){: #postgres-custom_indexes-index-message } | `String.t` |  | A custom message to use for unique indexes that have been violated |
 | [`all_tenants?`](#postgres-custom_indexes-index-all_tenants?){: #postgres-custom_indexes-index-all_tenants? } | `boolean` | `false` | Whether or not the index should factor in the multitenancy attribute or not. |
 
