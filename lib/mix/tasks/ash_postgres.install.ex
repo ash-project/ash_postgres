@@ -13,8 +13,9 @@ defmodule Mix.Tasks.AshPostgres.Install do
     |> setup_repo_module(otp_app, repo)
     |> configure_config(otp_app, repo)
     |> configure_dev(otp_app, repo)
-    |> configure_test(otp_app, repo)
     |> configure_runtime(otp_app, repo)
+    |> configure_test(otp_app, repo)
+    |> setup_data_case()
     |> Igniter.Project.Application.add_new_child(repo)
     |> Igniter.add_task("ash.codegen", ["install_ash_postgres"])
   end
@@ -193,6 +194,94 @@ defmodule Mix.Tasks.AshPostgres.Install do
       Ecto.Adapters.SQL.Sandbox
     )
     |> Igniter.Project.Config.configure_new("test.exs", otp_app, [repo, :pool_size], 10)
+    |> Igniter.Project.Config.configure_new("test.exs", :ash, :disable_async?, true)
+    |> Igniter.Project.Config.configure_new("test.exs", :logger, :level, :warning)
+  end
+
+  defp setup_data_case(igniter) do
+    default_data_case_contents = """
+    @moduledoc \"\"\"
+    This module defines the setup for tests requiring
+    access to the application's data layer.
+
+    You may define functions here to be used as helpers in
+    your tests.
+
+    Finally, if the test case interacts with the database,
+    we enable the SQL sandbox, so changes done to the database
+    are reverted at the end of every test. If you are using
+    PostgreSQL, you can even run database tests asynchronously
+    by setting `use AshHq.DataCase, async: true`, although
+    this option is not recommended for other databases.
+    \"\"\"
+
+    use ExUnit.CaseTemplate
+
+    using do
+      quote do
+        alias #{Igniter.Code.Module.module_name_prefix()}.Repo
+
+        import Ecto
+        import Ecto.Changeset
+        import Ecto.Query
+        import #{Igniter.Code.Module.module_name_prefix()}.DataCase
+      end
+    end
+
+    setup tags do
+      pid = Ecto.Adapters.SQL.Sandbox.start_owner!(#{Igniter.Code.Module.module_name_prefix()}.Repo, shared: not tags[:async])
+      on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+      :ok
+    end
+    """
+
+    igniter
+    |> Igniter.Code.Module.find_and_update_or_create_module(
+      Igniter.Code.Module.module_name("DataCase"),
+      default_data_case_contents,
+      # do nothing if already exists
+      fn zipper -> {:ok, zipper} end,
+      kind: :test_support
+    )
+    |> add_test_supports_to_elixirc_paths()
+  end
+
+  defp add_test_supports_to_elixirc_paths(igniter) do
+    Igniter.update_elixir_file(igniter, "mix.exs", fn zipper ->
+      with {:ok, zipper} <- Igniter.Code.Module.move_to_module_using(zipper, Mix.Project),
+           {:ok, zipper} <- Igniter.Code.Module.move_to_def(zipper, :project, 0),
+           {:ok, zipper} <-
+             Igniter.Code.Common.move_right(zipper, &Igniter.Code.List.list?/1) do
+        case Igniter.Code.List.move_to_list_item(
+               zipper,
+               &Kernel.match?({:elixirc_paths, _}, &1)
+             ) do
+          {:ok, zipper} ->
+            Sourceror.Zipper.top(zipper)
+
+          _ ->
+            with {:ok, zipper} <-
+                   Igniter.Code.List.append_to_list(
+                     zipper,
+                     quote(do: {:elixirc_paths, elixirc_paths(Mix.env())})
+                   ),
+                 zipper <- Sourceror.Zipper.top(zipper),
+                 {:ok, zipper} <- Igniter.Code.Common.move_to_do_block(zipper),
+                 zipper <-
+                   Igniter.Code.Common.add_code(
+                     zipper,
+                     "defp elixirc_paths(:test), do: [\"lib\", \"test/support\"]"
+                   ),
+                 zipper <-
+                   Igniter.Code.Common.add_code(
+                     zipper,
+                     "defp elixirc_paths(_), do: [\"lib\"]"
+                   ) do
+              zipper
+            end
+        end
+      end
+    end)
   end
 
   defp setup_repo_module(igniter, otp_app, repo) do
