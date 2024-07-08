@@ -18,6 +18,9 @@ defmodule AshPostgres.Test.Author do
   postgres do
     table("authors")
     repo(AshPostgres.TestRepo)
+
+    migration_types bios: :jsonb
+    storage_types(bios: :jsonb)
   end
 
   attributes do
@@ -25,6 +28,7 @@ defmodule AshPostgres.Test.Author do
     attribute(:first_name, :string, public?: true)
     attribute(:last_name, :string, public?: true)
     attribute(:bio, AshPostgres.Test.Bio, public?: true)
+    attribute(:bios, {:array, :map}, public?: true)
     attribute(:badges, {:array, :atom}, public?: true)
   end
 

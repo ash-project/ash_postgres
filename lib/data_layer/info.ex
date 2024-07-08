@@ -78,6 +78,11 @@ defmodule AshPostgres.DataLayer.Info do
     Extension.get_opt(resource, [:postgres], :migration_types, [])
   end
 
+  @doc "A keyword list of customized storage types"
+  def storage_types(resource) do
+    Extension.get_opt(resource, [:postgres], :storage_types, [])
+  end
+
   @doc "A keyword list of customized migration defaults"
   def migration_defaults(resource) do
     Extension.get_opt(resource, [:postgres], :migration_defaults, [])

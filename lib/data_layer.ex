@@ -287,6 +287,12 @@ defmodule AshPostgres.DataLayer do
         doc:
           "Whether or not to include this resource in the generated migrations with `mix ash.generate_migrations`"
       ],
+      storage_types: [
+        type: :keyword_list,
+        default: [],
+        doc:
+          "A keyword list of attribute names to the ecto type that should be used for that attribute. Only necessary if you need to override the defaults."
+      ],
       migration_types: [
         type: :keyword_list,
         default: [],
