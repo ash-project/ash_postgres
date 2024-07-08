@@ -44,8 +44,6 @@ defmodule AshPostgres.Test.LoadTest do
              |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
              |> Ash.create!()
 
-    Logger.configure(level: :debug)
-
     assert %{id: ^second_comment_id} =
              Post
              |> Ash.Query.load(latest_comment: [:expects_only_one_comment])
