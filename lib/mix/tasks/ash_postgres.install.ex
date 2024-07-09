@@ -16,7 +16,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
     |> configure_test(otp_app, repo)
     |> configure_runtime(otp_app, repo)
     |> Igniter.Project.Application.add_new_child(repo)
-    |> Ash.Igniter.codegen("install_ash_postgres")
+    |> Ash.Igniter.codegen("initialize")
   end
 
   defp configure_config(igniter, otp_app, repo) do
