@@ -10,10 +10,6 @@
 
 Welcome! `AshPostgres` is the PostgreSQL data layer for [Ash Framework](https://hexdocs.pm/ash).
 
-> ### What versions are supported? {: .info}
->
-> Any version higher than 13 is fully supported. Versions lower than this can be made to work, but certain edge cases may need to be manually handled. This becomes more and more true the further back in versions that you go.
-
 ## Tutorials
 
 - [Get Started](documentation/tutorials/get-started-with-ash-postgres.md)

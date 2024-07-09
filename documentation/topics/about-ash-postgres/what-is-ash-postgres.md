@@ -2,6 +2,10 @@
 
 AshPostgres is the PostgreSQL `Ash.DataLayer` for [Ash Framework](https://hexdocs.pm/ash). This is the most fully-featured Ash data layer, and unless you need a specific characteristic or feature of another data layer, you should use `AshPostgres`.
 
+> ### What versions are supported? {: .info}
+>
+> Any version higher than 13 is fully supported. Versions lower than this can be made to work, but certain edge cases may need to be manually handled. This becomes more and more true the further back in versions that you go.
+
 Use this to persist records in a PostgreSQL table or view. For example, the resource below would be persisted in a table called `tweets`:
 
 ```elixir
