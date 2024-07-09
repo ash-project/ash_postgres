@@ -97,6 +97,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         attributes do
           uuid_primary_key(:id)
+          uuid_v7_primary_key(:other_id)
           attribute(:title, :string, public?: true)
           attribute(:second_title, :string, public?: true)
           attribute(:title_with_source, :string, source: :t_w_s, public?: true)
@@ -140,6 +141,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
       # the migration adds the id, with its default
       assert file_contents =~
                ~S[add :id, :uuid, null: false, default: fragment("gen_random_uuid()"), primary_key: true]
+
+      # the migration adds the other_id, with its default
+      assert file_contents =~
+               ~S[add :other_id, :uuid, null: false, default: fragment("uuid_generate_v7()"), primary_key: true]
 
       # the migration adds the id, with its default
       assert file_contents =~
@@ -195,6 +200,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         attributes do
           uuid_primary_key(:id)
+          uuid_v7_primary_key(:other_id)
           attribute(:title, :string, public?: true)
           attribute(:second_title, :string, public?: true)
         end
@@ -246,6 +252,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
       # the migration adds the id, with its default
       assert file_contents =~
                ~S[add :id, :uuid, null: false, default: fragment("gen_random_uuid()"), primary_key: true]
+
+      # the migration adds the other_id, with its default
+      assert file_contents =~
+               ~S[add :other_id, :uuid, null: false, default: fragment("uuid_generate_v7()"), primary_key: true]
 
       # the migration adds other attributes
       assert file_contents =~ ~S[add :title, :text]
