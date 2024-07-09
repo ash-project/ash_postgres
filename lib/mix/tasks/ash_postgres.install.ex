@@ -219,6 +219,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
         |> remove_adapter_option()
         |> Sourceror.Zipper.top()
         |> configure_installed_extensions_function()
+        |> then(&{:ok, &1})
       end
     )
   end

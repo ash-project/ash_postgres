@@ -119,9 +119,10 @@ defmodule AshPostgres.AtomicsTest do
       |> Ash.create!()
 
     # just asserting that there is no exception here
-    post
-    |> Ash.Changeset.for_update(:change_title_to_foo_unless_its_already_foo)
-    |> Ash.update!()
+    Post
+    |> Ash.Query.filter(id == ^post.id)
+    |> Ash.Query.limit(1)
+    |> Ash.bulk_update!(:change_title_to_foo_unless_its_already_foo, %{})
   end
 
   test "an atomic works with a datetime" do
