@@ -219,7 +219,6 @@ defmodule Mix.Tasks.AshPostgres.Install do
         |> remove_adapter_option()
         |> Sourceror.Zipper.top()
         |> configure_installed_extensions_function()
-        |> then(&{:ok, &1})
       end
     )
   end
@@ -285,16 +284,17 @@ defmodule Mix.Tasks.AshPostgres.Install do
             end
 
           _ ->
-            Igniter.Code.Common.add_code(zipper, """
-            def installed_extensions do
-              # Add extensions here, and the migration generator will install them.
-              ["ash-functions"]
-            end
-            """)
+            {:ok,
+             Igniter.Code.Common.add_code(zipper, """
+             def installed_extensions do
+               # Add extensions here, and the migration generator will install them.
+               ["ash-functions"]
+             end
+             """)}
         end
 
       _ ->
-        zipper
+        {:ok, zipper}
     end
   end
 end
