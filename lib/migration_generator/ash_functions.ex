@@ -164,13 +164,8 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_elixir_and(BOOLEAN, ANYCOMPATIBLE), ash_elixir_and(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(BOOLEAN, ANYCOMPATIBLE), ash_trim_whitespace(text[])\")"
   end
 
-  defp ash_raise_error(prefix? \\ true) do
-    prefix =
-      if prefix? do
-        "ash_error: "
-      else
-        ""
-      end
+  defp ash_raise_error() do
+    prefix = "ash_error: "
 
     """
     execute(\"\"\"

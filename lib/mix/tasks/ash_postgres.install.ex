@@ -194,12 +194,12 @@ defmodule Mix.Tasks.AshPostgres.Install do
       Ecto.Adapters.SQL.Sandbox
     )
     |> Igniter.Project.Config.configure_new("test.exs", otp_app, [repo, :pool_size], 10)
-    |> Igniter.Project.Config.configure_new("test.exs", :ash, :disable_async?, true)
-    |> Igniter.Project.Config.configure_new("test.exs", :logger, :level, :warning)
+    |> Igniter.Project.Config.configure_new("test.exs", :ash, [:disable_async?], true)
+    |> Igniter.Project.Config.configure_new("test.exs", :logger, [:level], :warning)
   end
 
   defp setup_data_case(igniter) do
-    default_data_case_contents = """
+    default_data_case_contents = ~S|
     @moduledoc \"\"\"
     This module defines the setup for tests requiring
     access to the application's data layer.
@@ -233,7 +233,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
       on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
       :ok
     end
-    """
+    |
 
     module_name = Igniter.Code.Module.module_name("DataCase")
 
