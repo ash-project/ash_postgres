@@ -199,8 +199,8 @@ defmodule Mix.Tasks.AshPostgres.Install do
   end
 
   defp setup_data_case(igniter) do
-    default_data_case_contents = ~S|
-    @moduledoc \"\"\"
+    default_data_case_contents = ~s|
+    @moduledoc """
     This module defines the setup for tests requiring
     access to the application's data layer.
 
@@ -213,23 +213,23 @@ defmodule Mix.Tasks.AshPostgres.Install do
     PostgreSQL, you can even run database tests asynchronously
     by setting `use AshHq.DataCase, async: true`, although
     this option is not recommended for other databases.
-    \"\"\"
+    """
 
     use ExUnit.CaseTemplate
 
     using do
       quote do
-        alias #{Igniter.Code.Module.module_name_prefix()}.Repo
+        alias #{inspect(Igniter.Code.Module.module_name(Repo))}
 
         import Ecto
         import Ecto.Changeset
         import Ecto.Query
-        import #{Igniter.Code.Module.module_name_prefix()}.DataCase
+        import #{inspect(Igniter.Code.Module.module_name(DataCase))}
       end
     end
 
     setup tags do
-      pid = Ecto.Adapters.SQL.Sandbox.start_owner!(#{Igniter.Code.Module.module_name_prefix()}.Repo, shared: not tags[:async])
+      pid = Ecto.Adapters.SQL.Sandbox.start_owner!(#{inspect(Igniter.Code.Module.module_name(Repo))}, shared: not tags[:async])
       on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
       :ok
     end
