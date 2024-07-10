@@ -5,6 +5,25 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.1.0](https://github.com/ash-project/ash_postgres/compare/v2.0.12...v2.1.0) (2024-07-10)
+
+### Features:
+
+- [AshPostgres.DataLayer] add `storage_types` configuration (#342)
+- [generators] add `mix ash_postgres.install` (`mix igniter.install ash_postgres`)
+
+### Bug Fixes:
+
+- [AshPostgres.DataLayer] ensure that `from_many?` relationships in lateral join have a limit applied
+
+- [migration generator] properly delete args passed from migrate to ecto
+
+### Improvements:
+
+- [Ash.Type.UUIDv7] add support for `:uuid_v7` type (#333)
+
+- [migration generator] order keys in snapshot json (#339)
+
 ## [v2.0.12](https://github.com/ash-project/ash_postgres/compare/v2.0.11...v2.0.12) (2024-06-20)
 
 ### Bug Fixes:
