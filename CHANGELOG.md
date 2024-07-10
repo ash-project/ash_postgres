@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.1.1](https://github.com/ash-project/ash_postgres/compare/v2.1.0...v2.1.1) (2024-07-10)
+
+
+
+
+### Bug Fixes:
+
+* properly interpolate module names in installer
+
 ## [v2.1.0](https://github.com/ash-project/ash_postgres/compare/v2.0.12...v2.1.0) (2024-07-10)
 
 ### Features:
