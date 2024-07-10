@@ -235,15 +235,16 @@ defmodule Mix.Tasks.AshPostgres.Install do
     end
     """
 
+    module_name = Igniter.Code.Module.module_name("DataCase")
+
     igniter
     |> Igniter.Code.Module.find_and_update_or_create_module(
-      Igniter.Code.Module.module_name("DataCase"),
+      module_name,
       default_data_case_contents,
       # do nothing if already exists
       fn zipper -> {:ok, zipper} end,
-      kind: :test_support
+      path: Igniter.Code.Module.proper_location(module_name, "test/support")
     )
-    |> add_test_supports_to_elixirc_paths()
   end
 
   defp add_test_supports_to_elixirc_paths(igniter) do
