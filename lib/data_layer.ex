@@ -1442,16 +1442,6 @@ defmodule AshPostgres.DataLayer do
                 query.limit || query.offset ->
                   with {:ok, root_query} <-
                          AshSql.Atomics.select_atomics(resource, root_query, atomics) do
-                    select =
-                      Enum.map(Ash.Resource.Info.attributes(resource), & &1.name)
-
-                    root_query =
-                      Ecto.Query.select_merge(
-                        root_query,
-                        [record],
-                        map(record, ^select)
-                      )
-
                     {:ok, from(row in Ecto.Query.subquery(root_query), []), atomics != []}
                   end
 
@@ -1459,16 +1449,6 @@ defmodule AshPostgres.DataLayer do
                   with root_query <- Ecto.Query.exclude(root_query, :order_by),
                        {:ok, root_query} <-
                          AshSql.Atomics.select_atomics(resource, root_query, atomics) do
-                    select =
-                      Enum.map(Ash.Resource.Info.attributes(resource), & &1.name)
-
-                    root_query =
-                      Ecto.Query.select_merge(
-                        root_query,
-                        [record],
-                        map(record, ^select)
-                      )
-
                     {:ok, from(row in Ecto.Query.subquery(root_query), []), atomics != []}
                   end
 
