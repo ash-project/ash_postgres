@@ -3211,6 +3211,7 @@ defmodule AshPostgres.DataLayer do
 
   @doc false
   def split_and_statements(nil), do: []
+  def split_and_statements(%Ash.Filter{expression: nil}), do: []
   def split_and_statements(other), do: do_split_statements(other)
 
   def do_split_statements(%Ash.Filter{expression: expression}) do
