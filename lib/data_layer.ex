@@ -371,7 +371,6 @@ defmodule AshPostgres.DataLayer do
     ]
   }
 
-  alias Ash.Filter
   alias Ash.Query.{BooleanExpression, Not, Ref}
 
   @behaviour Ash.DataLayer
@@ -3211,29 +3210,36 @@ defmodule AshPostgres.DataLayer do
   end
 
   @doc false
-  def split_and_statements(%Filter{expression: expression}) do
-    split_and_statements(expression)
+  def split_and_statements(nil), do: []
+  def split_and_statements(other), do: do_split_statements(other)
+
+  def do_split_statements(%Ash.Filter{expression: expression}) do
+    do_split_statements(expression)
   end
 
-  def split_and_statements(%BooleanExpression{op: :and, left: left, right: right}) do
-    split_and_statements(left) ++ split_and_statements(right)
+  def do_split_statements(
+        %Not{
+          expression: %BooleanExpression{op: :or, left: left, right: right}
+        }
+      ) do
+    do_split_statements(
+      %BooleanExpression{
+        op: :and,
+        left: %Not{expression: left},
+        right: %Not{expression: right}
+      }
+    )
   end
 
-  def split_and_statements(%Not{expression: %Not{expression: expression}}) do
-    split_and_statements(expression)
+  def do_split_statements(%Not{expression: %Not{expression: expression}}) do
+    do_split_statements(expression)
   end
 
-  def split_and_statements(%Not{
-        expression: %BooleanExpression{op: :or, left: left, right: right}
-      }) do
-    split_and_statements(%BooleanExpression{
-      op: :and,
-      left: %Not{expression: left},
-      right: %Not{expression: right}
-    })
+  def do_split_statements(%BooleanExpression{op: :and, left: left, right: right}) do
+    do_split_statements(left) ++ do_split_statements(right)
   end
 
-  def split_and_statements(other), do: [other]
+  def do_split_statements(other), do: [other]
 
   @doc false
   def add_binding(query, data, additional_bindings \\ 0) do
