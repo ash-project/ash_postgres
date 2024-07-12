@@ -3197,6 +3197,13 @@ defmodule AshPostgres.DataLayer do
     |> Enum.reduce(query, fn filter, query ->
       {dynamic, acc} = AshPostgres.Expr.dynamic_expr(query, filter, query.__ash_bindings__)
 
+      dynamic =
+        if is_nil(dynamic) do
+          false
+        else
+          dynamic
+        end
+
       query
       |> Ecto.Query.where(^dynamic)
       |> merge_expr_accumulator(acc)
