@@ -7,17 +7,13 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 ## [v2.1.2](https://github.com/ash-project/ash_postgres/compare/v2.1.1...v2.1.2) (2024-07-13)
 
-
-
+- [query builder] update ash & improve type casting behavior
 
 ## [v2.1.1](https://github.com/ash-project/ash_postgres/compare/v2.1.0...v2.1.1) (2024-07-10)
 
-
-
-
 ### Bug Fixes:
 
-* properly interpolate module names in installer
+- [mix ash_postgres.install] properly interpolate module names in installer
 
 ## [v2.1.0](https://github.com/ash-project/ash_postgres/compare/v2.0.12...v2.1.0) (2024-07-10)
 
