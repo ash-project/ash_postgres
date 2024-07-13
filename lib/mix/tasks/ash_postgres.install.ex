@@ -219,17 +219,17 @@ defmodule Mix.Tasks.AshPostgres.Install do
 
     using do
       quote do
-        alias #{inspect(Igniter.Code.Module.module_name(Repo))}
+        alias #{inspect(Igniter.Code.Module.module_name("Repo"))}
 
         import Ecto
         import Ecto.Changeset
         import Ecto.Query
-        import #{inspect(Igniter.Code.Module.module_name(DataCase))}
+        import #{inspect(Igniter.Code.Module.module_name("DataCase"))}
       end
     end
 
     setup tags do
-      pid = Ecto.Adapters.SQL.Sandbox.start_owner!(#{inspect(Igniter.Code.Module.module_name(Repo))}, shared: not tags[:async])
+      pid = Ecto.Adapters.SQL.Sandbox.start_owner!(#{inspect(Igniter.Code.Module.module_name("Repo"))}, shared: not tags[:async])
       on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
       :ok
     end

@@ -212,6 +212,15 @@ defmodule AshPostgres.Test.Post do
       require_atomic?(false)
       manual(AshPostgres.Test.Post.ManualUpdate)
     end
+
+    update :update_constrained_int do
+      argument(:amount, :integer, allow_nil?: false)
+      change(atomic_update(:constrained_int, expr((constrained_int || 0) + ^arg(:amount))))
+
+      validate(compare(:constrained_int, greater_than_or_equal_to: 2),
+        message: "You cannot select less than two."
+      )
+    end
   end
 
   identities do
@@ -245,6 +254,8 @@ defmodule AshPostgres.Test.Post do
       source: :status_enum,
       public?: true
     )
+
+    attribute(:constrained_int, :integer, constraints: [min: 1, max: 10])
 
     attribute(:point, AshPostgres.Test.Point, public?: true)
     attribute(:composite_point, AshPostgres.Test.CompositePoint, public?: true)

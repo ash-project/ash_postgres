@@ -125,6 +125,34 @@ defmodule AshPostgres.AtomicsTest do
     |> Ash.bulk_update!(:change_title_to_foo_unless_its_already_foo, %{})
   end
 
+  test "an atomic validation can refer to an attribute being cast atomically" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "bar"})
+      |> Ash.create!()
+
+    # just asserting that there is no exception here
+    Post
+    |> Ash.Query.filter(id == ^post.id)
+    |> Ash.Query.limit(1)
+    |> Ash.bulk_update!(:update_constrained_int, %{amount: 4})
+  end
+
+  test "an atomic validation can refer to an attribute being cast atomically, and will raise an error" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "bar"})
+      |> Ash.create!()
+
+    # just asserting that there is no exception here
+    assert_raise Ash.Error.Invalid, ~r/must be less than or equal to 10/, fn ->
+      Post
+      |> Ash.Query.filter(id == ^post.id)
+      |> Ash.Query.limit(1)
+      |> Ash.bulk_update!(:update_constrained_int, %{amount: 12})
+    end
+  end
+
   test "an atomic works with a datetime" do
     post =
       Post
