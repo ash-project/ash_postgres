@@ -450,6 +450,15 @@ defmodule AshPostgres.SqlImplementation do
           :error
         end
 
+      %{__predicate__?: true} ->
+        {:ok, {:boolean, []}}
+
+      %Ash.Query.BooleanExpression{} ->
+        {:ok, {:boolean, []}}
+
+      %Ash.Query.Exists{} ->
+        {:ok, {:boolean, []}}
+
       _ ->
         :error
     end
