@@ -52,7 +52,9 @@ if Mix.env() == :test do
     ash_domains: [
       AshPostgres.Test.Domain,
       AshPostgres.MultitenancyTest.Domain,
-      AshPostgres.Test.ComplexCalculations.Domain
+      AshPostgres.Test.ComplexCalculations.Domain,
+      AshPostgres.Test.MultiDomainCalculations.DomainOne,
+      AshPostgres.Test.MultiDomainCalculations.DomainTwo
     ]
 
   config :ash, :compatible_foreign_key_types, [
