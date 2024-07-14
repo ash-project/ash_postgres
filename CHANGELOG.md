@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.1.3](https://github.com/ash-project/ash_postgres/compare/v2.1.2...v2.1.3) (2024-07-14)
+
+
+
+
+### Improvements:
+
+* support new type determination code
+
 ## [v2.1.2](https://github.com/ash-project/ash_postgres/compare/v2.1.1...v2.1.2) (2024-07-13)
 
 - [query builder] update ash & improve type casting behavior
