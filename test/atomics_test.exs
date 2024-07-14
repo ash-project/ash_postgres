@@ -151,6 +151,13 @@ defmodule AshPostgres.AtomicsTest do
       |> Ash.Query.limit(1)
       |> Ash.bulk_update!(:update_constrained_int, %{amount: 12})
     end
+
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "bar", constrained_int: 5})
+      |> Ash.create!()
+
+    assert %{constrained_int: 10} = Post.update_constrained_int!(post.id, 5)
   end
 
   test "an atomic works with a datetime" do

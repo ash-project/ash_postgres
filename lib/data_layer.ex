@@ -1,5 +1,6 @@
 defmodule AshPostgres.DataLayer do
   require Ecto.Query
+  require Ash.Expr
 
   @manage_tenant %Spark.Dsl.Section{
     name: :manage_tenant,

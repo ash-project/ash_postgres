@@ -255,7 +255,12 @@ defmodule AshPostgres.Test.Post do
       public?: true
     )
 
-    attribute(:constrained_int, :integer, constraints: [min: 1, max: 10])
+    attribute(:constrained_int, :integer,
+      constraints: [min: 1, max: 10],
+      default: 2,
+      allow_nil?: false,
+      public?: true
+    )
 
     attribute(:point, AshPostgres.Test.Point, public?: true)
     attribute(:composite_point, AshPostgres.Test.CompositePoint, public?: true)
@@ -287,6 +292,7 @@ defmodule AshPostgres.Test.Post do
     define(:get_by_id, action: :read, get_by: [:id])
     define(:increment_score, args: [{:optional, :amount}])
     define(:destroy)
+    define(:update_constrained_int, args: [:amount])
   end
 
   relationships do
