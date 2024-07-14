@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.1.4](https://github.com/ash-project/ash_postgres/compare/v2.1.3...v2.1.4) (2024-07-14)
+
+
+
+
+### Improvements:
+
+* use latest type casting code from ash
+
+* support new type determination code
+
 ## [v2.1.3](https://github.com/ash-project/ash_postgres/compare/v2.1.2...v2.1.3) (2024-07-14)
 
 
