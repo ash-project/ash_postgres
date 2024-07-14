@@ -228,11 +228,11 @@ defmodule AshPostgres.SqlImplementation do
   end
 
   @impl true
-  def determine_types(mod, args) do
-    {types, returns} = Ash.Expr.determine_types(mod, args)
+  def determine_types(mod, args, returns \\ nil) do
+    {types, new_returns} = Ash.Expr.determine_types(mod, args, returns)
 
-    returns =
-      case returns do
+    new_returns =
+      case new_returns do
         {type, constraints} -> parameterized_type(type, constraints)
         other -> other
       end
@@ -243,6 +243,6 @@ defmodule AshPostgres.SqlImplementation do
 
        other ->
          other
-     end), returns}
+     end), new_returns || returns}
   end
 end
