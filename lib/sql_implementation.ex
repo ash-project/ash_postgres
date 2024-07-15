@@ -42,15 +42,16 @@ defmodule AshPostgres.SqlImplementation do
   end
 
   def expr(query, %AshPostgres.Functions.Binding{}, _bindings, _embedded?, acc, _type) do
-    binding = AshSql.Bindings.get_binding(
-      query.__ash_bindings__.resource,
-      [],
-      query,
-      [:left, :inner, :root]
-    )
+    binding =
+      AshSql.Bindings.get_binding(
+        query.__ash_bindings__.resource,
+        [],
+        query,
+        [:left, :inner, :root]
+      )
 
     if is_nil(binding) do
-        raise "Error while constructing explicit `binding()` reference."
+      raise "Error while constructing explicit `binding()` reference."
     end
 
     {:ok, Ecto.Query.dynamic([{^binding, row}], row), acc}

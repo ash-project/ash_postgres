@@ -7,40 +7,27 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 ## [v2.1.5](https://github.com/ash-project/ash_postgres/compare/v2.1.4...v2.1.5) (2024-07-15)
 
-
-
-
 ### Bug Fixes:
 
-* ensure synthesized query aggregates have context set
+- ensure synthesized query aggregates have context set
 
 ### Improvements:
 
-* add `binding()` expression
+- [`Ash.Expr`] add `binding()` expression to refer to current table
 
-* use latest type casting code from ash
-
-* support new type determination code
+- [`Ash.Expr`] use latest type casting code from ash
 
 ## [v2.1.4](https://github.com/ash-project/ash_postgres/compare/v2.1.3...v2.1.4) (2024-07-14)
 
-
-
-
 ### Improvements:
 
-* use latest type casting code from ash
-
-* support new type determination code
+- [`Ash.Expr`] use latest type casting code from ash
 
 ## [v2.1.3](https://github.com/ash-project/ash_postgres/compare/v2.1.2...v2.1.3) (2024-07-14)
 
-
-
-
 ### Improvements:
 
-* support new type determination code
+- [`Ash.Expr`] support new type determination code
 
 ## [v2.1.2](https://github.com/ash-project/ash_postgres/compare/v2.1.1...v2.1.2) (2024-07-13)
 
