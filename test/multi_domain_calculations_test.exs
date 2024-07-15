@@ -20,7 +20,7 @@ defmodule AshPostgres.Test.MultiDomainCalculationsTest do
       |> Ash.create!()
     end
 
-    assert %{total_amount: 3} =
+    assert [%{total_amount: 3}] =
              Ash.read!(AshPostgres.Test.MultiDomainCalculations.DomainOne.Item,
                load: [:total_amount]
              )

@@ -1268,8 +1268,8 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def resource_to_query(resource, _) do
-    AshSql.Query.resource_to_query(resource, AshPostgres.SqlImplementation)
+  def resource_to_query(resource, domain) do
+    AshSql.Query.resource_to_query(resource, AshPostgres.SqlImplementation, domain)
   end
 
   @impl true
