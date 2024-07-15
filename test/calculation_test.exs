@@ -800,6 +800,20 @@ defmodule AshPostgres.CalculationTest do
              |> Ash.read_one!()
   end
 
+  test "binding() can be used to refer to the current binding in a fragment" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{})
+      |> Ash.create!()
+
+    post_id = post.id
+
+    assert [%{id: ^post_id}] =
+             Post
+             |> Ash.Query.filter(fragment("(?).id", binding()) == type(^post.id, :uuid))
+             |> Ash.read!()
+  end
+
   test "exists with a relationship that has a filtered read action works" do
     post =
       Post
