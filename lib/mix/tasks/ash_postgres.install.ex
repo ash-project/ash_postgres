@@ -325,7 +325,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
   defp configure_installed_extensions_function(zipper) do
     case Igniter.Code.Module.move_to_module_using(zipper, AshPostgres.Repo) do
       {:ok, zipper} ->
-        case Igniter.Code.Module.move_to_def(zipper, :installed_extensions, 0) do
+        case Igniter.Code.Function.move_to_def(zipper, :installed_extensions, 0) do
           {:ok, zipper} ->
             case Igniter.Code.Common.move_right(zipper, &Igniter.Code.List.list?/1) do
               {:ok, zipper} ->
