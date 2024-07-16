@@ -39,6 +39,12 @@ defmodule AshPostgres.Test.ComplexCalculations.Skill do
       )
     end
 
+    calculate(
+      :documentations_custom,
+      :map,
+      expr(%{one: "One", documentations: list(documentations, field: :custom_map)})
+    )
+
     calculate :count_ever_demonstrated, :integer do
       calculation(
         expr(

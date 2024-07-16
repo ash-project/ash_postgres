@@ -86,6 +86,23 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
     assert certification.count_of_skills_ever_demonstrated == 1
   end
 
+  test "calculation of inline aggregate" do
+    skill =
+      AshPostgres.Test.ComplexCalculations.Skill
+      |> Ash.Changeset.new()
+      |> Ash.create!()
+
+    AshPostgres.Test.ComplexCalculations.Documentation
+    |> Ash.Changeset.for_create(:create, %{status: :demonstrated})
+    |> Ash.Changeset.manage_relationship(:skill, skill, type: :append)
+    |> Ash.create!()
+
+    skill = Ash.load!(skill, [:documentations_custom])
+
+    assert %{one: "One", documentations: [%{two: "Two", status: :demonstrated}]} =
+             skill.documentations_custom
+  end
+
   test "channel: first_member and second member" do
     channel =
       AshPostgres.Test.ComplexCalculations.Channel
