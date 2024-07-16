@@ -29,6 +29,8 @@ defmodule AshPostgres.Test.ComplexCalculations.Documentation do
   end
 
   calculations do
+    calculate(:custom_map, :map, expr(%{status: status, two: "Two"}))
+
     calculate(
       :timestamp,
       :utc_datetime_usec,
