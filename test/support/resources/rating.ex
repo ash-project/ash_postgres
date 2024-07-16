@@ -20,4 +20,8 @@ defmodule AshPostgres.Test.Rating do
     attribute(:score, :integer, public?: true)
     attribute(:resource_id, :uuid, public?: true)
   end
+
+  calculations do
+    calculate(:double_score, :integer, expr(score * 2))
+  end
 end

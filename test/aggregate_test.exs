@@ -5,6 +5,13 @@ defmodule AshSql.AggregateTest do
   require Ash.Query
   import Ash.Expr
 
+  test "nested sum aggregates" do
+    # asserting an error is not raised
+    assert Post
+           |> Ash.Query.load(:sum_of_comment_ratings_calc)
+           |> Ash.read!() == []
+  end
+
   test "relates to actor via has_many and with an aggregate" do
     org =
       Organization

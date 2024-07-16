@@ -566,6 +566,7 @@ defmodule AshPostgres.Test.Post do
   end
 
   aggregates do
+    sum(:sum_of_comment_ratings_calc, [:comments, :ratings], :double_score)
     count(:count_of_comments, :comments)
     count(:count_of_linked_posts, :linked_posts)
 
