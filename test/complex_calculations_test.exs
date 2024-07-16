@@ -99,7 +99,7 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
 
     skill = Ash.load!(skill, [:documentations_custom])
 
-    assert %{one: "One", documentations: [%{two: "Two", status: :demonstrated}]} =
+    assert %{one: "One", documentations: [%{"two" => "Two", "status" => "demonstrated"}]} =
              skill.documentations_custom
   end
 
