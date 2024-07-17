@@ -32,6 +32,10 @@ defmodule AshPostgres.Test.MultiDomainCalculationsTest do
       |> Ash.Changeset.for_create(:create, %{key: "key"})
       |> Ash.create!()
 
+      Ash.read!(AshPostgres.Test.MultiDomainCalculations.DomainOne.Item,
+        load: [:total_amount_relationship]
+      )
+
     _relationship_item =
       AshPostgres.Test.MultiDomainCalculations.DomainThree.RelationshipItem
       |> Ash.Changeset.for_create(:create, %{key: "key", value: 1})
@@ -48,7 +52,7 @@ defmodule AshPostgres.Test.MultiDomainCalculationsTest do
       |> Ash.create!()
     end
 
-    assert [%{total_amount: 3}] =
+    assert [%{total_amount_relationship: 3}] =
              Ash.read!(AshPostgres.Test.MultiDomainCalculations.DomainOne.Item,
                load: [:total_amount_relationship]
              )

@@ -15,6 +15,10 @@ defmodule AshPostgres.Test.MultiDomainCalculations.DomainTwo.OtherItem do
     update_timestamp(:updated_at)
   end
 
+  identities do
+    identity :unique_parent, [:item_id]
+  end
+
   relationships do
     belongs_to(:item, Item, allow_nil?: false)
     has_many(:sub_items, SubItem)

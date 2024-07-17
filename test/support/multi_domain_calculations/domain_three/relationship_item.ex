@@ -25,7 +25,7 @@ defmodule AshPostgres.Test.MultiDomainCalculations.DomainThree.RelationshipItem 
   end
 
   postgres do
-    table "items"
+    table "relationship_items"
     repo(AshPostgres.TestRepo)
   end
 end
