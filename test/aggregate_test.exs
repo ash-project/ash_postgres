@@ -577,6 +577,52 @@ defmodule AshSql.AggregateTest do
                |> Ash.read_one!()
     end
 
+    test "it does not return `nil` values by default" do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
+        |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: nil})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      assert %{first_comment_nils_first: "match"} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:first_comment_nils_first)
+               |> Ash.read_one!()
+    end
+
+    test "it returns `nil` values when `include_nil?` is `true`" do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
+        |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: nil})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      assert %{first_comment_nils_first_include_nil: "match"} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:first_comment_nils_first_include_nil)
+               |> Ash.read_one!()
+    end
+
     test "it can be sorted on" do
       post =
         Post

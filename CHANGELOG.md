@@ -5,6 +5,29 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.1.7](https://github.com/ash-project/ash_postgres/compare/v2.1.6...v2.1.7) (2024-07-17)
+
+
+
+
+### Bug Fixes:
+
+* update to latest ash version for aggregate fix
+
+* update ash_sql for include_nil? fix and test it
+
+* ensure synthesized query aggregates have context set
+
+### Improvements:
+
+* update ash/igniter dependencies
+
+* add `binding()` expression
+
+* use latest type casting code from ash
+
+* support new type determination code
+
 ## [v2.1.6](https://github.com/ash-project/ash_postgres/compare/v2.1.5...v2.1.6) (2024-07-16)
 
 
