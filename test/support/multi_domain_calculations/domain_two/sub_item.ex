@@ -25,6 +25,12 @@ defmodule AshPostgres.Test.MultiDomainCalculations.DomainTwo.SubItem do
 
   calculations do
     calculate(:total_amount, :integer, expr(amount))
+
+    calculate(
+      :total_amount_relationship,
+      :integer,
+      expr(amount * other_item.item.relationship_item.value)
+    )
   end
 
   policies do
