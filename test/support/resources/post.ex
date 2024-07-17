@@ -606,6 +606,11 @@ defmodule AshPostgres.Test.Post do
       sort(title: :asc_nils_last)
     end
 
+    list :comment_titles_with_nils, :comments, :title do
+      sort(title: :asc_nils_last)
+      include_nil?(true)
+    end
+
     list :uniq_comment_titles, :comments, :title do
       uniq?(true)
       sort(title: :asc_nils_last)

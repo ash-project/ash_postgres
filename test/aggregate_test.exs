@@ -378,6 +378,62 @@ defmodule AshSql.AggregateTest do
                |> Ash.read_one!()
     end
 
+    test "does not return nil values" do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
+        |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "bbb"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: nil})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "aaa"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      assert %{comment_titles: ["aaa", "bbb"]} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:comment_titles)
+               |> Ash.read_one!()
+    end
+
+    test "returns nil values if `include_nil?` is set to `true`" do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
+        |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "bbb"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: nil})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "aaa"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      assert %{comment_titles_with_nils: ["aaa", "bbb", nil]} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:comment_titles_with_nils)
+               |> Ash.read_one!()
+    end
+
     test "with related data, it returns the value" do
       post =
         Post
