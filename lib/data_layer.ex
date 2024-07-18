@@ -1044,9 +1044,25 @@ defmodule AshPostgres.DataLayer do
       {:ok, data_layer_query} ->
         source_values = Enum.map(root_data, &Map.get(&1, source_attribute))
 
+        source_filter =
+          case source_pkey do
+            [] ->
+              Ecto.Query.dynamic([source], field(source, ^source_attribute) in ^source_values)
+
+            [field] ->
+              values = Enum.map(root_data, &Map.get(&1, field))
+              Ecto.Query.dynamic([source], field(source, ^field) in ^values)
+
+            fields ->
+              Enum.reduce(fields, Ecto.Query.dynamic(true), fn field, acc ->
+                values = Enum.map(root_data, &Map.get(&1, field))
+                Ecto.Query.dynamic([source], field(source, ^field) in ^values and ^acc)
+              end)
+          end
+
         data_layer_query =
           from(source in data_layer_query,
-            where: field(source, ^source_attribute) in ^source_values
+            where: ^source_filter
           )
 
         if query.__ash_bindings__[:__order__?] do
