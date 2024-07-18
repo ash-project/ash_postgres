@@ -32,9 +32,9 @@ defmodule AshPostgres.Test.MultiDomainCalculationsTest do
       |> Ash.Changeset.for_create(:create, %{key: "key"})
       |> Ash.create!()
 
-      Ash.read!(AshPostgres.Test.MultiDomainCalculations.DomainOne.Item,
-        load: [:total_amount_relationship]
-      )
+    Ash.read!(AshPostgres.Test.MultiDomainCalculations.DomainOne.Item,
+      load: [:total_amount_relationship]
+    )
 
     _relationship_item =
       AshPostgres.Test.MultiDomainCalculations.DomainThree.RelationshipItem

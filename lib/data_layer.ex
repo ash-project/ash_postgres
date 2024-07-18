@@ -2916,23 +2916,22 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  if Code.ensure_loaded?(Igniter) do
-    def install(igniter, module, Ash.Resource, _path, _argv) do
-      table_name =
-        module
-        |> Module.split()
-        |> List.last()
-        |> Macro.underscore()
+  def install(igniter, module, Ash.Resource, _path, _argv) do
+    table_name =
+      module
+      |> Module.split()
+      |> List.last()
+      |> Macro.underscore()
+      |> Inflex.pluralize()
 
-      repo = Igniter.Code.Module.module_name("Repo")
+    repo = Igniter.Code.Module.module_name("Repo")
 
-      igniter
-      |> Spark.Igniter.set_option(module, [:postgres, :table], table_name)
-      |> Spark.Igniter.set_option(module, [:postgres, :repo], repo)
-    end
-
-    def install(igniter, _, _, _), do: igniter
+    igniter
+    |> Spark.Igniter.set_option(module, [:postgres, :table], table_name)
+    |> Spark.Igniter.set_option(module, [:postgres, :repo], repo)
   end
+
+  def install(igniter, _, _, _), do: igniter
 
   @impl true
   def rollback(resource, term) do

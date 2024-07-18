@@ -16,7 +16,7 @@ defmodule AshPostgres.Test.MultiDomainCalculations.DomainTwo.OtherItem do
   end
 
   identities do
-    identity :unique_parent, [:item_id]
+    identity(:unique_parent, [:item_id])
   end
 
   relationships do
