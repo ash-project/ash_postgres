@@ -7,61 +7,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 ## [v2.1.10](https://github.com/ash-project/ash_postgres/compare/v2.1.9...v2.1.10) (2024-07-18)
 
-
-
-
 ### Bug Fixes:
 
-* allow non-unique has_many source_attributes (#355)
-
-* allow non-unique has_many source_attributes
-
-* update `ash_sql` for `parent_as` binding fix
-
-* update to latest ash version for aggregate fix
-
-* update ash_sql for include_nil? fix and test it
-
-* ensure synthesized query aggregates have context set
-
-### Improvements:
-
-* pluralize table name in extender
-
-* update ash/igniter dependencies
-
-* add `binding()` expression
-
-* use latest type casting code from ash
-
-* support new type determination code
+- [lateral joins] allow non-unique has_many source_attributes (#355)
 
 ## [v2.1.9](https://github.com/ash-project/ash_postgres/compare/v2.1.8...v2.1.9) (2024-07-18)
 
-
-
-
 ### Bug Fixes:
-
-* update `ash_sql` for `parent_as` binding fix
-
-* update to latest ash version for aggregate fix
-
-* update ash_sql for include_nil? fix and test it
-
-* ensure synthesized query aggregates have context set
 
 ### Improvements:
 
-* pluralize table name in extender
-
-* update ash/igniter dependencies
-
-* add `binding()` expression
-
-* use latest type casting code from ash
-
-* support new type determination code
+- [`mix ash.gen.resource`] pluralize table name in extender
 
 ## [v2.1.8](https://github.com/ash-project/ash_postgres/compare/v2.1.7...v2.1.8) (2024-07-17)
 
