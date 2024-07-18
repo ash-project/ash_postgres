@@ -1054,9 +1054,27 @@ defmodule AshPostgres.DataLayer do
               Ecto.Query.dynamic([source], field(source, ^field) in ^values)
 
             fields ->
-              Enum.reduce(fields, Ecto.Query.dynamic(true), fn field, acc ->
-                values = Enum.map(root_data, &Map.get(&1, field))
-                Ecto.Query.dynamic([source], field(source, ^field) in ^values and ^acc)
+              Enum.reduce(root_data, nil, fn record, acc ->
+                row_match =
+                  Enum.reduce(fields, nil, fn field, acc ->
+                    if is_nil(acc) do
+                      Ecto.Query.dynamic(
+                        [source],
+                        field(source, ^field) == ^Map.get(record, field)
+                      )
+                    else
+                      Ecto.Query.dynamic(
+                        [source],
+                        field(source, ^field) == ^Map.get(record, field) and ^acc
+                      )
+                    end
+                  end)
+
+                if is_nil(acc) do
+                  row_match
+                else
+                  Ecto.Query.dynamic(^row_match or ^acc)
+                end
               end)
           end
 
