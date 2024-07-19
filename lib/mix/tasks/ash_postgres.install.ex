@@ -2,6 +2,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
   @moduledoc "Installs AshPostgres. Should be run with `mix igniter.install ash_postgres`"
   @shortdoc @moduledoc
   require Igniter.Code.Common
+  require Igniter.Code.Function
   use Igniter.Mix.Task
 
   def igniter(igniter, _argv) do
@@ -77,35 +78,36 @@ defmodule Mix.Tasks.AshPostgres.Install do
         |> Igniter.Code.Common.move_to_cursor_match_in_scope(patterns)
         |> case do
           {:ok, zipper} ->
-            case Igniter.Code.Function.move_to_function_call_in_current_scope(
-                   zipper,
-                   :=,
-                   2,
-                   fn call ->
-                     Igniter.Code.Function.argument_matches_predicate?(
-                       call,
-                       0,
-                       &match?({:database_url, _, Elixir}, &1)
-                     )
-                   end
-                 ) do
-              {:ok, zipper} ->
-                zipper
-                |> Igniter.Project.Config.modify_configuration_code(
-                  [repo, :url],
-                  otp_app,
-                  {:database_url, [], Elixir}
-                )
-                |> Igniter.Project.Config.modify_configuration_code(
-                  [repo, :pool_size],
-                  otp_app,
-                  quote do
-                    String.to_integer(System.get_env("POOL_SIZE") || "10")
-                  end
-                )
-                |> then(&{:ok, &1})
-
-              :error ->
+            with {:ok, _zipper} <-
+                   Igniter.Code.Function.move_to_function_call_in_current_scope(
+                     zipper,
+                     :=,
+                     2,
+                     fn call ->
+                       Igniter.Code.Function.argument_matches_pattern?(
+                         call,
+                         0,
+                         {:database_url, _, ctx} when is_atom(ctx)
+                       )
+                     end
+                   ) do
+              zipper
+              |> Igniter.Project.Config.modify_configuration_code(
+                [repo, :url],
+                otp_app,
+                {:database_url, [], nil}
+              )
+              |> Igniter.Util.Debug.puts_code_at_node()
+              |> Igniter.Project.Config.modify_configuration_code(
+                [repo, :pool_size],
+                otp_app,
+                Sourceror.parse_string!("""
+                String.to_integer(System.get_env("POOL_SIZE") || "10")
+                """)
+              )
+              |> then(&{:ok, &1})
+            else
+              _ ->
                 Igniter.Code.Common.add_code(zipper, """
                   database_url =
                     System.get_env("DATABASE_URL") ||
