@@ -97,7 +97,6 @@ defmodule Mix.Tasks.AshPostgres.Install do
                 otp_app,
                 {:database_url, [], nil}
               )
-              |> Igniter.Util.Debug.puts_code_at_node()
               |> Igniter.Project.Config.modify_configuration_code(
                 [repo, :pool_size],
                 otp_app,
