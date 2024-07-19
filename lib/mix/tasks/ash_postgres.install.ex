@@ -17,6 +17,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
     |> configure_test(otp_app, repo)
     |> setup_data_case()
     |> Igniter.Project.Application.add_new_child(repo)
+    |> Spark.Igniter.prepend_to_section_order(:"Ash.Resource", [:postgres])
     |> Ash.Igniter.codegen("initialize")
   end
 
