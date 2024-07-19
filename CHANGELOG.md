@@ -5,6 +5,41 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.1.11](https://github.com/ash-project/ash_postgres/compare/v2.1.10...v2.1.11) (2024-07-19)
+
+
+
+
+### Bug Fixes:
+
+* properly perform or don't perform configuration modification code
+
+* allow non-unique has_many source_attributes (#355)
+
+* allow non-unique has_many source_attributes
+
+* update `ash_sql` for `parent_as` binding fix
+
+* update to latest ash version for aggregate fix
+
+* update ash_sql for include_nil? fix and test it
+
+* ensure synthesized query aggregates have context set
+
+### Improvements:
+
+* prepend `:postgres` to section order
+
+* pluralize table name in extender
+
+* update ash/igniter dependencies
+
+* add `binding()` expression
+
+* use latest type casting code from ash
+
+* support new type determination code
+
 ## [v2.1.10](https://github.com/ash-project/ash_postgres/compare/v2.1.9...v2.1.10) (2024-07-18)
 
 ### Bug Fixes:
