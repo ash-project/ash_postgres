@@ -78,33 +78,34 @@ defmodule Mix.Tasks.AshPostgres.Install do
         |> Igniter.Code.Common.move_to_cursor_match_in_scope(patterns)
         |> case do
           {:ok, zipper} ->
-              case Igniter.Code.Function.move_to_function_call_in_current_scope(
-                     zipper,
-                     :=,
-                     2,
-                     fn call ->
-                       Igniter.Code.Function.argument_matches_pattern?(
-                         call,
-                         0,
-                         {:database_url, _, ctx} when is_atom(ctx)
-                       )
-                     end
-                   ) do
-              {:ok, zipper} ->
-              zipper
-              |> Igniter.Project.Config.modify_configuration_code(
-                [repo, :url],
-                otp_app,
-                {:database_url, [], nil}
-              )
-              |> Igniter.Project.Config.modify_configuration_code(
-                [repo, :pool_size],
-                otp_app,
-                Sourceror.parse_string!("""
-                String.to_integer(System.get_env("POOL_SIZE") || "10")
-                """)
-              )
-              |> then(&{:ok, &1})
+            case Igniter.Code.Function.move_to_function_call_in_current_scope(
+                   zipper,
+                   :=,
+                   2,
+                   fn call ->
+                     Igniter.Code.Function.argument_matches_pattern?(
+                       call,
+                       0,
+                       {:database_url, _, ctx} when is_atom(ctx)
+                     )
+                   end
+                 ) do
+              {:ok, _zipper} ->
+                zipper
+                |> Igniter.Project.Config.modify_configuration_code(
+                  [repo, :url],
+                  otp_app,
+                  {:database_url, [], nil}
+                )
+                |> Igniter.Project.Config.modify_configuration_code(
+                  [repo, :pool_size],
+                  otp_app,
+                  Sourceror.parse_string!("""
+                  String.to_integer(System.get_env("POOL_SIZE") || "10")
+                  """)
+                )
+                |> then(&{:ok, &1})
+
               _ ->
                 Igniter.Code.Common.add_code(zipper, """
                   database_url =
