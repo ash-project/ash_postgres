@@ -58,7 +58,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
 
     igniter
     |> Igniter.create_or_update_elixir_file("config/runtime.exs", default_runtime, fn zipper ->
-      if Igniter.Project.Config.configures?(zipper, [repo, :url], otp_app) do
+      if Igniter.Project.Config.configures_key?(zipper, otp_app, [repo, :url]) do
         zipper
       else
         patterns = [
@@ -78,8 +78,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
         |> Igniter.Code.Common.move_to_cursor_match_in_scope(patterns)
         |> case do
           {:ok, zipper} ->
-            with {:ok, _zipper} <-
-                   Igniter.Code.Function.move_to_function_call_in_current_scope(
+              case Igniter.Code.Function.move_to_function_call_in_current_scope(
                      zipper,
                      :=,
                      2,
@@ -91,6 +90,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
                        )
                      end
                    ) do
+              {:ok, zipper} ->
               zipper
               |> Igniter.Project.Config.modify_configuration_code(
                 [repo, :url],
@@ -106,7 +106,6 @@ defmodule Mix.Tasks.AshPostgres.Install do
                 """)
               )
               |> then(&{:ok, &1})
-            else
               _ ->
                 Igniter.Code.Common.add_code(zipper, """
                   database_url =
