@@ -13,6 +13,17 @@ defmodule PassIfOriginalDataPresent do
   end
 end
 
+defmodule HasNoComments do
+  alias Ash.Error.Invalid
+  use Ash.Resource.Validation
+
+  def atomic(_changeset, _opts, _context) do
+    # This uses the list aggregate because we want to specifically test this aggregate
+    {:atomic, [], expr(list(comments, field: :id) > 0),
+     expr(error(^Invalid, %{message: "Can only delete if Post has no comments"}))}
+  end
+end
+
 defmodule AshPostgres.Test.Post do
   @moduledoc false
   use Ash.Resource,
@@ -90,6 +101,10 @@ defmodule AshPostgres.Test.Post do
 
     destroy :destroy_only_freds do
       change(filter(expr(title == "fred")))
+    end
+
+    destroy :destroy_if_no_comments do
+      validate(HasNoComments)
     end
 
     update :update_only_freds do
