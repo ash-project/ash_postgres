@@ -5,6 +5,17 @@ defmodule AshPostgres.MultitenancyTest.Org do
     data_layer: AshPostgres.DataLayer,
     authorizers: [Ash.Policy.Authorizer]
 
+  defimpl Ash.ToTenant do
+    def to_tenant(%{id: id}, resource) do
+      if Ash.Resource.Info.data_layer(resource) == AshPostgres.DataLayer &&
+           Ash.Resource.Info.multitenancy_strategy(resource) == :context do
+        "org_#{id}"
+      else
+        id
+      end
+    end
+  end
+
   policies do
     policy action(:has_policies) do
       authorize_if(relates_to_actor_via(:owner))
@@ -66,6 +77,10 @@ defmodule AshPostgres.MultitenancyTest.Org do
   end
 
   def tenant("org_" <> tenant) do
+    tenant
+  end
+
+  def tenant(tenant) do
     tenant
   end
 end

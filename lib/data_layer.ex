@@ -1271,7 +1271,7 @@ defmodule AshPostgres.DataLayer do
         query_tenant =
           case source_query do
             %{__tenant__: tenant} -> tenant
-            %{tenant: tenant} -> tenant
+            %{tenant: tenant} -> Ash.ToTenant.to_tenant(tenant, resource)
             _ -> nil
           end
 

@@ -30,10 +30,17 @@ defmodule AshPostgres.Test.MultitenancyTest do
     assert Enum.sort(AshPostgres.TestRepo.all_tenants()) == tenant_ids
   end
 
+  test "lateral joining attribute multitenancy to context multitenancy works", %{org1: org1} do
+    Org
+    |> Ash.Query.for_read(:read, %{}, tenant: org1)
+    |> Ash.Query.load(posts: Ash.Query.limit(Post, 2))
+    |> Ash.read!()
+  end
+
   test "attribute multitenancy works", %{org1: %{id: org_id} = org1} do
     assert [%{id: ^org_id}] =
              Org
-             |> Ash.Query.set_tenant(tenant(org1))
+             |> Ash.Query.set_tenant(org1)
              |> Ash.read!()
   end
 
@@ -46,7 +53,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
 
     assert [] =
              Org
-             |> Ash.Query.set_tenant(tenant(org1))
+             |> Ash.Query.set_tenant(org1)
              |> Ash.Query.for_read(:has_policies, %{}, actor: user, authorize?: true)
              |> Ash.read!()
   end
@@ -54,11 +61,11 @@ defmodule AshPostgres.Test.MultitenancyTest do
   test "context multitenancy works with policies", %{org1: org1} do
     post =
       Post
-      |> Ash.Changeset.for_create(:create, %{name: "foo"}, tenant: tenant(org1))
+      |> Ash.Changeset.for_create(:create, %{name: "foo"}, tenant: org1)
       |> Ash.create!()
 
     post
-    |> Ash.Changeset.for_update(:update_with_policy, %{}, authorize?: true, tenant: tenant(org1))
+    |> Ash.Changeset.for_update(:update_with_policy, %{}, authorize?: true, tenant: org1)
     |> Ash.update!()
   end
 
@@ -77,11 +84,11 @@ defmodule AshPostgres.Test.MultitenancyTest do
   test "schema multitenancy works", %{org1: org1, org2: org2} do
     Post
     |> Ash.Changeset.for_create(:create, %{name: "foo"})
-    |> Ash.Changeset.set_tenant(tenant(org1))
+    |> Ash.Changeset.set_tenant(org1)
     |> Ash.create!()
 
-    assert [_] = Post |> Ash.Query.set_tenant(tenant(org1)) |> Ash.read!()
-    assert [] = Post |> Ash.Query.set_tenant(tenant(org2)) |> Ash.read!()
+    assert [_] = Post |> Ash.Query.set_tenant(org1) |> Ash.read!()
+    assert [] = Post |> Ash.Query.set_tenant(org2) |> Ash.read!()
   end
 
   test "schema rename on update works", %{org1: org1} do
@@ -198,7 +205,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
     user = User |> Ash.Changeset.new() |> Ash.create!()
 
     Post
-    |> Ash.Changeset.for_create(:create, %{}, tenant: tenant(org))
+    |> Ash.Changeset.for_create(:create, %{}, tenant: org)
     |> Ash.Changeset.manage_relationship(:user, user, type: :append_and_remove)
     |> Ash.create!()
   end
@@ -247,7 +254,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
     post =
       Post
       |> Ash.Changeset.for_create(:create, %{})
-      |> Ash.Changeset.set_tenant(tenant(org1))
+      |> Ash.Changeset.set_tenant(org1)
       |> Ash.create!()
 
     assert_raise Ash.Error.Invalid,
@@ -255,7 +262,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
                  fn ->
                    Post
                    |> Ash.Changeset.for_create(:create, %{id: post.id})
-                   |> Ash.Changeset.set_tenant(tenant(org1))
+                   |> Ash.Changeset.set_tenant(org1)
                    |> Ash.create!()
                  end
   end
