@@ -18,9 +18,15 @@ defmodule HasNoComments do
   use Ash.Resource.Validation
 
   def atomic(_changeset, _opts, _context) do
-    # This uses the list aggregate because we want to specifically test this aggregate
-    {:atomic, [], expr(list(comments, field: :id) > 0),
-     expr(error(^Invalid, %{message: "Can only delete if Post has no comments"}))}
+    # Test multiple types of aggregates in a single validation
+    [
+      {:atomic, [],
+       expr(
+         list(comments, field: :id) > 0 or
+           count(comments) > 0 or
+           exists(comments, true)
+       ), expr(error(^Invalid, %{message: "Can only delete if Post has no comments"}))}
+    ]
   end
 end
 
