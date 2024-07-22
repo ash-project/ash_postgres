@@ -302,7 +302,6 @@ defmodule AshPostgres.AtomicsTest do
     Comment
     |> Ash.Changeset.for_create(:create, %{post_id: post.id, title: "foo"})
     |> Ash.create!()
-    |> dbg()
 
     Logger.configure(level: :debug)
 
