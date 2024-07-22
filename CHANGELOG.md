@@ -5,116 +5,35 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
-## [v2.1.13](https://github.com/ash-project/ash_postgres/compare/v2.1.12...v2.1.13) (2024-07-22)
-
-
-
+## [v2.1.14](https://github.com/ash-project/ash_postgres/compare/v2.1.13...v2.1.14) (2024-07-22)
 
 ### Bug Fixes:
 
-* update ash & ash_sql for fixes, test atomic alidations in destroys
+- [multitenancy] properly convert tenant to string when building lateral join
 
-* properly add prod config in installer
+## [v2.1.13](https://github.com/ash-project/ash_postgres/compare/v2.1.12...v2.1.13) (2024-07-22)
 
-* properly perform or don't perform configuration modification code
+### Bug Fixes:
 
-* allow non-unique has_many source_attributes (#355)
-
-* allow non-unique has_many source_attributes
-
-* update `ash_sql` for `parent_as` binding fix
-
-* update to latest ash version for aggregate fix
-
-* update ash_sql for include_nil? fix and test it
-
-* ensure synthesized query aggregates have context set
-
-### Improvements:
-
-* prepend `:postgres` to section order
-
-* pluralize table name in extender
-
-* update ash/igniter dependencies
-
-* add `binding()` expression
-
-* use latest type casting code from ash
-
-* support new type determination code
+- [atomic validations] update ash & ash_sql for fixes, test atomic validations in destroys
 
 ## [v2.1.12](https://github.com/ash-project/ash_postgres/compare/v2.1.11...v2.1.12) (2024-07-19)
 
+### Bug Fixes:
 
-
+- [`mix ash_postgres.install`] properly add prod config in installer
 
 ### Bug Fixes:
 
-* properly add prod config in installer
+- [`mix ash_postgres.install`] properly perform or don't perform configuration modification code
 
-* properly perform or don't perform configuration modification code
-
-* allow non-unique has_many source_attributes (#355)
-
-* allow non-unique has_many source_attributes
-
-* update `ash_sql` for `parent_as` binding fix
-
-* update to latest ash version for aggregate fix
-
-* update ash_sql for include_nil? fix and test it
-
-* ensure synthesized query aggregates have context set
+- [`has_many` relationships] allow non-unique has_many source_attributes (#355)
 
 ### Improvements:
 
-* prepend `:postgres` to section order
+- [`mix ash_postgres.install`] prepend `:postgres` to section order
 
-* pluralize table name in extender
-
-* update ash/igniter dependencies
-
-* add `binding()` expression
-
-* use latest type casting code from ash
-
-* support new type determination code
-
-## [v2.1.11](https://github.com/ash-project/ash_postgres/compare/v2.1.10...v2.1.11) (2024-07-19)
-
-
-
-
-### Bug Fixes:
-
-* properly perform or don't perform configuration modification code
-
-* allow non-unique has_many source_attributes (#355)
-
-* allow non-unique has_many source_attributes
-
-* update `ash_sql` for `parent_as` binding fix
-
-* update to latest ash version for aggregate fix
-
-* update ash_sql for include_nil? fix and test it
-
-* ensure synthesized query aggregates have context set
-
-### Improvements:
-
-* prepend `:postgres` to section order
-
-* pluralize table name in extender
-
-* update ash/igniter dependencies
-
-* add `binding()` expression
-
-* use latest type casting code from ash
-
-* support new type determination code
+- [`mix ash.patch.extend`] pluralize table name in extender
 
 ## [v2.1.10](https://github.com/ash-project/ash_postgres/compare/v2.1.9...v2.1.10) (2024-07-18)
 
