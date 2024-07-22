@@ -1,4 +1,5 @@
 defmodule AshPostgres.AtomicsTest do
+  alias AshPostgres.Test.Comment
   alias AshPostgres.Test.Author
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.Post
@@ -290,5 +291,25 @@ defmodule AshPostgres.AtomicsTest do
              |> Ash.Query.filter(is_nil(author.last_name))
              |> Ash.bulk_update!(:set_title_from_author, %{}, return_records?: true)
              |> Map.get(:records)
+  end
+
+  test "can use list aggregate in validation" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "foo", price: 1})
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{post_id: post.id, title: "foo"})
+    |> Ash.create!()
+    |> dbg()
+
+    Logger.configure(level: :debug)
+
+    assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no comments/, fn ->
+      post
+      |> Ash.Changeset.for_destroy(:destroy_if_no_comments, %{})
+      |> Ash.destroy()
+    end
   end
 end
