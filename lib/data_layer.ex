@@ -2776,42 +2776,68 @@ defmodule AshPostgres.DataLayer do
   @impl true
 
   def destroy(resource, %{data: record} = changeset) do
-    ecto_changeset = ecto_changeset(record, changeset, :delete)
+    source = resolve_source(resource, changeset)
 
-    try do
-      repo = AshSql.dynamic_repo(resource, AshPostgres.SqlImplementation, changeset)
-
-      source = resolve_source(resource, changeset)
-
+    query =
       from(row in source, as: ^0)
       |> AshSql.Bindings.default_bindings(
         resource,
         AshPostgres.SqlImplementation,
         changeset.context
       )
-      |> filter(changeset.filter, resource)
-      |> case do
-        {:ok, query} ->
-          query
-          |> pkey_filter(record)
-          |> repo.delete_all(
-            AshSql.repo_opts(
-              repo,
-              AshPostgres.SqlImplementation,
-              changeset.timeout,
-              changeset.tenant,
-              changeset.resource
-            )
-          )
+      |> pkey_filter(record)
 
-          :ok
+    with {:ok, query} <- filter(query, changeset.filter, resource) do
+      ecto_changeset =
+        case changeset.data do
+          %Ash.Changeset.OriginalDataNotAvailable{} ->
+            changeset.resource.__struct__()
 
+          data ->
+            data
+        end
+        |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
+        |> ecto_changeset(changeset, :delete, true)
+
+      case bulk_updatable_query(
+             query,
+             resource,
+             [],
+             [],
+             changeset.context,
+             :destroy
+           ) do
         {:error, error} ->
           {:error, error}
+
+        {:ok, query} ->
+          try do
+            repo = AshSql.dynamic_repo(resource, AshPostgres.SqlImplementation, changeset)
+
+            repo_opts =
+              AshSql.repo_opts(
+                repo,
+                AshPostgres.SqlImplementation,
+                changeset.timeout,
+                changeset.tenant,
+                changeset.resource
+              )
+
+            query = Ecto.Query.exclude(query, :select)
+
+            with_savepoint(repo, query, fn ->
+              repo.delete_all(
+                query,
+                repo_opts
+              )
+            end)
+
+            :ok
+          rescue
+            e ->
+              handle_raised_error(e, __STACKTRACE__, ecto_changeset, resource)
+          end
       end
-    rescue
-      e ->
-        handle_raised_error(e, __STACKTRACE__, ecto_changeset, resource)
     end
   end
 

@@ -1,6 +1,7 @@
 defmodule AshPostgres.AtomicsTest do
-  alias AshPostgres.Test.Comment
   alias AshPostgres.Test.Author
+  alias AshPostgres.Test.Comment
+
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.Post
 
@@ -306,7 +307,7 @@ defmodule AshPostgres.AtomicsTest do
     assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no comments/, fn ->
       post
       |> Ash.Changeset.for_destroy(:destroy_if_no_comments, %{})
-      |> Ash.destroy()
+      |> Ash.destroy!()
     end
   end
 end

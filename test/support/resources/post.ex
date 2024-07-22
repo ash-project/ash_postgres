@@ -14,7 +14,7 @@ defmodule PassIfOriginalDataPresent do
 end
 
 defmodule HasNoComments do
-  alias Ash.Error.Invalid
+  @moduledoc false
   use Ash.Resource.Validation
 
   def atomic(_changeset, _opts, _context) do
@@ -22,10 +22,15 @@ defmodule HasNoComments do
     [
       {:atomic, [],
        expr(
-         list(comments, field: :id) > 0 or
+         length(list(comments, field: :id)) > 0 or
            count(comments) > 0 or
            exists(comments, true)
-       ), expr(error(^Invalid, %{message: "Can only delete if Post has no comments"}))}
+       ),
+       expr(
+         error(^Ash.Error.Changes.InvalidChanges, %{
+           message: "Can only delete if Post has no comments"
+         })
+       )}
     ]
   end
 end
