@@ -17,18 +17,32 @@ defmodule HasNoComments do
   @moduledoc false
   use Ash.Resource.Validation
 
-  def atomic(_changeset, _opts, _context) do
+  def atomic(changeset, _opts, context) do
     # Test multiple types of aggregates in a single validation
+    condition =
+      case changeset.context.aggregate do
+        :exists ->
+          expr(exists(comments, true))
+
+        :list ->
+          expr(length(list(comments, field: :id)) > 0)
+
+        :count ->
+          expr(count(comments) > 0)
+
+        :combined ->
+          expr(
+            exists(comments, true) and
+              length(list(comments, field: :id)) > 0 and
+              count(comments) > 0
+          )
+      end
+
     [
-      {:atomic, [],
-       expr(
-         length(list(comments, field: :id)) > 0 or
-           count(comments) > 0 or
-           exists(comments, true)
-       ),
+      {:atomic, [], condition,
        expr(
          error(^Ash.Error.Changes.InvalidChanges, %{
-           message: "Can only delete if Post has no comments"
+           message: ^context.message || "Post has comments"
          })
        )}
     ]
@@ -115,11 +129,31 @@ defmodule AshPostgres.Test.Post do
     end
 
     destroy :destroy_if_no_comments do
-      validate(HasNoComments)
+      validate HasNoComments do
+        message "Can only delete if Post has no comments"
+      end
     end
 
     update :update_if_no_comments do
-      validate(HasNoComments)
+      validate HasNoComments do
+        message "Can only update if Post has no comments"
+      end
+    end
+
+    destroy :destroy_if_no_comments_non_atomic do
+      require_atomic?(false)
+
+      validate HasNoComments do
+        message "Can only delete if Post has no comments"
+      end
+    end
+
+    update :update_if_no_comments_non_atomic do
+      require_atomic?(false)
+
+      validate HasNoComments do
+        message "Can only update if Post has no comments"
+      end
     end
 
     update :update_only_freds do
