@@ -17,15 +17,29 @@ defmodule HasNoComments do
   @moduledoc false
   use Ash.Resource.Validation
 
-  def atomic(_changeset, _opts, _context) do
+  def atomic(changeset, _opts, _context) do
     # Test multiple types of aggregates in a single validation
+    condition =
+      case changeset.context.aggregate do
+        :exists ->
+          expr(exists(comments, true))
+
+        :list ->
+          expr(length(list(comments, field: :id)) > 0)
+
+        :count ->
+          expr(count(comments) > 0)
+
+        :combined ->
+          expr(
+            exists(comments, true) and
+              length(list(comments, field: :id)) > 0 and
+              count(comments) > 0
+          )
+      end
+
     [
-      {:atomic, [],
-       expr(
-         length(list(comments, field: :id)) > 0 or
-           count(comments) > 0 or
-           exists(comments, true)
-       ),
+      {:atomic, [], condition,
        expr(
          error(^Ash.Error.Changes.InvalidChanges, %{
            message: "Can only delete if Post has no comments"

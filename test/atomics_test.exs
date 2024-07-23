@@ -294,26 +294,32 @@ defmodule AshPostgres.AtomicsTest do
              |> Map.get(:records)
   end
 
-  test "can use aggregates in validation" do
-    post =
-      Post
-      |> Ash.Changeset.for_create(:create, %{title: "foo", price: 1})
+  Enum.each([:list, :exists, :count, :combined], fn aggregate ->
+    test "can use #{aggregate} in validation" do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "foo", price: 1})
+        |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{post_id: post.id, title: "foo"})
       |> Ash.create!()
 
-    Comment
-    |> Ash.Changeset.for_create(:create, %{post_id: post.id, title: "foo"})
-    |> Ash.create!()
+      assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no comments/, fn ->
+        post
+        |> Ash.Changeset.new()
+        |> Ash.Changeset.put_context(:aggregate, unquote(aggregate))
+        |> Ash.Changeset.for_update(:update_if_no_comments, %{title: "bar"})
+        |> Ash.update!()
+      end
 
-    assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no comments/, fn ->
-      post
-      |> Ash.Changeset.for_update(:update_if_no_comments, %{title: "bar"})
-      |> Ash.update!()
+      assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no comments/, fn ->
+        post
+        |> Ash.Changeset.new()
+        |> Ash.Changeset.put_context(:aggregate, unquote(aggregate))
+        |> Ash.Changeset.for_destroy(:destroy_if_no_comments, %{})
+        |> Ash.destroy!()
+      end
     end
-
-    assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no comments/, fn ->
-      post
-      |> Ash.Changeset.for_destroy(:destroy_if_no_comments, %{})
-      |> Ash.destroy!()
-    end
-  end
+  end)
 end
