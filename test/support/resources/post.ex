@@ -22,9 +22,9 @@ defmodule HasNoComments do
     [
       {:atomic, [],
        expr(
-         # length(list(comments, field: :id)) > 0 or
-         # count(comments) > 0 or
-         exists(comments, true)
+         length(list(comments, field: :id)) > 0 or
+           count(comments) > 0 or
+           exists(comments, true)
        ),
        expr(
          error(^Ash.Error.Changes.InvalidChanges, %{

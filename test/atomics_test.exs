@@ -304,8 +304,6 @@ defmodule AshPostgres.AtomicsTest do
     |> Ash.Changeset.for_create(:create, %{post_id: post.id, title: "foo"})
     |> Ash.create!()
 
-    Logger.configure(level: :debug)
-
     assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no comments/, fn ->
       post
       |> Ash.Changeset.for_update(:update_if_no_comments, %{title: "bar"})
