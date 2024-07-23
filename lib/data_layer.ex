@@ -1465,9 +1465,20 @@ defmodule AshPostgres.DataLayer do
                 end)
           end
 
+        has_exists? =
+          Enum.any?(atomics, fn {_key, expr} ->
+            Ash.Filter.find(expr, fn
+              %Ash.Query.Exists{} ->
+                true
+
+              _ ->
+                false
+            end)
+          end)
+
         needs_to_join? =
           requires_adding_inner_join? ||
-            query.limit || query.offset
+            query.limit || query.offset || has_exists?
 
         query =
           if needs_to_join? do
@@ -1481,7 +1492,7 @@ defmodule AshPostgres.DataLayer do
                     {:ok, from(row in Ecto.Query.subquery(root_query), []), atomics != []}
                   end
 
-                !Enum.empty?(query.joins) ->
+                !Enum.empty?(query.joins) || has_exists? ->
                   with root_query <- Ecto.Query.exclude(root_query, :order_by),
                        {:ok, root_query} <-
                          AshSql.Atomics.select_atomics(resource, root_query, atomics) do
@@ -2011,7 +2022,7 @@ defmodule AshPostgres.DataLayer do
     )
   end
 
-  defp ecto_changeset(record, changeset, type, table_error? \\ true) do
+  defp ecto_changeset(record, changeset, type, table_error?) do
     attributes =
       changeset.resource
       |> Ash.Resource.Info.attributes()
@@ -2673,11 +2684,6 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def update(resource, changeset) do
-    ecto_changeset =
-      changeset.data
-      |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
-      |> ecto_changeset(changeset, :update)
-
     source = resolve_source(resource, changeset)
 
     query =
@@ -2689,78 +2695,34 @@ defmodule AshPostgres.DataLayer do
       )
       |> pkey_filter(changeset.data)
 
-    case bulk_updatable_query(query, resource, changeset.atomics, [], changeset.context) do
+    changeset =
+      Ash.Changeset.set_context(changeset, %{
+        data_layer: %{
+          use_atomic_update_data?: true
+        }
+      })
+
+    case update_query(query, changeset, resource, %{
+           return_records?: true,
+           calculations: []
+         }) do
+      {:ok, []} ->
+        {:error,
+         Ash.Error.Changes.StaleRecord.exception(
+           resource: resource,
+           filter: changeset.filter
+         )}
+
+      {:ok, [record]} ->
+        maybe_update_tenant(resource, changeset, record)
+
+        {:ok, record}
+
       {:error, error} ->
         {:error, error}
 
-      {:ok, query} ->
-        modifying =
-          Map.keys(changeset.attributes) ++
-            Keyword.keys(changeset.atomics) ++ Ash.Resource.Info.primary_key(resource)
-
-        query = Ecto.Query.select(query, ^modifying)
-
-        try do
-          case AshSql.Atomics.query_with_atomics(
-                 resource,
-                 query,
-                 changeset.filter,
-                 changeset.atomics,
-                 ecto_changeset.changes,
-                 []
-               ) do
-            :empty ->
-              {:ok, changeset.data}
-
-            {:ok, query} ->
-              repo = AshSql.dynamic_repo(resource, AshPostgres.SqlImplementation, changeset)
-
-              repo_opts =
-                AshSql.repo_opts(
-                  repo,
-                  AshPostgres.SqlImplementation,
-                  changeset.timeout,
-                  changeset.tenant,
-                  changeset.resource
-                )
-
-              repo_opts =
-                Keyword.put(repo_opts, :returning, Keyword.keys(changeset.atomics))
-
-              result =
-                with_savepoint(repo, query, fn ->
-                  repo.update_all(
-                    query,
-                    [],
-                    repo_opts
-                  )
-                end)
-
-              case result do
-                {0, []} ->
-                  {:error,
-                   Ash.Error.Changes.StaleRecord.exception(
-                     resource: resource,
-                     filter: changeset.filter
-                   )}
-
-                {1, [result]} ->
-                  record =
-                    changeset.data
-                    |> Map.merge(Map.take(result, modifying))
-
-                  maybe_update_tenant(resource, changeset, record)
-
-                  {:ok, record}
-              end
-
-            {:error, error} ->
-              {:error, error}
-          end
-        rescue
-          e ->
-            handle_raised_error(e, __STACKTRACE__, ecto_changeset, resource)
-        end
+      {:error, :no_rollback, error} ->
+        {:error, :no_rollback, error}
     end
   end
 
