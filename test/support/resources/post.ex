@@ -136,6 +136,16 @@ defmodule AshPostgres.Test.Post do
       validate(HasNoComments)
     end
 
+    destroy :destroy_if_no_comments_non_atomic do
+      require_atomic?(false)
+      validate(HasNoComments)
+    end
+
+    update :update_if_no_comments_non_atomic do
+      require_atomic?(false)
+      validate(HasNoComments)
+    end
+
     update :update_only_freds do
       change(filter(expr(title == "fred")))
     end
