@@ -294,7 +294,7 @@ defmodule AshPostgres.AtomicsTest do
              |> Map.get(:records)
   end
 
-  test "can use list aggregate in validation" do
+  test "can use aggregates in validation" do
     post =
       Post
       |> Ash.Changeset.for_create(:create, %{title: "foo", price: 1})
@@ -303,6 +303,14 @@ defmodule AshPostgres.AtomicsTest do
     Comment
     |> Ash.Changeset.for_create(:create, %{post_id: post.id, title: "foo"})
     |> Ash.create!()
+
+    Logger.configure(level: :debug)
+
+    assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no comments/, fn ->
+      post
+      |> Ash.Changeset.for_update(:update_if_no_comments, %{title: "bar"})
+      |> Ash.update!()
+    end
 
     assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no comments/, fn ->
       post

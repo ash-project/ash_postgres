@@ -22,9 +22,9 @@ defmodule HasNoComments do
     [
       {:atomic, [],
        expr(
-         length(list(comments, field: :id)) > 0 or
-           count(comments) > 0 or
-           exists(comments, true)
+         # length(list(comments, field: :id)) > 0 or
+         # count(comments) > 0 or
+         exists(comments, true)
        ),
        expr(
          error(^Ash.Error.Changes.InvalidChanges, %{
@@ -115,6 +115,10 @@ defmodule AshPostgres.Test.Post do
     end
 
     destroy :destroy_if_no_comments do
+      validate(HasNoComments)
+    end
+
+    update :update_if_no_comments do
       validate(HasNoComments)
     end
 
