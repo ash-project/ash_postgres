@@ -312,7 +312,7 @@ defmodule AshPostgres.AtomicsTest do
         |> Ash.Changeset.for_create(:create, %{post_id: post.id, title: "foo"})
         |> Ash.create!()
 
-        assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no comments/, fn ->
+        assert_raise Ash.Error.Invalid, ~r/Can only update if Post has no comments/, fn ->
           post
           |> Ash.Changeset.new()
           |> Ash.Changeset.put_context(:aggregate, unquote(aggregate))
@@ -320,7 +320,7 @@ defmodule AshPostgres.AtomicsTest do
           |> Ash.update!()
         end
 
-        assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no comments/, fn ->
+        assert_raise Ash.Error.Invalid, ~r/Can only update if Post has no comments/, fn ->
           post
           |> Ash.Changeset.new()
           |> Ash.Changeset.put_context(:aggregate, unquote(aggregate))
