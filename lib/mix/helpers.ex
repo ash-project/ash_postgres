@@ -85,6 +85,13 @@ defmodule AshPostgres.Mix.Helpers do
           repos
       end
     else
+      if Code.ensure_loaded?(Mix.Tasks.App.Config) do
+        Mix.Task.run("app.config", args)
+      else
+        Mix.Task.run("loadpaths", args)
+        "--no-compile" not in args && Mix.Task.run("compile", args)
+      end
+
       Mix.Project.config()[:app]
       |> Application.get_env(:ecto_repos, [])
       |> Enum.filter(fn repo ->
