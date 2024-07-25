@@ -2685,6 +2685,9 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def update(resource, changeset) do
     source = resolve_source(resource, changeset)
+    modifying =
+           Map.keys(changeset.attributes) ++
+             Keyword.keys(changeset.atomics) ++ Ash.Resource.Info.primary_key(resource)
 
     query =
       from(row in source, as: ^0)
@@ -2714,6 +2717,10 @@ defmodule AshPostgres.DataLayer do
          )}
 
       {:ok, [record]} ->
+        record =
+          changeset.data
+          |> Map.merge(Map.take(record, modifying))
+
         maybe_update_tenant(resource, changeset, record)
 
         {:ok, record}
