@@ -5,7 +5,7 @@ defmodule AshPostgres.MixProject do
   The PostgreSQL data layer for Ash Framework
   """
 
-  @version "2.1.15"
+  @version "2.1.16"
 
   def project do
     [

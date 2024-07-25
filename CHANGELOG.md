@@ -5,50 +5,23 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
-## [v2.1.15](https://github.com/ash-project/ash_postgres/compare/v2.1.14...v2.1.15) (2024-07-23)
-
-
-
+## [v2.1.16](https://github.com/ash-project/ash_postgres/compare/v2.1.15...v2.1.16) (2024-07-25)
 
 ### Bug Fixes:
 
-* use a subquery if any exists aggregates are in play
+- [updates] don't overwrite non-updated fields on update
 
-* properly convert tenant to string when building lateral join
-
-* update ash & ash_sql for fixes, test atomic alidations in destroys
-
-* properly add prod config in installer
-
-* properly perform or don't perform configuration modification code
-
-* allow non-unique has_many source_attributes (#355)
-
-* allow non-unique has_many source_attributes
-
-* update `ash_sql` for `parent_as` binding fix
-
-* update to latest ash version for aggregate fix
-
-* update ash_sql for include_nil? fix and test it
-
-* ensure synthesized query aggregates have context set
+- [`mix ash_postgres.generate_migrations`] ensure app is compiled before using repo modules
 
 ### Improvements:
 
-* update ash_sql dependencies for bug fixes
+- [`ash_sql`] update ash_sql for cleaner queries
 
-* prepend `:postgres` to section order
+## [v2.1.15](https://github.com/ash-project/ash_postgres/compare/v2.1.14...v2.1.15) (2024-07-23)
 
-* pluralize table name in extender
+### Bug Fixes:
 
-* update ash/igniter dependencies
-
-* add `binding()` expression
-
-* use latest type casting code from ash
-
-* support new type determination code
+- [query building] use a subquery if any exists aggregates are in play
 
 ## [v2.1.14](https://github.com/ash-project/ash_postgres/compare/v2.1.13...v2.1.14) (2024-07-22)
 
