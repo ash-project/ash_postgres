@@ -1,27 +1,22 @@
 # Get Started With Postgres
 
-## Goals
+## Installation
 
-In this guide we will:
+We recommend [reading up on postgresql](https://www.postgresql.org/docs/16/index.html) if you haven't.
 
-1. Setup AshPostgres, which includes setting up [Ecto](https://hexdocs.pm/ecto/Ecto.html)
-2. Add AshPostgres to the resources created in [the Ash getting started guide](https://hexdocs.pm/ash/get-started.html)
-3. Show how the various features of AshPostgres can help you work quickly and cleanly against a postgres database
-4. Highlight some of the more advanced features you can use when using AshPostgres.
-5. Point you to additional resources you may need on your journey
+- [Postgres must be installed](https://www.postgresql.org/download/) with a sufficiently permissive user
 
-## Things you may want to read
+<!-- tabs-open -->
 
-- [Install PostgreSQL](https://www.postgresql.org/download/) (I recommend the homebrew option for mac users)
+### Using Igniter (recommended)
 
-## Requirements
+```sh
+mix igniter.install ash_postgres
+```
 
-- A working Postgres installation, with a sufficiently permissive user
-- If you would like to follow along, you will need to add begin with [the Ash getting started guide](https://hexdocs.pm/ash/get-started.html)
+### Manually
 
-## Steps
-
-### Add AshPostgres
+#### Add AshPostgres
 
 Add the `:ash_postgres` dependency to your application
 
@@ -37,7 +32,7 @@ Add `:ash_postgres` to your `.formatter.exs` file
 ]
 ```
 
-### Create and configure your Repo
+#### Create and configure your Repo
 
 Create `lib/helpdesk/repo.ex` with the following contents. `AshPostgres.Repo` is a thin wrapper around `Ecto.Repo`, so see their documentation for how to use it if you need to use it directly. For standard Ash usage, all you will need to do is configure your resources to use your repo.
 
@@ -153,7 +148,7 @@ And finally, add the repo to your application
     ...
 ```
 
-### Add AshPostgres to our resources
+#### Add AshPostgres to our resources
 
 Now we can add the data layer to our resources. The basic configuration for a resource requires the `d:AshPostgres.postgres|table` and the `d:AshPostgres.postgres|repo`.
 
@@ -183,7 +178,7 @@ Now we can add the data layer to our resources. The basic configuration for a re
   end
 ```
 
-### Create the database and tables
+#### Create the database and tables
 
 First, we'll create the database with `mix ash.setup`.
 
@@ -205,7 +200,12 @@ Finally, we will create the local database and apply the generated migrations:
 mix ash.setup
 ```
 
+<!-- tabs-close -->
+
 ### Try it out
+
+This is based on the [Getting Started](https://hexdocs.pm/ash/getting_started.html) guide.
+If you haven't already, you should read that first.
 
 And now we're ready to try it out! Run the following in iex:
 
