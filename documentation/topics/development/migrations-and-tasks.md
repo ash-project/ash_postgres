@@ -129,6 +129,7 @@ Tasks that need to be executed in the released application (because mix is not p
       domain
       |> Ash.Domain.Info.resources()
       |> Enum.map(&AshPostgres.DataLayer.Info.repo/1)
+      |> Enum.reject(&is_nil/1)
     end)
     |> Enum.uniq()
   end
