@@ -3,7 +3,9 @@ defmodule AshPostgres.AtomicsTest do
   alias AshPostgres.Test.Comment
 
   use AshPostgres.RepoCase, async: false
+  alias AshPostgres.Test.Invite
   alias AshPostgres.Test.Post
+  alias AshPostgres.Test.User
 
   import Ash.Expr
   require Ash.Query
@@ -34,6 +36,25 @@ defmodule AshPostgres.AtomicsTest do
              post
              |> Ash.Changeset.for_update(:update, %{})
              |> Ash.Changeset.atomic_update(:price, expr(price + 1))
+             |> Ash.update!()
+  end
+
+  test "a basic atomic works with enum/allow_nil? false" do
+    user =
+      User
+      |> Ash.Changeset.for_create(:create, %{name: "Dude", role: :user})
+      |> Ash.create!()
+
+    Invite
+    |> Ash.Changeset.for_create(:create, %{
+      name: "Dude",
+      role: :admin
+    })
+    |> Ash.create!()
+
+    assert %{role: :admin} =
+             user
+             |> Ash.Changeset.for_update(:accept_invite, %{})
              |> Ash.update!()
   end
 

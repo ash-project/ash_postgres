@@ -9,6 +9,11 @@ defmodule AshPostgres.Test.User do
 
     defaults([:create, :read, :update, :destroy])
 
+    update :accept_invite do
+      require_atomic?(false)
+      change(atomic_update(:role, expr(invite.role)))
+    end
+
     read :active do
       filter(expr(active))
 
@@ -37,6 +42,7 @@ defmodule AshPostgres.Test.User do
     uuid_primary_key(:id)
     attribute(:is_active, :boolean, public?: true)
     attribute(:name, :string, public?: true)
+    attribute(:role, AshPostgres.Test.Role, allow_nil?: false, default: :user, public?: true)
   end
 
   postgres do
@@ -52,6 +58,11 @@ defmodule AshPostgres.Test.User do
 
     has_many(:accounts, AshPostgres.Test.Account) do
       public?(true)
+    end
+
+    has_one(:invite, AshPostgres.Test.Invite) do
+      source_attribute(:name)
+      destination_attribute(:name)
     end
   end
 end
