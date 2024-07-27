@@ -12,6 +12,7 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.Author)
     resource(AshPostgres.Test.Profile)
     resource(AshPostgres.Test.User)
+    resource(AshPostgres.Test.Invite)
     resource(AshPostgres.Test.Account)
     resource(AshPostgres.Test.Organization)
     resource(AshPostgres.Test.Manager)
