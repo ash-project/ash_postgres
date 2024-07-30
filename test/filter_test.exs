@@ -785,6 +785,37 @@ defmodule AshPostgres.FilterTest do
                )
                |> Ash.read!()
     end
+
+    test "it works with synthesized to-one relationships" do
+      for i <- 1..4 do
+        post =
+          Post
+          |> Ash.Changeset.for_create(:create, %{title: to_string(i), category: "foo"})
+          |> Ash.create!()
+
+        Comment
+        |> Ash.Changeset.for_create(:create, %{title: "comment"})
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Ash.create!()
+
+        if rem(i, 2) == 0 do
+          Comment
+          |> Ash.Changeset.for_create(:create, %{title: "later_comment"})
+          |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+          |> Ash.create!()
+        end
+
+        post
+      end
+
+      matching_post_count =
+        Post
+        |> Ash.Query.filter(exists(latest_comment, title == "later_comment"))
+        |> Ash.read!()
+        |> Enum.count()
+
+      assert 2 = matching_post_count
+    end
   end
 
   describe "filtering on enum types" do
