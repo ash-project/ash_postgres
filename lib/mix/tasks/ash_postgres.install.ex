@@ -250,20 +250,10 @@ defmodule Mix.Tasks.AshPostgres.Install do
   end
 
   defp setup_repo_module(igniter, otp_app, repo) do
-    default_repo_contents =
-      """
-      use AshPostgres.Repo, otp_app: #{inspect(otp_app)}
-
-      def installed_extensions do
-        # Add extensions here, and the migration generator will install them.
-        ["ash-functions"]
-      end
-      """
-
     Igniter.Code.Module.find_and_update_or_create_module(
       igniter,
       repo,
-      default_repo_contents,
+      AshPostgres.Igniter.default_repo_contents(otp_app),
       fn zipper ->
         zipper
         |> set_otp_app(otp_app)

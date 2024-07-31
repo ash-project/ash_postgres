@@ -2685,9 +2685,10 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def update(resource, changeset) do
     source = resolve_source(resource, changeset)
+
     modifying =
-           Map.keys(changeset.attributes) ++
-             Keyword.keys(changeset.atomics) ++ Ash.Resource.Info.primary_key(resource)
+      Map.keys(changeset.attributes) ++
+        Keyword.keys(changeset.atomics) ++ Ash.Resource.Info.primary_key(resource)
 
     query =
       from(row in source, as: ^0)
@@ -2945,7 +2946,7 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  def install(igniter, module, Ash.Resource, _path, _argv) do
+  def install(igniter, module, Ash.Resource, _path, argv) do
     table_name =
       module
       |> Module.split()
@@ -2953,7 +2954,16 @@ defmodule AshPostgres.DataLayer do
       |> Macro.underscore()
       |> Inflex.pluralize()
 
-    repo = Igniter.Code.Module.module_name("Repo")
+    {options, _, _} = OptionParser.parse(argv, switches: [repo: :string])
+
+    repo =
+      case options[:repo] do
+        nil ->
+          Igniter.Code.Module.module_name("Repo")
+
+        repo ->
+          Igniter.Code.Module.parse(repo)
+      end
 
     igniter
     |> Spark.Igniter.set_option(module, [:postgres, :table], table_name)
