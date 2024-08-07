@@ -2,6 +2,16 @@ defmodule AshPostgres.MixSquashSnapshotsTest do
   use AshPostgres.RepoCase, async: false
   @moduletag :migration
 
+  setup do
+    current_shell = Mix.shell()
+
+    :ok = Mix.shell(Mix.Shell.Process)
+
+    on_exit(fn ->
+      Mix.shell(current_shell)
+    end)
+  end
+
   defmacrop defposts(mod \\ Post, do: body) do
     quote do
       Code.compiler_options(ignore_module_conflict: true)
@@ -66,8 +76,6 @@ defmodule AshPostgres.MixSquashSnapshotsTest do
         File.rm_rf!("test_snapshots_path")
         File.rm_rf!("test_migration_path")
       end)
-
-      Mix.shell(Mix.Shell.Process)
 
       defposts do
         identities do
@@ -153,8 +161,6 @@ defmodule AshPostgres.MixSquashSnapshotsTest do
         File.rm_rf!("test_snapshots_path")
         File.rm_rf!("test_migration_path")
       end)
-
-      Mix.shell(Mix.Shell.Process)
 
       defposts do
         identities do
