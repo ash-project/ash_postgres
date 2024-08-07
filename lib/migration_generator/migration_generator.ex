@@ -379,7 +379,7 @@ defmodule AshPostgres.MigrationGenerator do
 
         operations ->
           if opts.check do
-            IO.puts("""
+            Mix.shell().error("""
             Migrations would have been generated, but the --check flag was provided.
 
             To see what migration would have been generated, run with the `--dry-run`
@@ -1028,7 +1028,7 @@ defmodule AshPostgres.MigrationGenerator do
     end
   rescue
     exception ->
-      IO.puts("""
+      Mix.shell().error("""
       Exception while formatting:
 
       #{inspect(exception)}

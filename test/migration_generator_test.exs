@@ -4,7 +4,17 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
   import ExUnit.CaptureLog
 
-  defmacrop defposts(mod \\ Post, do: body) do
+  setup do
+    current_shell = Mix.shell()
+
+    :ok = Mix.shell(Mix.Shell.Process)
+
+    on_exit(fn ->
+      Mix.shell(current_shell)
+    end)
+  end
+
+  defmacrop defresource(mod, do: body) do
     quote do
       Code.compiler_options(ignore_module_conflict: true)
 
@@ -13,6 +23,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
           domain: nil,
           data_layer: AshPostgres.DataLayer
 
+        unquote(body)
+      end
+
+      Code.compiler_options(ignore_module_conflict: false)
+    end
+  end
+
+  defmacrop defposts(mod \\ Post, do: body) do
+    quote do
+      defresource unquote(mod) do
         postgres do
           table "posts"
           repo(AshPostgres.TestRepo)
@@ -30,8 +50,23 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         unquote(body)
       end
+    end
+  end
 
-      Code.compiler_options(ignore_module_conflict: false)
+  defmacrop defcomments(mod \\ Comment, do: body) do
+    quote do
+      defresource unquote(mod) do
+        postgres do
+          table "comments"
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        unquote(body)
+      end
     end
   end
 
@@ -107,8 +142,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       defdomain([Post])
-
-      Mix.shell(Mix.Shell.Process)
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
@@ -208,8 +241,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      Mix.shell(Mix.Shell.Process)
-
       {:ok, _} =
         Ecto.Adapters.SQL.query(
           AshPostgres.TestRepo,
@@ -291,7 +322,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       defdomain([Post])
-      Mix.shell(Mix.Shell.Process)
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
@@ -336,7 +366,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       defdomain([Post])
-      Mix.shell(Mix.Shell.Process)
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
@@ -377,8 +406,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       defdomain([Post])
-
-      Mix.shell(Mix.Shell.Process)
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
@@ -469,8 +496,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       defdomain([Post])
-
-      Mix.shell(Mix.Shell.Process)
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
@@ -832,8 +857,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       defdomain([Post])
-
-      Mix.shell(Mix.Shell.Process)
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
@@ -1635,11 +1658,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
         File.rm_rf!("test_migration_path")
       end)
 
-      defmodule Comment do
-        use Ash.Resource,
-          domain: nil,
-          data_layer: AshPostgres.DataLayer
-
+      defcomments do
         postgres do
           polymorphic?(true)
           repo(AshPostgres.TestRepo)
@@ -1832,16 +1851,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defmodule Comment do
-        use Ash.Resource,
-          domain: nil,
-          data_layer: AshPostgres.DataLayer
-
-        postgres do
-          table "comments"
-          repo AshPostgres.TestRepo
-        end
-
+      defcomments do
         attributes do
           uuid_primary_key(:id)
         end
@@ -1854,8 +1864,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       defdomain([Post, Comment])
-
-      Mix.shell(Mix.Shell.Process)
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
@@ -1881,16 +1889,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defmodule Comment do
-        use Ash.Resource,
-          domain: nil,
-          data_layer: AshPostgres.DataLayer
-
-        postgres do
-          table "comments"
-          repo AshPostgres.TestRepo
-        end
-
+      defcomments do
         attributes do
           uuid_primary_key(:id)
         end
