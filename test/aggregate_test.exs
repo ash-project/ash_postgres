@@ -616,11 +616,12 @@ defmodule AshSql.AggregateTest do
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
-      assert %{first_comment_nils_first_include_nil: "match"} =
+      assert "match" ==
                Post
                |> Ash.Query.filter(id == ^post.id)
                |> Ash.Query.load(:first_comment_nils_first_include_nil)
                |> Ash.read_one!()
+               |> Map.get(:first_comment_nils_first_include_nil)
     end
 
     test "it can be sorted on" do
