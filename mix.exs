@@ -163,7 +163,7 @@ defmodule AshPostgres.MixProject do
   defp deps do
     [
       {:ash, ash_version("~> 3.3")},
-      {:ash_sql, ash_sql_version("~> 0.2 and >= 0.2.29")},
+      {:ash_sql, ash_sql_version("~> 0.2 and >= 0.2.30")},
       {:igniter, "~> 0.3 and >= 0.3.6"},
       {:ecto_sql, "~> 3.11 and >= 3.11.3"},
       {:ecto, "~> 3.11 and >= 3.11.2"},

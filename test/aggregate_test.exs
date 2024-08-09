@@ -334,6 +334,24 @@ defmodule AshSql.AggregateTest do
                |> Ash.read_one!()
     end
 
+    test "exists aggregates can be referenced in nested filters" do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
+        |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      Logger.configure(level: :debug)
+
+      assert Comment
+             |> Ash.Query.filter(post.has_comment_called_match)
+             |> Ash.read_one!()
+    end
+
     test "exists aggregates can be used at the query level" do
       post =
         Post
