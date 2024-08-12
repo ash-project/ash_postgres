@@ -255,7 +255,9 @@ defmodule AshPostgres.SqlImplementation do
       end
 
     {Enum.map(types, fn
-      {:parameterized, _} = parameterized -> parameterized
+       {:parameterized, _} = parameterized ->
+         parameterized
+
        {type, constraints} ->
          parameterized_type(type, constraints)
 
