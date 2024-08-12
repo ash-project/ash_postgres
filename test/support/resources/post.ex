@@ -268,6 +268,13 @@ defmodule AshPostgres.Test.Post do
       end)
     end
 
+    create :upsert_with_condition do
+      upsert?(true)
+      upsert_identity(:uniq_if_contains_foo)
+      upsert_fields([:price])
+      upsert_condition(expr(price != upsert_conflict(:price)))
+    end
+
     update :set_title_from_author do
       change(atomic_update(:title, expr(author.first_name)))
     end
