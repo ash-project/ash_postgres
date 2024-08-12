@@ -5,6 +5,67 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.1.19](https://github.com/ash-project/ash_postgres/compare/v2.1.18...v2.1.19) (2024-08-12)
+
+
+
+
+### Bug Fixes:
+
+* we missed a change when preparing for ecto 3.12 parameterized type changes
+
+* update ash_sql for exists aggregate fixes
+
+* don't overwrite non-updated fields on update
+
+* ensure app is compiled before using repo modules
+
+* use a subquery if any exists aggregates are in play
+
+* properly convert tenant to string when building lateral join
+
+* update ash & ash_sql for fixes, test atomic alidations in destroys
+
+* properly add prod config in installer
+
+* properly perform or don't perform configuration modification code
+
+* allow non-unique has_many source_attributes (#355)
+
+* allow non-unique has_many source_attributes
+
+* update `ash_sql` for `parent_as` binding fix
+
+* update to latest ash version for aggregate fix
+
+* update ash_sql for include_nil? fix and test it
+
+* ensure synthesized query aggregates have context set
+
+### Improvements:
+
+* dynamically select and allow setting a repo
+
+* update ash_sql for latest fixes
+
+* update ash & ash_sql for various fixes
+
+* update ash_sql for cleaner queries
+
+* update ash_sql dependencies for bug fixes
+
+* prepend `:postgres` to section order
+
+* pluralize table name in extender
+
+* update ash/igniter dependencies
+
+* add `binding()` expression
+
+* use latest type casting code from ash
+
+* support new type determination code
+
 ## [v2.1.18](https://github.com/ash-project/ash_postgres/compare/v2.1.17...v2.1.18) (2024-08-09)
 
 
