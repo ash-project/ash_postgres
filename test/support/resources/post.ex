@@ -258,6 +258,16 @@ defmodule AshPostgres.Test.Post do
       )
     end
 
+    create :upsert_with_filter do
+      upsert?(true)
+      upsert_identity(:uniq_if_contains_foo)
+      upsert_fields([:price])
+
+      change(fn changeset, _ ->
+        Ash.Changeset.filter(changeset, expr(price != fragment("EXCLUDED.price")))
+      end)
+    end
+
     update :set_title_from_author do
       change(atomic_update(:title, expr(author.first_name)))
     end
@@ -292,7 +302,7 @@ defmodule AshPostgres.Test.Post do
     identity(:uniq_on_upper, [:upper_thing])
 
     identity(:uniq_if_contains_foo, [:uniq_if_contains_foo]) do
-      where expr(contains(title, "foo"))
+      where expr(contains(uniq_if_contains_foo, "foo"))
     end
   end
 
