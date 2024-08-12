@@ -249,11 +249,13 @@ defmodule AshPostgres.SqlImplementation do
 
     new_returns =
       case new_returns do
+        {:parameterized, _} = parameterized -> parameterized
         {type, constraints} -> parameterized_type(type, constraints)
         other -> other
       end
 
     {Enum.map(types, fn
+      {:parameterized, _} = parameterized -> parameterized
        {type, constraints} ->
          parameterized_type(type, constraints)
 
