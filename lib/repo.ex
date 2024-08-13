@@ -86,10 +86,10 @@ defmodule AshPostgres.Repo do
           otp_app: otp_app
       end
 
-      @agent __MODULE__.AshPgVersion
       @behaviour AshPostgres.Repo
       @warn_on_missing_ash_functions Keyword.get(opts, :warn_on_missing_ash_functions?, true)
       @after_compile __MODULE__
+      @before_compile AshPostgres.Repo.BeforeCompile
       require Logger
 
       defoverridable insert: 2, insert: 1, insert!: 2, insert!: 1
@@ -123,18 +123,6 @@ defmodule AshPostgres.Repo do
       end
 
       def init(type, config) do
-        if type == :supervisor do
-          try do
-            Agent.stop(@agent)
-          rescue
-            _ ->
-              :ok
-          catch
-            _, _ ->
-              :ok
-          end
-        end
-
         new_config =
           config
           |> Keyword.put(:installed_extensions, installed_extensions())
@@ -208,97 +196,6 @@ defmodule AshPostgres.Repo do
         end
       end
 
-      def min_pg_version do
-        if version = cached_version() do
-          version
-        else
-          lookup_version()
-        end
-      end
-
-      defp cached_version do
-        if config()[:pool] == Ecto.Adapters.SQL.Sandbox do
-          Agent.start_link(
-            fn ->
-              nil
-            end,
-            name: @agent
-          )
-
-          case Agent.get(@agent, fn state -> state end) do
-            nil ->
-              version = lookup_version()
-
-              Agent.update(@agent, fn _ ->
-                version
-              end)
-
-              version
-
-            version ->
-              version
-          end
-        else
-          Agent.start_link(
-            fn ->
-              lookup_version()
-            end,
-            name: @agent
-          )
-
-          Agent.get(@agent, fn state -> state end)
-        end
-      end
-
-      defp lookup_version do
-        version_string =
-          try do
-            query!("SELECT version()").rows |> Enum.at(0) |> Enum.at(0)
-          rescue
-            error ->
-              reraise """
-                      Got an error while trying to read postgres version
-
-                      Error:
-
-                      #{inspect(error)}
-                      """,
-                      __STACKTRACE__
-          end
-
-        try do
-          version_string
-          |> String.split(" ")
-          |> Enum.at(1)
-          |> String.split(".")
-          |> case do
-            [major] ->
-              "#{major}.0.0"
-
-            [major, minor] ->
-              "#{major}.#{minor}.0"
-
-            other ->
-              Enum.join(other, ".")
-          end
-          |> Version.parse!()
-        rescue
-          error ->
-            reraise(
-              """
-              Could not parse postgres version from version string: "#{version_string}"
-
-              You may need to define the `min_version/0` callback yourself.
-
-              Error:
-
-              #{inspect(error)}
-              """,
-              __STACKTRACE__
-            )
-        end
-      end
-
       def from_ecto(other), do: other
 
       def to_ecto(nil), do: nil
@@ -336,7 +233,6 @@ defmodule AshPostgres.Repo do
       defoverridable init: 2,
                      on_transaction_begin: 1,
                      installed_extensions: 0,
-                     min_pg_version: 0,
                      all_tenants: 0,
                      tenant_migrations_path: 0,
                      default_prefix: 0,

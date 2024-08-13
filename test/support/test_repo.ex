@@ -12,6 +12,10 @@ defmodule AshPostgres.TestRepo do
       Application.get_env(:ash_postgres, :no_extensions, [])
   end
 
+  def min_pg_version do
+    %Version{major: 16, minor: 0, patch: 0}
+  end
+
   def all_tenants do
     Code.ensure_compiled(AshPostgres.MultitenancyTest.Org)
 

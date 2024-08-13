@@ -345,8 +345,6 @@ defmodule AshSql.AggregateTest do
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
-      Logger.configure(level: :debug)
-
       assert Comment
              |> Ash.Query.filter(post.has_comment_called_match)
              |> Ash.read_one!()
