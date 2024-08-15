@@ -331,7 +331,7 @@ defmodule AshPostgres.DataLayer do
       ],
       skip_unique_indexes: [
         type: {:wrap_list, :atom},
-        default: false,
+        default: [],
         doc: "Skip generating unique indexes when generating migrations"
       ],
       unique_index_names: [
