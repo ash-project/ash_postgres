@@ -814,6 +814,34 @@ defmodule AshPostgres.CalculationTest do
              |> Ash.read!()
   end
 
+  # This test will pass on Ash 3.4.2+
+  test "using calculations with input as anonymous aggregate fields works" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "abcdef"})
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "abc"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "abcd"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "abcde"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    assert %{max_comment_similarity: 0.625} =
+             Post
+             |> Ash.Query.load(max_comment_similarity: %{to: "abcdef"})
+             |> Ash.read_one!()
+  end
+
   test "exists with a relationship that has a filtered read action works" do
     post =
       Post

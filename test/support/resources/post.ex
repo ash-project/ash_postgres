@@ -552,6 +552,14 @@ defmodule AshPostgres.Test.Post do
     )
 
     calculate(
+      :max_comment_similarity,
+      :float,
+      expr(max(comments, expr_type: :float, expr: fragment("similarity(?, ?)", title, ^arg(:to))))
+    ) do
+      argument(:to, :string, allow_nil?: false)
+    end
+
+    calculate(
       :agg_map,
       :map,
       expr(%{

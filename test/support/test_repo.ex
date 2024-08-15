@@ -13,7 +13,10 @@ defmodule AshPostgres.TestRepo do
   end
 
   def min_pg_version do
-    %Version{major: 16, minor: 0, patch: 0}
+    case System.get_env("PG_VERSION") do
+      nil -> %Version{major: 16, minor: 0, patch: 0}
+      version -> Version.parse!(version)
+    end
   end
 
   def all_tenants do
