@@ -5,6 +5,75 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.2.1](https://github.com/ash-project/ash_postgres/compare/v2.2.0...v2.2.1) (2024-08-16)
+
+
+
+
+### Bug Fixes:
+
+* set a proper default for `skip_unique_indexes`
+
+* remove `Agent` "convenience" for determining min pg version
+
+* handle filter condition on create (#368)
+
+* we missed a change when preparing for ecto 3.12 parameterized type changes
+
+* update ash_sql for exists aggregate fixes
+
+* don't overwrite non-updated fields on update
+
+* ensure app is compiled before using repo modules
+
+* use a subquery if any exists aggregates are in play
+
+* properly convert tenant to string when building lateral join
+
+* update ash & ash_sql for fixes, test atomic alidations in destroys
+
+* properly add prod config in installer
+
+* properly perform or don't perform configuration modification code
+
+* allow non-unique has_many source_attributes (#355)
+
+* allow non-unique has_many source_attributes
+
+* update `ash_sql` for `parent_as` binding fix
+
+* update to latest ash version for aggregate fix
+
+* update ash_sql for include_nil? fix and test it
+
+* ensure synthesized query aggregates have context set
+
+### Improvements:
+
+* include `min_pg_version` in new generators
+
+* dynamically select and allow setting a repo
+
+* update ash_sql for latest fixes
+
+* update ash & ash_sql for various fixes
+
+* update ash_sql for cleaner queries
+
+* update ash_sql dependencies for bug fixes
+
+* prepend `:postgres` to section order
+
+* pluralize table name in extender
+
+* update ash/igniter dependencies
+
+* add `binding()` expression
+
+* use latest type casting code from ash
+
+* support new type determination code
+
 ## [v2.2.0](https://github.com/ash-project/ash_postgres/compare/v2.1.19...v2.2.0) (2024-08-13)
 
 ### Bug Fixes:
