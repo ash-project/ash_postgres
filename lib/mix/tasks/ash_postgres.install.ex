@@ -341,4 +341,26 @@ defmodule Mix.Tasks.AshPostgres.Install do
         {:ok, zipper}
     end
   end
+
+  defp configure_min_pg_version_function(zipper) do
+    case Igniter.Code.Module.move_to_module_using(zipper, AshPostgres.Repo) do
+      {:ok, zipper} ->
+        case Igniter.Code.Function.move_to_def(zipper, :min_pg_version, 0) do
+          {:ok, zipper} ->
+            {:ok, zipper}
+
+          _ ->
+            {:ok,
+             Igniter.Code.Common.add_code(zipper, """
+             def min_pg_version do
+              # Adjust this according to your postgres version
+               %Version{major: 16, minor: 0, patch: 0}
+             end
+             """)}
+        end
+
+      _ ->
+        {:ok, zipper}
+    end
+  end
 end
