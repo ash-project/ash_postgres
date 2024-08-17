@@ -5,6 +5,12 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.2.2](https://github.com/ash-project/ash_postgres/compare/v2.2.1...v2.2.2) (2024-08-17)
+
+### Bug Fixes:
+
+- [`mix ash_postgres.install`] properly handle new igniter installer functions
+
 ## [v2.2.1](https://github.com/ash-project/ash_postgres/compare/v2.2.0...v2.2.1) (2024-08-16)
 
 ### Bug Fixes:
