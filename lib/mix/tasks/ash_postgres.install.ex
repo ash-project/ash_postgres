@@ -255,17 +255,20 @@ defmodule Mix.Tasks.AshPostgres.Install do
       repo,
       AshPostgres.Igniter.default_repo_contents(otp_app),
       fn zipper ->
-        zipper
-        |> set_otp_app(otp_app)
-        |> Sourceror.Zipper.top()
-        |> use_ash_postgres_instead_of_ecto()
-        |> Sourceror.Zipper.top()
-        |> remove_adapter_option()
-        |> Sourceror.Zipper.top()
-        |> configure_installed_extensions_function()
-        |> configure_min_pg_version_function()
+        {:ok,
+         zipper
+         |> set_otp_app(otp_app)
+         |> Sourceror.Zipper.top()
+         |> use_ash_postgres_instead_of_ecto()
+         |> Sourceror.Zipper.top()
+         |> remove_adapter_option()}
       end
     )
+    |> Igniter.Code.Module.find_and_update_module!(
+      repo,
+      &configure_installed_extensions_function/1
+    )
+    |> Igniter.Code.Module.find_and_update_module!(repo, &configure_min_pg_version_function/1)
   end
 
   defp use_ash_postgres_instead_of_ecto(zipper) do
