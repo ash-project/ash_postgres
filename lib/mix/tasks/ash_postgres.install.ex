@@ -319,52 +319,43 @@ defmodule Mix.Tasks.AshPostgres.Install do
   end
 
   defp configure_installed_extensions_function(zipper) do
-    case Igniter.Code.Module.move_to_module_using(zipper, AshPostgres.Repo) do
+    case Igniter.Code.Function.move_to_def(zipper, :installed_extensions, 0) do
       {:ok, zipper} ->
-        case Igniter.Code.Function.move_to_def(zipper, :installed_extensions, 0) do
+        case Igniter.Code.Common.move_right(zipper, &Igniter.Code.List.list?/1) do
           {:ok, zipper} ->
-            case Igniter.Code.Common.move_right(zipper, &Igniter.Code.List.list?/1) do
-              {:ok, zipper} ->
-                Igniter.Code.List.append_new_to_list(zipper, "ash-functions")
+            Igniter.Code.List.append_new_to_list(zipper, "ash-functions")
 
-              :error ->
-                {:error, "installed_extensions/0 doesn't return a list"}
-            end
-
-          _ ->
-            {:ok,
-             Igniter.Code.Common.add_code(zipper, """
-             def installed_extensions do
-               # Add extensions here, and the migration generator will install them.
-               ["ash-functions"]
-             end
-             """)}
+          :error ->
+            {:error, "installed_extensions/0 doesn't return a list"}
         end
 
       _ ->
-        {:ok, zipper}
+        IO.inspect("HERE!")
+
+        {:ok,
+         Igniter.Code.Common.add_code(zipper, """
+         def installed_extensions do
+           # Add extensions here, and the migration generator will install them.
+           ["ash-functions"]
+         end
+         """)}
+        |> IO.inspect()
     end
   end
 
   defp configure_min_pg_version_function(zipper) do
-    case Igniter.Code.Module.move_to_module_using(zipper, AshPostgres.Repo) do
+    case Igniter.Code.Function.move_to_def(zipper, :min_pg_version, 0) do
       {:ok, zipper} ->
-        case Igniter.Code.Function.move_to_def(zipper, :min_pg_version, 0) do
-          {:ok, zipper} ->
-            {:ok, zipper}
-
-          _ ->
-            {:ok,
-             Igniter.Code.Common.add_code(zipper, """
-             def min_pg_version do
-              # Adjust this according to your postgres version
-               %Version{major: 16, minor: 0, patch: 0}
-             end
-             """)}
-        end
+        {:ok, zipper}
 
       _ ->
-        {:ok, zipper}
+        {:ok,
+         Igniter.Code.Common.add_code(zipper, """
+         def min_pg_version do
+          # Adjust this according to your postgres version
+           %Version{major: 16, minor: 0, patch: 0}
+         end
+         """)}
     end
   end
 end
