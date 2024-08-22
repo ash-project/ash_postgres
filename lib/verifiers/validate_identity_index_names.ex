@@ -49,7 +49,7 @@ defmodule AshPostgres.Verifiers.ValidateIdentityIndexNames do
               Please configure an index name for this identity in the `identity_index_names` configuration. For example:
 
               postgres do
-                identity_index_names #{inspect(identity.name)}: "a_shorter_name"
+                identity_index_names #{identity.name}: "a_shorter_name"
               end
               """
           end
