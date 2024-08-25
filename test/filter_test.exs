@@ -21,6 +21,14 @@ defmodule AshPostgres.FilterTest do
     end
   end
 
+  describe "ci_string argument casting" do
+    test "it properly casts" do
+      Post
+      |> Ash.Query.for_read(:category_matches, %{category: "category"})
+      |> Ash.read!()
+    end
+  end
+
   describe "invalid uuid" do
     test "with an invalid uuid, an invalid error is raised" do
       assert_raise Ash.Error.Invalid, fn ->
