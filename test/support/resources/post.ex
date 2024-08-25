@@ -49,6 +49,12 @@ defmodule HasNoComments do
   end
 end
 
+defmodule CiCategory do
+  use Ash.Type.NewType,
+    subtype_of: :ci_string,
+    constraints: [casing: :upper]
+end
+
 defmodule AshPostgres.Test.Post do
   @moduledoc false
   use Ash.Resource,
@@ -231,6 +237,11 @@ defmodule AshPostgres.Test.Post do
       filter(expr(title == "foo"))
     end
 
+    read :category_matches do
+      argument(:category, CiCategory)
+      filter(expr(category == ^arg(:category)))
+    end
+
     read :keyset do
       pagination do
         keyset?(true)
@@ -317,7 +328,7 @@ defmodule AshPostgres.Test.Post do
     attribute(:datetime, AshPostgres.TimestamptzUsec, public?: true)
     attribute(:score, :integer, public?: true)
     attribute(:public, :boolean, public?: true)
-    attribute(:category, :ci_string, public?: true)
+    attribute(:category, CiCategory, public?: true)
     attribute(:type, :atom, default: :sponsored, writable?: false, public?: false)
     attribute(:price, :integer, public?: true)
     attribute(:decimal, :decimal, default: Decimal.new(0), public?: true)
