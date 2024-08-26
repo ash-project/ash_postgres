@@ -191,10 +191,6 @@ defmodule AshPostgres.SqlImplementation do
     end
   end
 
-  # def parameterized_type(Ash.Type.NewType, new_type_constraints, no_maps?) do
-  #   constraints = Ash.Type.NewType.constraints(new_type_constraints)
-  # end
-
   def parameterized_type(Ash.Type.CiString, constraints, no_maps?) do
     parameterized_type(AshPostgres.Type.CiStringWrapper, constraints, no_maps?)
   end
@@ -217,39 +213,39 @@ defmodule AshPostgres.SqlImplementation do
 
   def parameterized_type(type, constraints, no_maps?) do
     if Ash.Type.ash_type?(type) do
-      if Ash.Type.NewType.new_type?(type) do
-        subtype = Ash.Type.NewType.subtype_of(type)
-        subtype_constraints = Ash.Type.NewType.constraints(type, constraints)
-
-        parameterized_type(subtype, subtype_constraints, no_maps?)
-      else
-        cast_in_query? =
-          if function_exported?(Ash.Type, :cast_in_query?, 2) do
-            Ash.Type.cast_in_query?(type, constraints)
-          else
-            Ash.Type.cast_in_query?(type)
-          end
-
-        if cast_in_query? do
-          type = Ash.Type.ecto_type(type)
-
-          parameterized_type(type, constraints, no_maps?)
+      cast_in_query? =
+        if function_exported?(Ash.Type, :cast_in_query?, 2) do
+          Ash.Type.cast_in_query?(type, constraints)
         else
-          nil
+          Ash.Type.cast_in_query?(type)
         end
+
+      if cast_in_query? do
+        type = Ash.Type.ecto_type(type)
+
+        parameterized_type(type, constraints, no_maps?)
+      else
+        nil
       end
     else
       if is_atom(type) && :erlang.function_exported(type, :type, 1) do
-        type =
-          if type == :ci_string do
-            :citext
-          else
-            type
-          end
+        if type == :ci_string do
+          :citext
+        else
+          case type.type(constraints || []) do
+            :ci_string ->
+              parameterized_type(AshPostgres.Type.CiStringWrapper, constraints, no_maps?)
 
-        Ecto.ParameterizedType.init(type, constraints || [])
+            _ ->
+              Ecto.ParameterizedType.init(type, constraints || [])
+          end
+        end
       else
-        type
+        if type == :ci_string do
+          :citext
+        else
+          type
+        end
       end
     end
   end
