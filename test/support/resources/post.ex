@@ -51,8 +51,7 @@ end
 
 defmodule CiCategory do
   use Ash.Type.NewType,
-    subtype_of: :ci_string,
-    constraints: [casing: :upper]
+    subtype_of: :ci_string
 end
 
 defmodule AshPostgres.Test.Post do
