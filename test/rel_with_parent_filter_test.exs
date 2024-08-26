@@ -24,6 +24,34 @@ defmodule AshPostgres.RelWithParentFilterTest do
              |> Ash.read_one!()
   end
 
+  test "filter constructed from input on relationship using parent works as expected" do
+    %{id: author_id} =
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "John", last_name: "Doe"})
+      |> Ash.create!()
+
+    %{id: author2_id} =
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "John"})
+      |> Ash.create!()
+
+    filter =
+      Ash.Filter.parse_input!(Author, %{
+        "authors_with_same_first_name" => %{
+          "id" => %{
+            "eq" => author_id
+          }
+        }
+      })
+
+    # here we get the expected result of 1 because it is done in the same query
+    assert %{id: ^author2_id} =
+             Author
+             |> Ash.Query.for_read(:read)
+             |> Ash.Query.do_filter(filter)
+             |> Ash.read_one!(authorize?: true)
+  end
+
   test "filter on relationship using parent works as expected when loading relationship" do
     %{id: author_id} =
       Author
