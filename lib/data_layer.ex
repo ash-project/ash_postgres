@@ -750,7 +750,9 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def return_query(query, resource) do
-    AshSql.Query.return_query(query, resource)
+    query
+    |> AshSql.Bindings.default_bindings(resource, AshPostgres.SqlImplementation)
+    |> AshSql.Query.return_query(query, resource)
   end
 
   @impl true
