@@ -330,8 +330,6 @@ defmodule Mix.Tasks.AshPostgres.Install do
         end
 
       _ ->
-        IO.inspect("HERE!")
-
         {:ok,
          Igniter.Code.Common.add_code(zipper, """
          def installed_extensions do
@@ -339,7 +337,6 @@ defmodule Mix.Tasks.AshPostgres.Install do
            ["ash-functions"]
          end
          """)}
-        |> IO.inspect()
     end
   end
 
