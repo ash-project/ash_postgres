@@ -41,6 +41,17 @@ defmodule AshPostgres.SqlImplementation do
     {:ok, Ecto.Query.dynamic(fragment("'[]'::jsonb")), acc}
   end
 
+  def expr(
+        _query,
+        %Ash.Query.UpsertConflict{attribute: attribute},
+        _bindings,
+        _embedded?,
+        acc,
+        _type
+      ) do
+    {:ok, Ecto.Query.dynamic(fragment("EXCLUDED.?", literal(^to_string(attribute)))), acc}
+  end
+
   def expr(query, %AshPostgres.Functions.Binding{}, _bindings, _embedded?, acc, _type) do
     binding =
       AshSql.Bindings.get_binding(

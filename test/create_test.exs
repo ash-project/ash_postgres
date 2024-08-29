@@ -55,4 +55,26 @@ defmodule AshPostgres.CreateTest do
 
     assert Ash.Resource.get_metadata(post, :upsert_skipped)
   end
+
+  test "skips upsert with upsert condition" do
+    assert {:ok, %Post{id: id}} =
+             Post
+             |> Ash.Changeset.for_create(:create, %{
+               title: "fredfoo",
+               uniq_if_contains_foo: "foo",
+               price: 10
+             })
+             |> Ash.create()
+
+    assert {:ok, %Post{id: ^id} = post} =
+             Post
+             |> Ash.Changeset.for_create(:upsert_with_condition, %{
+               title: "fredfoo",
+               uniq_if_contains_foo: "foo",
+               price: 10
+             })
+             |> Ash.create()
+
+    assert Ash.Resource.get_metadata(post, :upsert_skipped)
+  end
 end
