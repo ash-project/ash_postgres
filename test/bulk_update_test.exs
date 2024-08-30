@@ -106,6 +106,8 @@ defmodule AshPostgres.BulkUpdateTest do
   test "bulk updates honor update action filters when streaming" do
     Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
 
+    Logger.configure(level: :debug)
+
     Post
     |> Ash.bulk_update!(:update_only_freds, %{},
       strategy: :stream,
@@ -113,9 +115,18 @@ defmodule AshPostgres.BulkUpdateTest do
       atomic_update: %{title: Ash.Expr.expr(title <> "_stuff")}
     )
 
-    titles =
+    posts =
       Post
       |> Ash.read!()
+
+    fred =
+      posts
+      |> Enum.find(&(&1.title == "fred_stuff"))
+
+    assert fred.created_at != fred.updated_at
+
+    titles =
+      posts
       |> Enum.map(& &1.title)
       |> Enum.sort()
 
