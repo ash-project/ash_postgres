@@ -106,8 +106,6 @@ defmodule AshPostgres.BulkUpdateTest do
   test "bulk updates honor update action filters when streaming" do
     Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
 
-    Logger.configure(level: :debug)
-
     Post
     |> Ash.bulk_update!(:update_only_freds, %{},
       strategy: :stream,
