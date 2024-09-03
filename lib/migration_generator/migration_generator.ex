@@ -18,6 +18,7 @@ defmodule AshPostgres.MigrationGenerator do
             format: true,
             dry_run: false,
             check: false,
+            snapshots_only: false,
             dont_drop_columns: false
 
   def generate(domains, opts \\ []) do
