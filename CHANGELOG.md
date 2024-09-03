@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.2.4](https://github.com/ash-project/ash_postgres/compare/v2.2.3...v2.2.4) (2024-09-03)
+
+
+
+
+### Bug Fixes:
+
+* ensure default bindings are present on data layer
+
+* properly traverse newtypes when determining types
+
 ## [v2.2.3](https://github.com/ash-project/ash_postgres/compare/v2.2.2...v2.2.3) (2024-08-18)
 
 ### Bug Fixes:
