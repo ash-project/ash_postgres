@@ -1930,7 +1930,8 @@ defmodule AshPostgres.DataLayer do
     end)
   end
 
-  defp get_source_for_upsert_field(field, resource) do
+  @doc false
+  def get_source_for_upsert_field(field, resource) do
     case Ash.Resource.Info.attribute(resource, field) do
       %{source: source} when not is_nil(source) ->
         source

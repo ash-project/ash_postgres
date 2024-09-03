@@ -41,6 +41,33 @@ defmodule AshPostgres.SqlImplementation do
     {:ok, Ecto.Query.dynamic(fragment("'[]'::jsonb")), acc}
   end
 
+  def expr(
+        query,
+        %Ash.Query.UpsertConflict{attribute: attribute},
+        _bindings,
+        _embedded?,
+        acc,
+        _type
+      ) do
+    query.__ash_bindings__.resource
+
+    {:ok,
+     Ecto.Query.dynamic(
+       [],
+       fragment(
+         "EXCLUDED.?",
+         literal(
+           ^to_string(
+             AshPostgres.DataLayer.get_source_for_upsert_field(
+               attribute,
+               query.__ash_bindings__.resource
+             )
+           )
+         )
+       )
+     ), acc}
+  end
+
   def expr(query, %AshPostgres.Functions.Binding{}, _bindings, _embedded?, acc, _type) do
     binding =
       AshSql.Bindings.get_binding(

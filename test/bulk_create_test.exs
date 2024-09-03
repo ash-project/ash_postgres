@@ -2,6 +2,8 @@ defmodule AshPostgres.BulkCreateTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.{Post, Record}
 
+  import Ash.Expr
+
   describe "bulk creates" do
     test "bulk creates insert each input" do
       Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
@@ -97,6 +99,51 @@ defmodule AshPostgres.BulkCreateTest do
                  Post,
                  :upsert_with_filter,
                  return_stream?: true,
+                 return_errors?: true,
+                 return_records?: true
+               )
+               |> Enum.sort_by(fn
+                 {:ok, result} ->
+                   result.title
+
+                 _ ->
+                   nil
+               end)
+    end
+
+    test "bulk upsert skips with upsert_condition" do
+      assert [
+               {:ok, %{title: "fredfoo", uniq_if_contains_foo: "1foo", price: 10}},
+               {:ok, %{title: "georgefoo", uniq_if_contains_foo: "2foo", price: 20}},
+               {:ok, %{title: "herbert", uniq_if_contains_foo: "3", price: 30}}
+             ] =
+               Ash.bulk_create!(
+                 [
+                   %{title: "fredfoo", uniq_if_contains_foo: "1foo", price: 10},
+                   %{title: "georgefoo", uniq_if_contains_foo: "2foo", price: 20},
+                   %{title: "herbert", uniq_if_contains_foo: "3", price: 30}
+                 ],
+                 Post,
+                 :create,
+                 return_stream?: true,
+                 return_records?: true
+               )
+               |> Enum.sort_by(fn {:ok, result} -> result.title end)
+
+      assert [
+               {:ok, %{title: "georgefoo", uniq_if_contains_foo: "2foo", price: 20_000}},
+               {:ok, %{title: "herbert", uniq_if_contains_foo: "3", price: 30}}
+             ] =
+               Ash.bulk_create!(
+                 [
+                   %{title: "fredfoo", uniq_if_contains_foo: "1foo", price: 10},
+                   %{title: "georgefoo", uniq_if_contains_foo: "2foo", price: 20_000},
+                   %{title: "herbert", uniq_if_contains_foo: "3", price: 30}
+                 ],
+                 Post,
+                 :upsert_with_no_filter,
+                 return_stream?: true,
+                 upsert_condition: expr(price != upsert_conflict(:price)),
                  return_errors?: true,
                  return_records?: true
                )
