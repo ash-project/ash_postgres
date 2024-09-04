@@ -7,23 +7,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 ## [v2.2.5](https://github.com/ash-project/ash_postgres/compare/v2.2.4...v2.2.5) (2024-09-04)
 
-
-
-
 ### Improvements:
 
-* support ash main upsert_condition logic
+- [`AshPostgres.DataLayer`] support ash main upsert_condition logic
 
 ## [v2.2.4](https://github.com/ash-project/ash_postgres/compare/v2.2.3...v2.2.4) (2024-09-03)
 
-
-
-
 ### Bug Fixes:
 
-* ensure default bindings are present on data layer
+- [`AshPostgres.DataLayer`] ensure default bindings are present on data layer
 
-* properly traverse newtypes when determining types
+- [`AshPostgres.DataLayer`] properly traverse newtypes when determining types
 
 ## [v2.2.3](https://github.com/ash-project/ash_postgres/compare/v2.2.2...v2.2.3) (2024-08-18)
 
