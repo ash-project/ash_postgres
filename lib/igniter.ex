@@ -18,6 +18,30 @@ defmodule AshPostgres.Igniter do
     """
   end
 
+  def table(igniter, resource) do
+    igniter
+    |> Spark.Igniter.get_option(resource, [:postgres, :table])
+    |> case do
+      {igniter, {:ok, value}} when is_binary(value) or is_nil(value) ->
+        {:ok, igniter, value}
+
+      _ ->
+        :error
+    end
+  end
+
+  def repo(igniter, resource) do
+    igniter
+    |> Spark.Igniter.get_option(resource, [:postgres, :repo])
+    |> case do
+      {igniter, {:ok, value}} when is_atom(value) ->
+        {:ok, igniter, value}
+
+      _ ->
+        :error
+    end
+  end
+
   def add_postgres_extension(igniter, repo_name, extension) do
     Igniter.Code.Module.find_and_update_module!(igniter, repo_name, fn zipper ->
       case Igniter.Code.Function.move_to_def(zipper, :installed_extensions, 0) do

@@ -169,6 +169,8 @@ defmodule AshPostgres.MixProject do
       {:ecto, "~> 3.12 and >= 3.12.1"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
+      {:inflex, "~> 2.1"},
+      {:owl, "~> 0.11"},
       # dev/test dependencies
       {:eflame, "~> 1.0", only: [:dev, :test]},
       {:simple_sat, "~> 0.1", only: [:dev, :test]},
