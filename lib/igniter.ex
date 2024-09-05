@@ -25,8 +25,8 @@ defmodule AshPostgres.Igniter do
       {igniter, {:ok, value}} when is_binary(value) or is_nil(value) ->
         {:ok, igniter, value}
 
-      _ ->
-        :error
+      {igniter, _} ->
+        {:error, igniter}
     end
   end
 
@@ -37,8 +37,8 @@ defmodule AshPostgres.Igniter do
       {igniter, {:ok, value}} when is_atom(value) ->
         {:ok, igniter, value}
 
-      _ ->
-        :error
+      {igniter, _} ->
+        {:error, igniter}
     end
   end
 

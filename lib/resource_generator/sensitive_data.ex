@@ -1,4 +1,5 @@
 defmodule AshPostgres.ResourceGenerator.SensitiveData do
+  @moduledoc false
   # I got this from ChatGPT, but this is a best effort transformation
   # anyway.
   @sensitive_patterns [
@@ -65,7 +66,7 @@ defmodule AshPostgres.ResourceGenerator.SensitiveData do
     ~r/.*_token/i
   ]
 
-  def is_sensitive?(column_name) do
+  def sensitive?(column_name) do
     Enum.any?(@sensitive_patterns, fn pattern ->
       Regex.match?(pattern, column_name)
     end)

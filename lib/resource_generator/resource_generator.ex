@@ -1,4 +1,5 @@
 defmodule AshPostgres.ResourceGenerator do
+  @moduledoc false
   alias AshPostgres.ResourceGenerator.Spec
 
   require Logger
@@ -6,26 +7,9 @@ defmodule AshPostgres.ResourceGenerator do
   def generate(igniter, repos, domain, opts \\ []) do
     {igniter, resources} = Ash.Resource.Igniter.list_resources(igniter)
 
-    resources =
-      Task.async_stream(resources, fn resource ->
-        {resource, AshPostgres.Igniter.repo(igniter, resource),
-         AshPostgres.Igniter.table(igniter, resource)}
-      end)
-      |> Enum.map(fn {:ok, {resource, repo, table}} ->
-        repo =
-          case repo do
-            {:ok, _igniter, repo} -> repo
-            _ -> nil
-          end
-
-        table =
-          case table do
-            {:ok, _igniter, table} -> table
-            _ -> nil
-          end
-
-        {resource, repo, table}
-      end)
+    # This is a hack. We should be looking at compiled resources
+    # unlikely to ever matter given how this task will be used though.
+    resources = Enum.filter(resources, &Code.ensure_loaded?/1)
 
     igniter = Igniter.include_all_elixir_files(igniter)
 
@@ -140,8 +124,6 @@ defmodule AshPostgres.ResourceGenerator do
   end
 
   defp check_constraints(%{check_constraints: check_constraints}, _) do
-    IO.inspect(check_constraints)
-
     check_constraints =
       Enum.map_join(check_constraints, "\n", fn check_constraint ->
         """
@@ -158,9 +140,8 @@ defmodule AshPostgres.ResourceGenerator do
 
   defp skip_unique_indexes(%{indexes: indexes}) do
     indexes
-    |> Enum.filter(& &1.unique?)
-    |> Enum.filter(fn %{columns: columns} ->
-      Enum.all?(columns, &Regex.match?(~r/^[0-9a-zA-Z_]+$/, &1))
+    |> Enum.filter(fn %{unique?: unique?, columns: columns} ->
+      unique? && Enum.all?(columns, &Regex.match?(~r/^[0-9a-zA-Z_]+$/, &1))
     end)
     |> Enum.reject(&index_as_identity?/1)
     |> case do
@@ -176,9 +157,8 @@ defmodule AshPostgres.ResourceGenerator do
 
   defp identity_index_names(%{indexes: indexes}) do
     indexes
-    |> Enum.filter(& &1.unique?)
-    |> Enum.filter(fn %{columns: columns} ->
-      Enum.all?(columns, &Regex.match?(~r/^[0-9a-zA-Z_]+$/, &1))
+    |> Enum.filter(fn %{unique?: unique?, columns: columns} ->
+      unique? && Enum.all?(columns, &Regex.match?(~r/^[0-9a-zA-Z_]+$/, &1))
     end)
     |> case do
       [] ->
@@ -195,9 +175,8 @@ defmodule AshPostgres.ResourceGenerator do
 
   defp add_identities(str, %{indexes: indexes}) do
     indexes
-    |> Enum.filter(& &1.unique?)
-    |> Enum.filter(fn %{columns: columns} ->
-      Enum.all?(columns, &Regex.match?(~r/^[0-9a-zA-Z_]+$/, &1))
+    |> Enum.filter(fn %{unique?: unique?, columns: columns} ->
+      unique? && Enum.all?(columns, &Regex.match?(~r/^[0-9a-zA-Z_]+$/, &1))
     end)
     |> Enum.map(fn index ->
       name = index.name
@@ -431,10 +410,8 @@ defmodule AshPostgres.ResourceGenerator do
   defp custom_indexes(table_spec, true) do
     table_spec.indexes
     |> Enum.reject(fn index ->
-      !index.unique? || (&index_as_identity?/1)
-    end)
-    |> Enum.reject(fn index ->
-      Enum.any?(index.columns, &String.contains?(&1, "("))
+      !index.unique? || (&index_as_identity?/1) ||
+        Enum.any?(index.columns, &String.contains?(&1, "("))
     end)
     |> case do
       [] ->

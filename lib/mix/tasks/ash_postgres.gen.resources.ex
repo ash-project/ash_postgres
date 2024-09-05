@@ -5,7 +5,7 @@ defmodule Mix.Tasks.AshPostgres.Gen.Resources do
 
   @shortdoc "Generates or updates resources based on a database schema"
 
-  @doc """
+  @moduledoc """
   #{@shortdoc}
 
   ## Example

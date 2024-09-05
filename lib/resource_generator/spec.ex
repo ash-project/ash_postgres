@@ -1,4 +1,5 @@
 defmodule AshPostgres.ResourceGenerator.Spec do
+  @moduledoc false
   require Logger
 
   defstruct [
@@ -15,6 +16,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
   ]
 
   defmodule Attribute do
+    @moduledoc false
     defstruct [
       :name,
       :type,
@@ -31,6 +33,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
   end
 
   defmodule ForeignKey do
+    @moduledoc false
     defstruct [
       :constraint_name,
       :match_type,
@@ -44,14 +47,17 @@ defmodule AshPostgres.ResourceGenerator.Spec do
   end
 
   defmodule Index do
+    @moduledoc false
     defstruct [:name, :columns, :unique?, :nulls_distinct, :where_clause, :using, :include]
   end
 
   defmodule CheckConstraint do
+    @moduledoc false
     defstruct [:name, :column, :expression]
   end
 
   defmodule Relationship do
+    @moduledoc false
     defstruct [
       :name,
       :type,
@@ -71,7 +77,6 @@ defmodule AshPostgres.ResourceGenerator.Spec do
       Ecto.Migrator.with_repo(repo, fn repo ->
         repo
         |> table_specs(opts)
-        |> verify_found_tables(opts)
         |> Enum.group_by(&Enum.take(&1, 2), fn [_, _, field, type, default, size, allow_nil?] ->
           name = Macro.underscore(field)
 
@@ -421,39 +426,6 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     raise "Unexpected character: #{inspect(other)} at #{inspect(stack)} with #{inspect(field)} - #{inspect(acc)}"
   end
 
-  defp verify_found_tables(specs, opts) do
-    if opts[:tables] do
-      not_found =
-        Enum.reject(opts[:tables], fn table ->
-          if String.ends_with?(table, ".") do
-            true
-          else
-            case String.split(table, ".") do
-              [schema, table] ->
-                Enum.any?(specs, fn spec ->
-                  Enum.at(spec, 0) == table and Enum.at(spec, 1) == schema
-                end)
-
-              [table] ->
-                Enum.any?(specs, fn spec ->
-                  Enum.at(spec, 0) == table
-                end)
-            end
-          end
-        end)
-
-      case not_found do
-        [] ->
-          specs
-
-        tables ->
-          raise "The following tables did not exist: #{inspect(tables)}"
-      end
-    else
-      specs
-    end
-  end
-
   defp build_attributes(attributes, table_name, schema, repo, opts) do
     attributes
     |> set_primary_key(table_name, schema, repo)
@@ -546,9 +518,9 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     |> Enum.flat_map(fn {repo, specs} ->
       do_add_relationships(
         specs,
-        Enum.flat_map(resources, fn {resource, resource_repo, table} ->
-          if resource_repo == repo do
-            [{resource, table}]
+        Enum.flat_map(resources, fn resource ->
+          if AshPostgres.DataLayer.Info.repo(resource) == repo do
+            [{resource, AshPostgres.DataLayer.Info.table(resource)}]
           else
             []
           end
@@ -918,7 +890,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     Enum.map(attributes, fn attribute ->
       %{
         attribute
-        | sensitive?: AshPostgres.ResourceGenerator.SensitiveData.is_sensitive?(attribute.name)
+        | sensitive?: AshPostgres.ResourceGenerator.SensitiveData.sensitive?(attribute.name)
       }
     end)
   end
