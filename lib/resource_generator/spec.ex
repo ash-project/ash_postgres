@@ -48,7 +48,16 @@ defmodule AshPostgres.ResourceGenerator.Spec do
 
   defmodule Index do
     @moduledoc false
-    defstruct [:name, :columns, :unique?, :nulls_distinct, :where_clause, :using, :include]
+    defstruct [
+      :name,
+      :columns,
+      :unique?,
+      :nulls_distinct,
+      :where_clause,
+      :using,
+      :include,
+      :identity_name
+    ]
   end
 
   defmodule CheckConstraint do
@@ -196,7 +205,8 @@ defmodule AshPostgres.ResourceGenerator.Spec do
             contype = 'c'
             AND conrelid::regclass::text = $1
         """,
-        [spec.table_name]
+        [spec.table_name],
+        log: false
       )
 
     attribute = Enum.find(spec.attributes, & &1.primary_key?) || Enum.at(spec.attributes, 0)
@@ -290,9 +300,18 @@ defmodule AshPostgres.ResourceGenerator.Spec do
                       nil
                   end
 
+                identity_name =
+                  index_name
+                  |> String.trim_leading(spec.table_name <> "_")
+                  |> String.trim_leading("unique_")
+                  |> String.replace("_unique_", "_")
+                  |> String.trim_trailing("_index")
+                  |> String.replace("_index_", "_")
+
                 [
                   %Index{
                     name: index_name,
+                    identity_name: identity_name,
                     columns: Enum.uniq(columns),
                     unique?: is_unique,
                     include: include,

@@ -13,33 +13,7 @@ defmodule AshPostgres.ResourceGenerator do
 
     igniter = Igniter.include_all_elixir_files(igniter)
 
-    opts =
-      if opts[:tables] do
-        Keyword.put(
-          opts,
-          :tables,
-          opts[:tables]
-          |> List.wrap()
-          |> Enum.join(",")
-          |> String.split(",")
-        )
-      else
-        opts
-      end
-
-    opts =
-      if opts[:skip_tables] do
-        Keyword.put(
-          opts,
-          :skip_tables,
-          opts[:skip_tables]
-          |> List.wrap()
-          |> Enum.join(",")
-          |> String.split(",")
-        )
-      else
-        opts
-      end
+    opts = handle_csv_opts(opts, [:tables, :skip_tables, :extend])
 
     specs =
       repos
@@ -72,6 +46,23 @@ defmodule AshPostgres.ResourceGenerator do
 
     Enum.reduce(specs, igniter, fn table_spec, igniter ->
       table_to_resource(igniter, table_spec, domain, opts)
+    end)
+  end
+
+  defp handle_csv_opts(opts, keys) do
+    Enum.reduce(keys, opts, fn key, opts ->
+      opts
+      |> Keyword.get_values(key)
+      |> case do
+        [] ->
+          opts
+
+        values ->
+          values
+          |> Enum.join(",")
+          |> String.split(",", trim: true)
+          |> then(&Keyword.put(opts, key, &1))
+      end
     end)
   end
 
@@ -113,6 +104,15 @@ defmodule AshPostgres.ResourceGenerator do
     igniter
     |> Ash.Domain.Igniter.add_resource_reference(domain, table_spec.resource)
     |> Igniter.Code.Module.create_module(table_spec.resource, resource)
+    |> then(fn igniter ->
+      if opts[:extend] do
+        Igniter.compose_task(igniter, "ash.patch.extend", [
+          table_spec.resource | opts[:extend] || []
+        ])
+      else
+        igniter
+      end
+    end)
   end
 
   defp check_constraints(%{check_constraints: _check_constraints}, true) do
@@ -138,7 +138,7 @@ defmodule AshPostgres.ResourceGenerator do
     """
   end
 
-  defp skip_unique_indexes(%{indexes: indexes}) do
+  defp skip_unique_indexes(%{table_name: table_name, indexes: indexes}) do
     indexes
     |> Enum.filter(fn %{unique?: unique?, columns: columns} ->
       unique? && Enum.all?(columns, &Regex.match?(~r/^[0-9a-zA-Z_]+$/, &1))
@@ -150,12 +150,12 @@ defmodule AshPostgres.ResourceGenerator do
 
       indexes ->
         """
-          skip_unique_indexes [#{Enum.map_join(indexes, ",", &":#{&1.name}")}]
+          skip_unique_indexes [#{Enum.map_join(indexes, ",", &":#{&1.identity_name}")}]
         """
     end
   end
 
-  defp identity_index_names(%{indexes: indexes}) do
+  defp identity_index_names(%{table_name: table_name, indexes: indexes}) do
     indexes
     |> Enum.filter(fn %{unique?: unique?, columns: columns} ->
       unique? && Enum.all?(columns, &Regex.match?(~r/^[0-9a-zA-Z_]+$/, &1))
@@ -167,19 +167,19 @@ defmodule AshPostgres.ResourceGenerator do
       indexes ->
         indexes
         |> Enum.map_join(", ", fn index ->
-          "#{index.name}: \"#{index.name}\""
+          "#{index.identity_name}: \"#{index.name}\""
         end)
         |> then(&"identity_index_names [#{&1}]")
     end
   end
 
-  defp add_identities(str, %{indexes: indexes}) do
+  defp add_identities(str, %{table_name: table_name, indexes: indexes}) do
     indexes
     |> Enum.filter(fn %{unique?: unique?, columns: columns} ->
       unique? && Enum.all?(columns, &Regex.match?(~r/^[0-9a-zA-Z_]+$/, &1))
     end)
     |> Enum.map(fn index ->
-      name = index.name
+      name = index.identity_name
 
       fields = "[" <> Enum.map_join(index.columns, ", ", &":#{&1}") <> "]"
 
