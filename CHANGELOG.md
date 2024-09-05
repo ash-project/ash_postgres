@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.3.0](https://github.com/ash-project/ash_postgres/compare/v2.2.5...v2.3.0) (2024-09-05)
+
+
+
+
+### Features:
+
+* `mix ash_postgres.gen.resources`
+
+* `mix ash_postgres.gen.resources`
+
 ## [v2.2.5](https://github.com/ash-project/ash_postgres/compare/v2.2.4...v2.2.5) (2024-09-04)
 
 ### Improvements:
