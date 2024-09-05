@@ -21,6 +21,7 @@ defmodule AshPostgres.ResourceGenerator do
       |> Enum.map(fn %{table_name: table} = spec ->
         resource =
           table
+          |> Inflex.singularize()
           |> Macro.camelize()
           |> then(&Module.concat([domain, &1]))
 
