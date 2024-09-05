@@ -7,25 +7,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 ## [v2.3.1](https://github.com/ash-project/ash_postgres/compare/v2.3.0...v2.3.1) (2024-09-05)
 
-
-
-
 ### Improvements:
 
-* better imported index names
+- [`mix ash_postgres.gen.migrations`] better imported index names
 
-* add `--extend` option, forwarded to generated resource
+- [`mix ash_postgres.gen.migrations`] add `--extend` option, forwarded to generated resource
 
 ## [v2.3.0](https://github.com/ash-project/ash_postgres/compare/v2.2.5...v2.3.0) (2024-09-05)
 
-
-
-
 ### Features:
 
-* `mix ash_postgres.gen.resources`
-
-* `mix ash_postgres.gen.resources`
+- [`mix ash_postgres.gen.resources`] Add `mix ash_postgres.gen.resources` for importing tables from an existing database as resources
 
 ## [v2.2.5](https://github.com/ash-project/ash_postgres/compare/v2.2.4...v2.2.5) (2024-09-04)
 
