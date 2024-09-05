@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.3.1](https://github.com/ash-project/ash_postgres/compare/v2.3.0...v2.3.1) (2024-09-05)
+
+
+
+
+### Improvements:
+
+* better imported index names
+
+* add `--extend` option, forwarded to generated resource
+
 ## [v2.3.0](https://github.com/ash-project/ash_postgres/compare/v2.2.5...v2.3.0) (2024-09-05)
 
 
