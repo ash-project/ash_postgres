@@ -21,15 +21,6 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.Record)
     resource(AshPostgres.Test.PostFollower)
     resource(AshPostgres.Test.StatefulPostFollower)
-    resource(CalcDependency.Dependency)
-    resource(CalcDependency.Element)
-    resource(CalcDependency.ElementContext)
-    resource(CalcDependency.Location)
-    resource(CalcDependency.Operation)
-    resource(CalcDependency.OperationVersion)
-    resource(CalcDependency.SchematicGroup)
-    resource(CalcDependency.Segment)
-    resource(CalcDependency.Verb)
   end
 
   authorization do
