@@ -84,7 +84,7 @@ defmodule AshPostgres.ResourceGenerator do
           with `--tables` or `--skip-tables`
           """
       end)
-      |> Spec.add_relationships(resources)
+      |> Spec.add_relationships(resources, opts)
 
     Enum.reduce(specs, igniter, fn table_spec, igniter ->
       table_to_resource(igniter, table_spec, domain, opts)

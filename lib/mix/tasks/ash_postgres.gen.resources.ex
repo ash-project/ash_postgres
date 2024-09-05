@@ -23,6 +23,7 @@ defmodule Mix.Tasks.AshPostgres.Gen.Resources do
   - `tables`, `t` - Defaults to `public.*`. The tables to generate resources for, comma separated. Can be specified multiple times. See the section on tables for more.
   - `skip-tables`, `s` - The tables to skip generating resources for, comma separated. Can be specified multiple times. See the section on tables for more.
   - `snapshots-only` - Only generate snapshots for the generated resources, and not migraitons.
+  - `yes`, `y` - Answer yes (or skip) to all questions.
 
   ## Tables
 
@@ -41,6 +42,7 @@ defmodule Mix.Tasks.AshPostgres.Gen.Resources do
       example: @example,
       schema: [
         repo: :keep,
+        yes: :boolean,
         tables: :keep,
         skip_tables: :keep,
         snapshots_only: :boolean,
@@ -48,6 +50,7 @@ defmodule Mix.Tasks.AshPostgres.Gen.Resources do
       ],
       aliases: [
         t: :tables,
+        y: :boolean,
         r: :repo,
         d: :domain,
         s: :skip_tables
@@ -109,7 +112,7 @@ defmodule Mix.Tasks.AshPostgres.Gen.Resources do
           """
 
         options =
-          if Mix.shell().yes?(prompt) do
+          if options[:yes] || Mix.shell().yes?(prompt) do
             Keyword.put(options, :no_migrations, false)
           else
             Keyword.put(options, :no_migrations, true)

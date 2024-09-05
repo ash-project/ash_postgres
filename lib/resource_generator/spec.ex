@@ -85,7 +85,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
           }
         end)
         |> Enum.map(fn {[table_name, table_schema], attributes} ->
-          attributes = build_attributes(attributes, table_name, table_schema, repo)
+          attributes = build_attributes(attributes, table_name, table_schema, repo, opts)
 
           %__MODULE__{
             table_name: table_name,
@@ -454,11 +454,11 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     end
   end
 
-  defp build_attributes(attributes, table_name, schema, repo) do
+  defp build_attributes(attributes, table_name, schema, repo, opts) do
     attributes
     |> set_primary_key(table_name, schema, repo)
     |> set_sensitive()
-    |> set_types()
+    |> set_types(opts)
     |> set_defaults_and_generated()
   end
 
@@ -540,7 +540,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     end)
   end
 
-  def add_relationships(specs, resources) do
+  def add_relationships(specs, resources, opts) do
     specs
     |> Enum.group_by(& &1.repo)
     |> Enum.flat_map(fn {repo, specs} ->
@@ -552,12 +552,13 @@ defmodule AshPostgres.ResourceGenerator.Spec do
           else
             []
           end
-        end)
+        end),
+        opts
       )
     end)
   end
 
-  defp do_add_relationships(specs, resources) do
+  defp do_add_relationships(specs, resources, opts) do
     specs =
       Enum.map(specs, fn spec ->
         belongs_to_relationships =
@@ -609,7 +610,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
               [relationship]
 
             {name, relationships} ->
-              name_all_relationships(:belongs_to, spec, name, relationships)
+              name_all_relationships(:belongs_to, opts, spec, name, relationships)
           end)
 
         %{spec | relationships: belongs_to_relationships}
@@ -673,17 +674,17 @@ defmodule AshPostgres.ResourceGenerator.Spec do
             [relationship]
 
           {name, relationships} ->
-            name_all_relationships(:has, spec, name, relationships)
+            name_all_relationships(:has, opts, spec, name, relationships)
         end)
 
       %{spec | relationships: spec.relationships ++ relationships_to_me}
     end)
   end
 
-  defp name_all_relationships(type, spec, name, relationships, acc \\ [])
-  defp name_all_relationships(_type, _spec, _name, [], acc), do: acc
+  defp name_all_relationships(type, opts, spec, name, relationships, acc \\ [])
+  defp name_all_relationships(_type, _opts, _spec, _name, [], acc), do: acc
 
-  defp name_all_relationships(type, spec, name, [relationship | rest], acc) do
+  defp name_all_relationships(type, opts, spec, name, [relationship | rest], acc) do
     label =
       case type do
         :belongs_to ->
@@ -729,10 +730,12 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     |> String.trim_leading(":")
     |> case do
       "" ->
-        name_all_relationships(type, spec, name, rest, acc)
+        name_all_relationships(type, opts, spec, name, rest, acc)
 
       new_name ->
-        name_all_relationships(type, spec, name, rest, [%{relationship | name: new_name} | acc])
+        name_all_relationships(type, opts, spec, name, rest, [
+          %{relationship | name: new_name} | acc
+        ])
     end
   end
 
@@ -810,7 +813,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     end
   end
 
-  def set_types(attributes) do
+  def set_types(attributes, opts) do
     attributes
     |> Enum.map(fn attribute ->
       case Process.get({:type_cache, attribute.type}) do
@@ -820,7 +823,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
               %{attribute | attr_type: type}
 
             :error ->
-              get_type(attribute)
+              get_type(attribute, opts)
           end
 
         type ->
@@ -829,19 +832,26 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     end)
   end
 
-  defp get_type(attribute) do
-    case Mix.shell().prompt("""
-         Unknown type: #{attribute.type}. What should we use as the type?
+  defp get_type(attribute, opts) do
+    result =
+      if opts[:yes?] do
+        "skip"
+      else
+        Mix.shell().prompt("""
+        Unknown type: #{attribute.type}. What should we use as the type?
 
-         Provide the value as literal source code that should be placed into the
-         generated file, i.e
+        Provide the value as literal source code that should be placed into the
+        generated file, i.e
 
-            - :string
-            - MyApp.Types.CustomType
-            - {:array, :string}
+           - :string
+           - MyApp.Types.CustomType
+           - {:array, :string}
 
-         Use `skip` to skip ignore this attribute.
-         """) do
+        Use `skip` to skip ignore this attribute.
+        """)
+      end
+
+    case result do
       skip when skip in ["skip", "skip\n"] ->
         attribute
 
@@ -861,7 +871,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
               e ->
                 IO.puts(Exception.format(:error, e, __STACKTRACE__))
 
-                get_type(attribute)
+                get_type(attribute, opts)
             end
         end
     end
