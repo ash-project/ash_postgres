@@ -1,4 +1,4 @@
-defmodule AshPostgres.RelWithParentFilterTest do
+defmodule AshPostgres.ResourceGeenratorTests do
   use AshPostgres.RepoCase, async: false
 
   setup do

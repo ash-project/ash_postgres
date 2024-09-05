@@ -138,7 +138,7 @@ defmodule AshPostgres.ResourceGenerator do
     """
   end
 
-  defp skip_unique_indexes(%{table_name: table_name, indexes: indexes}) do
+  defp skip_unique_indexes(%{indexes: indexes}) do
     indexes
     |> Enum.filter(fn %{unique?: unique?, columns: columns} ->
       unique? && Enum.all?(columns, &Regex.match?(~r/^[0-9a-zA-Z_]+$/, &1))
@@ -155,7 +155,7 @@ defmodule AshPostgres.ResourceGenerator do
     end
   end
 
-  defp identity_index_names(%{table_name: table_name, indexes: indexes}) do
+  defp identity_index_names(%{indexes: indexes}) do
     indexes
     |> Enum.filter(fn %{unique?: unique?, columns: columns} ->
       unique? && Enum.all?(columns, &Regex.match?(~r/^[0-9a-zA-Z_]+$/, &1))
@@ -173,7 +173,7 @@ defmodule AshPostgres.ResourceGenerator do
     end
   end
 
-  defp add_identities(str, %{table_name: table_name, indexes: indexes}) do
+  defp add_identities(str, %{indexes: indexes}) do
     indexes
     |> Enum.filter(fn %{unique?: unique?, columns: columns} ->
       unique? && Enum.all?(columns, &Regex.match?(~r/^[0-9a-zA-Z_]+$/, &1))
