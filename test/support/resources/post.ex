@@ -504,6 +504,8 @@ defmodule AshPostgres.Test.Post do
     has_many(:views, AshPostgres.Test.PostView) do
       public?(true)
     end
+
+    has_many(:permalinks, AshPostgres.Test.Permalink)
   end
 
   validations do
