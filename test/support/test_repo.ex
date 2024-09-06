@@ -14,8 +14,14 @@ defmodule AshPostgres.TestRepo do
 
   def min_pg_version do
     case System.get_env("PG_VERSION") do
-      nil -> %Version{major: 16, minor: 0, patch: 0}
-      version -> Version.parse!(version)
+      nil ->
+        %Version{major: 16, minor: 0, patch: 0}
+
+      version ->
+        case Integer.parse(version) do
+          {major, ""} -> %Version{major: major, minor: 0, patch: 0}
+          _ -> Version.parse!(version)
+        end
     end
   end
 
