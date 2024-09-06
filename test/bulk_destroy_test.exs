@@ -1,5 +1,6 @@
 defmodule AshPostgres.BulkDestroyTest do
   use AshPostgres.RepoCase, async: false
+  alias AshPostgres.Test.Permalink
   alias AshPostgres.Test.Post
 
   require Ash.Expr
@@ -67,5 +68,40 @@ defmodule AshPostgres.BulkDestroyTest do
     |> Ash.bulk_destroy!(:destroy, %{}, strategy: :stream, return_errors?: true)
 
     assert [] = Ash.read!(Post)
+  end
+
+  test "bulk destroys errors on constraint violation" do
+    post = Ash.create!(Post, %{title: "fred"})
+    Ash.create!(Permalink, %{post_id: post.id})
+
+    assert %Ash.BulkResult{
+             status: :error,
+             error_count: 1,
+             errors: [%Ash.Error.Invalid{}]
+           } =
+             Post
+             |> Ash.read!()
+             |> Ash.bulk_destroy(:destroy, %{},
+               return_records?: true,
+               return_errors?: true
+             )
+  end
+
+  test "bulk destroys returns error on constraint violation with strategy stream" do
+    post = Ash.create!(Post, %{title: "fred"})
+    Ash.create!(Permalink, %{post_id: post.id})
+
+    assert %Ash.BulkResult{
+             status: :error,
+             error_count: 1,
+             errors: [%Ash.Error.Invalid{}]
+           } =
+             Post
+             |> Ash.read!()
+             |> Ash.bulk_destroy(:destroy, %{},
+               strategy: :stream,
+               return_records?: true,
+               return_errors?: true
+             )
   end
 end
