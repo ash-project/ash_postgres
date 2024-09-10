@@ -6,8 +6,8 @@ defmodule Mix.Tasks.AshPostgres.Install do
   use Igniter.Mix.Task
 
   def igniter(igniter, _argv) do
-    repo = Igniter.Code.Module.module_name("Repo")
-    otp_app = Igniter.Project.Application.app_name()
+    repo = Igniter.Code.Module.module_name(igniter, "Repo")
+    otp_app = Igniter.Project.Application.app_name(igniter)
 
     igniter
     |> Igniter.Project.Formatter.import_dep(:ash_postgres)
@@ -17,7 +17,14 @@ defmodule Mix.Tasks.AshPostgres.Install do
     |> configure_runtime(otp_app, repo)
     |> configure_test(otp_app, repo)
     |> setup_data_case()
-    |> Igniter.Project.Application.add_new_child(repo)
+    |> Igniter.Project.Application.add_new_child(repo,
+      after: fn mod ->
+        case Module.split(mod) do
+          [_, "Telemetry"] -> true
+          _ -> false
+        end
+      end
+    )
     |> Spark.Igniter.prepend_to_section_order(:"Ash.Resource", [:postgres])
     |> Ash.Igniter.codegen("initialize")
   end
@@ -221,23 +228,23 @@ defmodule Mix.Tasks.AshPostgres.Install do
 
     using do
       quote do
-        alias #{inspect(Igniter.Code.Module.module_name("Repo"))}
+        alias #{inspect(Igniter.Code.Module.module_name(igniter, "Repo"))}
 
         import Ecto
         import Ecto.Changeset
         import Ecto.Query
-        import #{inspect(Igniter.Code.Module.module_name("DataCase"))}
+        import #{inspect(Igniter.Code.Module.module_name(igniter, "DataCase"))}
       end
     end
 
     setup tags do
-      pid = Ecto.Adapters.SQL.Sandbox.start_owner!(#{inspect(Igniter.Code.Module.module_name("Repo"))}, shared: not tags[:async])
+      pid = Ecto.Adapters.SQL.Sandbox.start_owner!(#{inspect(Igniter.Code.Module.module_name(igniter, "Repo"))}, shared: not tags[:async])
       on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
       :ok
     end
     |
 
-    module_name = Igniter.Code.Module.module_name("DataCase")
+    module_name = Igniter.Code.Module.module_name(igniter, "DataCase")
 
     igniter
     |> Igniter.Code.Module.find_and_update_or_create_module(

@@ -2984,7 +2984,7 @@ defmodule AshPostgres.DataLayer do
     repo =
       case options[:repo] do
         nil ->
-          Igniter.Code.Module.module_name("Repo")
+          Igniter.Code.Module.module_name(igniter, "Repo")
 
         repo ->
           Igniter.Code.Module.parse(repo)

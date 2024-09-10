@@ -76,8 +76,8 @@ defmodule AshPostgres.Igniter do
     case list_repos(igniter) do
       {igniter, []} ->
         if generate do
-          repo = Igniter.Code.Module.module_name("Repo")
-          otp_app = Igniter.Project.Application.app_name()
+          repo = Igniter.Code.Module.module_name(igniter, "Repo")
+          otp_app = Igniter.Project.Application.app_name(igniter)
 
           igniter =
             Igniter.Code.Module.create_module(igniter, repo, default_repo_contents(otp_app))
