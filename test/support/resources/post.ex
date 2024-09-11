@@ -387,6 +387,13 @@ defmodule AshPostgres.Test.Post do
       constraints(nil_items?: true)
     end
 
+    attribute(:ltree_unescaped, AshPostgres.Ltree,
+      constraints: [min_length: 1, max_length: 10],
+      public?: true
+    )
+
+    attribute(:ltree_escaped, AshPostgres.Ltree, constraints: [escape?: true], public?: true)
+
     create_timestamp(:created_at, writable?: true, public?: true)
 
     update_timestamp(:updated_at,

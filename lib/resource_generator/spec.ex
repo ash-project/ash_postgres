@@ -903,6 +903,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
   defp type("tsvector"), do: {:ok, AshPostgres.Tsvector}
   defp type("uuid"), do: {:ok, :uuid}
   defp type("citext"), do: {:ok, :ci_string}
+  defp type("ltree"), do: {:ok, AshPostgres.Ltree}
   defp type(_), do: :error
 
   defp set_sensitive(attributes) do
