@@ -14,6 +14,21 @@ defmodule AshPostgres.BulkCreateTest do
                |> Ash.read!()
     end
 
+    test "bulk creates perform before action hooks" do
+      Ash.bulk_create!(
+        [%{title: "before_action"}, %{title: "before_action"}],
+        Post,
+        :create_with_before_action,
+        return_errors?: true,
+        return_records?: true
+      )
+
+      assert [%{title: "before_action"}, %{title: "before_action"}] =
+               Post
+               |> Ash.Query.sort(:title)
+               |> Ash.read!()
+    end
+
     test "bulk creates can be streamed" do
       assert [{:ok, %{title: "fred"}}, {:ok, %{title: "george"}}] =
                Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create,

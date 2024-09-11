@@ -1368,10 +1368,17 @@ defmodule AshPostgres.DataLayer do
               query =
                 if options[:return_records?] do
                   {:ok, query} =
-                    query
-                    |> Ecto.Query.exclude(:select)
-                    |> Ecto.Query.select([row], row)
-                    |> add_calculations(options[:calculations] || [], resource)
+                    if options[:action_select] do
+                      query
+                      |> Ecto.Query.exclude(:select)
+                      |> Ecto.Query.select([row], struct(row, ^options[:action_select]))
+                      |> add_calculations(options[:calculations] || [], resource)
+                    else
+                      query
+                      |> Ecto.Query.exclude(:select)
+                      |> Ecto.Query.select([row], row)
+                      |> add_calculations(options[:calculations] || [], resource)
+                    end
 
                   query
                 else
@@ -1626,10 +1633,19 @@ defmodule AshPostgres.DataLayer do
           query =
             if options[:return_records?] do
               {:ok, query} =
-                query
-                |> Ecto.Query.exclude(:select)
-                |> Ecto.Query.select([row], row)
-                |> add_calculations(options[:calculations] || [], resource)
+                case options[:action_select] do
+                  nil ->
+                    query
+                    |> Ecto.Query.exclude(:select)
+                    |> Ecto.Query.select([row], row)
+                    |> add_calculations(options[:calculations] || [], resource)
+
+                  action_select ->
+                    query
+                    |> Ecto.Query.exclude(:select)
+                    |> Ecto.Query.select([row], struct(row, ^action_select))
+                    |> add_calculations(options[:calculations] || [], resource)
+                end
 
               query
             else
@@ -1717,7 +1733,13 @@ defmodule AshPostgres.DataLayer do
 
     opts =
       if options.return_records? do
-        Keyword.put(opts, :returning, true)
+        returning =
+          case options[:action_select] do
+            nil -> true
+            fields -> fields
+          end
+
+        Keyword.put(opts, :returning, returning)
       else
         opts
       end
@@ -1956,6 +1978,7 @@ defmodule AshPostgres.DataLayer do
     case bulk_create(resource, [changeset], %{
            single?: true,
            tenant: Map.get(changeset, :to_tenant, changeset.tenant),
+           action_select: changeset.action_select,
            return_records?: true
          }) do
       {:ok, [result]} ->
@@ -2539,6 +2562,7 @@ defmodule AshPostgres.DataLayer do
              tenant: changeset.tenant,
              identity: identity,
              upsert_keys: keys,
+             action_select: changeset.action_select,
              upsert_fields: upsert_fields,
              return_records?: true
            }) do
@@ -2733,6 +2757,7 @@ defmodule AshPostgres.DataLayer do
 
     case update_query(query, changeset, resource, %{
            return_records?: true,
+           action_select: changeset.action_select,
            calculations: []
          }) do
       {:ok, []} ->

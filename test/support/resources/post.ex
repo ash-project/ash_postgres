@@ -269,6 +269,20 @@ defmodule AshPostgres.Test.Post do
       )
     end
 
+    defmodule HasBeforeAction do
+      use Ash.Resource.Change
+
+      def change(changeset, _, _) do
+        Ash.Changeset.before_action(changeset, fn changeset ->
+          Ash.Changeset.force_change_attribute(changeset, :title, "before_action")
+        end)
+      end
+    end
+
+    create :create_with_before_action do
+      change(HasBeforeAction)
+    end
+
     create :upsert_with_filter do
       upsert?(true)
       upsert_identity(:uniq_if_contains_foo)
@@ -329,6 +343,10 @@ defmodule AshPostgres.Test.Post do
     attribute(:title, :string) do
       public?(true)
       source(:title_column)
+    end
+
+    attribute :not_selected_by_default, :string do
+      select_by_default?(false)
     end
 
     attribute(:datetime, AshPostgres.TimestamptzUsec, public?: true)
