@@ -134,6 +134,7 @@ defmodule AshPostgres.MixProject do
           AshPostgres.Statement
         ],
         Types: [
+          AshPostgres.Ltree,
           AshPostgres.Type,
           AshPostgres.Tsquery,
           AshPostgres.Tsvector,
