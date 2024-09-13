@@ -7,24 +7,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 ## [v2.4.0](https://github.com/ash-project/ash_postgres/compare/v2.3.1...v2.4.0) (2024-09-13)
 
-
-
-
 ### Features:
 
-* Implement Ltree Type (#385)
+- Implement Ltree Type (#385)
 
 ### Improvements:
 
-* update ash to latest version
+- update ash to latest version
 
-* remove LEAKPROOF from function to prevent migration issues
+- remove LEAKPROOF from function to prevent migration issues
 
-* support upcoming `action_select` options
+- support upcoming `action_select` options
 
-* ensure `Repo` is started after telemetry
+- ensure `Repo` is started after telemetry in igniter installer
 
-* update to latest igniter functions
+- update to latest igniter functions
 
 ## [v2.3.1](https://github.com/ash-project/ash_postgres/compare/v2.3.0...v2.3.1) (2024-09-05)
 
