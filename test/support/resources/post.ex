@@ -270,6 +270,7 @@ defmodule AshPostgres.Test.Post do
     end
 
     defmodule HasBeforeAction do
+      @moduledoc false
       use Ash.Resource.Change
 
       def change(changeset, _, _) do

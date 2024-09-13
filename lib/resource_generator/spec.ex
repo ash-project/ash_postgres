@@ -453,6 +453,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     |> set_defaults_and_generated()
   end
 
+  # sobelow_skip ["DOS.StringToAtom"]
   defp set_defaults_and_generated(attributes) do
     Enum.map(attributes, fn attribute ->
       attribute =
@@ -823,6 +824,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     end)
   end
 
+  # sobelow_skip ["RCE.CodeModule", "DOS.StringToAtom"]
   defp get_type(attribute, opts) do
     result =
       if opts[:yes?] do
