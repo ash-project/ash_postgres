@@ -972,7 +972,14 @@ defmodule AshPostgres.ResourceGenerator.Spec do
                   information_schema.columns c
                   ON t.table_name = c.table_name
               JOIN pg_attribute a
-                  ON a.attrelid = (SELECT oid FROM pg_class WHERE relname = t.table_name AND relkind = 'r')
+                  ON a.attrelid = (
+                      SELECT c.oid
+                      FROM pg_class c
+                      JOIN pg_namespace n ON c.relnamespace = n.oid
+                      WHERE c.relname = t.table_name
+                        AND n.nspname = t.table_schema
+                        AND c.relkind = 'r'
+                    )
                   AND a.attname = c.column_name
                   AND a.attnum > 0
               WHERE
@@ -1009,7 +1016,14 @@ defmodule AshPostgres.ResourceGenerator.Spec do
                 information_schema.columns c
                 ON t.table_name = c.table_name
             JOIN pg_attribute a
-                ON a.attrelid = (SELECT oid FROM pg_class WHERE relname = t.table_name AND relkind = 'r')
+                ON a.attrelid = (
+                    SELECT c.oid
+                    FROM pg_class c
+                    JOIN pg_namespace n ON c.relnamespace = n.oid
+                    WHERE c.relname = t.table_name
+                      AND n.nspname = t.table_schema
+                      AND c.relkind = 'r'
+                  )
                 AND a.attname = c.column_name
                 AND a.attnum > 0
             WHERE
