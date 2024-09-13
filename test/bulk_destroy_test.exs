@@ -13,7 +13,7 @@ defmodule AshPostgres.BulkDestroyTest do
   test "bulk destroys destroy everything pertaining to the query" do
     Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
 
-    Ash.bulk_destroy!(Post, :destroy, %{})
+    Ash.bulk_destroy!(Post, :destroy, %{}, return_records?: true)
 
     assert Ash.read!(Post) == []
   end

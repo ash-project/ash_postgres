@@ -1,6 +1,8 @@
 defmodule AshPostgres.ResourceGeenratorTests do
   use AshPostgres.RepoCase, async: false
 
+  import Igniter.Test
+
   setup do
     AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS example_table")
 
@@ -15,41 +17,34 @@ defmodule AshPostgres.ResourceGeenratorTests do
   end
 
   test "a resource is generated from a table" do
-    resource =
-      Igniter.new()
-      |> Igniter.compose_task("ash_postgres.gen.resources", [
-        "MyApp.Accounts",
-        "--tables",
-        "example_table",
-        "--yes"
-      ])
-      |> Igniter.prepare_for_write()
-      |> Map.get(:rewrite)
-      |> Rewrite.source!("lib/my_app/accounts/example_table.ex")
-      |> Rewrite.Source.get(:content)
+    test_project()
+    |> Igniter.compose_task("ash_postgres.gen.resources", [
+      "MyApp.Accounts",
+      "--tables",
+      "example_table",
+      "--yes"
+    ])
+    |> assert_creates("lib/my_app/accounts/example_table.ex", """
+    defmodule MyApp.Accounts.ExampleTable do
+      use Ash.Resource,
+        domain: MyApp.Accounts,
+        data_layer: AshPostgres.DataLayer
 
-    assert String.trim(resource) ==
-             String.trim("""
-             defmodule MyApp.Accounts.ExampleTable do
-               use Ash.Resource,
-                 domain: MyApp.Accounts,
-                 data_layer: AshPostgres.DataLayer
+      postgres do
+        table("example_table")
+        repo(AshPostgres.TestRepo)
+      end
 
-               postgres do
-                 table "example_table"
-                 repo AshPostgres.TestRepo
-               end
+      attributes do
+        uuid_primary_key(:id)
+        attribute(:name, :string)
+        attribute(:age, :integer)
 
-               attributes do
-                 uuid_primary_key(:id)
-                 attribute(:name, :string)
-                 attribute(:age, :integer)
-
-                 attribute :email, :string do
-                   sensitive?(true)
-                 end
-               end
-             end
-             """)
+        attribute :email, :string do
+          sensitive?(true)
+        end
+      end
+    end
+    """)
   end
 end
