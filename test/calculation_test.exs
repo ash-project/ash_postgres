@@ -312,6 +312,10 @@ defmodule AshPostgres.CalculationTest do
     refute Ash.calculate!(Post, :author_has_post_with_follower_named_fred, refs: %{id: post.id})
   end
 
+  test "calculation works with simple fragments" do
+    Post.upper_title!("example")
+  end
+
   test "calculations that refer to aggregates can be authorized" do
     post =
       Post

@@ -409,6 +409,8 @@ defmodule AshPostgres.Test.Post do
     define(:increment_score, args: [{:optional, :amount}])
     define(:destroy)
     define(:update_constrained_int, args: [:amount])
+
+    define_calculation(:upper_title, args: [:title])
   end
 
   relationships do
@@ -541,6 +543,8 @@ defmodule AshPostgres.Test.Post do
 
   calculations do
     calculate(:upper_thing, :string, expr(fragment("UPPER(?)", uniq_on_upper)))
+
+    calculate(:upper_title, :string, expr(fragment("UPPER(?)", title)))
 
     calculate(
       :author_has_post_with_follower_named_fred,
