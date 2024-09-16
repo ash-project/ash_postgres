@@ -5,6 +5,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.4.1](https://github.com/ash-project/ash_postgres/compare/v2.4.0...v2.4.1) (2024-09-16)
+
+
+
+
+### Bug Fixes:
+
+* ensure that returning is not an empty list
+
+* match on table schema as well as table name
+
 ## [v2.4.0](https://github.com/ash-project/ash_postgres/compare/v2.3.1...v2.4.0) (2024-09-13)
 
 ### Features:
