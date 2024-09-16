@@ -1736,6 +1736,7 @@ defmodule AshPostgres.DataLayer do
         returning =
           case options[:action_select] do
             nil -> true
+            [] -> Ash.Resource.Info.primary_key(resource)
             fields -> fields
           end
 
