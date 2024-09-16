@@ -2,6 +2,10 @@ defmodule AshPostgres.CreateTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.Post
 
+  test "seeding data works" do
+    Ash.Seed.seed!(%Post{title: "fred"})
+  end
+
   test "creates insert" do
     assert {:ok, %Post{}} =
              Post
