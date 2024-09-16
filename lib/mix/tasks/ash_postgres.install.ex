@@ -252,7 +252,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
       default_data_case_contents,
       # do nothing if already exists
       fn zipper -> {:ok, zipper} end,
-      path: Igniter.Project.Module.proper_location(igniter, module_name, "test/support")
+      path: Igniter.Project.Module.proper_location(igniter, module_name, :test_support)
     )
   end
 
