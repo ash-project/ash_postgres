@@ -5,6 +5,45 @@ defmodule AshPostgres.CalculationTest do
   require Ash.Query
   import Ash.Expr
 
+  test "a calculation that references a first optimizable aggregate can be sorted on" do
+    author1 =
+      Author
+      |> Ash.Changeset.for_create(:create, %{
+        first_name: "abc"
+      })
+      |> Ash.create!()
+
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "match", author_id: author1.id})
+      |> Ash.create!()
+
+    author2 =
+      Author
+      |> Ash.Changeset.for_create(:create, %{
+        first_name: "def"
+      })
+      |> Ash.create!()
+
+    post2 =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "match", author_id: author2.id})
+      |> Ash.create!()
+
+    post1_id = post.id
+    post2_id = post2.id
+
+    assert [%{id: ^post2_id}, %{id: ^post1_id}] =
+             Post
+             |> Ash.Query.sort(author_first_name_ref_agg_calc: :desc)
+             |> Ash.read!()
+
+    assert [%{id: ^post1_id}, %{id: ^post2_id}] =
+             Post
+             |> Ash.Query.sort(author_first_name_ref_agg_calc: :asc)
+             |> Ash.read!()
+  end
+
   test "an expression calculation can be filtered on" do
     post =
       Post

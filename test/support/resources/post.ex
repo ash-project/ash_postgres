@@ -692,6 +692,7 @@ defmodule AshPostgres.Test.Post do
     )
 
     calculate(:author_first_name_calc, :string, expr(author.first_name))
+    calculate(:author_first_name_ref_agg_calc, :string, expr(author_first_name))
 
     calculate(:author_profile_description_from_agg, :string, expr(author_profile_description))
   end
