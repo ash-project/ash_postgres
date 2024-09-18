@@ -727,6 +727,7 @@ defmodule AshPostgres.MigrationGenerator do
 
             opts
             |> prompt(message)
+            |> String.trim()
             |> String.to_integer()
           end
 
