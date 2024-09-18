@@ -327,6 +327,11 @@ defmodule AshPostgres.Test.Post do
         message: "You cannot select less than two."
       )
     end
+
+    update :optimistic_lock do
+      accept([:title])
+      change(optimistic_lock(:version))
+    end
   end
 
   identities do
@@ -340,6 +345,8 @@ defmodule AshPostgres.Test.Post do
 
   attributes do
     uuid_primary_key(:id, writable?: true)
+
+    attribute(:version, :integer, allow_nil?: false, default: 1)
 
     attribute(:title, :string) do
       public?(true)

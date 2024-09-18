@@ -34,4 +34,32 @@ defmodule AshPostgres.UpdateTest do
       }
     )
   end
+
+  test "can optimist lock" do
+    Logger.configure(level: :debug)
+
+    Post
+    |> Ash.Changeset.for_create(:create, %{title: "fred"})
+    |> Ash.create!()
+    |> then(fn record ->
+      Ash.Query.filter(Post, id == ^record.id)
+    end)
+    |> Ash.bulk_update(
+      :optimistic_lock,
+      %{
+        title: "george"
+      }
+    )
+
+    Post
+    |> Ash.Changeset.for_create(:create, %{title: "fred"})
+    |> Ash.create!()
+    |> Ash.Changeset.for_update(
+      :optimistic_lock,
+      %{
+        title: "george"
+      }
+    )
+    |> Ash.update!()
+  end
 end
