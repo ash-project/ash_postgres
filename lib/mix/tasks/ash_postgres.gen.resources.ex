@@ -135,7 +135,9 @@ defmodule Mix.Tasks.AshPostgres.Gen.Resources do
           if options[:no_migrations] do
             igniter
           else
-            Igniter.add_task(igniter, "ash_postgres.generate_migrations", migration_opts)
+            Igniter.add_task(igniter, "ash_postgres.generate_migrations", [
+              "import_resources" | migration_opts
+            ])
           end
         end)
     end
