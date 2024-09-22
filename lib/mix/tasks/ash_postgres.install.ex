@@ -208,6 +208,8 @@ defmodule Mix.Tasks.AshPostgres.Install do
   end
 
   defp setup_data_case(igniter) do
+    module_name = Igniter.Code.Module.module_name(igniter, "DataCase")
+
     default_data_case_contents = ~s|
     @moduledoc """
     This module defines the setup for tests requiring
@@ -220,7 +222,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
     we enable the SQL sandbox, so changes done to the database
     are reverted at the end of every test. If you are using
     PostgreSQL, you can even run database tests asynchronously
-    by setting `use AshHq.DataCase, async: true`, although
+    by setting `use #{inspect(module_name)}, async: true`, although
     this option is not recommended for other databases.
     """
 
@@ -243,8 +245,6 @@ defmodule Mix.Tasks.AshPostgres.Install do
       :ok
     end
     |
-
-    module_name = Igniter.Code.Module.module_name(igniter, "DataCase")
 
     igniter
     |> Igniter.Code.Module.find_and_update_or_create_module(
