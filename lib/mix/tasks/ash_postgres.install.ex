@@ -9,20 +9,30 @@ defmodule Mix.Tasks.AshPostgres.Install do
   def info(_argv, _source) do
     %Igniter.Mix.Task.Info{
       schema: [
-        yes: :boolean
+        yes: :boolean,
+        repo: :string
       ],
       aliases: [
-        y: :yes
+        y: :yes,
+        r: :repo
       ]
     }
   end
 
   @impl true
   def igniter(igniter, argv) do
-    repo = Igniter.Code.Module.module_name(igniter, "Repo")
-    otp_app = Igniter.Project.Application.app_name(igniter)
-
     opts = options!(argv)
+
+    repo =
+      case opts[:repo] do
+        nil ->
+          Igniter.Code.Module.module_name(igniter, "Repo")
+
+        repo ->
+          Igniter.Code.Module.parse(repo)
+      end
+
+    otp_app = Igniter.Project.Application.app_name(igniter)
 
     igniter
     |> Igniter.Project.Formatter.import_dep(:ash_postgres)
@@ -321,13 +331,30 @@ defmodule Mix.Tasks.AshPostgres.Install do
         igniter,
         repo,
         fn zipper ->
-          {:ok,
-           zipper
-           |> set_otp_app(otp_app)
-           |> Sourceror.Zipper.top()
-           |> use_ash_postgres_instead_of_ecto()
-           |> Sourceror.Zipper.top()
-           |> remove_adapter_option()}
+          case Igniter.Code.Module.move_to_use(zipper, Ecto.Repo) do
+            {:ok, _} ->
+              {:ok,
+               zipper
+               |> set_otp_app(otp_app)
+               |> Sourceror.Zipper.top()
+               |> use_ash_postgres_instead_of_ecto()
+               |> Sourceror.Zipper.top()
+               |> remove_adapter_option()}
+
+            _ ->
+              case Igniter.Code.Module.move_to_use(zipper, AshPostgres.Repo) do
+                {:ok, _} ->
+                  {:ok, zipper}
+
+                _ ->
+                  {:error,
+                   """
+                   Repo module #{inspect(repo)} existed, but was not an `Ecto.Repo` or an `AshPostgres.Repo`.
+
+                   Please rerun the ash_postgresql installer with the `--repo` option to specify a repo.
+                   """}
+              end
+          end
         end
       )
     else
