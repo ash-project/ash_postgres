@@ -7,7 +7,7 @@ defmodule Mix.Tasks.AshPostgres.InstallTest do
   # any errors. We should add better tests here, though.
   test "installation does not fail" do
     test_project()
-    |> Igniter.compose_task("ash_postgres.install")
+    |> Igniter.compose_task("ash_postgres.install", ["--yes"])
     |> assert_creates("lib/test/repo.ex")
   end
 end

@@ -1,6 +1,6 @@
 defmodule AshPostgres.Mix.Helpers do
   @moduledoc false
-  def domains!(opts, args, error_on_no_domains? \\ true) do
+  def domains!(opts, args) do
     apps =
       if apps_paths = Mix.Project.apps_paths() do
         apps_paths |> Map.keys() |> Enum.sort()
@@ -30,11 +30,7 @@ defmodule AshPostgres.Mix.Helpers do
     |> Enum.map(&ensure_compiled(&1, args))
     |> case do
       [] ->
-        if error_on_no_domains? do
-          raise "must supply the --domains argument, or set `config :my_app, ash_domains: [...]` in config"
-        else
-          []
-        end
+        []
 
       domains ->
         domains

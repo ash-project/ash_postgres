@@ -100,7 +100,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
         ]
       )
 
-    domains = AshPostgres.Mix.Helpers.domains!(opts, args, false)
+    domains = AshPostgres.Mix.Helpers.domains!(opts, args)
 
     if Enum.empty?(domains) && !opts[:snapshots_only] do
       IO.warn("""

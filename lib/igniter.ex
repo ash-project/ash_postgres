@@ -2,13 +2,14 @@ defmodule AshPostgres.Igniter do
   @moduledoc "Codemods and utilities for working with AshPostgres & Igniter"
 
   @doc false
-  def default_repo_contents(otp_app) do
+  def default_repo_contents(otp_app, name, opts \\ []) do
+    min_pg_version = get_min_pg_version(name, opts)
+
     """
     use AshPostgres.Repo, otp_app: #{inspect(otp_app)}
 
     def min_pg_version do
-     # Adjust this according to your postgres version
-      %Version{major: 16, minor: 0, patch: 0}
+      %Version{major: #{min_pg_version.major}, minor: #{min_pg_version.minor || 0}, patch: #{min_pg_version.patch || 0}}
     end
 
     def installed_extensions do
@@ -80,7 +81,12 @@ defmodule AshPostgres.Igniter do
           otp_app = Igniter.Project.Application.app_name(igniter)
 
           igniter =
-            Igniter.Code.Module.create_module(igniter, repo, default_repo_contents(otp_app))
+            Igniter.Code.Module.create_module(
+              igniter,
+              repo,
+              default_repo_contents(otp_app, repo),
+              opts
+            )
 
           {igniter, repo}
         else
@@ -109,5 +115,51 @@ defmodule AshPostgres.Igniter do
         AshPostgres.Repo
       )
     end)
+  end
+
+  @doc false
+  def get_min_pg_version(name, opts) do
+    if opts[:yes] do
+      %Version{major: 16, minor: 0, patch: 0}
+    else
+      lead_in = """
+      Generating #{inspect(name)}
+
+      What is the minimum postgres version you will be using?
+
+      AshPostgres uses this information when generating queries and migrations
+      to choose the best available features for your version of postgres.
+      """
+
+      format_request =
+        """
+        Please enter the version in the format major.minor.patch (e.g. 13.4.0)
+
+        Default: 16.0.0
+
+        ❯
+        """
+
+      prompt =
+        if opts[:invalid_loop?] do
+          format_request
+        else
+          "#{lead_in}\n\n#{format_request}"
+        end
+
+      prompt
+      |> String.trim_trailing()
+      |> Mix.shell().prompt()
+      |> String.trim()
+      |> case do
+        "" -> "16.0.0"
+        input -> input
+      end
+      |> Version.parse()
+      |> case do
+        {:ok, version} -> version
+        :error -> get_min_pg_version(name, Keyword.put(opts, :invalid_loop?, true))
+      end
+    end
   end
 end

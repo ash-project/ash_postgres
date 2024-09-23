@@ -5,13 +5,29 @@ defmodule Mix.Tasks.AshPostgres.Install do
   require Igniter.Code.Function
   use Igniter.Mix.Task
 
-  def igniter(igniter, _argv) do
+  @impl true
+  def info(_argv, _source) do
+    %Igniter.Mix.Task.Info{
+      schema: [
+        yes: :boolean
+      ],
+      aliases: [
+        y: :yes
+      ]
+    }
+  end
+
+  @impl true
+  def igniter(igniter, argv) do
     repo = Igniter.Code.Module.module_name(igniter, "Repo")
     otp_app = Igniter.Project.Application.app_name(igniter)
 
+    opts = options!(argv)
+
     igniter
     |> Igniter.Project.Formatter.import_dep(:ash_postgres)
-    |> setup_repo_module(otp_app, repo)
+    |> setup_aliases()
+    |> setup_repo_module(otp_app, repo, opts)
     |> configure_config(otp_app, repo)
     |> configure_dev(otp_app, repo)
     |> configure_runtime(otp_app, repo)
@@ -27,6 +43,47 @@ defmodule Mix.Tasks.AshPostgres.Install do
     )
     |> Spark.Igniter.prepend_to_section_order(:"Ash.Resource", [:postgres])
     |> Ash.Igniter.codegen("initialize")
+  end
+
+  defp setup_aliases(igniter) do
+    is_ecto_setup = &Igniter.Code.Common.nodes_equal?(&1, "ecto.setup")
+
+    is_ecto_create_or_migrate =
+      fn zipper ->
+        Igniter.Code.Common.nodes_equal?(zipper, "ecto.create --quiet") or
+          Igniter.Code.Common.nodes_equal?(zipper, "ecto.create") or
+          Igniter.Code.Common.nodes_equal?(zipper, "ecto.migrate --quiet") or
+          Igniter.Code.Common.nodes_equal?(zipper, "ecto.migrate")
+      end
+
+    igniter
+    |> Igniter.Project.TaskAliases.modify_existing_alias(
+      "test",
+      &Igniter.Code.List.remove_from_list(&1, is_ecto_create_or_migrate)
+    )
+    |> Igniter.Project.TaskAliases.modify_existing_alias(
+      "test",
+      &Igniter.Code.List.replace_in_list(
+        &1,
+        is_ecto_setup,
+        "ash.setup"
+      )
+    )
+    |> Igniter.Project.TaskAliases.add_alias("test", ["ash.setup --quiet", "test"],
+      if_exists: {:prepend, "ash.setup --quiet"}
+    )
+    |> run_seeds_on_setup()
+  end
+
+  defp run_seeds_on_setup(igniter) do
+    if Igniter.exists?(igniter, "priv/repo/seeds.exs") do
+      Igniter.Project.TaskAliases.add_alias(igniter, "ash.setup", [
+        "ash.setup",
+        "run priv/repo/seeds.exs"
+      ])
+    else
+      igniter
+    end
   end
 
   defp configure_config(igniter, otp_app, repo) do
@@ -256,26 +313,38 @@ defmodule Mix.Tasks.AshPostgres.Install do
     )
   end
 
-  defp setup_repo_module(igniter, otp_app, repo) do
-    Igniter.Code.Module.find_and_update_or_create_module(
-      igniter,
-      repo,
-      AshPostgres.Igniter.default_repo_contents(otp_app),
-      fn zipper ->
-        {:ok,
-         zipper
-         |> set_otp_app(otp_app)
-         |> Sourceror.Zipper.top()
-         |> use_ash_postgres_instead_of_ecto()
-         |> Sourceror.Zipper.top()
-         |> remove_adapter_option()}
-      end
-    )
-    |> Igniter.Code.Module.find_and_update_module!(
+  defp setup_repo_module(igniter, otp_app, repo, opts) do
+    {exists?, igniter} = Igniter.Project.Module.module_exists?(igniter, repo)
+
+    if exists? do
+      Igniter.Project.Module.find_and_update_module!(
+        igniter,
+        repo,
+        fn zipper ->
+          {:ok,
+           zipper
+           |> set_otp_app(otp_app)
+           |> Sourceror.Zipper.top()
+           |> use_ash_postgres_instead_of_ecto()
+           |> Sourceror.Zipper.top()
+           |> remove_adapter_option()}
+        end
+      )
+    else
+      Igniter.Project.Module.create_module(
+        igniter,
+        repo,
+        AshPostgres.Igniter.default_repo_contents(otp_app, repo, opts)
+      )
+    end
+    |> Igniter.Project.Module.find_and_update_module!(
       repo,
       &configure_installed_extensions_function/1
     )
-    |> Igniter.Code.Module.find_and_update_module!(repo, &configure_min_pg_version_function/1)
+    |> Igniter.Code.Module.find_and_update_module!(
+      repo,
+      &configure_min_pg_version_function(&1, repo, opts)
+    )
   end
 
   defp use_ash_postgres_instead_of_ecto(zipper) do
@@ -347,17 +416,18 @@ defmodule Mix.Tasks.AshPostgres.Install do
     end
   end
 
-  defp configure_min_pg_version_function(zipper) do
+  defp configure_min_pg_version_function(zipper, repo, opts) do
     case Igniter.Code.Function.move_to_def(zipper, :min_pg_version, 0) do
       {:ok, zipper} ->
         {:ok, zipper}
 
       _ ->
+        min_pg_version = AshPostgres.Igniter.get_min_pg_version(repo, opts)
+
         {:ok,
          Igniter.Code.Common.add_code(zipper, """
          def min_pg_version do
-          # Adjust this according to your postgres version
-           %Version{major: 16, minor: 0, patch: 0}
+           %Version{major: #{min_pg_version.major}, minor: #{min_pg_version.minor || 0}, patch: #{min_pg_version.patch || 0}}
          end
          """)}
     end
