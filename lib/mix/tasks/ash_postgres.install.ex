@@ -427,7 +427,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
         {:ok,
          Igniter.Code.Common.add_code(zipper, """
          def min_pg_version do
-           %Version{major: #{min_pg_version.major}, minor: #{min_pg_version.minor || 0}, patch: #{min_pg_version.patch || 0}}
+           %Version{major: #{min_pg_version.major}, minor: #{min_pg_version.minor}, patch: #{min_pg_version.patch}}
          end
          """)}
     end

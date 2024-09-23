@@ -9,7 +9,7 @@ defmodule AshPostgres.Igniter do
     use AshPostgres.Repo, otp_app: #{inspect(otp_app)}
 
     def min_pg_version do
-      %Version{major: #{min_pg_version.major}, minor: #{min_pg_version.minor || 0}, patch: #{min_pg_version.patch || 0}}
+      %Version{major: #{min_pg_version.major}, minor: #{min_pg_version.minor}, patch: #{min_pg_version.patch}}
     end
 
     def installed_extensions do
