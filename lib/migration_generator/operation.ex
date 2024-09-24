@@ -501,7 +501,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
              Map.get(old_attribute, :references) != Map.get(attribute, :references) do
           reference(multitenancy, attribute, schema)
         else
-          if attribute.type == :biging and attribute.default == "nil" and attribute.generated? do
+          if attribute.type == :bigint and attribute.default == "nil" and attribute.generated? do
             ":bigserial"
           else
             inspect(attribute.type)

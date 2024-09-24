@@ -2199,12 +2199,10 @@ defmodule AshPostgres.MigrationGenerator do
             []
           end
 
-        if has_reference?(old_snapshot.multitenancy, old_attribute) and
-             Map.get(old_attribute, :references) != Map.get(new_attribute, :references) do
+        if Map.get(old_attribute, :references) != Map.get(new_attribute, :references) do
           redo_deferrability =
-            if differently_deferrable?(new_attribute, old_attribute) do
-              []
-            else
+            if has_reference?(old_snapshot.multitenancy, old_attribute) and
+                 differently_deferrable?(new_attribute, old_attribute) do
               [
                 %Operation.AlterDeferrability{
                   table: snapshot.table,
@@ -2213,24 +2211,38 @@ defmodule AshPostgres.MigrationGenerator do
                   direction: :up
                 }
               ]
+            else
+              []
             end
 
           old_and_alter =
-            [
-              %Operation.DropForeignKey{
-                attribute: old_attribute,
-                table: snapshot.table,
-                schema: snapshot.schema,
-                multitenancy: old_snapshot.multitenancy,
-                direction: :up
-              },
-              %Operation.AlterAttribute{
-                new_attribute: new_attribute,
-                old_attribute: old_attribute,
-                schema: snapshot.schema,
-                table: snapshot.table
-              }
-            ] ++ redo_deferrability
+            if has_reference?(old_snapshot.multitenancy, old_attribute) do
+              [
+                %Operation.DropForeignKey{
+                  attribute: old_attribute,
+                  table: snapshot.table,
+                  schema: snapshot.schema,
+                  multitenancy: old_snapshot.multitenancy,
+                  direction: :up
+                },
+                %Operation.AlterAttribute{
+                  new_attribute: new_attribute,
+                  old_attribute: old_attribute,
+                  schema: snapshot.schema,
+                  table: snapshot.table
+                }
+              ]
+            else
+              [
+                %Operation.AlterAttribute{
+                  new_attribute: new_attribute,
+                  old_attribute: old_attribute,
+                  schema: snapshot.schema,
+                  table: snapshot.table
+                }
+              ]
+            end ++
+              redo_deferrability
 
           if has_reference?(snapshot.multitenancy, new_attribute) do
             reference_ops = [
