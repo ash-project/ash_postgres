@@ -5,6 +5,31 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.4.2](https://github.com/ash-project/ash_postgres/compare/v2.4.1...v2.4.2) (2024-09-24)
+
+
+
+
+### Bug Fixes:
+
+* typo of `biging` -> `bigint`
+
+* altering attributes not properly generating foreign keys in some cases
+
+* installer: use correct module name in the `DataCase` moduledocs. (#393)
+
+* trim input before passing to `String.to_integer/1`. (#389)
+
+### Improvements:
+
+* add `--repo` option to installer, and warn on clashing existing repo
+
+* prompt for minimum pg version
+
+* adjust mix task aliases to be used with `ash_postgres`
+
+* set a name for generated migrations
+
 ## [v2.4.1](https://github.com/ash-project/ash_postgres/compare/v2.4.0...v2.4.1) (2024-09-16)
 
 
