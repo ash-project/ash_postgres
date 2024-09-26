@@ -232,7 +232,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
 
   defp add_indexes(spec) do
     %Postgrex.Result{rows: index_rows} =
-      if Version.match?(spec.repo.min_pg_version(), ">= 15.0") do
+      if Version.match?(spec.repo.min_pg_version(), ">= 15.0.0") do
         spec.repo.query!(
           """
           SELECT
