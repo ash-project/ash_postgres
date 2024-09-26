@@ -35,9 +35,7 @@ defmodule AshPostgres.UpdateTest do
     )
   end
 
-  test "can optimist lock" do
-    Logger.configure(level: :debug)
-
+  test "can optimistic lock" do
     Post
     |> Ash.Changeset.for_create(:create, %{title: "fred"})
     |> Ash.create!()
