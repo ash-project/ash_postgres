@@ -148,9 +148,24 @@ And finally, add the repo to your application
     ...
 ```
 
-#### Add AshPostgres to our resources
+<!-- tabs-close -->
 
-Now we can add the data layer to our resources. The basic configuration for a resource requires the `d:AshPostgres.postgres|table` and the `d:AshPostgres.postgres|repo`.
+## Adding AshPostgres to your resources
+
+<!-- tabs-open -->
+
+### With Igniter
+
+You can add `AshPostgres` to a resource with `mix ash.patch.extend Your.Resource.Name postgres`. For example:
+
+```sh
+mix ash.patch.extend Helpdesk.Support.Ticket postgres
+mix ash.patch.extend Helpdesk.Support.Representative postgres
+```
+
+### Manually
+
+The basic configuration for a resource requires the `d:AshPostgres.postgres|table` and the `d:AshPostgres.postgres|repo`.
 
 ```elixir
 # in lib/helpdesk/support/ticket.ex
@@ -178,11 +193,15 @@ Now we can add the data layer to our resources. The basic configuration for a re
   end
 ```
 
+<!-- tabs-close -->
+
 #### Create the database and tables
 
 First, we'll create the database with `mix ash.setup`.
 
 Then we will generate database migrations. This is one of the many ways that AshPostgres can save time and reduce complexity.
+
+For example:
 
 ```bash
 mix ash.codegen add_tickets_and_representatives
@@ -199,8 +218,6 @@ Finally, we will create the local database and apply the generated migrations:
 ```bash
 mix ash.setup
 ```
-
-<!-- tabs-close -->
 
 ### Try it out
 
