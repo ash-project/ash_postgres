@@ -422,6 +422,7 @@ defmodule AshSql.AggregateTest do
                |> Ash.read_one!()
     end
 
+    @tag :postgres_16
     test "returns nil values if `include_nil?` is set to `true`" do
       post =
         Post
@@ -616,6 +617,7 @@ defmodule AshSql.AggregateTest do
                |> Ash.read_one!()
     end
 
+    @tag :postgres_16
     test "it returns `nil` values when `include_nil?` is `true`" do
       post =
         Post

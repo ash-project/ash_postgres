@@ -232,39 +232,75 @@ defmodule AshPostgres.ResourceGenerator.Spec do
 
   defp add_indexes(spec) do
     %Postgrex.Result{rows: index_rows} =
-      spec.repo.query!(
-        """
-        SELECT
-            i.relname AS index_name,
-            ix.indisunique AS is_unique,
-            NOT(ix.indnullsnotdistinct) AS nulls_distinct,
-            pg_get_expr(ix.indpred, ix.indrelid) AS where_clause,
-            am.amname AS using_method,
-            idx.indexdef
-        FROM
-            pg_index ix
-        JOIN
-            pg_class i ON ix.indexrelid = i.oid
-        JOIN
-            pg_class t ON ix.indrelid = t.oid
-        JOIN
-            pg_am am ON i.relam = am.oid
-        LEFT JOIN
-            pg_constraint c ON c.conindid = ix.indexrelid AND c.contype = 'p'
-        JOIN
-            pg_indexes idx ON idx.indexname = i.relname AND idx.schemaname = 'public' -- Adjust schema name if necessary
-        JOIN information_schema.tables ta
-            ON ta.table_name = t.relname
-        WHERE
-            t.relname = $1
-            AND ta.table_schema = $2
-            AND c.conindid IS NULL
-        GROUP BY
-            i.relname, ix.indisunique, ix.indnullsnotdistinct, pg_get_expr(ix.indpred, ix.indrelid), am.amname, idx.indexdef;
-        """,
-        [spec.table_name, spec.schema],
-        log: false
-      )
+      if Version.match?(spec.repo.min_pg_version(), ">= 15.0") do
+        spec.repo.query!(
+          """
+          SELECT
+              i.relname AS index_name,
+              ix.indisunique AS is_unique,
+              NOT(ix.indnullsnotdistinct) AS nulls_distinct,
+              pg_get_expr(ix.indpred, ix.indrelid) AS where_clause,
+              am.amname AS using_method,
+              idx.indexdef
+          FROM
+              pg_index ix
+          JOIN
+              pg_class i ON ix.indexrelid = i.oid
+          JOIN
+              pg_class t ON ix.indrelid = t.oid
+          JOIN
+              pg_am am ON i.relam = am.oid
+          LEFT JOIN
+              pg_constraint c ON c.conindid = ix.indexrelid AND c.contype = 'p'
+          JOIN
+              pg_indexes idx ON idx.indexname = i.relname AND idx.schemaname = 'public' -- Adjust schema name if necessary
+          JOIN information_schema.tables ta
+              ON ta.table_name = t.relname
+          WHERE
+              t.relname = $1
+              AND ta.table_schema = $2
+              AND c.conindid IS NULL
+          GROUP BY
+              i.relname, ix.indisunique, ix.indnullsnotdistinct, pg_get_expr(ix.indpred, ix.indrelid), am.amname, idx.indexdef;
+          """,
+          [spec.table_name, spec.schema],
+          log: false
+        )
+      else
+        spec.repo.query!(
+          """
+          SELECT
+              i.relname AS index_name,
+              ix.indisunique AS is_unique,
+              TRUE AS nulls_distinct,
+              pg_get_expr(ix.indpred, ix.indrelid) AS where_clause,
+              am.amname AS using_method,
+              idx.indexdef
+          FROM
+              pg_index ix
+          JOIN
+              pg_class i ON ix.indexrelid = i.oid
+          JOIN
+              pg_class t ON ix.indrelid = t.oid
+          JOIN
+              pg_am am ON i.relam = am.oid
+          LEFT JOIN
+              pg_constraint c ON c.conindid = ix.indexrelid AND c.contype = 'p'
+          JOIN
+              pg_indexes idx ON idx.indexname = i.relname AND idx.schemaname = 'public' -- Adjust schema name if necessary
+          JOIN information_schema.tables ta
+              ON ta.table_name = t.relname
+          WHERE
+              t.relname = $1
+              AND ta.table_schema = $2
+              AND c.conindid IS NULL
+          GROUP BY
+              i.relname, ix.indisunique, pg_get_expr(ix.indpred, ix.indrelid), am.amname, idx.indexdef;
+          """,
+          [spec.table_name, spec.schema],
+          log: false
+        )
+      end
 
     %{
       spec
