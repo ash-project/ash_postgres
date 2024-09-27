@@ -609,6 +609,8 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :async_engine), do: true
   def can?(_, :bulk_create), do: true
 
+  def can?(_, :action_select), do: true
+
   def can?(resource, :update_query) do
     # We can't currently support updating a record from a query
     # if that record manages a tenant on update

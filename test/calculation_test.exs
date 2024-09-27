@@ -44,6 +44,44 @@ defmodule AshPostgres.CalculationTest do
              |> Ash.read!()
   end
 
+  @tag :regression
+  test "an expression calculation that requires a left join & distinct doesn't raise errors on out of order params" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "_"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "_"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "_"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    Post
+    |> Ash.Query.load([
+      :comment_title,
+      :category_label,
+      score_plus: %{amount: 10},
+      max_comment_similarity: %{to: "foobar"}
+    ])
+    |> Ash.Query.load_calculation_as(:comment_title, {:some, :example})
+    |> Ash.Query.load_calculation_as(:max_comment_similarity, {:some, :other_thing_again}, %{
+      to: "foobar"
+    })
+    |> Ash.Query.load_calculation_as(:category_label, {:some, :other_thing})
+    |> Ash.Query.sort(:title)
+    |> Ash.read!()
+  end
+
   test "an expression calculation can be filtered on" do
     post =
       Post

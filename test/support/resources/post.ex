@@ -569,6 +569,10 @@ defmodule AshPostgres.Test.Post do
 
     calculate(:has_comments, :boolean, expr(exists(comments, true == true)))
 
+    # DONT DO THIS. USE SOMETHING LIKE `first(comments.name)`
+    # We're doing this to test a specific breakage
+    calculate(:comment_title, :string, expr(comments.title))
+
     calculate(
       :has_no_followers,
       :boolean,
@@ -633,6 +637,10 @@ defmodule AshPostgres.Test.Post do
               :boolean,
               expr(fragment("(to_tsvector(?) @@ ?)", title, ^arg(:search))) do
       argument(:search, AshPostgres.Tsquery, allow_expr?: true, allow_nil?: false)
+    end
+
+    calculate :score_plus, :integer, expr(score + ^arg(:amount)) do
+      argument(:amount, :integer, allow_nil?: false)
     end
 
     calculate :query, AshPostgres.Tsquery, expr(fragment("to_tsquery(?)", ^arg(:search))) do
