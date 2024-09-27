@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.4.3](https://github.com/ash-project/ash_postgres/compare/v2.4.2...v2.4.3) (2024-09-27)
+
+
+
+
+### Bug Fixes:
+
+* support pg <= 14 in resource generator, and update tests
+
 ## [v2.4.2](https://github.com/ash-project/ash_postgres/compare/v2.4.1...v2.4.2) (2024-09-24)
 
 
