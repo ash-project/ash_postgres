@@ -130,6 +130,11 @@ defmodule AshPostgres.Test.Post do
 
     defaults([:read, :destroy])
 
+    update :add_to_limited_score do
+      argument(:amount, :integer, allow_nil?: false)
+      change(atomic_update(:limited_score, expr((limited_score || 0) + ^arg(:amount))))
+    end
+
     destroy :destroy_only_freds do
       change(filter(expr(title == "fred")))
     end
@@ -359,6 +364,8 @@ defmodule AshPostgres.Test.Post do
 
     attribute(:datetime, AshPostgres.TimestamptzUsec, public?: true)
     attribute(:score, :integer, public?: true)
+    attribute(:limited_score, :integer, public?: true, constraints: [min: 0, max: 100])
+
     attribute(:public, :boolean, public?: true)
     attribute(:category, CiCategory, public?: true)
     attribute(:type, :atom, default: :sponsored, writable?: false, public?: false)

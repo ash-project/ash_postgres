@@ -14,6 +14,24 @@ defmodule AshPostgres.Test.User do
       change(atomic_update(:role, expr(invite.role)))
     end
 
+    update :add_role do
+      argument(:role, AshPostgres.Test.Role, allow_nil?: false)
+
+      change(
+        atomic_update(
+          :role_list,
+          expr(
+            fragment(
+              "array(select distinct unnest(array_append(?, ?)))",
+              ^atomic_ref(:role_list),
+              ^arg(:role)
+            )
+          ),
+          cast_atomic?: false
+        )
+      )
+    end
+
     read :active do
       filter(expr(active))
 
@@ -43,6 +61,12 @@ defmodule AshPostgres.Test.User do
     attribute(:is_active, :boolean, public?: true)
     attribute(:name, :string, public?: true)
     attribute(:role, AshPostgres.Test.Role, allow_nil?: false, default: :user, public?: true)
+
+    attribute(:role_list, {:array, AshPostgres.Test.Role},
+      allow_nil?: false,
+      default: [],
+      public?: true
+    )
   end
 
   postgres do

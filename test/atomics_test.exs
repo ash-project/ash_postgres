@@ -39,6 +39,30 @@ defmodule AshPostgres.AtomicsTest do
              |> Ash.update!()
   end
 
+  test "an atomic works on a constrained integer" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "foo", price: 1})
+      |> Ash.create!()
+
+    assert %{limited_score: 6} =
+             post
+             |> Ash.Changeset.for_update(:add_to_limited_score, %{amount: 6})
+             |> Ash.update!()
+  end
+
+  test "an atomic works on an array attribute" do
+    user =
+      User
+      |> Ash.Changeset.for_create(:create, %{})
+      |> Ash.create!()
+
+    assert %{role_list: [:admin]} =
+             user
+             |> Ash.Changeset.for_update(:add_role, %{role: :admin})
+             |> Ash.update!()
+  end
+
   test "a basic atomic works with enum/allow_nil? false" do
     user =
       User
