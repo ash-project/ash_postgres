@@ -176,6 +176,10 @@ defmodule AshPostgres.Repo do
         Enum.map(value, &from_ecto/1)
       end
 
+      def from_ecto(%Ecto.Changeset{} = changeset) do
+        Map.put(changeset, :data, from_ecto(changeset.data))
+      end
+
       def from_ecto(%resource{} = record) do
         if Spark.Dsl.is?(resource, Ash.Resource) do
           empty = struct(resource)
@@ -202,6 +206,10 @@ defmodule AshPostgres.Repo do
 
       def to_ecto(value) when is_list(value) do
         Enum.map(value, &to_ecto/1)
+      end
+
+      def to_ecto(%Ecto.Changeset{} = changeset) do
+        Map.put(changeset, :data, to_ecto(changeset.data))
       end
 
       def to_ecto(%resource{} = record) do
