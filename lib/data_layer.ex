@@ -1918,7 +1918,9 @@ defmodule AshPostgres.DataLayer do
       upsert_fields --
         Keyword.keys(Enum.at(changesets, 0).atomics)
 
-    Enum.map(fields_to_upsert, fn upsert_field ->
+    fields_to_upsert
+    |> Enum.uniq()
+    |> Enum.map(fn upsert_field ->
       # for safety, we check once more at the end that all values in
       # upsert_fields are names of attributes. This is because
       # below we use `literal/1` to bring them into the query
