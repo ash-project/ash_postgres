@@ -108,7 +108,7 @@ defmodule AshPostgres.Igniter do
   end
 
   defp move_to_repo_use(zipper) do
-    Igniter.Code.Function.move_to_function_call(zipper, :use, 2, fn zipper ->
+    Igniter.Code.Function.move_to_function_call(zipper, :use, [1, 2], fn zipper ->
       Igniter.Code.Function.argument_equals?(
         zipper,
         0,
