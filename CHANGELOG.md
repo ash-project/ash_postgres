@@ -5,6 +5,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.4.5](https://github.com/ash-project/ash_postgres/compare/v2.4.4...v2.4.5) (2024-10-06)
+
+
+
+
+### Bug Fixes:
+
+* ensure upsert fields are uniq
+
+### Improvements:
+
+* detect 1 arg repo use in installer
+
+* support to_ecto(%Ecto.Changeset{}) and from_ecto(%Ecto.Changeset{}) (#395)
+
 ## [v2.4.4](https://github.com/ash-project/ash_postgres/compare/v2.4.3...v2.4.4) (2024-09-29)
 
 
