@@ -84,7 +84,7 @@ defmodule AshPostgres.Igniter do
             Igniter.Code.Module.create_module(
               igniter,
               repo,
-              default_repo_contents(otp_app, repo),
+              default_repo_contents(otp_app, repo, opts),
               opts
             )
 
