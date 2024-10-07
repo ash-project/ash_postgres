@@ -617,6 +617,32 @@ defmodule AshSql.AggregateTest do
                |> Ash.read_one!()
     end
 
+    test "it does not return `nil` values when filtered" do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
+        |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: nil})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "stuff"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      assert %{first_comment_nils_first_called_stuff: "stuff"} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load([
+                 :first_comment_nils_first_called_stuff,
+                 :first_comment_nils_first
+               ])
+               |> Ash.read_one!()
+    end
+
     @tag :postgres_16
     test "it returns `nil` values when `include_nil?` is `true`" do
       post =

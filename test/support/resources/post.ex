@@ -742,6 +742,11 @@ defmodule AshPostgres.Test.Post do
       sort(title: :asc_nils_first)
     end
 
+    first :first_comment_nils_first_called_stuff, :comments, :title do
+      sort(title: :asc_nils_first)
+      filter(expr(title == "stuff"))
+    end
+
     first :first_comment_nils_first_include_nil, :comments, :title do
       include_nil?(true)
       sort(title: :asc_nils_first)
