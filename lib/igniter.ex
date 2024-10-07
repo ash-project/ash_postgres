@@ -120,7 +120,7 @@ defmodule AshPostgres.Igniter do
   @doc false
   def get_min_pg_version(name, opts) do
     if opts[:yes] do
-      %Version{major: 16, minor: 0, patch: 0}
+      %Version{major: 13, minor: 0, patch: 0}
     else
       lead_in = """
       Generating #{inspect(name)}
