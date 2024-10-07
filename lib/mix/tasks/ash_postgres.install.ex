@@ -26,7 +26,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
     repo =
       case opts[:repo] do
         nil ->
-          Igniter.Code.Module.module_name(igniter, "Repo")
+          Igniter.Project.Module.module_name(igniter, "Repo")
 
         repo ->
           Igniter.Code.Module.parse(repo)
@@ -275,7 +275,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
   end
 
   defp setup_data_case(igniter) do
-    module_name = Igniter.Code.Module.module_name(igniter, "DataCase")
+    module_name = Igniter.Project.Module.module_name(igniter, "DataCase")
 
     default_data_case_contents = ~s|
     @moduledoc """
@@ -297,24 +297,24 @@ defmodule Mix.Tasks.AshPostgres.Install do
 
     using do
       quote do
-        alias #{inspect(Igniter.Code.Module.module_name(igniter, "Repo"))}
+        alias #{inspect(Igniter.Project.Module.module_name(igniter, "Repo"))}
 
         import Ecto
         import Ecto.Changeset
         import Ecto.Query
-        import #{inspect(Igniter.Code.Module.module_name(igniter, "DataCase"))}
+        import #{inspect(Igniter.Project.Module.module_name(igniter, "DataCase"))}
       end
     end
 
     setup tags do
-      pid = Ecto.Adapters.SQL.Sandbox.start_owner!(#{inspect(Igniter.Code.Module.module_name(igniter, "Repo"))}, shared: not tags[:async])
+      pid = Ecto.Adapters.SQL.Sandbox.start_owner!(#{inspect(Igniter.Project.Module.module_name(igniter, "Repo"))}, shared: not tags[:async])
       on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
       :ok
     end
     |
 
     igniter
-    |> Igniter.Code.Module.find_and_update_or_create_module(
+    |> Igniter.Project.Module.find_and_update_or_create_module(
       module_name,
       default_data_case_contents,
       # do nothing if already exists
@@ -324,7 +324,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
   end
 
   defp setup_repo_module(igniter, otp_app, repo, opts) do
-    {exists?, igniter} = Igniter.Project.Module.module_exists?(igniter, repo)
+    {exists?, igniter} = Igniter.Project.Module.module_exists(igniter, repo)
 
     if exists? do
       Igniter.Project.Module.find_and_update_module!(
@@ -368,7 +368,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
       repo,
       &configure_installed_extensions_function/1
     )
-    |> Igniter.Code.Module.find_and_update_module!(
+    |> Igniter.Project.Module.find_and_update_module!(
       repo,
       &configure_min_pg_version_function(&1, repo, opts)
     )

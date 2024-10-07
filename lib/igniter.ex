@@ -44,7 +44,7 @@ defmodule AshPostgres.Igniter do
   end
 
   def add_postgres_extension(igniter, repo_name, extension) do
-    Igniter.Code.Module.find_and_update_module!(igniter, repo_name, fn zipper ->
+    Igniter.Project.Module.find_and_update_module!(igniter, repo_name, fn zipper ->
       case Igniter.Code.Function.move_to_def(zipper, :installed_extensions, 0) do
         {:ok, zipper} ->
           case Igniter.Code.List.append_new_to_list(zipper, extension) do
@@ -77,11 +77,11 @@ defmodule AshPostgres.Igniter do
     case list_repos(igniter) do
       {igniter, []} ->
         if generate do
-          repo = Igniter.Code.Module.module_name(igniter, "Repo")
+          repo = Igniter.Project.Module.module_name(igniter, "Repo")
           otp_app = Igniter.Project.Application.app_name(igniter)
 
           igniter =
-            Igniter.Code.Module.create_module(
+            Igniter.Project.Module.create_module(
               igniter,
               repo,
               default_repo_contents(otp_app, repo, opts),
@@ -102,7 +102,7 @@ defmodule AshPostgres.Igniter do
   end
 
   def list_repos(igniter) do
-    Igniter.Code.Module.find_all_matching_modules(igniter, fn _mod, zipper ->
+    Igniter.Project.Module.find_all_matching_modules(igniter, fn _mod, zipper ->
       move_to_repo_use(zipper) != :error
     end)
   end

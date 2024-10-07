@@ -104,7 +104,7 @@ defmodule AshPostgres.ResourceGenerator do
 
     igniter
     |> Ash.Domain.Igniter.add_resource_reference(domain, table_spec.resource)
-    |> Igniter.Code.Module.create_module(table_spec.resource, resource)
+    |> Igniter.Project.Module.create_module(table_spec.resource, resource)
     |> then(fn igniter ->
       if opts[:extend] do
         Igniter.compose_task(igniter, "ash.patch.extend", [
