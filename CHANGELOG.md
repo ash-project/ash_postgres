@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.4.7](https://github.com/ash-project/ash_postgres/compare/v2.4.6...v2.4.7) (2024-10-10)
+
+
+
+
+### Improvements:
+
+* adapt to fixes and optimizations around skipped upserts in ash core
+
 ## [v2.4.6](https://github.com/ash-project/ash_postgres/compare/v2.4.5...v2.4.6) (2024-10-07)
 
 
