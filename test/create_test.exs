@@ -55,7 +55,7 @@ defmodule AshPostgres.CreateTest do
                uniq_if_contains_foo: "foo",
                price: 10
              })
-             |> Ash.create()
+             |> Ash.create(return_skipped_upsert?: true)
 
     assert Ash.Resource.get_metadata(post, :upsert_skipped)
   end

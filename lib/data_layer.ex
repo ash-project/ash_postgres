@@ -2588,10 +2588,14 @@ defmodule AshPostgres.DataLayer do
             end)
             |> Ash.Query.set_tenant(changeset.tenant)
 
-          with {:ok, ecto_query} <- Ash.Query.data_layer_query(ash_query),
-               {:ok, [result]} <- run_query(ecto_query, resource) do
-            {:ok, Ash.Resource.put_metadata(result, :upsert_skipped, true)}
-          end
+          {:ok,
+           {:upsert_skipped, ash_query,
+            fn ->
+              with {:ok, ecto_query} <- Ash.Query.data_layer_query(ash_query),
+                   {:ok, [result]} <- run_query(ecto_query, resource) do
+                {:ok, Ash.Resource.put_metadata(result, :upsert_skipped, true)}
+              end
+            end}}
 
         {:ok, [result]} ->
           {:ok, result}
