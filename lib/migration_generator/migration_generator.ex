@@ -233,13 +233,61 @@ defmodule AshPostgres.MigrationGenerator do
               {"install_#{ext_name}_v#{version}_#{timestamp(true)}",
                "#{timestamp(true)}_install_#{ext_name}_v#{version}_extension"}
 
-            ["ash-functions" = single] ->
-              {"install_#{single}_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}_#{timestamp(true)}",
-               "#{timestamp(true)}_install_#{single}_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}"}
+            ["ash_functions"] ->
+              {"install_ash_functions_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}_#{timestamp(true)}",
+               "#{timestamp(true)}_install_ash_functions_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}"}
 
-            multiple ->
-              {"install_#{Enum.count(multiple)}_extensions_#{timestamp(true)}",
-               "#{timestamp(true)}_install_#{Enum.count(multiple)}_extensions"}
+            _multiple ->
+              migration_path = migration_path(opts, repo, false)
+
+              if opts.name do
+                count =
+                  migration_path
+                  |> Path.join("*_#{opts.name}_extensions*")
+                  |> Path.wildcard()
+                  |> Enum.map(fn path ->
+                    path
+                    |> Path.basename()
+                    |> String.split("_#{opts.name}_extensions", parts: 2)
+                    |> Enum.at(1)
+                    |> Integer.parse()
+                    |> case do
+                      {integer, _} ->
+                        integer
+
+                      _ ->
+                        0
+                    end
+                  end)
+                  |> Enum.max(fn -> 0 end)
+                  |> Kernel.+(1)
+
+                {"#{opts.name}_extensions", "#{timestamp(true)}_#{opts.name}_extensions"}
+              else
+                count =
+                  migration_path
+                  |> Path.join("*_migrate_resources_extensions*")
+                  |> Path.wildcard()
+                  |> Enum.map(fn path ->
+                    path
+                    |> Path.basename()
+                    |> String.split("_migrate_resources_extensions", parts: 2)
+                    |> Enum.at(1)
+                    |> Integer.parse()
+                    |> case do
+                      {integer, _} ->
+                        integer
+
+                      _ ->
+                        0
+                    end
+                  end)
+                  |> Enum.max(fn -> 0 end)
+                  |> Kernel.+(1)
+
+                {"migrate_resources_extensions_#{count}",
+                 "#{timestamp(true)}_migrate_resources_extensions_#{count}"}
+              end
           end
 
         migration_file =
