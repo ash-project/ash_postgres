@@ -262,7 +262,8 @@ defmodule AshPostgres.MigrationGenerator do
                   |> Enum.max(fn -> 0 end)
                   |> Kernel.+(1)
 
-                {"#{opts.name}_extensions", "#{timestamp(true)}_#{opts.name}_extensions"}
+                {"#{opts.name}_extensions_#{count}",
+                 "#{timestamp(true)}_#{opts.name}_extensions_#{count}"}
               else
                 count =
                   migration_path
