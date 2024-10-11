@@ -102,13 +102,6 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
 
     domains = AshPostgres.Mix.Helpers.domains!(opts, args)
 
-    if Enum.empty?(domains) && !opts[:snapshots_only] do
-      IO.warn("""
-      No domains found, so no resource-related migrations will be generated.
-      Pass the `--domains` option or configure `config :your_app, ash_domains: [...]`
-      """)
-    end
-
     opts =
       opts
       |> Keyword.put(:format, !opts[:no_format])
