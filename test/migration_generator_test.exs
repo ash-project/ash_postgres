@@ -158,7 +158,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert File.read!(Path.wildcard("test_snapshots_path/test_repo/posts/*.json"))
              |> Jason.decode!(keys: :atoms!)
 
-      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       file_contents = File.read!(file)
 
@@ -264,7 +266,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert File.read!(Path.wildcard("test_snapshots_path/test_repo/example.posts/*.json"))
              |> Jason.decode!(keys: :atoms!)
 
-      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       file_contents = File.read!(file)
 
@@ -334,6 +338,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
     test "it creates multiple migration files" do
       assert [_, custom_index_migration] =
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       file = File.read!(custom_index_migration)
 
@@ -378,6 +383,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
     test "it adds nulls_distinct option to create index migration" do
       assert [custom_index_migration] =
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       file = File.read!(custom_index_migration)
 
@@ -442,6 +448,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert [_file1, file2] =
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file2) =~ ~S[rename table(:posts, prefix: "example"), :title, to: :name]
     end
@@ -471,6 +478,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert [_file1, file2] =
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file2) =~ ~S[rename table(:posts, prefix: "example"), :title, to: :name]
       assert File.read!(file2) =~ ~S[modify :title, :text, null: true, default: nil]
@@ -534,6 +542,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert [_file1, file2] =
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file2) =~
                ~S[ALTER INDEX posts_title_index RENAME TO titles_r_unique_dawg]
@@ -566,6 +575,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert [_file1, file2] =
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert [file_before, _] =
                String.split(
@@ -601,6 +611,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert [_file1, file2] =
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file2) =~
                ~S[add :name, :text, null: false]
@@ -627,6 +638,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert [_file1, file2] =
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file2) =~ ~S[rename table(:posts), :title, to: :name]
     end
@@ -652,6 +664,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert [_file1, file2] =
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file2) =~
                ~S[add :name, :text, null: false]
@@ -680,6 +693,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert [_file1, file2] =
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       # Up migration
       assert File.read!(file2) =~ ~S[rename table(:posts), :title, to: :subject]
@@ -710,6 +724,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert [_file1, file2] =
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file2) =~
                ~S[add :subject, :text, null: false]
@@ -742,6 +757,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert [_file1, file2] =
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file2) =~
                ~S[add :foobar, :text]
@@ -784,6 +800,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert [file1, file2] =
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       file1_content = File.read!(file1)
 
@@ -828,6 +845,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert [_file1, file2] =
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file2) =~
                ~S[add :example, :text] <> "\n"
@@ -869,7 +887,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
 
     test "when an integer is generated and default nil, it is a bigserial" do
-      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file) =~
                ~S[add :id, :bigserial, null: false, primary_key: true]
@@ -944,7 +964,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         format: false
       )
 
-      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file) =~
                ~S[references(:posts, column: :id, name: "posts_post_id_fkey", type: :uuid, prefix: "public")]
@@ -979,7 +1001,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         format: false
       )
 
-      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file) =~
                ~S[references(:posts, column: :id, name: "posts_post_id_fkey", type: :text, prefix: "public")]
@@ -1023,7 +1047,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         format: false
       )
 
-      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file) =~
                ~S{references(:posts, column: :id, with: [related_key_id: :key_id], match: :partial, name: "posts_post_id_fkey", type: :uuid, prefix: "public")}
@@ -1067,7 +1093,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         format: false
       )
 
-      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file) =~ ~S{create index(:posts, [:post_id])}
     end
@@ -1142,7 +1170,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         format: false
       )
 
-      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file) =~ ~S{create index(:posts, [:org_id, :post_id])}
     end
@@ -1218,7 +1248,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         format: false
       )
 
-      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file) =~
                ~S{references(:users, column: :secondary_id, with: [related_key_id: :key_id, org_id: :org_id], match: :full, name: "user_things_user_id_fkey", type: :uuid, prefix: "public")}
@@ -1271,7 +1303,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         format: false
       )
 
-      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file) =~
                ~S{create unique_index(:users, [:name], name: "users_unique_name_index")}
@@ -1337,6 +1371,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert file =
                "test_migration_path/**/*_migrate_resources*.exs"
                |> Path.wildcard()
+               |> Enum.reject(&String.contains?(&1, "extensions"))
                |> Enum.sort()
                |> Enum.at(1)
                |> File.read!()
@@ -1439,7 +1474,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         format: false
       )
 
-      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file) =~
                ~S{references(:users, column: :secondary_id, with: [org_id: :org_id], match: :full, name: "user_things1_user_id_fkey", type: :uuid, prefix: "public")}
@@ -1517,7 +1554,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         format: false
       )
 
-      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file) =~
                ~S<references(:groups, column: :id, with: [tenant_id: :tenant_id], name: "items_group_id_fkey", type: :uuid, prefix: "public", on_delete: {:nilify, [:group_id]}>
@@ -1558,6 +1597,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert file =
                "test_migration_path/**/*_migrate_resources*.exs"
                |> Path.wildcard()
+               |> Enum.reject(&String.contains?(&1, "extensions"))
                |> Enum.sort()
                |> Enum.at(0)
                |> File.read!()
@@ -1590,6 +1630,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert file =
                "test_migration_path/**/*_migrate_resources*.exs"
                |> Path.wildcard()
+               |> Enum.reject(&String.contains?(&1, "extensions"))
                |> Enum.sort()
                |> Enum.at(1)
                |> File.read!()
@@ -1643,6 +1684,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert file =
                "test_migration_path/**/*_migrate_resources*.exs"
                |> Path.wildcard()
+               |> Enum.reject(&String.contains?(&1, "extensions"))
                |> Enum.sort()
                |> Enum.at(1)
 
@@ -1720,7 +1762,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
 
     test "it uses the relationship's table context if it is set" do
-      assert [file] = Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file) =~
                ~S[references(:post_comments, column: :id, name: "posts_best_comment_id_fkey", type: :uuid, prefix: "public")]
@@ -1771,7 +1815,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
         format: false
       )
 
-      assert [file1] = Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+      assert [file1] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       file = File.read!(file1)
 
@@ -1828,7 +1874,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert log =~ "`{\"xyz\"}`"
 
-      assert [file1] = Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+      assert [file1] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       file = File.read!(file1)
 
@@ -1912,6 +1960,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert [_file1, file2] =
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
       file = File.read!(file2)
 
