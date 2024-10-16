@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v2.4.9](https://github.com/ash-project/ash_postgres/compare/v2.4.8...v2.4.9) (2024-10-16)
+
+
+
+
+### Bug Fixes:
+
+* fix resource generator task & tests
+
 ## [v2.4.8](https://github.com/ash-project/ash_postgres/compare/v2.4.7...v2.4.8) (2024-10-11)
 
 
