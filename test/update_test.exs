@@ -83,7 +83,6 @@ defmodule AshPostgres.UpdateTest do
     post
     |> Ash.load!(:author)
     |> Map.get(:author)
-    |> IO.inspect()
 
     assert is_nil(post.author)
   end
