@@ -76,6 +76,17 @@ defmodule Mix.Tasks.AshPostgres.Gen.Resources do
         Mix.Project.config()[:app]
         |> Application.get_env(:ecto_repos, [])
 
+    repos =
+      repos
+      |> List.wrap()
+      |> Enum.map(fn v ->
+        if is_binary(v) do
+          Igniter.Code.Module.parse(v)
+        else
+          v
+        end
+      end)
+
     case repos do
       [] ->
         igniter

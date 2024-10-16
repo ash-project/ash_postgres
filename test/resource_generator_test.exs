@@ -22,7 +22,9 @@ defmodule AshPostgres.ResourceGeenratorTests do
       "MyApp.Accounts",
       "--tables",
       "example_table",
-      "--yes"
+      "--yes",
+      "--repo",
+      "AshPostgres.TestRepo"
     ])
     |> assert_creates("lib/my_app/accounts/example_table.ex", """
     defmodule MyApp.Accounts.ExampleTable do
