@@ -205,13 +205,13 @@ causing nontrivial performance issues at scale.
 
 - [`ash_postgres.gen.migration`] dynamically select and allow setting a repo
 
-## [v2.1.17](https://github.com/ash-project/ash_postgres/compare/v2.1.16...v2.1.17) (2024-07-27)
+## v2.1.17 (2024-07-27)
 
 ### Improvements:
 
 - [`ash_sql`] update ash & ash_sql for various fixes
 
-## [v2.1.16](https://github.com/ash-project/ash_postgres/compare/v2.1.15...v2.1.16) (2024-07-25)
+## v2.1.16 (2024-07-25)
 
 ### Bug Fixes:
 
@@ -273,7 +273,7 @@ causing nontrivial performance issues at scale.
 
 - [`mix ash.gen.resource`] pluralize table name in extender
 
-## [v2.1.8](https://github.com/ash-project/ash_postgres/compare/v2.1.7...v2.1.8) (2024-07-17)
+## v2.1.8 (2024-07-17)
 
 ### Bug Fixes:
 
@@ -287,7 +287,7 @@ causing nontrivial performance issues at scale.
 
 - [expressions] add `binding()` expression, for referring to the current table
 
-## [v2.1.7](https://github.com/ash-project/ash_postgres/compare/v2.1.6...v2.1.7) (2024-07-17)
+## v2.1.7 (2024-07-17)
 
 ### Bug Fixes:
 
@@ -351,13 +351,13 @@ causing nontrivial performance issues at scale.
 
 - [query builder] update ash & improve type casting behavior
 
-## [v2.1.1](https://github.com/ash-project/ash_postgres/compare/v2.1.0...v2.1.1) (2024-07-10)
+## v2.1.1 (2024-07-10)
 
 ### Bug Fixes:
 
 - [mix ash_postgres.install] properly interpolate module names in installer
 
-## [v2.1.0](https://github.com/ash-project/ash_postgres/compare/v2.0.12...v2.1.0) (2024-07-10)
+## v2.1.0 (2024-07-10)
 
 ### Features:
 
@@ -432,7 +432,7 @@ causing nontrivial performance issues at scale.
 
 ## [v2.0.8](https://github.com/ash-project/ash_postgres/compare/v2.0.7...v2.0.8) (2024-06-06)
 
-## [v2.0.7](https://github.com/ash-project/ash_postgres/compare/v2.0.6...v2.0.7) (2024-06-06)
+## v2.0.7 (2024-06-06)
 
 ### Bug Fixes:
 
@@ -440,7 +440,7 @@ causing nontrivial performance issues at scale.
 
 - [fix] ensure that all current attribute values are selected on bulk update shifted root query
 
-## [v2.0.6](https://github.com/ash-project/ash_postgres/compare/v2.0.5...v2.0.6) (2024-05-29)
+## v2.0.6 (2024-05-29)
 
 ### Bug Fixes:
 
@@ -458,7 +458,7 @@ causing nontrivial performance issues at scale.
 
 - [mix ash_postgres.squash_snapshots] add `ash_postgres.squash_snapshots` mix task (#302)
 
-## [v2.0.5](https://github.com/ash-project/ash_postgres/compare/v2.0.4...v2.0.5) (2024-05-24)
+## v2.0.5 (2024-05-24)
 
 ### Improvements:
 
@@ -498,13 +498,13 @@ causing nontrivial performance issues at scale.
 
 - [AshPostgres.MigrationGenerator] properly parse previous version from migration generation
 
-## [v2.0.1](https://github.com/ash-project/ash_postgres/compare/v2.0.0...v2.0.1) (2024-05-12)
+## v2.0.1 (2024-05-12)
 
 ### Bug Fixes:
 
 - [AshPostgres.MigrationGenerator] properly parse previous version of custom extensions when generating migrations
 
-## [v2.0.0](https://github.com/ash-project/ash_postgres/compare/v2.0.0...2.0)
+## v2.0.0
 
 The changelog is starting over. Please see `/documentation/1.0-CHANGELOG.md` in GitHub for previous changelogs.
 
