@@ -221,7 +221,7 @@ mix ash.setup
 
 ### Try it out
 
-This is based on the [Getting Started](https://hexdocs.pm/ash/getting_started.html) guide.
+This is based on the [Get Started](https://hexdocs.pm/ash/get-started.html) guide.
 If you haven't already, you should read that first.
 
 And now we're ready to try it out! Run the following in iex:
