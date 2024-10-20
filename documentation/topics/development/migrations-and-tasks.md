@@ -68,13 +68,8 @@ Tasks that need to be executed in the released application (because mix is not p
     load_app()
 
     for repo <- repos() do
-      repo_name = repo |> Module.split() |> List.last() |> Macro.underscore()
-
-      path =
-        "priv/"
-        |> Path.join(repo_name)
-        |> Path.join("tenant_migrations")
-        # This may be different for you if you are not using the default tenant migrations
+      path = Ecto.Migrator.migrations_path(repo, "tenant_migrations")
+      # This may be different for you if you are not using the default tenant migrations
 
       {:ok, _, _} =
         Ecto.Migrator.with_repo(
@@ -103,13 +98,9 @@ Tasks that need to be executed in the released application (because mix is not p
   # only needed if you are using postgres multitenancy
   def rollback_tenants(repo, version) do
     load_app()
-    repo_name = repo |> Module.split() |> List.last() |> Macro.underscore()
 
-    path =
-      "priv/"
-      |> Path.join(repo_name)
-      |> Path.join("tenant_migrations")
-      # This may be different for you if you are not using the default tenant migrations
+    path = Ecto.Migrator.migrations_path(repo, "tenant_migrations")
+    # This may be different for you if you are not using the default tenant migrations
 
     for tenant <- repo.all_tenants() do
       {:ok, _, _} =
