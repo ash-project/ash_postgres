@@ -37,4 +37,4 @@ Welcome! `AshPostgres` is the PostgreSQL data layer for [Ash Framework](https://
 
 ## Reference
 
-- [AshPostgres.DataLayer DSL](documentation/dsls/DSL:-AshPostgres.DataLayer.md)
+- [AshPostgres.DataLayer DSL](documentation/dsls/DSL-AshPostgres.DataLayer.md)

@@ -19,7 +19,7 @@ defmodule AshPostgres.MigrationCompileCache do
   Compile a file, caching the result for future calls.
   """
   def compile_file(file) do
-    Agent.get_and_update(__MODULE__, fn state -> 
+    Agent.get_and_update(__MODULE__, fn state ->
       new_state = ensure_compiled(state, file)
       {Map.get(new_state, file), new_state}
     end)
@@ -30,9 +30,9 @@ defmodule AshPostgres.MigrationCompileCache do
       nil ->
         compiled = Code.compile_file(file)
         Map.put(state, file, compiled)
+
       _ ->
         state
     end
   end
-
 end

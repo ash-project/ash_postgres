@@ -70,7 +70,7 @@ defmodule AshPostgres.MultiTenancy do
             "file #{Path.relative_to_cwd(file)} does not define an Ecto.Migration"
     end
   end
-  
+
   defp compile_file(file) do
     AshPostgres.MigrationCompileCache.start_link()
     AshPostgres.MigrationCompileCache.compile_file(file)
