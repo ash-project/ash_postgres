@@ -67,7 +67,7 @@ defmodule Mix.Tasks.AshPostgres.Gen.Resources do
 
     {%{domain: domain}, argv} = positional_args!(argv)
 
-    domain = Igniter.Code.Module.parse(domain)
+    domain = Igniter.Project.Module.parse(domain)
 
     options = options!(argv)
 
@@ -81,7 +81,7 @@ defmodule Mix.Tasks.AshPostgres.Gen.Resources do
       |> List.wrap()
       |> Enum.map(fn v ->
         if is_binary(v) do
-          Igniter.Code.Module.parse(v)
+          Igniter.Project.Module.parse(v)
         else
           v
         end

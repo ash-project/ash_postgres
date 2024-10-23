@@ -29,7 +29,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
           Igniter.Project.Module.module_name(igniter, "Repo")
 
         repo ->
-          Igniter.Code.Module.parse(repo)
+          Igniter.Project.Module.parse(repo)
       end
 
     otp_app = Igniter.Project.Application.app_name(igniter)

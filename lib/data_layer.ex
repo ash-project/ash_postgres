@@ -1358,6 +1358,16 @@ defmodule AshPostgres.DataLayer do
             :empty ->
               if options[:return_records?] do
                 if changeset.context[:data_layer][:use_atomic_update_data?] do
+                  case query.__ash_bindings__ do
+                    %{expression_accumulator: %AshSql.Expr.ExprInfo{has_error?: true}} ->
+                      # if the query could produce an error
+                      # we must run it even if we will just be returning the original data.
+                      repo.all(query)
+
+                    _ ->
+                      :ok
+                  end
+
                   {:ok, [changeset.data]}
                 else
                   {:ok, repo.all(query)}
@@ -3021,7 +3031,7 @@ defmodule AshPostgres.DataLayer do
           Igniter.Project.Module.module_name(igniter, "Repo")
 
         repo ->
-          Igniter.Code.Module.parse(repo)
+          Igniter.Project.Module.parse(repo)
       end
 
     igniter
