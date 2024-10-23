@@ -7,130 +7,101 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 ## [v2.4.11](https://github.com/ash-project/ash_postgres/compare/v2.4.10...v2.4.11) (2024-10-23)
 
-
-
-
 ### Bug Fixes:
 
-* ensure repo_opts is passed through to `repo.all/2`
+- ensure repo_opts is passed through to `repo.all/2`
 
 ## [v2.4.10](https://github.com/ash-project/ash_postgres/compare/v2.4.9...v2.4.10) (2024-10-23)
 
+## Security
 
-
+- Patch of [GHSA-hf59-7rwq-785m](https://github.com/ash-project/ash_postgres/security/advisories/GHSA-hf59-7rwq-785m) Empty, atomic, non-bulk actions, policy bypass for side-effects vulnerability.
 
 ### Bug Fixes:
 
-* when an atomic update is fully skipped, run the query if it could produce errors
+- when an atomic update is fully skipped, run the query if it could produce errors
 
-* run any query that could produce errors when performing atomic upgrade
+- run any query that could produce errors when performing atomic upgrade
 
-* race condition compiling migrations when concurrently creating new tenants (#406)
+- race condition compiling migrations when concurrently creating new tenants (#406)
 
 ## [v2.4.9](https://github.com/ash-project/ash_postgres/compare/v2.4.8...v2.4.9) (2024-10-16)
 
-
-
-
 ### Bug Fixes:
 
-* fix resource generator task & tests
+- fix resource generator task & tests
 
 ## [v2.4.8](https://github.com/ash-project/ash_postgres/compare/v2.4.7...v2.4.8) (2024-10-11)
 
-
-
-
 ### Improvements:
 
-* use the `name` parameter when generating migrations
+- use the `name` parameter when generating migrations
 
 ## [v2.4.7](https://github.com/ash-project/ash_postgres/compare/v2.4.6...v2.4.7) (2024-10-10)
 
-
-
-
 ### Improvements:
 
-* adapt to fixes and optimizations around skipped upserts in ash core
+- adapt to fixes and optimizations around skipped upserts in ash core
 
 ## [v2.4.6](https://github.com/ash-project/ash_postgres/compare/v2.4.5...v2.4.6) (2024-10-07)
 
-
-
-
 ### Improvements:
 
-* with `--yes` assume oldest version
+- with `--yes` assume oldest version
 
 ## [v2.4.5](https://github.com/ash-project/ash_postgres/compare/v2.4.4...v2.4.5) (2024-10-06)
 
-
-
-
 ### Bug Fixes:
 
-* ensure upsert fields are uniq
+- ensure upsert fields are uniq
 
 ### Improvements:
 
-* detect 1 arg repo use in installer
+- detect 1 arg repo use in installer
 
-* support to_ecto(%Ecto.Changeset{}) and from_ecto(%Ecto.Changeset{}) (#395)
+- support to_ecto(%Ecto.Changeset{}) and from_ecto(%Ecto.Changeset{}) (#395)
 
 ## [v2.4.4](https://github.com/ash-project/ash_postgres/compare/v2.4.3...v2.4.4) (2024-09-29)
 
-
-
-
 ### Bug Fixes:
 
-* handle atomic array operations
+- handle atomic array operations
 
 ## [v2.4.3](https://github.com/ash-project/ash_postgres/compare/v2.4.2...v2.4.3) (2024-09-27)
 
-
-
-
 ### Bug Fixes:
 
-* support pg <= 14 in resource generator, and update tests
+- support pg <= 14 in resource generator, and update tests
 
 ## [v2.4.2](https://github.com/ash-project/ash_postgres/compare/v2.4.1...v2.4.2) (2024-09-24)
 
-
-
-
 ### Bug Fixes:
 
-* typo of `biging` -> `bigint`
+- typo of `biging` -> `bigint`
 
-* altering attributes not properly generating foreign keys in some cases
+- altering attributes not properly generating foreign keys in some cases
 
-* installer: use correct module name in the `DataCase` moduledocs. (#393)
+- installer: use correct module name in the `DataCase` moduledocs. (#393)
 
-* trim input before passing to `String.to_integer/1`. (#389)
+- trim input before passing to `String.to_integer/1`. (#389)
 
 ### Improvements:
 
-* add `--repo` option to installer, and warn on clashing existing repo
+- add `--repo` option to installer, and warn on clashing existing repo
 
-* prompt for minimum pg version
+- prompt for minimum pg version
 
-* adjust mix task aliases to be used with `ash_postgres`
+- adjust mix task aliases to be used with `ash_postgres`
 
-* set a name for generated migrations
+- set a name for generated migrations
 
 ## [v2.4.1](https://github.com/ash-project/ash_postgres/compare/v2.4.0...v2.4.1) (2024-09-16)
 
-
-
-
 ### Bug Fixes:
 
-* ensure that returning is not an empty list
+- ensure that returning is not an empty list
 
-* match on table schema as well as table name
+- match on table schema as well as table name
 
 ## [v2.4.0](https://github.com/ash-project/ash_postgres/compare/v2.3.1...v2.4.0) (2024-09-13)
 
