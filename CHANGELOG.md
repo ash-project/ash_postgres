@@ -5,6 +5,19 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.4.10](https://github.com/ash-project/ash_postgres/compare/v2.4.9...v2.4.10) (2024-10-23)
+
+
+
+
+### Bug Fixes:
+
+* when an atomic update is fully skipped, run the query if it could produce errors
+
+* run any query that could produce errors when performing atomic upgrade
+
+* race condition compiling migrations when concurrently creating new tenants (#406)
+
 ## [v2.4.9](https://github.com/ash-project/ash_postgres/compare/v2.4.8...v2.4.9) (2024-10-16)
 
 
