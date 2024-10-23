@@ -5,6 +5,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.4.11](https://github.com/ash-project/ash_postgres/compare/v2.4.10...v2.4.11) (2024-10-23)
+
+
+
+
+### Bug Fixes:
+
+* ensure repo_opts is passed through to `repo.all/2`
+
 ## [v2.4.10](https://github.com/ash-project/ash_postgres/compare/v2.4.9...v2.4.10) (2024-10-23)
 
 
