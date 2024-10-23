@@ -1362,7 +1362,7 @@ defmodule AshPostgres.DataLayer do
                     %{expression_accumulator: %AshSql.Expr.ExprInfo{has_error?: true}} ->
                       # if the query could produce an error
                       # we must run it even if we will just be returning the original data.
-                      repo.all(query)
+                      repo.all(query, repo_opts)
 
                     _ ->
                       :ok
@@ -1370,7 +1370,7 @@ defmodule AshPostgres.DataLayer do
 
                   {:ok, [changeset.data]}
                 else
-                  {:ok, repo.all(query)}
+                  {:ok, repo.all(query, repo_opts)}
                 end
               else
                 :ok
