@@ -2078,7 +2078,8 @@ defmodule AshPostgres.DataLayer do
       record
       |> to_ecto()
       |> set_table(changeset, type, table_error?)
-      |> Ecto.Changeset.change(Map.take(changeset.attributes, attributes_to_change))
+      |> Ecto.Changeset.cast(%{}, [])
+      |> force_changes(Map.take(changeset.attributes, attributes_to_change))
       |> add_configured_foreign_key_constraints(record.__struct__)
       |> add_unique_indexes(record.__struct__, changeset)
       |> add_check_constraints(record.__struct__)
@@ -2098,6 +2099,12 @@ defmodule AshPostgres.DataLayer do
         ecto_changeset
         |> add_related_foreign_key_constraints(record.__struct__)
     end
+  end
+
+  defp force_changes(changeset, changes) do
+    Enum.reduce(changes, changeset, fn {key, value}, changeset ->
+      Ecto.Changeset.force_change(changeset, key, value)
+    end)
   end
 
   defp handle_raised_error(
