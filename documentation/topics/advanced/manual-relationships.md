@@ -85,3 +85,187 @@ defmodule Helpdesk.Support.Ticket.Relationships.TicketsAboveThreshold do
   end
 end
 ```
+
+## Recursive Relationships
+
+Manual relationships can be _very_ powerful, as they can leverage the full power of Ecto to do arbitrarily complex things.
+Here is an example of a recursive relationship that loads all employees under the purview of a given manager using a recursive CTE.
+
+> ### Use ltree {: .info}
+>
+> While the below is very powerful, if at all possible we suggest using ltree for hierarchical data. Its built in to postgres
+> and AshPostgres has built in support for it. For more, see: `AshPostgres.Ltree`.
+
+Keep in mind this is an example of a very advanced use case, _not_ something you'd typically need to do.
+
+```elixir
+defmodule MyApp.Employee.ManagedEmployees do
+  @moduledoc """
+  A manual relationship which uses a recursive CTE to find all employees managed by a given employee.
+  """
+
+  use Ash.Resource.ManualRelationship
+  use AshPostgres.ManualRelationship
+  alias MyApp.Employee
+  alias MyApp.Repo
+  import Ecto.Query
+
+  @doc false
+  @impl true
+  @spec load([Employee.t()], keyword, map) ::
+          {:ok, %{Ash.UUID.t() => [Employee.t()]}} | {:error, any}
+  def load(employees, _opts, _context) do
+    employee_ids = Enum.map(employees, & &1.id)
+
+    all_descendants =
+      Employee
+      |> where([l], l.manager_id in ^employee_ids)
+      |> recursive_cte_query("employee_tree", Employee)
+      |> Repo.all()
+
+    employees
+    |> with_descendants(all_descendants)
+    |> Map.new(&{&1.id, &1.descendants})
+    |> then(&{:ok, &1})
+  end
+
+  defp with_descendants([], _), do: []
+
+  defp with_descendants(employees, all_descendants) do
+    Enum.map(employees, fn employee ->
+      descendants = Map.get(all_descendants, employee.id, [])
+
+      %{employee | descendants: with_descendants(descendants, all_descendants)}
+    end)
+  end
+
+  @doc false
+  @impl true
+  @spec ash_postgres_join(
+          Ecto.Query.t(),
+          opts :: keyword,
+          current_binding :: any,
+          as_binding :: any,
+          :inner | :left,
+          Ecto.Query.t()
+        ) ::
+          {:ok, Ecto.Query.t()} | {:error, any}
+  # Add a join from some binding in the query, producing *as_binding*.
+  def ash_postgres_join(query, _opts, current_binding, as_binding, join_type, destination_query) do
+    immediate_parents =
+      from(destination in destination_query,
+        where: parent_as(^current_binding).manager_id == destination.id
+      )
+
+    cte_name = "employees_#{as_binding}"
+
+    descendant_query =
+      recursive_cte_query_for_join(
+        immediate_parents,
+        cte_name,
+        destination_query
+      )
+
+    case join_type do
+      :inner ->
+        {:ok,
+         from(row in query,
+           inner_lateral_join: descendant in subquery(descendant_query),
+           on: true,
+           as: ^as_binding
+         )}
+
+      :left ->
+        {:ok,
+         from(row in query,
+           left_lateral_join: descendant in subquery(descendant_query),
+           on: true,
+           as: ^as_binding
+         )}
+    end
+  end
+
+  @impl true
+  @spec ash_postgres_subquery(keyword, any, any, Ecto.Query.t()) ::
+          {:ok, Ecto.Query.t()} | {:error, any}
+  # Produce a subquery using which will use the given binding and will be
+  def ash_postgres_subquery(_opts, current_binding, as_binding, destination_query) do
+    immediate_descendants =
+      from(destination in Employee,
+        where: parent_as(^current_binding).id == destination.manager_id
+      )
+
+    cte_name = "employees_#{as_binding}"
+
+    recursive_cte_query =
+      recursive_cte_query_for_join(
+        immediate_descendants,
+        cte_name,
+        Employee
+      )
+
+    other_query =
+      from(row in subquery(recursive_cte_query),
+        where:
+          row.id in subquery(
+            from(row in Ecto.Query.exclude(destination_query, :select), select: row.id)
+          )
+      )
+
+    {:ok, other_query}
+  end
+
+  defp recursive_cte_query(immediate_parents, cte_name, query) do
+    recursion_query =
+      query
+      |> join(:inner, [l], lt in ^cte_name, on: l.manager_id == lt.id)
+
+    descendants_query =
+      immediate_parents
+      |> union(^recursion_query)
+
+    {cte_name, Employee}
+    |> recursive_ctes(true)
+    |> with_cte(^cte_name, as: ^descendants_query)
+  end
+
+  defp recursive_cte_query_for_join(immediate_parents, cte_name, query) do
+    # This is due to limitations in ecto's recursive CTE implementation
+    # For more, see here:
+    # https://elixirforum.com/t/ecto-cte-queries-without-a-prefix/33148/2
+    # https://stackoverflow.com/questions/39458572/ecto-declare-schema-for-a-query
+    employee_keys = Employee.__schema__(:fields)
+
+    cte_name =
+      from(cte in fragment("?", literal(^cte_name)), select: map(cte, ^employee_keys))
+
+    recursion_query =
+      query
+      |> join(:inner, [l], lt in ^cte_name, on: l.manager_id == lt.id)
+
+    descendants_query =
+      immediate_parents
+      |> union(^recursion_query)
+
+    cte_name
+    |> recursive_ctes(true)
+    |> with_cte(^cte_name, as: ^descendants_query)
+  end
+end
+```
+
+With the above definition, employees could have a relationship like this:
+
+```elixir
+has_many :managed_employees, MyApp.Employee do
+  manual MyApp.Employee.ManagedEmployees
+end
+```
+
+And you could then use it in calculations and aggregates! For example, to see the count of employees managed by each employee:
+
+```elixir
+aggregates do
+  count :count_of_managed_employees, :managed_employees
+end
+```
