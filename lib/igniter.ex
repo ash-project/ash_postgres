@@ -12,6 +12,12 @@ defmodule AshPostgres.Igniter do
       %Version{major: #{min_pg_version.major}, minor: #{min_pg_version.minor}, patch: #{min_pg_version.patch}}
     end
 
+    # Don't open unnecessary transactions
+    # will default to `false` in 4.0
+    def prefer_transaction? do
+      false
+    end
+
     def installed_extensions do
       # Add extensions here, and the migration generator will install them.
       ["ash-functions"]

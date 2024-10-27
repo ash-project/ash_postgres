@@ -370,6 +370,10 @@ defmodule Mix.Tasks.AshPostgres.Install do
     )
     |> Igniter.Project.Module.find_and_update_module!(
       repo,
+      &configure_prefer_transaction_function/1
+    )
+    |> Igniter.Project.Module.find_and_update_module!(
+      repo,
       &configure_min_pg_version_function(&1, repo, opts)
     )
   end
@@ -438,6 +442,23 @@ defmodule Mix.Tasks.AshPostgres.Install do
          def installed_extensions do
            # Add extensions here, and the migration generator will install them.
            ["ash-functions"]
+         end
+         """)}
+    end
+  end
+
+  defp configure_prefer_transaction_function(zipper) do
+    case Igniter.Code.Function.move_to_def(zipper, :prefer_transaction?, 0) do
+      {:ok, zipper} ->
+        {:ok, zipper}
+
+      _ ->
+        {:ok,
+         Igniter.Code.Common.add_code(zipper, """
+         # Don't open unnecessary transactions
+         # will default to `false` in 4.0
+         def prefer_transaction? do
+           false
          end
          """)}
     end
