@@ -606,6 +606,11 @@ defmodule AshPostgres.DataLayer do
   import Ecto.Query, only: [from: 2, subquery: 1]
 
   @impl true
+  def prefer_transaction?(resource) do
+    AshPostgres.DataLayer.Info.repo(resource, :mutate).prefer_transaction?()
+  end
+
+  @impl true
   def can?(_, :async_engine), do: true
   def can?(_, :bulk_create), do: true
 
@@ -1773,7 +1778,12 @@ defmodule AshPostgres.DataLayer do
             |> AshSql.Bindings.default_bindings(resource, AshPostgres.SqlImplementation)
 
           upsert_set =
-            upsert_set(resource, changesets, options)
+            upsert_set(
+              resource,
+              changesets,
+              options[:upsert_keys] || Ash.Resource.Info.primary_key(resource),
+              options
+            )
 
           on_conflict =
             case AshSql.Atomics.query_with_atomics(
@@ -1785,7 +1795,11 @@ defmodule AshPostgres.DataLayer do
                    upsert_set
                  ) do
               :empty ->
-                {:replace, options[:upsert_keys] || Ash.Resource.Info.primary_key(resource)}
+                if options[:return_records?] do
+                  {:replace, options[:upsert_keys] || Ash.Resource.Info.primary_key(resource)}
+                else
+                  :nothing
+                end
 
               {:ok, query} ->
                 query
@@ -1913,7 +1927,7 @@ defmodule AshPostgres.DataLayer do
     fun.()
   end
 
-  defp upsert_set(resource, changesets, options) do
+  defp upsert_set(resource, changesets, keys, options) do
     attributes_changing_anywhere =
       changesets |> Enum.flat_map(&Map.keys(&1.attributes)) |> Enum.uniq()
 
@@ -1926,7 +1940,7 @@ defmodule AshPostgres.DataLayer do
 
     fields_to_upsert =
       upsert_fields --
-        Keyword.keys(Enum.at(changesets, 0).atomics)
+        Keyword.keys(Enum.at(changesets, 0).atomics) -- keys
 
     fields_to_upsert
     |> Enum.uniq()

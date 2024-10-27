@@ -7,6 +7,8 @@ defmodule AshPostgres.TestRepo do
     send(self(), data)
   end
 
+  def prefer_transaction?, do: false
+
   def installed_extensions do
     ["ash-functions", "uuid-ossp", "pg_trgm", "citext", AshPostgres.TestCustomExtension, "ltree"] --
       Application.get_env(:ash_postgres, :no_extensions, [])

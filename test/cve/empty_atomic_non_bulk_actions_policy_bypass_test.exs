@@ -16,8 +16,6 @@ defmodule AshPostgres.EmptyAtomicNonBulkActionsPolicyBypassTest do
       |> Ash.Changeset.for_create(:create, %{})
       |> Ash.create!()
 
-    Logger.configure(level: :debug)
-
     assert_raise Ash.Error.Forbidden, fn ->
       post
       |> Ash.Changeset.for_update(:empty_update, %{}, authorize?: true)

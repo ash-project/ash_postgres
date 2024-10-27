@@ -69,6 +69,9 @@ defmodule AshPostgres.Repo do
   @doc "The default prefix(postgres schema) to use when building queries"
   @callback default_prefix() :: String.t()
 
+  @doc "Whether or not to explicitly start and close a transaction for each action, even if there are no transaction hooks"
+  @callback prefer_transaction?() :: boolean
+
   @doc "Allows overriding a given migration type for *all* fields, for example if you wanted to always use :timestamptz for :utc_datetime fields"
   @callback override_migration_type(atom) :: atom
   @doc "Should the repo should be created by `mix ash_postgres.create`?"
@@ -101,6 +104,9 @@ defmodule AshPostgres.Repo do
       def override_migration_type(type), do: type
       def create?, do: true
       def drop?, do: true
+
+      # default to false in 4.0
+      def prefer_transaction?, do: true
 
       def transaction!(fun) do
         case fun.() do
@@ -242,6 +248,7 @@ defmodule AshPostgres.Repo do
                      on_transaction_begin: 1,
                      installed_extensions: 0,
                      all_tenants: 0,
+                     prefer_transaction?: 0,
                      tenant_migrations_path: 0,
                      default_prefix: 0,
                      override_migration_type: 1,
