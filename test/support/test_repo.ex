@@ -7,7 +7,9 @@ defmodule AshPostgres.TestRepo do
     send(self(), data)
   end
 
-  def prefer_transaction?, do: false
+  def prefer_transaction?, do: true
+
+  def prefer_transaction_for_atomic_updates?, do: false
 
   def installed_extensions do
     ["ash-functions", "uuid-ossp", "pg_trgm", "citext", AshPostgres.TestCustomExtension, "ltree"] --

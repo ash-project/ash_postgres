@@ -69,8 +69,11 @@ defmodule AshPostgres.Repo do
   @doc "The default prefix(postgres schema) to use when building queries"
   @callback default_prefix() :: String.t()
 
-  @doc "Whether or not to explicitly start and close a transaction for each action, even if there are no transaction hooks"
+  @doc "Whether or not to explicitly start and close a transaction for each action, even if there are no transaction hooks. Defaults to `true`."
   @callback prefer_transaction?() :: boolean
+
+  @doc "Whether or not to explicitly start and close a transaction for each atomic update action, even if there are no transaction hooks. Defaults to `false`."
+  @callback prefer_transaction_for_atomic_updates?() :: boolean
 
   @doc "Allows overriding a given migration type for *all* fields, for example if you wanted to always use :timestamptz for :utc_datetime fields"
   @callback override_migration_type(atom) :: atom
@@ -95,7 +98,11 @@ defmodule AshPostgres.Repo do
       @before_compile AshPostgres.Repo.BeforeCompile
       require Logger
 
-      defoverridable insert: 2, insert: 1, insert!: 2, insert!: 1
+      defoverridable insert: 2, insert: 1, insert!: 2, insert!: 1, transaction: 1, transaction: 2
+
+      def transaction(fun, opts \\ []) do
+        super(fun, opts)
+      end
 
       def installed_extensions, do: []
       def tenant_migrations_path, do: nil
@@ -107,6 +114,8 @@ defmodule AshPostgres.Repo do
 
       # default to false in 4.0
       def prefer_transaction?, do: true
+
+      def prefer_transaction_for_atomic_updates?, do: false
 
       def transaction!(fun) do
         case fun.() do
@@ -249,6 +258,7 @@ defmodule AshPostgres.Repo do
                      installed_extensions: 0,
                      all_tenants: 0,
                      prefer_transaction?: 0,
+                     prefer_transaction_for_atomic_updates?: 0,
                      tenant_migrations_path: 0,
                      default_prefix: 0,
                      override_migration_type: 1,

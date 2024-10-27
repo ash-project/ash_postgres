@@ -1,4 +1,4 @@
-ExUnit.start(capture_log: false)
+ExUnit.start(capture_log: true)
 
 exclude_tags =
   case System.get_env("PG_VERSION") do

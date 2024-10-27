@@ -611,6 +611,11 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
+  def prefer_transaction_for_atomic_updates?(resource) do
+    AshPostgres.DataLayer.Info.repo(resource, :mutate).prefer_transaction_for_atomic_updates?()
+  end
+
+  @impl true
   def can?(_, :async_engine), do: true
   def can?(_, :bulk_create), do: true
 
@@ -1515,22 +1520,25 @@ defmodule AshPostgres.DataLayer do
                 query.limit || query.offset ->
                   with {:ok, root_query} <-
                          AshSql.Atomics.select_atomics(resource, root_query, atomics) do
-                    {:ok, from(row in Ecto.Query.subquery(root_query), []), atomics != []}
+                    {:ok, from(row in Ecto.Query.subquery(root_query), []),
+                     root_query.__ash_bindings__.expression_accumulator, atomics != []}
                   end
 
                 !Enum.empty?(query.joins) || has_exists? ->
                   with root_query <- Ecto.Query.exclude(root_query, :order_by),
                        {:ok, root_query} <-
                          AshSql.Atomics.select_atomics(resource, root_query, atomics) do
-                    {:ok, from(row in Ecto.Query.subquery(root_query), []), atomics != []}
+                    {:ok, from(row in Ecto.Query.subquery(root_query), []),
+                     root_query.__ash_bindings__.expression_accumulator, atomics != []}
                   end
 
                 true ->
-                  {:ok, Ecto.Query.exclude(root_query, :order_by), false}
+                  {:ok, Ecto.Query.exclude(root_query, :order_by),
+                   root_query.__ash_bindings__.expression_accumulator, false}
               end
 
             case root_query_result do
-              {:ok, root_query, selected_atomics?} ->
+              {:ok, root_query, acc, selected_atomics?} ->
                 dynamic =
                   Enum.reduce(Ash.Resource.Info.primary_key(resource), nil, fn pkey, dynamic ->
                     if dynamic do
@@ -1557,6 +1565,7 @@ defmodule AshPostgres.DataLayer do
                     AshPostgres.SqlImplementation,
                     context
                   )
+                  |> AshSql.Bindings.merge_expr_accumulator(acc)
                   |> then(fn query ->
                     if selected_atomics? do
                       Map.update!(query, :__ash_bindings__, &Map.put(&1, :atomics_in_binding, 0))
