@@ -1097,6 +1097,8 @@ defmodule AshPostgres.DataLayer do
             where: ^source_filter
           )
 
+        data_layer_query = Ecto.Query.exclude(data_layer_query, :distinct)
+
         if query.__ash_bindings__[:__order__?] do
           {:ok,
            from(source in data_layer_query,
@@ -1186,6 +1188,8 @@ defmodule AshPostgres.DataLayer do
                   )
                 )
 
+              data_layer_query = Ecto.Query.exclude(data_layer_query, :distinct)
+
               {:ok,
                from(source in data_layer_query,
                  where: field(source, ^source_attribute) in ^source_values,
@@ -1223,6 +1227,8 @@ defmodule AshPostgres.DataLayer do
                     relationship.destination
                   )
                 )
+
+              data_layer_query = Ecto.Query.exclude(data_layer_query, :distinct)
 
               {:ok,
                from(source in data_layer_query,
