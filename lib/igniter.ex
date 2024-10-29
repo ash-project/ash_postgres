@@ -131,10 +131,10 @@ defmodule AshPostgres.Igniter do
       lead_in = """
       Generating #{inspect(name)}
 
-      What is the minimum postgres version you will be using?
+      What is the minimum PostgreSQL version you will be using?
 
-      AshPostgres uses this information when generating queries and migrations
-      to choose the best available features for your version of postgres.
+      AshPostgres uses this information when generating queries and migrations,
+      to choose the best available features for your version of PostgreSQL.
       """
 
       format_request =
