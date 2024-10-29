@@ -351,7 +351,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
                    """
                    Repo module #{inspect(repo)} existed, but was not an `Ecto.Repo` or an `AshPostgres.Repo`.
 
-                   Please rerun the ash_postgresql installer with the `--repo` option to specify a repo.
+                   Please re-run the AshPostgres installer with the `--repo` option to specify a repo.
                    """}
               end
           end
