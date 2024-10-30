@@ -5,11 +5,25 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.4.12](https://github.com/ash-project/ash_postgres/compare/v2.4.11...v2.4.12) (2024-10-30)
+
+### Bug Fixes:
+
+* [query builder] don't double add distinct clauses
+
+* [`AshPostgres.DataLayer`] don't use `cast` for changes
+
+### Improvements:
+
+* [`AshPostgres.Repo`] set `prefer_transaction?` to false in generated repos
+
+* [`AshPostgres.DataLayer`] support prefer_transaction?
+
 ## [v2.4.11](https://github.com/ash-project/ash_postgres/compare/v2.4.10...v2.4.11) (2024-10-23)
 
 ### Bug Fixes:
 
-- ensure repo_opts is passed through to `repo.all/2`
+- [upserts] ensure repo_opts is passed through to `repo.all/2`
 
 ## [v2.4.10](https://github.com/ash-project/ash_postgres/compare/v2.4.9...v2.4.10) (2024-10-23)
 
@@ -19,107 +33,101 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 ### Bug Fixes:
 
-- when an atomic update is fully skipped, run the query if it could produce errors
+- [upserts] run any query that could produce errors when performing atomic upgrade
 
-- run any query that could produce errors when performing atomic upgrade
-
-- race condition compiling migrations when concurrently creating new tenants (#406)
+- [multitenant migrations] race condition compiling migrations when concurrently creating new tenants (#406)
 
 ## [v2.4.9](https://github.com/ash-project/ash_postgres/compare/v2.4.8...v2.4.9) (2024-10-16)
 
 ### Bug Fixes:
 
-- fix resource generator task & tests
+- [`mix ash_postgres.gen.resources`] fix resource generator task & tests
 
 ## [v2.4.8](https://github.com/ash-project/ash_postgres/compare/v2.4.7...v2.4.8) (2024-10-11)
 
 ### Improvements:
 
-- use the `name` parameter when generating migrations
+- [migration generator] use the `name` parameter when generating migrations
 
 ## [v2.4.7](https://github.com/ash-project/ash_postgres/compare/v2.4.6...v2.4.7) (2024-10-10)
 
 ### Improvements:
 
-- adapt to fixes and optimizations around skipped upserts in ash core
+- [upserts] adapt to fixes and optimizations around skipped upserts in ash core
 
 ## [v2.4.6](https://github.com/ash-project/ash_postgres/compare/v2.4.5...v2.4.6) (2024-10-07)
 
 ### Improvements:
 
-- with `--yes` assume oldest version
+- [`mix ash_postgres.install`] with `--yes` assume oldest version
 
 ## [v2.4.5](https://github.com/ash-project/ash_postgres/compare/v2.4.4...v2.4.5) (2024-10-06)
 
 ### Bug Fixes:
 
-- ensure upsert fields are uniq
+- [upserts] ensure upsert fields are uniq
 
 ### Improvements:
 
-- detect 1 arg repo use in installer
+- [`mix ash_postgres.install`] detect 1 arg repo use in installer
 
-- support to_ecto(%Ecto.Changeset{}) and from_ecto(%Ecto.Changeset{}) (#395)
+- [`AshPostgres.Repo`] support to_ecto(%Ecto.Changeset{}) and from_ecto(%Ecto.Changeset{}) (#395)
 
 ## [v2.4.4](https://github.com/ash-project/ash_postgres/compare/v2.4.3...v2.4.4) (2024-09-29)
 
 ### Bug Fixes:
 
-- handle atomic array operations
+- [atomic updates] handle atomic array operations
 
 ## [v2.4.3](https://github.com/ash-project/ash_postgres/compare/v2.4.2...v2.4.3) (2024-09-27)
 
 ### Bug Fixes:
 
-- support pg <= 14 in resource generator, and update tests
+- [`mix ash_postgres.gen.resources`] support pg <= 14 in resource generator, and update tests
 
 ## [v2.4.2](https://github.com/ash-project/ash_postgres/compare/v2.4.1...v2.4.2) (2024-09-24)
 
 ### Bug Fixes:
 
-- typo of `biging` -> `bigint`
+- [migration generator] typo of `biging` -> `bigint`
 
-- altering attributes not properly generating foreign keys in some cases
+- [migration generator] altering attributes not properly generating foreign keys in some cases
 
-- installer: use correct module name in the `DataCase` moduledocs. (#393)
+- [`mix ash_postres.install`] use correct module name in the `DataCase` moduledocs. (#393)
 
-- trim input before passing to `String.to_integer/1`. (#389)
+- [migration generator] trim input before passing to `String.to_integer/1`. (#389)
 
 ### Improvements:
 
-- add `--repo` option to installer, and warn on clashing existing repo
+- [`mix ash_postgres.install`] add `--repo` option to installer, and warn on clashing existing repo
 
-- prompt for minimum pg version
+- [`mix ash_postgres.install`] prompt for minimum pg version
 
-- adjust mix task aliases to be used with `ash_postgres`
+- [`mix ash_postgres.install`] adjust mix task aliases to be used with `ash_postgres`
 
-- set a name for generated migrations
+- [migration generator] set a name for generated migrations
 
 ## [v2.4.1](https://github.com/ash-project/ash_postgres/compare/v2.4.0...v2.4.1) (2024-09-16)
 
 ### Bug Fixes:
 
-- ensure that returning is not an empty list
+- [bulk updates] ensure that returning is never an empty list
 
-- match on table schema as well as table name
+- [`mix ash_postgres.gen.resources`] match on table schema as well as table name
 
 ## [v2.4.0](https://github.com/ash-project/ash_postgres/compare/v2.3.1...v2.4.0) (2024-09-13)
 
 ### Features:
 
-- Implement Ltree Type (#385)
+- [`AshPostgres.Ltree`] Implement Ltree Type (#385)
 
 ### Improvements:
 
-- update ash to latest version
+- [migration generator] remove LEAKPROOF from function to prevent migration issues
 
-- remove LEAKPROOF from function to prevent migration issues
+- [`Ash.Changeset`] support upcoming `action_select` options
 
-- support upcoming `action_select` options
-
-- ensure `Repo` is started after telemetry in igniter installer
-
-- update to latest igniter functions
+- [`mix ash.install`] ensure `Repo` is started after telemetry in igniter installer
 
 ## [v2.3.1](https://github.com/ash-project/ash_postgres/compare/v2.3.0...v2.3.1) (2024-09-05)
 
