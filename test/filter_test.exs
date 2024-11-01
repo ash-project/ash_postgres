@@ -49,7 +49,7 @@ defmodule AshPostgres.FilterTest do
     test "it raises if you try to use ci_string while ci_text is not installed" do
       Application.put_env(:ash_postgres, :no_extensions, ["citext"])
 
-      assert_raise Ash.Error.Query.InvalidExpression, fn ->
+      assert_raise Ash.Error.Invalid, fn ->
         Post
         |> Ash.Query.filter(category == "blah")
         |> Ash.read!()
