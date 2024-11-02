@@ -25,6 +25,8 @@ if Mix.env() == :test do
 
   config :ash_postgres, :ash_domains, [AshPostgres.Test.Domain]
 
+  config :ash, :custom_expressions, [AshPostgres.Expressions.TrigramWordSimilarity]
+
   config :ash_postgres, AshPostgres.TestRepo,
     username: "postgres",
     database: "ash_postgres_test",

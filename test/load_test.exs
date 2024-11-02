@@ -1,6 +1,16 @@
 defmodule AshPostgres.Test.LoadTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Author, Comment, Post, Record, StatefulPostFollower, TempEntity, User}
+
+  alias AshPostgres.Test.{
+    Author,
+    Comment,
+    Post,
+    PostFollower,
+    Record,
+    StatefulPostFollower,
+    TempEntity,
+    User
+  }
 
   require Ash.Query
 
@@ -128,6 +138,32 @@ defmodule AshPostgres.Test.LoadTest do
       |> Ash.read!()
 
     assert length(post.active_followers) == 2
+  end
+
+  test "many_to_many loads work with filter on the join relationship via the parent" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "a"})
+      |> Ash.create!()
+
+    for i <- 1..2 do
+      user =
+        User
+        |> Ash.Changeset.for_create(:create, %{name: "user#{i}", is_active: true})
+        |> Ash.create!()
+
+      PostFollower
+      |> Ash.Changeset.for_create(:create, %{order: i, post_id: post.id, follower_id: user.id})
+      |> Ash.create!()
+    end
+
+    [post] =
+      Post
+      |> Ash.Query.for_read(:read, %{})
+      |> Ash.Query.load(:first_3_followers)
+      |> Ash.read!()
+
+    assert length(post.first_3_followers) == 2
   end
 
   test "many_to_many loads work when nested" do

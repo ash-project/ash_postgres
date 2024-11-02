@@ -524,6 +524,15 @@ defmodule AshPostgres.Test.Post do
       destination_attribute_on_join_resource: :follower_id
     )
 
+    many_to_many(:first_3_followers, AshPostgres.Test.User,
+      public?: true,
+      through: AshPostgres.Test.PostFollower,
+      join_relationship: :first_three_followers_assoc,
+      source_attribute_on_join_resource: :post_id,
+      destination_attribute_on_join_resource: :follower_id,
+      filter: expr(parent(first_three_followers_assoc.order) <= 3)
+    )
+
     many_to_many(:stateful_followers, AshPostgres.Test.User,
       public?: true,
       through: AshPostgres.Test.StatefulPostFollower,
