@@ -87,12 +87,15 @@ defmodule Mix.Tasks.AshPostgres.Install do
 
   defp run_seeds_on_setup(igniter) do
     if Igniter.exists?(igniter, "priv/repo/seeds.exs") do
-      Igniter.Project.TaskAliases.add_alias(igniter, "ash.setup", [
-        "ash.setup",
-        "run priv/repo/seeds.exs"
-      ])
-    else
       igniter
+      |> Igniter.Project.TaskAliases.add_alias("setup", "ash.setup",
+        if_exists: {:replace_or_append, "ecto.setup", "ash.setup"}
+      )
+      |> Igniter.Project.TaskAliases.add_alias("setup", "run priv/repo/seeds.exs",
+        if_exists: :append
+      )
+    else
+      Igniter.Project.TaskAliases.add_alias(igniter, "setup", "ash.setup")
     end
   end
 
