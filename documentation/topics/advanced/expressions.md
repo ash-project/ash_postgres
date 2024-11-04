@@ -26,7 +26,7 @@ fragment("repeat('hello', 4)")
 fragment("points > (SELECT SUM(points) FROM games WHERE user_id = ? AND id != ?)", user_id, id)
 ```
 
-> ### a last resport {: .warning}
+> ### a last resort {: .warning}
 >
 > Using entire queries as shown above is a last resort, but can sometimes be the best way to accomplish a given task.
 
