@@ -18,6 +18,14 @@ defmodule AshPostgres.Test.ComplexCalculations.ChannelMember do
     update_timestamp(:updated_at, public?: true)
   end
 
+  calculations do
+    calculate(
+      :first_member_recently_created,
+      :boolean,
+      expr(channel.first_member.created_at > ago(1, :day))
+    )
+  end
+
   postgres do
     table "complex_calculations_certifications_channel_members"
     repo(AshPostgres.TestRepo)

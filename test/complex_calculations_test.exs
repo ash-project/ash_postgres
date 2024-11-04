@@ -226,6 +226,29 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
     assert channel.dm_name == user_2.name
   end
 
+  test "calculations through `from_many?` relationships properly join" do
+    dm_channel =
+      AshPostgres.Test.ComplexCalculations.DMChannel
+      |> Ash.Changeset.new()
+      |> Ash.create!()
+
+    user_1 =
+      AshPostgres.Test.User
+      |> Ash.Changeset.for_create(:create, %{name: "User 1"})
+      |> Ash.create!()
+
+    AshPostgres.Test.ComplexCalculations.ChannelMember
+    |> Ash.Changeset.for_create(:create, %{channel_id: dm_channel.id, user_id: user_1.id})
+    |> Ash.create!()
+
+    assert channel_member =
+             AshPostgres.Test.ComplexCalculations.ChannelMember
+             |> Ash.Query.load(:first_member_recently_created)
+             |> Ash.read_one!()
+
+    assert channel_member.first_member_recently_created
+  end
+
   test "calculations with parent filters can be filtered on themselves" do
     AshPostgres.Test.ComplexCalculations.DMChannel
     |> Ash.Changeset.new()

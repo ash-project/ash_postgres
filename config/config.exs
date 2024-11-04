@@ -18,6 +18,9 @@ if Mix.env() == :dev do
 end
 
 if Mix.env() == :test do
+  config :ash_postgres, AshPostgres.TestRepo, log: false
+  config :ash_postgres, AshPostgres.TestNoSandboxRepo, log: false
+
   config :ash, :validate_domain_resource_inclusion?, false
   config :ash, :validate_domain_config_inclusion?, false
 

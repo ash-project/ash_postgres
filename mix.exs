@@ -165,7 +165,7 @@ defmodule AshPostgres.MixProject do
   defp deps do
     [
       {:ash, ash_version("~> 3.4 and >= 3.4.37")},
-      {:ash_sql, ash_sql_version("~> 0.2 and >= 0.2.37")},
+      {:ash_sql, ash_sql_version("~> 0.2 and >= 0.2.39")},
       {:igniter, "~> 0.4 and >= 0.4.4"},
       {:ecto_sql, "~> 3.12"},
       {:ecto, "~> 3.12 and >= 3.12.1"},
@@ -174,6 +174,7 @@ defmodule AshPostgres.MixProject do
       {:inflex, "~> 2.1"},
       {:owl, "~> 0.11"},
       # dev/test dependencies
+      {:ecto_dev_logger, "~> 0.14", only: :test},
       {:eflame, "~> 1.0", only: [:dev, :test]},
       {:simple_sat, "~> 0.1", only: [:dev, :test]},
       {:benchee, "~> 1.1", only: [:dev, :test]},
