@@ -57,6 +57,82 @@ defmodule AshSql.AggregateTest do
     assert read_post.count_of_comments == 1
   end
 
+  describe "Context Multitenancy" do
+    alias AshPostgres.MultitenancyTest.{Org, Post, User}
+
+    setup do
+      case Ecto.Adapters.SQL.Sandbox.checkout(AshPostgres.TestRepo) do
+        :ok -> :ok
+        {:already, :owner} -> :ok
+      end
+
+      Ecto.Adapters.SQL.Sandbox.mode(AshPostgres.TestRepo, {:shared, self()})
+      # Create the tenants dynamically
+      tenant1 = Ecto.UUID.generate()
+      tenant2 = Ecto.UUID.generate()
+
+      # Helper function to execute SQL safely
+      execute_sql = fn sql ->
+        {:ok, _} = Ecto.Adapters.SQL.query(AshPostgres.TestRepo, sql, [])
+      end
+
+      # Helper to run all migrations in a specific schema
+      run_migrations_in_schema = fn schema ->
+        # Create and set schema
+        execute_sql.("CREATE SCHEMA IF NOT EXISTS \"#{schema}\"")
+        execute_sql.("SET search_path TO \"#{schema}\"")
+
+        # Run all migrations from priv folder
+        path =
+          Path.join([
+            File.cwd!(),
+            "priv",
+            "test_repo",
+            "migrations"
+          ])
+          |> IO.inspect()
+
+        Ecto.Migrator.run(AshPostgres.TestRepo, path, :up,
+          prefix: schema,
+          all: true
+        )
+        |> IO.inspect(label: "migrations")
+      end
+
+      # Create schemas and run migrations for each tenant
+      Enum.each([tenant1, tenant2], fn tenant ->
+        run_migrations_in_schema.(tenant)
+      end)
+
+      on_exit(fn ->
+        # Cleanup: Drop the tenant schemas
+        execute_sql.("DROP SCHEMA IF EXISTS \"#{tenant1}\" CASCADE")
+        execute_sql.("DROP SCHEMA IF EXISTS \"#{tenant2}\" CASCADE")
+      end)
+
+      {:ok, %{tenant1: tenant1, tenant2: tenant2}}
+    end
+
+    test "loading a nested aggregate honors tenant", %{tenant1: tenant1, tenant2: tenant2} do
+      org =
+        Org
+        |> Ash.Changeset.for_create(:create, %{name: "name"}, tenant: tenant1)
+        |> Ash.create!()
+
+      user =
+        User
+        |> Ash.Changeset.for_create(:create, %{name: "name", org_id: tenant1})
+        |> Ash.create!()
+
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{}, tenant: tenant1)
+        |> Ash.create!()
+
+      refute org
+    end
+  end
+
   describe "join filters" do
     test "with no data, it does not effect the behavior" do
       Author
@@ -1450,5 +1526,8 @@ defmodule AshSql.AggregateTest do
                ])
                |> Ash.read_one!()
     end
+  end
+
+  describe "" do
   end
 end
