@@ -159,8 +159,15 @@ defmodule AshPostgres.MigrationGenerator do
     # Copied from ecto's mix task, thanks Ecto ❤️
     config = repo.config()
 
-    app = Keyword.fetch!(config, :otp_app)
-    Path.join([Mix.Project.deps_paths()[app] || File.cwd!(), "priv", "resource_snapshots"])
+    if snapshot_path = opts[:snapshots_path] do
+      snapshot_path
+    else
+      priv =
+        config[:priv] || "priv/#{repo |> Module.split() |> List.last() |> Macro.underscore()}"
+
+      app = Keyword.fetch!(config, :otp_app)
+      Application.app_dir(app, Path.join(priv, "resource_snapshots"))
+    end
   end
 
   defp create_extension_migrations(repos, opts) do
