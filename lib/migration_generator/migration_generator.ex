@@ -159,7 +159,7 @@ defmodule AshPostgres.MigrationGenerator do
     # Copied from ecto's mix task, thanks Ecto ❤️
     config = repo.config()
 
-    if snapshot_path = opts[:snapshots_path] do
+    if snapshot_path = config[:snapshots_path] do
       snapshot_path
     else
       priv =
