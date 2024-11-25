@@ -39,6 +39,15 @@ defmodule AshPostgres.Repo do
   ```elixir
   %{type: :create, %{resource: YourApp.YourResource, action: :action}}
   ```
+
+  ## Additional Repo Configuration
+
+  Because an `AshPostgres.Repo` is also an `Ecto.Repo`, it has all of the same callbacks.
+
+  In the `c:Ecto.Repo.config/0` callback, you can configure the following additional items:
+
+  - `:tenant_migrations_path` - The path where your tenant migrations are stored (only relevant for a multitenant implementation)
+  - `:snapshots_path` - The path where the resource snapshots for the migration generator are stored.
   """
 
   @doc "Use this to inform the data layer about what extensions are installed"
