@@ -408,7 +408,10 @@ defmodule AshPostgres.MigrationGenerator do
           end
 
           create_file(snapshot_file, snapshot_contents, force: true)
-          create_file(migration_file, contents)
+
+          if !opts.snapshots_only do
+            create_file(migration_file, contents)
+          end
         end
       end
     end
@@ -469,23 +472,25 @@ defmodule AshPostgres.MigrationGenerator do
             exit({:shutdown, 1})
           end
 
-          operations
-          |> split_into_migrations()
-          |> Enum.each(fn operations ->
-            run_without_transaction? =
-              Enum.any?(operations, fn
-                %Operation.AddCustomIndex{index: %{concurrently: true}} ->
-                  true
-
-                _ ->
-                  false
-              end)
-
+          if !opts.snapshots_only do
             operations
-            |> organize_operations
-            |> build_up_and_down()
-            |> write_migration!(repo, opts, tenant?, run_without_transaction?)
-          end)
+            |> split_into_migrations()
+            |> Enum.each(fn operations ->
+              run_without_transaction? =
+                Enum.any?(operations, fn
+                  %Operation.AddCustomIndex{index: %{concurrently: true}} ->
+                    true
+
+                  _ ->
+                    false
+                end)
+
+              operations
+              |> organize_operations
+              |> build_up_and_down()
+              |> write_migration!(repo, opts, tenant?, run_without_transaction?)
+            end)
+          end
 
           create_new_snapshot(snapshots, repo_name(repo), opts, tenant?)
       end
@@ -1052,7 +1057,7 @@ defmodule AshPostgres.MigrationGenerator do
           end
 
         File.mkdir_p(Path.dirname(snapshot_file))
-        File.write!(snapshot_file, snapshot_binary, [])
+        create_file(snapshot_file, snapshot_binary, force: true)
 
         old_snapshot_folder = Path.join(snapshot_folder, "#{snapshot.table}.json")
 
