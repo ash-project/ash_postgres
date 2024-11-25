@@ -897,9 +897,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
               Process.put({:type_cache, attribute.type}, new_type)
               %{attribute | attr_type: new_type}
             rescue
-              e ->
-                IO.puts(Exception.format(:error, e, __STACKTRACE__))
-
+              _e ->
                 get_type(attribute, opts)
             end
         end

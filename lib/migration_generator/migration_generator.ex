@@ -143,13 +143,7 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp opts(opts) do
-    case struct(__MODULE__, opts) do
-      %{check: true} = opts ->
-        %{opts | dry_run: true}
-
-      opts ->
-        opts
-    end
+    struct(__MODULE__, opts)
   end
 
   defp snapshot_path(%{snapshot_path: snapshot_path}, _) when not is_nil(snapshot_path),
@@ -163,10 +157,17 @@ defmodule AshPostgres.MigrationGenerator do
       snapshot_path
     else
       priv =
-        config[:priv] || "priv/#{repo |> Module.split() |> List.last() |> Macro.underscore()}"
+        config[:priv] || "priv/"
 
       app = Keyword.fetch!(config, :otp_app)
-      Application.app_dir(app, Path.join(priv, "resource_snapshots"))
+
+      Application.app_dir(
+        app,
+        Path.join([
+          priv,
+          "resource_snapshots"
+        ])
+      )
     end
   end
 
@@ -182,7 +183,7 @@ defmodule AshPostgres.MigrationGenerator do
         |> Path.join(repo_name)
         |> Path.join("extensions.json")
 
-      unless opts.dry_run do
+      unless opts.dry_run || opts.check do
         File.rename(legacy_snapshot_file, snapshot_file)
       end
 
@@ -383,7 +384,29 @@ defmodule AshPostgres.MigrationGenerator do
         if opts.dry_run do
           Mix.shell().info(snapshot_contents)
           Mix.shell().info(contents)
+
+          if opts.check do
+            Mix.shell().error("""
+            Migrations would have been generated, but the --check flag was provided.
+
+            To see what migration would have been generated, run with the `--dry-run`
+            option instead. To generate those migrations, run without either flag.
+            """)
+
+            exit({:shutdown, 1})
+          end
         else
+          if opts.check do
+            Mix.shell().error("""
+            Migrations would have been generated, but the --check flag was provided.
+
+            To see what migration would have been generated, run with the `--dry-run`
+            option instead. To generate those migrations, run without either flag.
+            """)
+
+            exit({:shutdown, 1})
+          end
+
           create_file(snapshot_file, snapshot_contents, force: true)
           create_file(migration_file, contents)
         end
