@@ -7,36 +7,31 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 ## [v2.4.13](https://github.com/ash-project/ash_postgres/compare/v2.4.12...v2.4.13) (2024-11-26)
 
-
-
-
 ### Bug Fixes:
 
-* honor the `snapshots_only` option
+- [`mix ash.migrate`] honor the `snapshots_only` option
 
 ### Improvements:
 
-* honor repo configuration in migration generator
+- [`mix ash.migrate`] honor repo configuration in migration generator
 
-* honor `:priv` in migration generator, and make it explicitly configurable
+- [`mix ash.codegen`] honor `:priv` in migration generator, and make it explicitly configurable
 
-* add tests for calculations through from_many? relationships
-
-* don't generate task aliases that run seeds in test
+- [`mix ash_postgres.install`] don't generate task aliases that run seeds in test
 
 ## [v2.4.12](https://github.com/ash-project/ash_postgres/compare/v2.4.11...v2.4.12) (2024-10-30)
 
 ### Bug Fixes:
 
-* [query builder] don't double add distinct clauses
+- [query builder] don't double add distinct clauses
 
-* [`AshPostgres.DataLayer`] don't use `cast` for changes
+- [`AshPostgres.DataLayer`] don't use `cast` for changes
 
 ### Improvements:
 
-* [`AshPostgres.Repo`] set `prefer_transaction?` to false in generated repos
+- [`AshPostgres.Repo`] set `prefer_transaction?` to false in generated repos
 
-* [`AshPostgres.DataLayer`] support prefer_transaction?
+- [`AshPostgres.DataLayer`] support prefer_transaction?
 
 ## [v2.4.11](https://github.com/ash-project/ash_postgres/compare/v2.4.10...v2.4.11) (2024-10-23)
 
