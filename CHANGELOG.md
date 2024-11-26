@@ -5,6 +5,25 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.4.13](https://github.com/ash-project/ash_postgres/compare/v2.4.12...v2.4.13) (2024-11-26)
+
+
+
+
+### Bug Fixes:
+
+* honor the `snapshots_only` option
+
+### Improvements:
+
+* honor repo configuration in migration generator
+
+* honor `:priv` in migration generator, and make it explicitly configurable
+
+* add tests for calculations through from_many? relationships
+
+* don't generate task aliases that run seeds in test
+
 ## [v2.4.12](https://github.com/ash-project/ash_postgres/compare/v2.4.11...v2.4.12) (2024-10-30)
 
 ### Bug Fixes:
