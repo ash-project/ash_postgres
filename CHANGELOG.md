@@ -5,6 +5,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.4.14](https://github.com/ash-project/ash_postgres/compare/v2.4.13...v2.4.14) (2024-11-27)
+
+
+
+
+### Bug Fixes:
+
+* pass AST to deal with stupid igniter behavior
+
 ## [v2.4.13](https://github.com/ash-project/ash_postgres/compare/v2.4.12...v2.4.13) (2024-11-26)
 
 ### Bug Fixes:
