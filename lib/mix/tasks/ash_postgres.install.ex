@@ -76,7 +76,7 @@ defmodule Mix.Tasks.AshPostgres.Install do
       &Igniter.Code.List.replace_in_list(
         &1,
         is_ecto_setup,
-        "ash.setup"
+        Sourceror.parse_string!("\"ash.setup\"")
       )
     )
     |> Igniter.Project.TaskAliases.add_alias("test", ["ash.setup --quiet", "test"],
