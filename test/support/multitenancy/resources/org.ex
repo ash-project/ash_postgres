@@ -16,6 +16,11 @@ defmodule AshPostgres.MultitenancyTest.Org do
     end
   end
 
+  aggregates do
+    count(:total_users_posts, [:users, :posts])
+    count(:total_posts, :posts)
+  end
+
   policies do
     policy action(:has_policies) do
       authorize_if(relates_to_actor_via(:owner))

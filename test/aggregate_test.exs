@@ -60,67 +60,34 @@ defmodule AshSql.AggregateTest do
   describe "Context Multitenancy" do
     alias AshPostgres.MultitenancyTest.{Org, Post, User}
 
-    setup do
-      tenant1 = "tenant_1_test"
-      tenant2 = "tenant_2_test"
-
-      # Create schemas for both tenants
-      :ok = create_tenant_schema(tenant1)
-      :ok = create_tenant_schema(tenant2)
-
-      # Run migrations for both tenants
-      run_migrations(tenant1)
-      run_migrations(tenant2)
-
-      on_exit(fn ->
-        # Cleanup schemas after tests
-        drop_tenant_schema(tenant1)
-        drop_tenant_schema(tenant2)
-      end)
-
-      {:ok, %{tenant1: tenant1, tenant2: tenant2}}
-    end
-
-    defp create_tenant_schema(prefix) do
-      # Create new schema
-      AshPostgres.TestRepo.query!("CREATE SCHEMA IF NOT EXISTS #{prefix}")
-      :ok
-    end
-
-    defp drop_tenant_schema(prefix) do
-      AshPostgres.TestRepo.query!("DROP SCHEMA IF EXISTS #{prefix} CASCADE")
-      :ok
-    end
-
-    defp run_migrations(prefix) do
-      # Get migrations path
-      path =
-        Path.join([
-          File.cwd!(),
-          "priv",
-          "test_repo",
-          "migrations"
-        ])
-
-      # Run migrations for the schema
-      # Ecto.Migrator.run(AshPostgres.TestRepo, path, :up, all: true, prefix: prefix)
-    end
-
-    test "loading a nested aggregate honors tenant", %{tenant1: tenant1, tenant2: tenant2} do
-      uuid1 = Ecto.UUID.generate()
-      uuid2 = Ecto.UUID.generate()
+    test "loading a nested aggregate honors tenant" do
+      alias AshPostgres.MultitenancyTest.{Org, Post, User}
 
       org =
         Org
-        |> Ash.Changeset.for_create(:create, %{name: "name"}, tenant: uuid1)
+        |> Ash.Changeset.for_create(:create, %{name: "BTTF"})
         |> Ash.create!()
 
       user =
         User
-        |> Ash.Changeset.for_create(:create, %{name: "name", org_id: org.id})
+        |> Ash.Changeset.for_create(:create, %{name: "Marty", org_id: org.id})
         |> Ash.create!()
 
-      refute user
+      ["Back to 1955", "Forwards to 1985", "Forward to 2015", "Back again to 1985"]
+      |> Enum.map(
+        &(Post
+          |> Ash.Changeset.for_create(:create, %{name: &1, user_id: user.id})
+          |> Ash.create!(tenant: "org_#{org.id}", load: [:last_word]))
+      )
+
+      assert Ash.load!(user, :count_visited, tenant: "org_#{org.id}")
+             |> then(& &1.count_visited) == 4
+
+      assert Ash.load!(org, :total_posts)
+             |> then(& &1.total_posts) == 4
+
+      assert Ash.load!(org, :total_users_posts, tenant: "org_#{org.id}")
+             |> then(& &1.total_users_posts) == 4
     end
   end
 
