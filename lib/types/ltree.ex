@@ -5,15 +5,15 @@ defmodule AshPostgres.Ltree do
       doc: """
       Escape the ltree segments to make it possible to include characters that
       are either `.` (the separation character) or any other unsupported
-      character like `-` (Postgres <= 15).  
-        
+      character like `-` (Postgres <= 15).
+
       If the option is enabled, any characters besides `[0-9a-zA-Z]` will be
-      replaced with `_[HEX Ascii Code]`.  
-        
+      replaced with `_[HEX Ascii Code]`.
+
       Additionally the type will no longer take strings as user input since
       it's impossible to decide between `.` being a separator or part of a
-      segment.  
-        
+      segment.
+
       If the option is disabled, any string will be relayed directly to
       postgres. If the segments are provided as a list, they can't contain `.`
       since postgres would split the segment.

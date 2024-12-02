@@ -239,10 +239,6 @@ defmodule AshPostgres.SqlImplementation do
       do: nil
 
   def parameterized_type(type, constraints, no_maps?) do
-    if type == :array do
-      raise "WHAT"
-    end
-
     if Ash.Type.ash_type?(type) do
       cast_in_query? =
         if function_exported?(Ash.Type, :cast_in_query?, 2) do
