@@ -283,11 +283,6 @@ defmodule AshPostgres.SqlImplementation do
 
   @impl true
   def determine_types(mod, args, returns \\ nil) do
-    case returns do
-      {:parameterized, _} -> raise "what"
-      _ -> :ok
-    end
-
     returns =
       case returns do
         {:parameterized, _} -> nil
