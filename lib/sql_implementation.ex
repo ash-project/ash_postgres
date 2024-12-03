@@ -218,6 +218,10 @@ defmodule AshPostgres.SqlImplementation do
     end
   end
 
+  def parameterized_type({type, constraints}, [], no_maps?) do
+    parameterized_type(type, constraints, no_maps?)
+  end
+
   def parameterized_type(Ash.Type.CiString, constraints, no_maps?) do
     parameterized_type(AshPostgres.Type.CiStringWrapper, constraints, no_maps?)
   end
@@ -279,28 +283,23 @@ defmodule AshPostgres.SqlImplementation do
 
   @impl true
   def determine_types(mod, args, returns \\ nil) do
-    {types, new_returns} = Ash.Expr.determine_types(mod, args, returns)
+    case returns do
+      {:parameterized, _} -> raise "what"
+      _ -> :ok
+    end
 
-    new_returns =
-      case new_returns do
-        {:parameterized, _} = parameterized -> parameterized
-        {:array, _} = type -> parameterized_type(type, [])
-        {type, constraints} -> parameterized_type(type, constraints)
+    returns =
+      case returns do
+        {:parameterized, _} -> nil
+        {:array, {:parameterized, _}} -> nil
+        {:array, {type, constraints}} when type != :array -> {type, [items: constraints]}
+        {:array, _} -> nil
+        {type, constraints} -> {type, constraints}
         other -> other
       end
 
-    {Enum.map(types, fn
-       {:parameterized, _} = parameterized ->
-         parameterized
+    {types, new_returns} = Ash.Expr.determine_types(mod, args, returns)
 
-       {:array, _} = type ->
-         parameterized_type(type, [])
-
-       {type, constraints} ->
-         parameterized_type(type, constraints)
-
-       other ->
-         other
-     end), new_returns || returns}
+    {types, new_returns || returns}
   end
 end
