@@ -156,8 +156,6 @@ defmodule AshPostgres.MigrationGenerator do
     if snapshot_path = config[:snapshots_path] do
       snapshot_path
     else
-      priv = "priv/"
-
       app = Keyword.fetch!(config, :otp_app)
 
       Application.app_dir(
