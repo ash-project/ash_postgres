@@ -983,6 +983,13 @@ defmodule AshPostgres.DataLayer do
         repo =
           AshSql.dynamic_repo(source_resource, AshPostgres.SqlImplementation, lateral_join_query)
 
+        # patching strange behavior that sets `take` to this empty list even though I'm not telling it to
+        lateral_join_query =
+          case lateral_join_query do
+            %{select: %{take: %{0 => {:map, []}}}} -> put_in(lateral_join_query.select.take, %{})
+            _ -> lateral_join_query
+          end
+
         results =
           repo.all(
             lateral_join_query,
@@ -1058,46 +1065,52 @@ defmodule AshPostgres.DataLayer do
       {:ok, data_layer_query} ->
         source_values = Enum.map(root_data, &Map.get(&1, source_attribute))
 
-        source_filter =
-          case source_pkey do
-            [] ->
-              Ecto.Query.dynamic([source], field(source, ^source_attribute) in ^source_values)
+        data_layer_query =
+          if Map.get(relationship, :manual) || Map.get(relationship, :no_attributes?) do
+            data_layer_query
+          else
+            source_filter =
+              case source_pkey do
+                [] ->
+                  Ecto.Query.dynamic([source], field(source, ^source_attribute) in ^source_values)
 
-            [field] ->
-              values = Enum.map(root_data, &Map.get(&1, field))
-              Ecto.Query.dynamic([source], field(source, ^field) in ^values)
+                [field] ->
+                  values = Enum.map(root_data, &Map.get(&1, field))
+                  Ecto.Query.dynamic([source], field(source, ^field) in ^values)
 
-            fields ->
-              Enum.reduce(root_data, nil, fn record, acc ->
-                row_match =
-                  Enum.reduce(fields, nil, fn field, acc ->
+                fields ->
+                  Enum.reduce(root_data, nil, fn record, acc ->
+                    row_match =
+                      Enum.reduce(fields, nil, fn field, acc ->
+                        if is_nil(acc) do
+                          Ecto.Query.dynamic(
+                            [source],
+                            field(source, ^field) == ^Map.get(record, field)
+                          )
+                        else
+                          Ecto.Query.dynamic(
+                            [source],
+                            field(source, ^field) == ^Map.get(record, field) and ^acc
+                          )
+                        end
+                      end)
+
                     if is_nil(acc) do
-                      Ecto.Query.dynamic(
-                        [source],
-                        field(source, ^field) == ^Map.get(record, field)
-                      )
+                      row_match
                     else
-                      Ecto.Query.dynamic(
-                        [source],
-                        field(source, ^field) == ^Map.get(record, field) and ^acc
-                      )
+                      Ecto.Query.dynamic(^row_match or ^acc)
                     end
                   end)
+              end
 
-                if is_nil(acc) do
-                  row_match
-                else
-                  Ecto.Query.dynamic(^row_match or ^acc)
-                end
-              end)
+            from(source in data_layer_query,
+              where: ^source_filter
+            )
           end
 
         data_layer_query =
-          from(source in data_layer_query,
-            where: ^source_filter
-          )
-
-        data_layer_query = Ecto.Query.exclude(data_layer_query, :distinct)
+          data_layer_query
+          |> Ecto.Query.exclude(:distinct)
 
         if query.__ash_bindings__[:__order__?] do
           {:ok,
@@ -1105,8 +1118,7 @@ defmodule AshPostgres.DataLayer do
              inner_lateral_join: destination in ^subquery,
              on: true,
              order_by: destination.__order__,
-             select: destination,
-             select_merge: %{__lateral_join_source__: map(source, ^source_pkey)},
+             select: merge(destination, %{__lateral_join_source__: map(source, ^source_pkey)}),
              distinct: true
            )}
         else
@@ -1114,8 +1126,7 @@ defmodule AshPostgres.DataLayer do
            from(source in data_layer_query,
              inner_lateral_join: destination in ^subquery,
              on: true,
-             select: destination,
-             select_merge: %{__lateral_join_source__: map(source, ^source_pkey)},
+             select: merge(destination, %{__lateral_join_source__: map(source, ^source_pkey)}),
              distinct: true
            )}
         end
