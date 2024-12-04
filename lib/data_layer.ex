@@ -2660,7 +2660,7 @@ defmodule AshPostgres.DataLayer do
             raise("""
             Must provide an entry for :#{identity.name} in `postgres.identity_wheres_to_sql` to use it as an upsert_identity.
 
-            See `AshPostgres.DataLayer.Info.identity_wheres_to_sql/1` for an example.
+            See https://hexdocs.pm/ash_postgres/AshPostgres.DataLayer.Info.html#identity_wheres_to_sql/1 for an example.
             """)
 
         _ ->

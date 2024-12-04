@@ -3009,7 +3009,7 @@ defmodule AshPostgres.MigrationGenerator do
                 raise("""
                 Must provide an entry for :#{identity.name} in `postgres.identity_wheres_to_sql`, or skip this identity with `postgres.skip_unique_indexes`.
 
-                See `AshPostgres.DataLayer.Info.identity_wheres_to_sql/1` for an example.
+                See https://hexdocs.pm/ash_postgres/AshPostgres.DataLayer.Info.html#identity_wheres_to_sql/1 for an example.
                 """)
             end
       }
