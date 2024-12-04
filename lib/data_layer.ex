@@ -315,7 +315,7 @@ defmodule AshPostgres.DataLayer do
       identity_wheres_to_sql: [
         type: :keyword_list,
         doc:
-          "A keyword list of identity names and the SQL representation of their `where` clause. Used when creating unique indexes for identities over calculations"
+          "A keyword list of identity names and the SQL representation of their `where` clause. See `AshPostgres.DataLayer.Info.identity_wheres_to_sql/1` for more details."
       ],
       base_filter_sql: [
         type: :string,
@@ -2668,9 +2668,11 @@ defmodule AshPostgres.DataLayer do
       case identity do
         %{name: name, where: where} when not is_nil(where) ->
           AshPostgres.DataLayer.Info.identity_where_to_sql(resource, name) ||
-            raise(
-              "Must provide an entry for :#{identity.name} in `postgres.identity_wheres_to_sql` to use it as an upsert_identity"
-            )
+            raise("""
+            Must provide an entry for :#{identity.name} in `postgres.identity_wheres_to_sql` to use it as an upsert_identity.
+
+            See https://hexdocs.pm/ash_postgres/AshPostgres.DataLayer.Info.html#identity_wheres_to_sql/1 for an example.
+            """)
 
         _ ->
           nil
