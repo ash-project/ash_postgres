@@ -23,11 +23,39 @@ defmodule AshPostgres.DataLayer.Info do
     calculations_to_sql(resource)[calc]
   end
 
-  @doc "A keyword list of identity names to the sql representation of their where clauses"
+  @doc """
+  A keyword list of identity names to the literal SQL string representation of
+  the `where` clause portion of identity's partial unique index.
+
+  For example, given the following identity for a resource:
+
+      identities do
+        identity :active, [:status] do
+          where expr(status == "active")
+        end
+      end
+
+  An appropriate `identity_wheres_to_sql` would need to be made to generate the
+  correct migration for the partial index used by the identity:
+
+      postgres do
+        ...
+
+        identity_wheres_to_sql active: "status = 'active'"
+      end
+  """
+  @spec identity_wheres_to_sql(Ash.Resource.t()) :: keyword(String.t())
   def identity_wheres_to_sql(resource) do
     Extension.get_opt(resource, [:postgres], :identity_wheres_to_sql, [])
   end
 
+  @doc """
+  Returns the literal SQL for the `where` clause given a resource and an
+  identity name.
+
+  See `identity_wheres_to_sql/1` for more details.
+  """
+  @spec identity_where_to_sql(Ash.Resource.t(), atom()) :: String.t() | nil
   def identity_where_to_sql(resource, identity) do
     identity_wheres_to_sql(resource)[identity]
   end
