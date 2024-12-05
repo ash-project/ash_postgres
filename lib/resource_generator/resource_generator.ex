@@ -381,6 +381,8 @@ defmodule AshPostgres.ResourceGenerator do
             end
             """
           ]
+        else
+          []
         end
       end
       |> Enum.join("\n")
