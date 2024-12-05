@@ -362,22 +362,26 @@ defmodule AshPostgres.ResourceGenerator do
           Enum.find(table_spec.relationships, fn relationship ->
             relationship.type == :belongs_to and
               relationship.constraint_name == foreign_key.constraint_name
-          end).name
+          end)
 
-        options =
-          ""
-          |> add_on(:update, foreign_key.on_update)
-          |> add_on(:delete, foreign_key.on_delete)
-          |> add_match_with(foreign_key.match_with)
-          |> add_match_type(foreign_key.match_type)
+        if relationship do
+          relationship = relationship.name
 
-        [
-          """
-          reference :#{relationship} do
-            #{options}
-          end
-          """
-        ]
+          options =
+            ""
+            |> add_on(:update, foreign_key.on_update)
+            |> add_on(:delete, foreign_key.on_delete)
+            |> add_match_with(foreign_key.match_with)
+            |> add_match_type(foreign_key.match_type)
+
+          [
+            """
+            reference :#{relationship} do
+              #{options}
+            end
+            """
+          ]
+        end
       end
       |> Enum.join("\n")
       |> String.trim()
