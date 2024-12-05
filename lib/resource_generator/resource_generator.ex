@@ -452,7 +452,7 @@ defmodule AshPostgres.ResourceGenerator do
               if String.contains?(thing, "(") do
                 inspect(thing)
               else
-                ":#{thing}"
+                Enum.at(String.split(":#{thing}", " "), 0)
               end
             end)
 
