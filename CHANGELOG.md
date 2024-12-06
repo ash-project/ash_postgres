@@ -5,6 +5,25 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.4.15](https://github.com/ash-project/ash_postgres/compare/v2.4.14...v2.4.15) (2024-12-06)
+
+
+
+
+### Bug Fixes:
+
+* split off varchar options from index
+
+* don't attempt to use non-existent relationship
+
+* handle manual/no_attributes? relationships in lateral join logic
+
+* don't use `priv` configuration for snapshot_path
+
+### Improvements:
+
+* update sql implementation for type determination
+
 ## [v2.4.14](https://github.com/ash-project/ash_postgres/compare/v2.4.13...v2.4.14) (2024-11-27)
 
 
