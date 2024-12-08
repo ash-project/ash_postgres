@@ -53,6 +53,41 @@ defmodule AshPostgres.Test.Author do
       destination_attribute(:first_name)
       filter(expr(parent(id) != id))
     end
+
+    has_many :credited_posts, AshPostgres.Test.CoAuthorPost do
+      public? true
+
+      destination_attribute :author_id
+    end
+
+    many_to_many :all_co_authored_posts, AshPostgres.Test.Post do
+      public? true
+      join_relationship :credited_posts
+      source_attribute_on_join_resource :author_id
+      destination_attribute_on_join_resource :post_id
+    end
+
+    many_to_many :writer_of, AshPostgres.Test.Post do
+      public? true
+      join_relationship :credited_posts
+      source_attribute_on_join_resource :author_id
+      destination_attribute_on_join_resource :post_id
+      filter expr(parent(credited_posts.role) == :writer)
+    end
+
+    many_to_many :editor_of, AshPostgres.Test.Post do
+      public? true
+      join_relationship :credited_posts
+      source_attribute_on_join_resource :author_id
+      destination_attribute_on_join_resource :post_id
+      filter expr(parent(credited_posts.role) == :editor)
+    end
+
+    many_to_many :cancelled_co_authored_posts, AshPostgres.Test.Post do
+      public? true
+      join_relationship :credited_posts
+      filter expr(not is_nil(parent(credited_posts.was_cancelled_at)))
+    end
   end
 
   aggregates do

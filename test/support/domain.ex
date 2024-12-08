@@ -3,6 +3,7 @@ defmodule AshPostgres.Test.Domain do
   use Ash.Domain
 
   resources do
+    resource(AshPostgres.Test.CoAuthorPost)
     resource(AshPostgres.Test.Post)
     resource(AshPostgres.Test.Comment)
     resource(AshPostgres.Test.IntegerPost)
