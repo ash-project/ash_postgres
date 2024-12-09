@@ -236,18 +236,18 @@ defmodule MyApp.Employee.ManagedEmployees do
     # https://stackoverflow.com/questions/39458572/ecto-declare-schema-for-a-query
     employee_keys = Employee.__schema__(:fields)
 
-    cte_name =
+    cte_name_ref =
       from(cte in fragment("?", literal(^cte_name)), select: map(cte, ^employee_keys))
 
     recursion_query =
       query
-      |> join(:inner, [l], lt in ^cte_name, on: l.manager_id == lt.id)
+      |> join(:inner, [l], lt in ^cte_name_ref, on: l.manager_id == lt.id)
 
     descendants_query =
       immediate_parents
       |> union(^recursion_query)
 
-    cte_name
+    cte_name_ref
     |> recursive_ctes(true)
     |> with_cte(^cte_name, as: ^descendants_query)
   end
