@@ -449,21 +449,21 @@ defmodule AshPostgres.Test.Post do
     end
 
     has_many :co_author_posts, AshPostgres.Test.CoAuthorPost do
-      public? true
+      public?(true)
 
-      destination_attribute :post_id
+      destination_attribute(:post_id)
     end
 
     many_to_many :co_authors, AshPostgres.Test.Author do
-      public? true
-      join_relationship :co_author_posts
+      public?(true)
+      join_relationship(:co_author_posts)
 
-      filter expr(is_nil(parent(co_author_posts.was_cancelled_at)))
+      filter(expr(is_nil(parent(co_author_posts.was_cancelled_at))))
     end
 
     many_to_many :co_authors_unfiltered, AshPostgres.Test.Author do
-      public? true
-      join_relationship :co_author_posts
+      public?(true)
+      join_relationship(:co_author_posts)
     end
 
     has_many :posts_with_matching_title, __MODULE__ do

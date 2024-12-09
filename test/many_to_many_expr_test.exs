@@ -15,18 +15,19 @@ defmodule AshPostgres.ManyToManyExprTest do
 
     co_authors =
       if ctx[:co_authors],
-        do: 1..ctx[:co_authors]
-            |> Stream.map(&
-              Author
+        do:
+          1..ctx[:co_authors]
+          |> Stream.map(
+            &(Author
               |> Ash.Changeset.for_create(:create, %{first_name: "John #{&1}", last_name: "Doe"})
-              |> Ash.create!()
-            )
-            |> Enum.into([]),
-      else: []
+              |> Ash.create!())
+          )
+          |> Enum.into([]),
+        else: []
 
     %{
       main_author: main_author,
-      co_authors: co_authors,
+      co_authors: co_authors
     }
   end
 
@@ -52,7 +53,12 @@ defmodule AshPostgres.ManyToManyExprTest do
     Author
     |> Ash.Query.new()
     |> Ash.Query.filter(id == ^author_id)
-    |> Ash.Query.load([:all_co_authored_posts, :cancelled_co_authored_posts, :editor_of, :writer_of])
+    |> Ash.Query.load([
+      :all_co_authored_posts,
+      :cancelled_co_authored_posts,
+      :editor_of,
+      :writer_of
+    ])
     |> Ash.read_one!()
   end
 
@@ -81,10 +87,10 @@ defmodule AshPostgres.ManyToManyExprTest do
     @tag main_author?: true
     @tag co_authors: 3
     test "filter on many_to_many relationship using parent works as expected - basic",
-      %{
-        main_author: main_author,
-        co_authors: co_authors,
-      } do
+         %{
+           main_author: main_author,
+           co_authors: co_authors
+         } do
       post = create_post(main_author)
 
       [first_ca, second_ca, third_ca] = co_authors
@@ -98,8 +104,8 @@ defmodule AshPostgres.ManyToManyExprTest do
       assert Enum.count(post.co_authors) == 1
       assert Enum.count(first_ca.all_co_authored_posts) == 1
       assert Enum.count(first_ca.editor_of) == 1
-      assert Enum.count(first_ca.writer_of) == 0
-      assert Enum.count(first_ca.cancelled_co_authored_posts) == 0
+      assert Enum.empty?(first_ca.writer_of) == true
+      assert Enum.empty?(first_ca.cancelled_co_authored_posts) == true
 
       # Add second co-author
       create_co_author_post(second_ca, post, :writer)
@@ -109,9 +115,9 @@ defmodule AshPostgres.ManyToManyExprTest do
 
       assert Enum.count(post.co_authors) == 2
       assert Enum.count(second_ca.all_co_authored_posts) == 1
-      assert Enum.count(second_ca.editor_of) == 0
       assert Enum.count(second_ca.writer_of) == 1
-      assert Enum.count(second_ca.cancelled_co_authored_posts) == 0
+      assert Enum.empty?(second_ca.editor_of) == true
+      assert Enum.empty?(second_ca.cancelled_co_authored_posts) == true
 
       # Add third co-author
       create_co_author_post(third_ca, post, :proof_reader)
@@ -121,18 +127,18 @@ defmodule AshPostgres.ManyToManyExprTest do
 
       assert Enum.count(post.co_authors) == 3
       assert Enum.count(third_ca.all_co_authored_posts) == 1
-      assert Enum.count(third_ca.editor_of) == 0
-      assert Enum.count(third_ca.writer_of) == 0
-      assert Enum.count(third_ca.cancelled_co_authored_posts) == 0
+      assert Enum.empty?(third_ca.editor_of) == true
+      assert Enum.empty?(third_ca.writer_of) == true
+      assert Enum.empty?(third_ca.cancelled_co_authored_posts) == true
     end
 
     @tag main_author?: true
     @tag co_authors: 4
     test "filter on many_to_many relationship using parent works as expected - cancelled",
-      %{
-        main_author: main_author,
-        co_authors: co_authors,
-      } do
+         %{
+           main_author: main_author,
+           co_authors: co_authors
+         } do
       first_post = create_post(main_author)
       second_post = create_post(main_author)
 
@@ -151,7 +157,7 @@ defmodule AshPostgres.ManyToManyExprTest do
       assert Enum.count(first_ca.all_co_authored_posts) == 2
       assert Enum.count(first_ca.editor_of) == 1
       assert Enum.count(first_ca.writer_of) == 1
-      assert Enum.count(first_ca.cancelled_co_authored_posts) == 0
+      assert Enum.empty?(first_ca.cancelled_co_authored_posts) == true
 
       # Add second co-author
       create_co_author_post(second_ca, first_post, :proof_reader)
@@ -165,9 +171,9 @@ defmodule AshPostgres.ManyToManyExprTest do
       assert Enum.count(second_post.co_authors_unfiltered) == 2
 
       assert Enum.count(second_ca.all_co_authored_posts) == 2
-      assert Enum.count(second_ca.editor_of) == 0
       assert Enum.count(second_ca.writer_of) == 1
-      assert Enum.count(second_ca.cancelled_co_authored_posts) == 0
+      assert Enum.empty?(second_ca.editor_of) == true
+      assert Enum.empty?(second_ca.cancelled_co_authored_posts) == true
 
       # Add third co-author
       create_co_author_post(third_ca, first_post, :proof_reader)
@@ -184,9 +190,9 @@ defmodule AshPostgres.ManyToManyExprTest do
       assert Enum.count(second_post.co_authors_unfiltered) == 3
 
       assert Enum.count(third_ca.all_co_authored_posts) == 2
-      assert Enum.count(third_ca.editor_of) == 0
-      assert Enum.count(third_ca.writer_of) == 0
       assert Enum.count(third_ca.cancelled_co_authored_posts) == 1
+      assert Enum.empty?(third_ca.editor_of) == true
+      assert Enum.empty?(third_ca.writer_of) == true
 
       # Add fourth co-author
       create_co_author_post(fourth_ca, first_post, :proof_reader)
@@ -205,8 +211,8 @@ defmodule AshPostgres.ManyToManyExprTest do
 
       assert Enum.count(fourth_ca.all_co_authored_posts) == 2
       assert Enum.count(fourth_ca.editor_of) == 1
-      assert Enum.count(fourth_ca.writer_of) == 0
       assert Enum.count(fourth_ca.cancelled_co_authored_posts) == 2
+      assert Enum.empty?(fourth_ca.writer_of) == true
     end
   end
 end
