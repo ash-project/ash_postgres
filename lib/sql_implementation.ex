@@ -154,21 +154,21 @@ defmodule AshPostgres.SqlImplementation do
   end
 
   def expr(
-    query,
-    %Ash.Query.Ref{
-      attribute: %Ash.Resource.Attribute{
-        type: attr_type,
-        constraints: constraints,
-      },
-      bare?: true
-    } = ref,
-    bindings,
-    embedded?,
-    acc,
-    type
-  ) do
+        query,
+        %Ash.Query.Ref{
+          attribute: %Ash.Resource.Attribute{
+            type: attr_type,
+            constraints: constraints
+          },
+          bare?: true
+        } = ref,
+        bindings,
+        embedded?,
+        acc,
+        type
+      ) do
     if function_exported?(attr_type, :postgres_reference_expr, 3) do
-      non_bare_ref = %Ash.Query.Ref{ ref | bare?: nil }
+      non_bare_ref = %Ash.Query.Ref{ref | bare?: nil}
       {expr, acc} = AshSql.Expr.dynamic_expr(query, non_bare_ref, bindings, embedded?, type, acc)
 
       case attr_type.postgres_reference_expr(attr_type, constraints, expr) do
