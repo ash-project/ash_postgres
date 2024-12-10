@@ -2852,7 +2852,10 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp find_reference(resource, table, attribute) do
-    Enum.find_value(Ash.Resource.Info.relationships(resource), fn relationship ->
+    resource
+    |> Ash.Resource.Info.relationships()
+    |> Enum.filter(&(&1.type == :belongs_to))
+    |> Enum.find_value(fn relationship ->
       source_attribute_name =
         relationship.source
         |> Ash.Resource.Info.attribute(relationship.source_attribute)
@@ -2860,7 +2863,7 @@ defmodule AshPostgres.MigrationGenerator do
           attribute.source || attribute.name
         end)
 
-      if attribute.source == source_attribute_name && relationship.type == :belongs_to &&
+      if attribute.source == source_attribute_name &&
            foreign_key?(relationship) do
         configured_reference =
           configured_reference(resource, table, attribute.source || attribute.name, relationship)

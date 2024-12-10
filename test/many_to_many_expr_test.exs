@@ -86,6 +86,14 @@ defmodule AshPostgres.ManyToManyExprTest do
   describe "manual join-resource insertion" do
     @tag main_author?: true
     @tag co_authors: 3
+    test "using exists does not raise an error" do
+      Post
+      |> Ash.Query.filter(exists(co_authors, true))
+      |> Ash.read!()
+    end
+
+    @tag main_author?: true
+    @tag co_authors: 3
     test "filter on many_to_many relationship using parent works as expected - basic",
          %{
            main_author: main_author,
