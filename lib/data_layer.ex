@@ -1551,7 +1551,7 @@ defmodule AshPostgres.DataLayer do
 
                 true ->
                   {:ok, Ecto.Query.exclude(root_query, :order_by),
-                   root_query.__ash_bindings__.expression_accumulator, false}
+                   Map.get(root_query, :__ash_bindings__).expression_accumulator, false}
               end
 
             case root_query_result do
@@ -1966,7 +1966,7 @@ defmodule AshPostgres.DataLayer do
 
     fields_to_upsert =
       upsert_fields --
-        Keyword.keys(Enum.at(changesets, 0).atomics) -- keys
+        (Keyword.keys(Enum.at(changesets, 0).atomics) -- keys)
 
     fields_to_upsert
     |> Enum.uniq()
@@ -2185,33 +2185,6 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp handle_raised_error(
-         %Postgrex.Error{} = error,
-         stacktrace,
-         {:bulk_create, fake_changeset},
-         _resource
-       ) do
-    case Ecto.Adapters.Postgres.Connection.to_constraints(error, []) do
-      [] ->
-        {:error, Ash.Error.to_ash_error(error, stacktrace)}
-
-      constraints ->
-        {:error,
-         fake_changeset
-         |> constraints_to_errors(:insert, constraints)
-         |> Ash.Error.to_ash_error()}
-    end
-  end
-
-  defp handle_raised_error(%Ecto.Query.CastError{} = e, stacktrace, context, resource) do
-    handle_raised_error(
-      Ash.Error.Query.InvalidFilterValue.exception(value: e.value, context: context),
-      stacktrace,
-      context,
-      resource
-    )
-  end
-
-  defp handle_raised_error(
          %Postgrex.Error{
            postgres: %{
              code: :raise_exception,
@@ -2252,6 +2225,33 @@ defmodule AshPostgres.DataLayer do
     exception = Module.concat([exception])
 
     {:error, :no_rollback, Ash.Error.from_json(exception, input)}
+  end
+
+  defp handle_raised_error(
+         %Postgrex.Error{} = error,
+         stacktrace,
+         {:bulk_create, fake_changeset},
+         _resource
+       ) do
+    case Ecto.Adapters.Postgres.Connection.to_constraints(error, []) do
+      [] ->
+        {:error, Ash.Error.to_ash_error(error, stacktrace)}
+
+      constraints ->
+        {:error,
+         fake_changeset
+         |> constraints_to_errors(:insert, constraints)
+         |> Ash.Error.to_ash_error()}
+    end
+  end
+
+  defp handle_raised_error(%Ecto.Query.CastError{} = e, stacktrace, context, resource) do
+    handle_raised_error(
+      Ash.Error.Query.InvalidFilterValue.exception(value: e.value, context: context),
+      stacktrace,
+      context,
+      resource
+    )
   end
 
   defp handle_raised_error(
@@ -2656,6 +2656,9 @@ defmodule AshPostgres.DataLayer do
 
         {:ok, [result]} ->
           {:ok, result}
+
+        {:error, :no_rollback, error} ->
+          {:error, :no_rollback, error}
 
         {:error, error} ->
           {:error, error}
