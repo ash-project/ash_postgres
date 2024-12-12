@@ -5,6 +5,21 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.4.16](https://github.com/ash-project/ash_postgres/compare/v2.4.15...v2.4.16) (2024-12-12)
+
+
+
+
+### Bug Fixes:
+
+* properly support expr errors in bulk create
+
+* only build references for belongs_to relationships
+
+### Improvements:
+
+* add postgres_reference_expr callback (#438)
+
 ## [v2.4.15](https://github.com/ash-project/ash_postgres/compare/v2.4.14...v2.4.15) (2024-12-06)
 
 
