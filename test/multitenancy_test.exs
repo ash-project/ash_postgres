@@ -53,7 +53,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
 
     assert [] =
              Org
-             |> Ash.Query.set_tenant(org1)
+             |> Ash.Query.set_tenant("org_" <> org1.id)
              |> Ash.Query.for_read(:has_policies, %{}, actor: user, authorize?: true)
              |> Ash.read!()
   end
