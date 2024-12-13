@@ -123,35 +123,52 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     %Postgrex.Result{rows: fkey_rows} =
       spec.repo.query!(
         """
-        SELECT
-            tc.constraint_name,
-            rc.match_option AS match_type,
-            rc.update_rule AS on_update,
-            rc.delete_rule AS on_delete,
-            array_agg(DISTINCT kcu.column_name) AS referencing_columns,
-            array_agg(DISTINCT ccu.column_name) AS referenced_columns,
-            ccu.table_name AS foreign_table_name
-        FROM
-            information_schema.table_constraints AS tc
-            JOIN information_schema.key_column_usage AS kcu
-              ON tc.constraint_name = kcu.constraint_name
-              AND tc.table_schema = kcu.table_schema
-            JOIN information_schema.constraint_column_usage AS ccu
-              ON ccu.constraint_name = tc.constraint_name
-              AND ccu.table_schema = tc.table_schema
-            JOIN information_schema.referential_constraints AS rc
-              ON tc.constraint_name = rc.constraint_name
-              AND tc.table_schema = rc.constraint_schema
-        WHERE
-            tc.constraint_type = 'FOREIGN KEY'
-            AND tc.table_name = $1
-            AND tc.table_schema = $2
-        GROUP BY
-            tc.constraint_name,
-            ccu.table_name,
-            rc.match_option,
-            rc.update_rule,
-            rc.delete_rule;
+        SELECT tc.constraint_name,
+              -- This has to go via the pg_constraints table directly
+              -- because the built in constraint view does not surface the table name
+              -- and constraint names are only unique per table
+              CASE pgc.confmatchtype
+                  WHEN 'f'::"char" THEN 'FULL'::text
+                  WHEN 'p'::"char" THEN 'PARTIAL'::text
+                  WHEN 's'::"char" THEN 'NONE'::text
+                  ELSE NULL::text
+                  END                             AS match_option,
+              CASE pgc.confupdtype
+                  WHEN 'c'::"char" THEN 'CASCADE'::text
+                  WHEN 'n'::"char" THEN 'SET NULL'::text
+                  WHEN 'd'::"char" THEN 'SET DEFAULT'::text
+                  WHEN 'r'::"char" THEN 'RESTRICT'::text
+                  WHEN 'a'::"char" THEN 'NO ACTION'::text
+                  ELSE NULL::text
+                  END                             AS update_rule,
+              CASE pgc.confdeltype
+                  WHEN 'c'::"char" THEN 'CASCADE'::text
+                  WHEN 'n'::"char" THEN 'SET NULL'::text
+                  WHEN 'd'::"char" THEN 'SET DEFAULT'::text
+                  WHEN 'r'::"char" THEN 'RESTRICT'::text
+                  WHEN 'a'::"char" THEN 'NO ACTION'::text
+                  ELSE NULL::text
+                  END                             AS delete_rule,
+              array_agg(DISTINCT kcu.column_name) AS referencing_columns,
+              array_agg(DISTINCT ccu.column_name) AS referenced_columns,
+              ccu.table_name                      AS foreign_table_name
+        FROM information_schema.table_constraints AS tc
+                JOIN information_schema.key_column_usage AS kcu
+                      ON tc.constraint_name = kcu.constraint_name
+                          AND tc.table_schema = kcu.table_schema
+                JOIN information_schema.constraint_column_usage AS ccu
+                      ON ccu.constraint_name = tc.constraint_name
+                          AND ccu.table_schema = tc.table_schema
+                JOIN pg_constraint AS pgc ON contype = 'f' AND conrelid = tc.table_name::regclass
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_name = $1
+          AND tc.table_schema = $2
+        GROUP BY tc.constraint_name,
+                ccu.table_name,
+                pgc.confmatchtype,
+                pgc.confupdtype,
+                pgc.confdeltype
+
         """,
         [spec.table_name, spec.schema],
         log: false
