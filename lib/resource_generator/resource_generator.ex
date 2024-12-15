@@ -385,18 +385,18 @@ defmodule AshPostgres.ResourceGenerator do
           []
         end
       end
-      |> Enum.join("\n")
-      |> String.trim()
-      |> then(
-        &[
-          """
-          references do
-            #{&1}
-          end
-          """
-        ]
-      )
     end)
+    |> Enum.join("\n")
+    |> String.trim()
+    |> then(
+      &[
+        """
+        references do
+          #{&1}
+        end
+        """
+      ]
+    )
   end
 
   defp add_match_with(str, empty) when empty in [[], nil], do: str
