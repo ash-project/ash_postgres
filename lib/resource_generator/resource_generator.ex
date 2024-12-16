@@ -386,17 +386,24 @@ defmodule AshPostgres.ResourceGenerator do
         end
       end
     end)
-    |> Enum.join("\n")
-    |> String.trim()
-    |> then(
-      &[
-        """
-        references do
-          #{&1}
-        end
-        """
-      ]
-    )
+    |> case do
+      [] ->
+        []
+
+      refs ->
+        refs
+        |> Enum.join("\n")
+        |> String.trim()
+        |> then(
+          &[
+            """
+            references do
+              #{&1}
+            end
+            """
+          ]
+        )
+    end
   end
 
   defp add_match_with(str, empty) when empty in [[], nil], do: str

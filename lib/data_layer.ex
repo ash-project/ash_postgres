@@ -1966,7 +1966,7 @@ defmodule AshPostgres.DataLayer do
 
     fields_to_upsert =
       upsert_fields --
-        (Keyword.keys(Enum.at(changesets, 0).atomics) -- keys)
+        Keyword.keys(Enum.at(changesets, 0).atomics) -- keys
 
     fields_to_upsert
     |> Enum.uniq()
