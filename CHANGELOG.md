@@ -5,6 +5,17 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.4.17](https://github.com/ash-project/ash_postgres/compare/v2.4.16...v2.4.17) (2024-12-16)
+
+
+
+
+### Bug Fixes:
+
+* Fix query for metadata on foreign keys and fix duplicate references being produced (#444)
+
+* alter resource generation query to go to the source pg_constraints table instead of to the view to fetch constraint data (#443)
+
 ## [v2.4.16](https://github.com/ash-project/ash_postgres/compare/v2.4.15...v2.4.16) (2024-12-12)
 
 
