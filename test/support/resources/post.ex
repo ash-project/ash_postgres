@@ -80,6 +80,10 @@ defmodule AshPostgres.Test.Post do
       authorize_if(PassIfOriginalDataPresent)
     end
 
+    bypass action(:update_if_author) do
+      authorize_if relates_to_actor_via(:author)
+    end
+
     policy action_type(:update) do
       authorize_if(action(:requires_initial_data))
       authorize_if(relates_to_actor_via([:author, :authors_with_same_first_name]))
@@ -228,6 +232,10 @@ defmodule AshPostgres.Test.Post do
 
     update :update do
       primary?(true)
+      require_atomic?(false)
+    end
+
+    update :update_if_author do
       require_atomic?(false)
     end
 
@@ -423,6 +431,7 @@ defmodule AshPostgres.Test.Post do
     define(:get_by_id, action: :read, get_by: [:id])
     define(:increment_score, args: [{:optional, :amount}])
     define(:destroy)
+    define(:update_if_author)
     define(:update_constrained_int, args: [:amount])
 
     define_calculation(:upper_title, args: [:title])
