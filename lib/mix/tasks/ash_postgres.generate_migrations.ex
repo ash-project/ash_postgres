@@ -9,7 +9,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
   * `migration-path` - a custom path to store the migrations, defaults to "priv/repo_name/migrations".
     Migrations are stored in a folder for each repo, so `priv/repo_name/migrations`
   * `tenant-migration-path` - Same as `migration_path`, except for tenant-specific migrations
-  * `drop-columns` - whether or not to drop columns as attributes are removed. See below for more
+  * `dont-drop-columns` - whether or not to drop columns as attributes are removed. See below for more
   * `name` -
       names the generated migrations, prepending with the timestamp. The default is `migrate_resources_<n>`,
       where `<n>` is the count of migrations matching `*migrate_resources*` plus one.
