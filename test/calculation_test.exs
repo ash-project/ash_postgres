@@ -1,6 +1,6 @@
 defmodule AshPostgres.CalculationTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Account, Author, Comment, Post, User}
+  alias AshPostgres.Test.{Account, Author, Comedian, Comment, Post, User}
 
   require Ash.Query
   import Ash.Expr
@@ -935,6 +935,12 @@ defmodule AshPostgres.CalculationTest do
              Post
              |> Ash.Query.filter(has_no_followers)
              |> Ash.read!()
+  end
+
+  test "module calculation inside expr calculation works" do
+    commedian = Comedian.create!(%{name: "John"})
+    commedian = Ash.get!(Comedian, commedian.id, load: [:has_jokes_expr], authorize?: false)
+    assert %{has_jokes_expr: false} = commedian
   end
 
   def fred do
