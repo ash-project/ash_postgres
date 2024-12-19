@@ -1171,7 +1171,8 @@ defmodule AshPostgres.DataLayer do
         end
         |> case do
           {:ok, through_query} ->
-              through_query = Ecto.Query.exclude(through_query, :select)
+            through_query = Ecto.Query.exclude(through_query, :select)
+
             if query.__ash_bindings__[:__order__?] do
               subquery =
                 subquery(
@@ -1200,7 +1201,6 @@ defmodule AshPostgres.DataLayer do
                     relationship.destination
                   )
                 )
-
 
               {:ok,
                from(source in data_layer_query,

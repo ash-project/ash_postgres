@@ -90,7 +90,7 @@ defmodule AshPostgres.MultiTenancy do
   end
 
   defp validate_tenant_name!(tenant_name) do
-    unless Regex.match?(@tenant_name_regex, tenant_name) do
+    if !Regex.match?(@tenant_name_regex, tenant_name) do
       raise "Tenant name must match #{inspect(@tenant_name_regex)}, got: #{tenant_name}"
     end
   end

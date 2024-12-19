@@ -237,6 +237,7 @@ defmodule AshPostgres.MixProject do
         "spark.replace_doc_links",
         "spark.cheat_sheets_in_search"
       ],
+      format: "format --migrate",
       "spark.formatter": "spark.formatter --extensions AshPostgres.DataLayer",
       "spark.cheat_sheets": "spark.cheat_sheets --extensions AshPostgres.DataLayer",
       "spark.cheat_sheets_in_search":

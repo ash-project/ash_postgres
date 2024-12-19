@@ -177,7 +177,7 @@ defmodule AshPostgres.MigrationGenerator do
         |> Path.join(repo_name)
         |> Path.join("extensions.json")
 
-      unless opts.dry_run || opts.check do
+      if !(opts.dry_run || opts.check) do
         File.rename(legacy_snapshot_file, snapshot_file)
       end
 
@@ -1027,7 +1027,7 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp create_new_snapshot(snapshots, repo_name, opts, tenant?) do
-    unless opts.dry_run do
+    if !opts.dry_run do
       Enum.each(snapshots, fn snapshot ->
         snapshot_binary = snapshot_to_binary(snapshot)
 
@@ -2868,7 +2868,7 @@ defmodule AshPostgres.MigrationGenerator do
         configured_reference =
           configured_reference(resource, table, attribute.source || attribute.name, relationship)
 
-        unless Map.get(configured_reference, :ignore?) do
+        if !Map.get(configured_reference, :ignore?) do
           destination_attribute =
             Ash.Resource.Info.attribute(
               relationship.destination,

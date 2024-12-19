@@ -19,7 +19,7 @@ defmodule AshPostgres.RepoCase do
   setup tags do
     :ok = Sandbox.checkout(AshPostgres.TestRepo)
 
-    unless tags[:async] do
+    if !tags[:async] do
       Sandbox.mode(AshPostgres.TestRepo, {:shared, self()})
     end
 
