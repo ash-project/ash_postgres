@@ -1109,6 +1109,7 @@ defmodule AshPostgres.DataLayer do
         data_layer_query =
           data_layer_query
           |> Ecto.Query.exclude(:distinct)
+          |> Ecto.Query.exclude(:select)
 
         if query.__ash_bindings__[:__order__?] do
           {:ok,
@@ -1149,10 +1150,12 @@ defmodule AshPostgres.DataLayer do
 
     case lateral_join_source_query(query, source_query) do
       {:ok, data_layer_query} ->
+        data_layer_query = Ecto.Query.exclude(data_layer_query, :select)
+
         through_resource
         |> Ash.Query.new()
         |> Ash.Query.put_context(:data_layer, %{
-          start_bindings_at: data_layer_query.__ash_bindings__.current
+          start_bindings_at: Map.get(data_layer_query, :__ash_bindings__)[:current]
         })
         |> Ash.Query.set_context(through_relationship.context)
         |> Ash.Query.do_filter(through_relationship.filter)
@@ -1168,6 +1171,7 @@ defmodule AshPostgres.DataLayer do
         end
         |> case do
           {:ok, through_query} ->
+              through_query = Ecto.Query.exclude(through_query, :select)
             if query.__ash_bindings__[:__order__?] do
               subquery =
                 subquery(
@@ -1180,7 +1184,7 @@ defmodule AshPostgres.DataLayer do
                         source_query,
                         relationship.through
                       ),
-                    as: ^data_layer_query.__ash_bindings__.current,
+                    as: ^Map.get(data_layer_query, :__ash_bindings__)[:current],
                     on:
                       field(through, ^destination_attribute_on_join_resource) ==
                         field(destination, ^destination_attribute),
@@ -1197,7 +1201,6 @@ defmodule AshPostgres.DataLayer do
                   )
                 )
 
-              data_layer_query = Ecto.Query.exclude(data_layer_query, :distinct)
 
               {:ok,
                from(source in data_layer_query,
@@ -1220,7 +1223,7 @@ defmodule AshPostgres.DataLayer do
                         source_query,
                         relationship.through
                       ),
-                    as: ^data_layer_query.__ash_bindings__.current,
+                    as: ^Map.get(data_layer_query, :__ash_bindings__)[:current],
                     on:
                       field(through, ^destination_attribute_on_join_resource) ==
                         field(destination, ^destination_attribute),
