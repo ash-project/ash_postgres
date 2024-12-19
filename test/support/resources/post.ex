@@ -81,7 +81,7 @@ defmodule AshPostgres.Test.Post do
     end
 
     bypass action(:update_if_author) do
-      authorize_if relates_to_actor_via(:author)
+      authorize_if(relates_to_actor_via(:author))
     end
 
     policy action_type(:update) do

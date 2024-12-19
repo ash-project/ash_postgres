@@ -43,7 +43,7 @@ defmodule AshPostgresTest do
   end
 
   test "it does not run queries for exists/2 expressions that can be determined from loaded data" do
-    author = 
+    author =
       AshPostgres.Test.Author
       |> Ash.Changeset.for_create(:create, %{}, authorize?: false)
       |> Ash.create!()
@@ -55,7 +55,7 @@ defmodule AshPostgresTest do
       |> Ash.load!(:author)
 
     log =
-      capture_log(fn -> 
+      capture_log(fn ->
         post
         |> Ash.Changeset.for_update(:update_if_author, %{title: "bad"},
           authorize?: true,

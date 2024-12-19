@@ -408,8 +408,6 @@ defmodule AshPostgres.DataLayer do
   A postgres data layer that leverages Ecto's postgres capabilities.
   """
 
-  require Igniter.Code.Common
-
   use Spark.Dsl.Extension,
     sections: @sections,
     verifiers: [
@@ -1966,7 +1964,7 @@ defmodule AshPostgres.DataLayer do
 
     fields_to_upsert =
       upsert_fields --
-        Keyword.keys(Enum.at(changesets, 0).atomics) -- keys
+        (Keyword.keys(Enum.at(changesets, 0).atomics) -- keys)
 
     fields_to_upsert
     |> Enum.uniq()
@@ -3067,31 +3065,33 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  def install(igniter, module, Ash.Resource, _path, argv) do
-    table_name =
-      module
-      |> Module.split()
-      |> List.last()
-      |> Macro.underscore()
-      |> Inflex.pluralize()
+  if Code.ensure_loaded?(Igniter) do
+    def install(igniter, module, Ash.Resource, _path, argv) do
+      table_name =
+        module
+        |> Module.split()
+        |> List.last()
+        |> Macro.underscore()
+        |> Inflex.pluralize()
 
-    {options, _, _} = OptionParser.parse(argv, switches: [repo: :string])
+      {options, _, _} = OptionParser.parse(argv, switches: [repo: :string])
 
-    repo =
-      case options[:repo] do
-        nil ->
-          Igniter.Project.Module.module_name(igniter, "Repo")
+      repo =
+        case options[:repo] do
+          nil ->
+            Igniter.Project.Module.module_name(igniter, "Repo")
 
-        repo ->
-          Igniter.Project.Module.parse(repo)
-      end
+          repo ->
+            Igniter.Project.Module.parse(repo)
+        end
 
-    igniter
-    |> Spark.Igniter.set_option(module, [:postgres, :table], table_name)
-    |> Spark.Igniter.set_option(module, [:postgres, :repo], repo)
+      igniter
+      |> Spark.Igniter.set_option(module, [:postgres, :table], table_name)
+      |> Spark.Igniter.set_option(module, [:postgres, :repo], repo)
+    end
+
+    def install(igniter, _, _, _), do: igniter
   end
-
-  def install(igniter, _, _, _), do: igniter
 
   @impl true
   def rollback(resource, term) do
