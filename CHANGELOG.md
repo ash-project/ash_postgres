@@ -5,6 +5,21 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.4.18](https://github.com/ash-project/ash_postgres/compare/v2.4.17...v2.4.18) (2024-12-20)
+
+
+
+
+### Bug Fixes:
+
+* handle double select issue
+
+### Improvements:
+
+* make igniter optional
+
+* make tsvector type selectable
+
 ## [v2.4.17](https://github.com/ash-project/ash_postgres/compare/v2.4.16...v2.4.17) (2024-12-16)
 
 
