@@ -362,11 +362,40 @@ if Code.ensure_loaded?(Igniter) do
           end
         )
       else
+        min_pg_version = get_min_pg_version()
+
+        notice =
+          if min_pg_version do
+            """
+            A `min_pg_version/0` function has been defined 
+            in `#{inspect(repo)}` as `#{min_pg_version}`.
+
+            This was based on running `postgres -V`.
+
+            You may wish to update this configuration. It should 
+            be set to the lowest version that your application 
+            expects to be run against.
+            """
+          else
+            """
+            A `min_pg_version/0` function has been defined in 
+            `#{inspect(repo)}` automatically.
+
+            You may wish to update this configuration. It should 
+            be set to the lowest version that your application 
+            expects to be run against.
+            """
+          end
+
         Igniter.Project.Module.create_module(
           igniter,
           repo,
-          AshPostgres.Igniter.default_repo_contents(otp_app, repo, opts)
+          AshPostgres.Igniter.default_repo_contents(
+            otp_app,
+            Keyword.put(opts, :min_pg_version, min_pg_version)
+          )
         )
+        |> Igniter.add_notice(notice)
       end
       |> Igniter.Project.Module.find_and_update_module!(
         repo,
@@ -380,6 +409,28 @@ if Code.ensure_loaded?(Igniter) do
         repo,
         &configure_min_pg_version_function(&1, repo, opts)
       )
+    end
+
+    def get_min_pg_version do
+      case System.cmd("postgres", ["-V"]) do
+        {"postgres (PostgreSQL) " <> version_and_text, 0} ->
+          version_and_text
+          |> String.split(~r/\s+/, parts: 2, trim: true)
+          |> Enum.at(0)
+          |> String.split(".", trim: true)
+          |> case do
+            [major, minor, patch | _] -> Version.parse!("#{major}.#{minor}.#{patch}")
+            [major, minor] -> Version.parse!("#{major}.#{minor}.0")
+            [major] -> Version.parse!("#{major}.0.0")
+            _ -> nil
+          end
+
+        _ ->
+          nil
+      end
+    rescue
+      _ ->
+        nil
     end
 
     defp use_ash_postgres_instead_of_ecto(zipper) do

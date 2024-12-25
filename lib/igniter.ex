@@ -3,8 +3,8 @@ if Code.ensure_loaded?(Igniter) do
     @moduledoc "Codemods and utilities for working with AshPostgres & Igniter"
 
     @doc false
-    def default_repo_contents(otp_app, name, opts \\ []) do
-      min_pg_version = get_min_pg_version(name, opts)
+    def default_repo_contents(otp_app, opts \\ []) do
+      min_pg_version = opts[:min_pg_version] || Version.parse!("16.0.0")
 
       """
       use AshPostgres.Repo, otp_app: #{inspect(otp_app)}
@@ -88,12 +88,25 @@ if Code.ensure_loaded?(Igniter) do
             otp_app = Igniter.Project.Application.app_name(igniter)
 
             igniter =
-              Igniter.Project.Module.create_module(
-                igniter,
-                repo,
-                default_repo_contents(otp_app, repo, opts),
-                opts
-              )
+              if opts[:min_pg_version] do
+                igniter
+              else
+                Igniter.add_notice(igniter, """
+                A `min_pg_version/0` function has been defined 
+                in `#{inspect(repo)}` as `16.0.0`.
+
+                You may wish to update this configuration. It should 
+                be set to the lowest version that your application 
+                expects to be run against.
+                """)
+              end
+
+            Igniter.Project.Module.create_module(
+              igniter,
+              repo,
+              default_repo_contents(otp_app, opts),
+              opts
+            )
 
             {igniter, repo}
           else
