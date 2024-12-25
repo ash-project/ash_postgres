@@ -362,30 +362,7 @@ if Code.ensure_loaded?(Igniter) do
           end
         )
       else
-        min_pg_version = get_min_pg_version()
-
-        notice =
-          if min_pg_version do
-            """
-            A `min_pg_version/0` function has been defined 
-            in `#{inspect(repo)}` as `#{min_pg_version}`.
-
-            This was based on running `postgres -V`.
-
-            You may wish to update this configuration. It should 
-            be set to the lowest version that your application 
-            expects to be run against.
-            """
-          else
-            """
-            A `min_pg_version/0` function has been defined in 
-            `#{inspect(repo)}` automatically.
-
-            You may wish to update this configuration. It should 
-            be set to the lowest version that your application 
-            expects to be run against.
-            """
-          end
+        {min_pg_version, notice} = min_pg_version_and_notice(repo)
 
         Igniter.Project.Module.create_module(
           igniter,
@@ -405,13 +382,53 @@ if Code.ensure_loaded?(Igniter) do
         repo,
         &configure_prefer_transaction_function/1
       )
-      |> Igniter.Project.Module.find_and_update_module!(
-        repo,
-        &configure_min_pg_version_function(&1, repo, opts)
-      )
+      |> then(fn igniter ->
+        {min_pg_version, notice} = min_pg_version_and_notice(repo)
+
+        igniter
+        |> Igniter.Project.Module.find_and_update_module!(
+          repo,
+          &configure_min_pg_version_function(
+            &1,
+            repo,
+            min_pg_version || Version.parse!("16.0.0"),
+            opts
+          )
+        )
+        |> Igniter.add_notice(notice)
+      end)
     end
 
-    def get_min_pg_version do
+    defp min_pg_version_and_notice(repo) do
+      min_pg_version = get_min_pg_version()
+
+      notice =
+        if min_pg_version do
+          """
+          A `min_pg_version/0` function has been defined 
+          in `#{inspect(repo)}` as `#{min_pg_version}`.
+
+          This was based on running `postgres -V`.
+
+          You may wish to update this configuration. It should 
+          be set to the lowest version that your application 
+          expects to be run against.
+          """
+        else
+          """
+          A `min_pg_version/0` function has been defined in 
+          `#{inspect(repo)}` automatically.
+
+          You may wish to update this configuration. It should 
+          be set to the lowest version that your application 
+          expects to be run against.
+          """
+        end
+
+      {min_pg_version, notice}
+    end
+
+    defp get_min_pg_version do
       case System.cmd("postgres", ["-V"]) do
         {"postgres (PostgreSQL) " <> version_and_text, 0} ->
           version_and_text
@@ -519,13 +536,13 @@ if Code.ensure_loaded?(Igniter) do
       end
     end
 
-    defp configure_min_pg_version_function(zipper, repo, opts) do
+    defp configure_min_pg_version_function(zipper, repo, version, opts) do
       case Igniter.Code.Function.move_to_def(zipper, :min_pg_version, 0) do
         {:ok, zipper} ->
           {:ok, zipper}
 
         _ ->
-          min_pg_version = AshPostgres.Igniter.get_min_pg_version(repo, opts)
+          min_pg_version = get_min_pg_version()
 
           {:ok,
            Igniter.Code.Common.add_code(zipper, """
