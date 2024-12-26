@@ -536,18 +536,16 @@ if Code.ensure_loaded?(Igniter) do
       end
     end
 
-    defp configure_min_pg_version_function(zipper, _repo, _version, _opts) do
+    defp configure_min_pg_version_function(zipper, _repo, version, _opts) do
       case Igniter.Code.Function.move_to_def(zipper, :min_pg_version, 0) do
         {:ok, zipper} ->
           {:ok, zipper}
 
         _ ->
-          min_pg_version = get_min_pg_version()
-
           {:ok,
            Igniter.Code.Common.add_code(zipper, """
            def min_pg_version do
-             %Version{major: #{min_pg_version.major}, minor: #{min_pg_version.minor}, patch: #{min_pg_version.patch}}
+             %Version{major: #{version.major}, minor: #{version.minor}, patch: #{version.patch}}
            end
            """)}
       end
