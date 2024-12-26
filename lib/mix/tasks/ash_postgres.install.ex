@@ -536,7 +536,7 @@ if Code.ensure_loaded?(Igniter) do
       end
     end
 
-    defp configure_min_pg_version_function(zipper, repo, version, opts) do
+    defp configure_min_pg_version_function(zipper, _repo, _version, _opts) do
       case Igniter.Code.Function.move_to_def(zipper, :min_pg_version, 0) do
         {:ok, zipper} ->
           {:ok, zipper}

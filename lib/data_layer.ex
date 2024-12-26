@@ -1383,7 +1383,7 @@ defmodule AshPostgres.DataLayer do
                  ecto_changeset.changes,
                  []
                ) do
-            :empty ->
+            {:empty, query} ->
               if options[:return_records?] do
                 if changeset.context[:data_layer][:use_atomic_update_data?] do
                   case query.__ash_bindings__ do
@@ -1821,12 +1821,8 @@ defmodule AshPostgres.DataLayer do
                    %{},
                    upsert_set
                  ) do
-              :empty ->
-                if options[:return_records?] do
-                  {:replace, options[:upsert_keys] || Ash.Resource.Info.primary_key(resource)}
-                else
-                  :nothing
-                end
+              {:empty, _query} ->
+                raise "Cannot upsert with no fields to specify in the upsert statement. This can only happen on resources without a primary key."
 
               {:ok, query} ->
                 query
@@ -1967,7 +1963,13 @@ defmodule AshPostgres.DataLayer do
 
     fields_to_upsert =
       upsert_fields --
-        (Keyword.keys(Enum.at(changesets, 0).atomics) -- keys)
+        Keyword.keys(Enum.at(changesets, 0).atomics) -- keys
+
+    fields_to_upsert =
+      case fields_to_upsert do
+        [] -> keys
+        fields_to_upsert -> fields_to_upsert
+      end
 
     fields_to_upsert
     |> Enum.uniq()
