@@ -5,6 +5,23 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.4.19](https://github.com/ash-project/ash_postgres/compare/v2.4.18...v2.4.19) (2024-12-26)
+
+
+
+
+### Bug Fixes:
+
+* ensure there is always at least one upsert field so filter is run
+
+### Improvements:
+
+* better min_pg_version when modifying a repo
+
+* automatically set `min_pg_version` where possible
+
+* use a notice to suggest configuring `min_pg_version`
+
 ## [v2.4.18](https://github.com/ash-project/ash_postgres/compare/v2.4.17...v2.4.18) (2024-12-20)
 
 
