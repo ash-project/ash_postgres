@@ -5,6 +5,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.4.20](https://github.com/ash-project/ash_postgres/compare/v2.4.19...v2.4.20) (2024-12-26)
+
+
+
+
+### Bug Fixes:
+
+* use passed in version of postgres when modifying existing repo
+
 ## [v2.4.19](https://github.com/ash-project/ash_postgres/compare/v2.4.18...v2.4.19) (2024-12-26)
 
 
