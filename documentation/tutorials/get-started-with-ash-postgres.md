@@ -241,7 +241,7 @@ for i <- 0..5 do
   ticket =
     Helpdesk.Support.Ticket
     |> Ash.Changeset.for_create(:open, %{subject: "Issue #{i}"})
-    |> Helpdesk.Support.create!()
+    |> Ash.create!()
     |> Ash.Changeset.for_update(:assign, %{representative_id: representative.id})
     |> Ash.update!()
 
