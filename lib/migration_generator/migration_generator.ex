@@ -157,11 +157,7 @@ defmodule AshPostgres.MigrationGenerator do
       snapshot_path
     else
       app = Keyword.fetch!(config, :otp_app)
-
-      Application.app_dir(
-        app,
-        ["priv", "resource_snapshots"]
-      )
+      Path.join(Mix.Project.deps_paths()[app] || File.cwd!(), "priv/resource_snapshots")
     end
   end
 
@@ -889,25 +885,24 @@ defmodule AshPostgres.MigrationGenerator do
   defp migration_path(opts, repo, tenant? \\ false) do
     # Copied from ecto's mix task, thanks Ecto ❤️
     config = repo.config()
-    app = Keyword.fetch!(config, :otp_app)
 
     if tenant? do
       if path = opts.tenant_migration_path || config[:tenant_migrations_path] do
         path
       else
         priv =
-          config[:priv] || "priv/#{repo |> Module.split() |> List.last() |> Macro.underscore()}"
+          AshPostgres.Mix.Helpers.source_repo_priv(repo)
 
-        Application.app_dir(app, Path.join(priv, "tenant_migrations"))
+        Path.join(priv, "tenant_migrations")
       end
     else
       if path = opts.migration_path || config[:tenant_migrations_path] do
         path
       else
         priv =
-          config[:priv] || "priv/#{repo |> Module.split() |> List.last() |> Macro.underscore()}"
+          AshPostgres.Mix.Helpers.source_repo_priv(repo)
 
-        Application.app_dir(app, Path.join(priv, "migrations"))
+        Path.join(priv, "migrations")
       end
     end
   end
