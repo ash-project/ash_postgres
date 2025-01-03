@@ -1059,7 +1059,7 @@ defmodule AshPostgres.DataLayer do
 
     source_pkey = Ash.Resource.Info.primary_key(source_query.resource)
 
-    case lateral_join_source_query(query, source_query) do
+    case lateral_join_source_query(query, source_query, root_data) do
       {:ok, data_layer_query} ->
         source_values = Enum.map(root_data, &Map.get(&1, source_attribute))
 
@@ -1148,7 +1148,7 @@ defmodule AshPostgres.DataLayer do
     source_values = Enum.map(root_data, &Map.get(&1, source_attribute))
     source_pkey = Ash.Resource.Info.primary_key(source_query.resource)
 
-    case lateral_join_source_query(query, source_query) do
+    case lateral_join_source_query(query, source_query, root_data) do
       {:ok, data_layer_query} ->
         data_layer_query = Ecto.Query.exclude(data_layer_query, :select)
 
@@ -1268,7 +1268,8 @@ defmodule AshPostgres.DataLayer do
              lateral_join_source_query: lateral_join_source_query
            }
          },
-         source_query
+         source_query,
+         _root_data
        )
        when not is_nil(lateral_join_source_query) do
     {:ok,
@@ -1276,10 +1277,11 @@ defmodule AshPostgres.DataLayer do
      |> set_subquery_prefix(source_query, lateral_join_source_query.__ash_bindings__.resource)}
   end
 
-  defp lateral_join_source_query(query, source_query) do
+  defp lateral_join_source_query(query, source_query, root_data) do
     source_query.resource
     |> Ash.Query.set_context(%{:data_layer => source_query.context[:data_layer]})
     |> Ash.Query.set_tenant(source_query.tenant)
+    |> filter_for_records(root_data)
     |> set_lateral_join_prefix(query)
     |> case do
       %{valid?: true} = query ->
@@ -1288,6 +1290,38 @@ defmodule AshPostgres.DataLayer do
       query ->
         {:error, query}
     end
+  end
+
+  defp filter_for_records(query, records) do
+    keys =
+      case Ash.Resource.Info.primary_key(query.resource) do
+        [] ->
+          case Ash.Resource.Info.identities(query.resource) do
+            %{keys: keys} -> keys
+            _ -> []
+          end
+
+        pkey ->
+          pkey
+      end
+
+    expr =
+      case keys do
+        [] ->
+          raise "Cannot use lateral joins with a resource that has no primary key and no identities"
+
+        keys ->
+          Enum.reduce(records, Ash.Expr.expr(false), fn record, filter_expr ->
+            all_keys_match_expr =
+              Enum.reduce(keys, Ash.Expr.expr(true), fn key, key_expr ->
+                Ash.Expr.expr(^key_expr and ^Ash.Expr.ref(key) == ^Map.get(record, key))
+              end)
+
+            Ash.Expr.expr(^filter_expr or ^all_keys_match_expr)
+          end)
+      end
+
+    Ash.Query.do_filter(query, expr)
   end
 
   @doc false
