@@ -59,6 +59,7 @@ defmodule AshPostgres.MixProject do
       files: ~w(lib .formatter.exs mix.exs README* LICENSE*
       CHANGELOG* documentation),
       links: %{
+        Changelog: "https://hexdocs.pm/ash_postgres/changelog.html",
         GitHub: "https://github.com/ash-project/ash_postgres"
       }
     ]
