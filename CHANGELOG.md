@@ -5,6 +5,17 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.4.21](https://github.com/ash-project/ash_postgres/compare/v2.4.20...v2.4.21) (2025-01-06)
+
+
+
+
+### Bug Fixes:
+
+* filter query by source record ids when lateral joining
+
+* don't use symlinked app dir for migration's path
+
 ## [v2.4.20](https://github.com/ash-project/ash_postgres/compare/v2.4.19...v2.4.20) (2024-12-26)
 
 
