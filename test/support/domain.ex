@@ -5,6 +5,7 @@ defmodule AshPostgres.Test.Domain do
   resources do
     resource(AshPostgres.Test.CoAuthorPost)
     resource(AshPostgres.Test.Post)
+    resource(AshPostgres.Test.Comedian)
     resource(AshPostgres.Test.Comment)
     resource(AshPostgres.Test.IntegerPost)
     resource(AshPostgres.Test.Rating)
@@ -14,6 +15,7 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.Profile)
     resource(AshPostgres.Test.User)
     resource(AshPostgres.Test.Invite)
+    resource(AshPostgres.Test.Joke)
     resource(AshPostgres.Test.Account)
     resource(AshPostgres.Test.Organization)
     resource(AshPostgres.Test.Manager)
