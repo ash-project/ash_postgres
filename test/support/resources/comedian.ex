@@ -14,6 +14,10 @@ defmodule AshPostgres.Test.Comedian do
 
   relationships do
     has_many(:jokes, AshPostgres.Test.Joke, public?: true)
+
+    has_many :parent_parent_jokes, AshPostgres.Test.Joke do
+      filter expr(exists(comedian, id == parent(parent(id))))
+    end
   end
 
   calculations do

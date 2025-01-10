@@ -19,6 +19,14 @@ defmodule AshPostgres.Test.Joke do
 
   actions do
     defaults([:read])
+
+    create :create do
+      accept [:text, :is_good, :comedian_id]
+    end
+  end
+
+  code_interface do
+    define(:create)
   end
 
   postgres do

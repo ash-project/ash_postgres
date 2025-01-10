@@ -1,7 +1,7 @@
 defmodule AshPostgres.RelWithParentFilterTest do
   use AshPostgres.RepoCase, async: false
 
-  alias AshPostgres.Test.Author
+  alias AshPostgres.Test.{Author, Comedian, Joke}
 
   require Ash.Query
 
@@ -74,5 +74,14 @@ defmodule AshPostgres.RelWithParentFilterTest do
              |> Ash.read_one!()
 
     assert length(authors) == 1
+  end
+
+  test "filter on relationship using double parent works as expected when loading relationship" do
+    commedian = Comedian.create!(%{name: "John"})
+    joke = Joke.create!(%{comedian_id: commedian.id})
+    joke_id = joke.id
+
+    commedian = Ash.load!(commedian, [:parent_parent_jokes])
+    assert [%{id: ^joke_id}] = commedian.parent_parent_jokes
   end
 end
