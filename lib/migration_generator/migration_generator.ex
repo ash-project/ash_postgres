@@ -814,7 +814,11 @@ defmodule AshPostgres.MigrationGenerator do
 
             %{
               keys: pkey_names,
-              name: name
+              name: name,
+              base_filter: nil,
+              all_tenants?: false,
+              nils_distinct?: false,
+              where: nil
             }
           end)
 
@@ -849,7 +853,11 @@ defmodule AshPostgres.MigrationGenerator do
 
           %{
             keys: pkey_names,
-            name: name
+            name: name,
+            base_filter: nil,
+            all_tenants?: false,
+            nils_distinct?: false,
+            where: nil
           }
         end)
 
