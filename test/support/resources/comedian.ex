@@ -41,6 +41,7 @@ defmodule AshPostgres.Test.Comedian do
 end
 
 defmodule AshPostgres.Test.Comedian.HasJokes do
+  @moduledoc false
   use Ash.Resource.Calculation
 
   @impl true
