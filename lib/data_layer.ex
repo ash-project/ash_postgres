@@ -1560,7 +1560,7 @@ defmodule AshPostgres.DataLayer do
           end)
 
         needs_to_join? =
-          requires_adding_inner_join? ||
+          requires_adding_inner_join? || query.distinct ||
             query.limit || query.offset || has_exists?
 
         query =
@@ -1729,6 +1729,8 @@ defmodule AshPostgres.DataLayer do
             else
               Ecto.Query.exclude(query, :select)
             end
+
+          # query = Ecto.Query.exclude(query, :distinct)
 
           {_, results} =
             with_savepoint(repo, query, fn ->

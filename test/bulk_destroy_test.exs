@@ -60,6 +60,16 @@ defmodule AshPostgres.BulkDestroyTest do
     assert [%{title: "george"}] = Ash.read!(Post)
   end
 
+  test "the query can join to to-many related tables when necessary" do
+    Ash.bulk_create!([%{title: "fred"}, %{title: "fred"}], Post, :create)
+
+    Post
+    |> Ash.Query.filter(posts_with_matching_title.title == title)
+    |> Ash.bulk_destroy!(:destroy, %{}, return_records?: true)
+
+    assert [] = Ash.read!(Post)
+  end
+
   test "bulk destroys can be done even on stream inputs" do
     Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
 
