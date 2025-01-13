@@ -2468,11 +2468,21 @@ defmodule AshPostgres.DataLayer do
       constraint.attribute
       |> List.wrap()
       |> Enum.reduce(changeset, fn attribute, changeset ->
-        Ecto.Changeset.check_constraint(changeset, attribute,
-          name: constraint.name,
-          message: constraint.message || "is invalid",
-          match: repo.default_constraint_match_type(:check, constraint.name)
-        )
+        case repo.default_constraint_match_type(:check, constraint.name) do
+          {:regex, regex} ->
+            Ecto.Changeset.check_constraint(changeset, attribute,
+              name: regex,
+              message: constraint.message || "is invalid",
+              match: :exact
+            )
+
+          match ->
+            Ecto.Changeset.check_constraint(changeset, attribute,
+              name: constraint.name,
+              message: constraint.message || "is invalid",
+              match: match
+            )
+        end
       end)
     end)
   end
@@ -2483,17 +2493,36 @@ defmodule AshPostgres.DataLayer do
     |> Enum.reduce(changeset, fn constraint, changeset ->
       case constraint do
         {key, name} ->
-          Ecto.Changeset.exclusion_constraint(changeset, key,
-            name: name,
-            match: repo.default_constraint_match_type(:exclusion, constraint.name)
-          )
+          case repo.default_constraint_match_type(:check, name) do
+            {:regex, regex} ->
+              Ecto.Changeset.check_constraint(changeset, key,
+                name: regex,
+                match: :exact
+              )
+
+            match ->
+              Ecto.Changeset.check_constraint(changeset, key,
+                name: name,
+                match: match
+              )
+          end
 
         {key, name, message} ->
-          Ecto.Changeset.exclusion_constraint(changeset, key,
-            name: name,
-            message: message,
-            match: repo.default_constraint_match_type(:exclusion, constraint.name)
-          )
+          case repo.default_constraint_match_type(:check, name) do
+            {:regex, regex} ->
+              Ecto.Changeset.check_constraint(changeset, key,
+                name: regex,
+                message: message,
+                match: :exact
+              )
+
+            match ->
+              Ecto.Changeset.check_constraint(changeset, key,
+                name: name,
+                message: message,
+                match: match
+              )
+          end
       end
     end)
   end
@@ -2520,20 +2549,40 @@ defmodule AshPostgres.DataLayer do
                                  changeset ->
       case AshPostgres.DataLayer.Info.reference(resource, relationship_name) do
         %{name: name} when not is_nil(name) ->
-          Ecto.Changeset.foreign_key_constraint(changeset, destination_attribute,
-            name: name,
-            match: repo.default_constraint_match_type(:foreign, name),
-            message: "would leave records behind"
-          )
+          case repo.default_constraint_match_type(:foreign, name) do
+            {:regex, regex} ->
+              Ecto.Changeset.foreign_key_constraint(changeset, destination_attribute,
+                name: regex,
+                message: "would leave records behind",
+                match: :exact
+              )
+
+            match ->
+              Ecto.Changeset.foreign_key_constraint(changeset, destination_attribute,
+                name: name,
+                message: "would leave records behind",
+                match: match
+              )
+          end
 
         _ ->
           name = "#{AshPostgres.DataLayer.Info.table(source)}_#{source_attribute}_fkey"
 
-          Ecto.Changeset.foreign_key_constraint(changeset, destination_attribute,
-            name: name,
-            match: repo.default_constraint_match_type(:foreign, name),
-            message: "would leave records behind"
-          )
+          case repo.default_constraint_match_type(:foreign, name) do
+            {:regex, regex} ->
+              Ecto.Changeset.foreign_key_constraint(changeset, destination_attribute,
+                name: regex,
+                message: "would leave records behind",
+                match: :exact
+              )
+
+            match ->
+              Ecto.Changeset.foreign_key_constraint(changeset, destination_attribute,
+                name: name,
+                message: "would leave records behind",
+                match: match
+              )
+          end
       end
     end)
   end
@@ -2545,10 +2594,19 @@ defmodule AshPostgres.DataLayer do
       name =
         "#{AshPostgres.DataLayer.Info.table(resource)}_#{relationship.source_attribute}_fkey"
 
-      Ecto.Changeset.foreign_key_constraint(changeset, relationship.source_attribute,
-        name: name,
-        match: repo.default_constraint_match_type(:foreign, name)
-      )
+      case repo.default_constraint_match_type(:foreign, name) do
+        {:regex, regex} ->
+          Ecto.Changeset.foreign_key_constraint(changeset, relationship.source_attribute,
+            name: regex,
+            match: :exact
+          )
+
+        match ->
+          Ecto.Changeset.foreign_key_constraint(changeset, relationship.source_attribute,
+            name: name,
+            match: match
+          )
+      end
     end)
   end
 
@@ -2561,17 +2619,36 @@ defmodule AshPostgres.DataLayer do
     end
     |> Enum.reduce(changeset, fn
       {key, name}, changeset ->
-        Ecto.Changeset.foreign_key_constraint(changeset, key,
-          name: name,
-          match: repo.default_constraint_match_type(:foreign, name)
-        )
+        case repo.default_constraint_match_type(:foreign, name) do
+          {:regex, regex} ->
+            Ecto.Changeset.foreign_key_constraint(changeset, key,
+              name: regex,
+              match: :exact
+            )
+
+          match ->
+            Ecto.Changeset.foreign_key_constraint(changeset, key,
+              name: name,
+              match: match
+            )
+        end
 
       {key, name, message}, changeset ->
-        Ecto.Changeset.foreign_key_constraint(changeset, key,
-          name: name,
-          message: message,
-          match: repo.default_constraint_match_type(:foreign, name)
-        )
+        case repo.default_constraint_match_type(:foreign, name) do
+          {:regex, regex} ->
+            Ecto.Changeset.foreign_key_constraint(changeset, key,
+              name: regex,
+              message: message,
+              match: :exact
+            )
+
+          match ->
+            Ecto.Changeset.foreign_key_constraint(changeset, key,
+              name: name,
+              message: message,
+              match: match
+            )
+        end
     end)
   end
 
@@ -2587,13 +2664,21 @@ defmodule AshPostgres.DataLayer do
           AshPostgres.DataLayer.Info.identity_index_names(resource)[identity.name] ||
             "#{table}_#{identity.name}_index"
 
-        index_match_type = repo.default_constraint_match_type(:unique, name)
-
         opts =
-          if Map.get(identity, :message) do
-            [name: name, message: identity.message, match: index_match_type]
-          else
-            [name: name, match: index_match_type]
+          case repo.default_constraint_match_type(:unique, name) do
+            {:regex, regex} ->
+              if Map.get(identity, :message) do
+                [name: regex, message: identity.message, match: :exact]
+              else
+                [name: regex, match: :exact]
+              end
+
+            index_match_type ->
+              if Map.get(identity, :message) do
+                [name: name, message: identity.message, match: index_match_type]
+              else
+                [name: name, match: index_match_type]
+              end
           end
 
         fields =
@@ -2614,13 +2699,21 @@ defmodule AshPostgres.DataLayer do
       |> Enum.reduce(changeset, fn index, changeset ->
         name = index.name || AshPostgres.CustomIndex.name(table, index)
 
-        index_match_type = repo.default_constraint_match_type(:custom, name)
-
         opts =
-          if index.message do
-            [name: name, message: index.message, match: index_match_type]
-          else
-            [name: name, match: index_match_type]
+          case repo.default_constraint_match_type(:custom, name) do
+            {:regex, regex} ->
+              if Map.get(index, :message) do
+                [name: regex, message: index.message, match: :exact]
+              else
+                [name: regex, match: :exact]
+              end
+
+            index_match_type ->
+              if Map.get(index, :message) do
+                [name: name, message: index.message, match: index_match_type]
+              else
+                [name: name, match: index_match_type]
+              end
           end
 
         fields =
@@ -2662,17 +2755,36 @@ defmodule AshPostgres.DataLayer do
 
     Enum.reduce(names, changeset, fn
       {keys, name}, changeset ->
-        Ecto.Changeset.unique_constraint(changeset, List.wrap(keys),
-          name: name,
-          match: repo.default_constraint_match_type(:unique, name)
-        )
+        case repo.default_constraint_match_type(:unique, name) do
+          {:regex, regex} ->
+            Ecto.Changeset.unique_constraint(changeset, List.wrap(keys),
+              name: regex,
+              match: :exact
+            )
+
+          match ->
+            Ecto.Changeset.unique_constraint(changeset, List.wrap(keys),
+              name: name,
+              match: match
+            )
+        end
 
       {keys, name, message}, changeset ->
-        Ecto.Changeset.unique_constraint(changeset, List.wrap(keys),
-          name: name,
-          message: message,
-          match: repo.default_constraint_match_type(:unique, name)
-        )
+        case repo.default_constraint_match_type(:unique, name) do
+          {:regex, regex} ->
+            Ecto.Changeset.unique_constraint(changeset, List.wrap(keys),
+              name: regex,
+              message: message,
+              match: :exact
+            )
+
+          match ->
+            Ecto.Changeset.unique_constraint(changeset, List.wrap(keys),
+              name: name,
+              message: message,
+              match: match
+            )
+        end
     end)
   end
 
