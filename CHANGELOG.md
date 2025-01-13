@@ -5,6 +5,17 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.4.22](https://github.com/ash-project/ash_postgres/compare/v2.4.21...v2.4.22) (2025-01-13)
+
+
+
+
+### Bug Fixes:
+
+* inner join bulk operations if distinct? is present
+
+* fully specificy synthesized indices from multi-resource tables
+
 ## [v2.4.21](https://github.com/ash-project/ash_postgres/compare/v2.4.20...v2.4.21) (2025-01-06)
 
 
