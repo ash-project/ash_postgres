@@ -1,5 +1,5 @@
 defmodule AshPostgres.MigrationGenerator.AshFunctions do
-  @latest_version 4
+  @latest_version 5
 
   def latest_version, do: @latest_version
 
@@ -143,7 +143,26 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
   end
 
   def install(3) do
-    uuid_generate_v7()
+    """
+    execute("ALTER FUNCTION ash_raise_error(jsonb) STABLE;")
+    execute("ALTER FUNCTION ash_raise_error(jsonb, ANYCOMPATIBLE) STABLE")
+    #{uuid_generate_v7()}
+    """
+  end
+
+  def install(4) do
+    """
+    execute("ALTER FUNCTION ash_raise_error(jsonb) STABLE;")
+    execute("ALTER FUNCTION ash_raise_error(jsonb, ANYCOMPATIBLE) STABLE")
+    #{uuid_generate_v7()}
+    """
+  end
+
+  def drop(4) do
+    """
+    execute("ALTER FUNCTION ash_raise_error(jsonb) VOLATILE;")
+    execute("ALTER FUNCTION ash_raise_error(jsonb, ANYCOMPATIBLE) VOLATILE")
+    """
   end
 
   def drop(3) do
@@ -184,6 +203,7 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
         RETURN NULL;
     END;
     $$ LANGUAGE plpgsql
+    STABLE
     SET search_path = '';
     \"\"\")
 
@@ -197,6 +217,7 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
         RETURN NULL;
     END;
     $$ LANGUAGE plpgsql
+    STABLE
     SET search_path = '';
     \"\"\")
     """
