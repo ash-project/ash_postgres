@@ -1297,7 +1297,7 @@ defmodule AshPostgres.DataLayer do
       case Ash.Resource.Info.primary_key(query.resource) do
         [] ->
           case Ash.Resource.Info.identities(query.resource) do
-            %{keys: keys} -> keys
+            [%{keys: keys} | _] -> keys
             _ -> []
           end
 
