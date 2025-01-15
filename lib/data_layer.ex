@@ -1787,7 +1787,7 @@ defmodule AshPostgres.DataLayer do
         |> Map.new(fn {dynamic, index} -> {index, dynamic} end)
 
       query =
-        Ecto.Query.from(row in fragment("UNNEST(ARRAY[1])"), select: ^dynamics)
+        Ecto.Query.from(row in fragment("(VALUES(1))"), select: ^dynamics)
         |> Map.put(:__ash_bindings__, query.__ash_bindings__)
 
       repo =
