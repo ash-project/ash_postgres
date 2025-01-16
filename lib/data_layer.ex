@@ -644,10 +644,11 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :transact), do: true
   def can?(_, :composite_primary_key), do: true
 
-  @disable_atomic_actions Application.compile_env(:ash_postgres, :disable_atomic_actions, false)
+  def can?(resource, {:atomic, :update}),
+    do: not AshPostgres.DataLayer.Info.repo(resource, :mutate).disable_atomic_actions?()
 
-  def can?(_resource, {:atomic, :update}), do: not @disable_atomic_actions
-  def can?(_resource, {:atomic, :upsert}), do: not @disable_atomic_actions
+  def can?(resource, {:atomic, :upsert}),
+    do: not AshPostgres.DataLayer.Info.repo(resource, :mutate).disable_atomic_actions?()
 
   def can?(_, :upsert), do: true
   def can?(_, :changeset_filter), do: true
@@ -712,11 +713,11 @@ defmodule AshPostgres.DataLayer do
 
   def can?(_, :timeout), do: true
 
-  @disable_expr_error Application.compile_env(:ash_postgres, :disable_expr_error, false)
-  def can?(_, :expr_error), do: not @disable_expr_error
+  def can?(resource, :expr_error),
+    do: not AshPostgres.DataLayer.Info.repo(resource, :mutate).disable_expr_error?()
 
   def can?(resource, {:filter_expr, %Ash.Query.Function.Error{}}) do
-    not @disable_expr_error &&
+    not AshPostgres.DataLayer.Info.repo(resource, :mutate).disable_expr_error?() &&
       "ash-functions" in AshPostgres.DataLayer.Info.repo(resource, :read).installed_extensions() &&
       "ash-functions" in AshPostgres.DataLayer.Info.repo(resource, :mutate).installed_extensions()
   end
