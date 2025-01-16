@@ -712,11 +712,11 @@ defmodule AshPostgres.DataLayer do
 
   def can?(_, :timeout), do: true
 
-  @disable_error_expr Application.compile_env(:ash_postgres, :disable_error_expr, false)
-  def can?(_, :expr_error), do: not @disable_error_expr
+  @disable_expr_error Application.compile_env(:ash_postgres, :disable_expr_error, false)
+  def can?(_, :expr_error), do: dbg(not @disable_expr_error)
 
   def can?(resource, {:filter_expr, %Ash.Query.Function.Error{}}) do
-    not @disable_error_expr &&
+    not @disable_expr_error &&
       "ash-functions" in AshPostgres.DataLayer.Info.repo(resource, :read).installed_extensions() &&
       "ash-functions" in AshPostgres.DataLayer.Info.repo(resource, :mutate).installed_extensions()
   end
