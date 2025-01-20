@@ -5,6 +5,29 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.0](https://github.com/ash-project/ash_postgres/compare/v2.4.22...v2.5.0) (2025-01-20)
+
+
+
+
+### Features:
+
+* add repo callback to disable atomic actions and error expressions (#464)
+
+### Bug Fixes:
+
+* generate a repo when selecting one
+
+* handle regex match correctly (#460)
+
+### Improvements:
+
+* use prettier SQL in `Ash.calculate`
+
+* add `c:AshPostgres.Repo.default_constraint_match_type`
+
+* mark ash_raise_error as STABLE
+
 ## [v2.4.22](https://github.com/ash-project/ash_postgres/compare/v2.4.21...v2.4.22) (2025-01-13)
 
 
