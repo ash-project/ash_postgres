@@ -101,12 +101,13 @@ if Code.ensure_loaded?(Igniter) do
                 """)
               end
 
-            Igniter.Project.Module.create_module(
-              igniter,
-              repo,
-              default_repo_contents(otp_app, opts),
-              opts
-            )
+            igniter =
+              Igniter.Project.Module.create_module(
+                igniter,
+                repo,
+                default_repo_contents(otp_app, opts),
+                opts
+              )
 
             {igniter, repo}
           else
