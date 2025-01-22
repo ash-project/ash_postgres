@@ -167,13 +167,11 @@ defmodule AshPostgres.MixProject do
     [
       {:ash, ash_version("~> 3.4 and >= 3.4.48")},
       {:ash_sql, ash_sql_version("~> 0.2 and >= 0.2.43")},
-      {:igniter, "~> 0.4 and >= 0.4.4", optional: true},
+      {:igniter, "~> 0.5 and >= 0.5.16", optional: true},
       {:ecto_sql, "~> 3.12"},
       {:ecto, "~> 3.12 and >= 3.12.1"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
-      {:inflex, "~> 2.1"},
-      {:owl, "~> 0.11"},
       # dev/test dependencies
       {:ecto_dev_logger, "~> 0.14", only: :test},
       {:eflame, "~> 1.0", only: [:dev, :test]},

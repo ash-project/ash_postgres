@@ -1,7 +1,9 @@
 defmodule AshPostgres.Test.MultitenancyTest do
   use AshPostgres.RepoCase, async: false
 
+  require Ash.Query
   alias AshPostgres.MultitenancyTest.{Org, Post, User}
+  alias AshPostgres.Test.Post, as: GlobalPost
 
   setup do
     org1 =
@@ -42,6 +44,20 @@ defmodule AshPostgres.Test.MultitenancyTest do
              Org
              |> Ash.Query.set_tenant(org1)
              |> Ash.read!()
+  end
+
+  test "joining to non multitenant through relationship works", %{org1: org1} do
+    Post
+    |> Ash.Query.filter(linked_non_multitenant_posts.title == "fred")
+    |> Ash.Query.set_tenant("org_" <> org1.id)
+    |> Ash.read!()
+  end
+
+  test "joining from non multitenant through relationship works", %{org1: org1} do
+    GlobalPost
+    |> Ash.Query.filter(linked_multitenant_posts.name == "fred")
+    |> Ash.Query.set_tenant("org_" <> org1.id)
+    |> Ash.read!()
   end
 
   test "attribute multitenancy works with authorization", %{org1: org1} do

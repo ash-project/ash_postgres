@@ -248,6 +248,31 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     end
 
     def up(%{
+          multitenancy: %{strategy: nil},
+          attribute:
+            %{
+              references: %{
+                multitenancy: %{strategy: :context}
+              }
+            } = attribute
+        }) do
+      size =
+        if attribute.size do
+          "size: #{attribute.size}"
+        end
+
+      [
+        "add #{inspect(attribute.source)}",
+        inspect(attribute.type),
+        maybe_add_default(attribute.default),
+        maybe_add_primary_key(attribute.primary_key?),
+        size,
+        maybe_add_null(attribute.allow_nil?)
+      ]
+      |> join()
+    end
+
+    def up(%{
           multitenancy: %{strategy: :context},
           attribute:
             %{

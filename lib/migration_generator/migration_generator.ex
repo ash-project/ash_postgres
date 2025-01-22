@@ -815,6 +815,7 @@ defmodule AshPostgres.MigrationGenerator do
             %{
               keys: pkey_names,
               name: name,
+              index_name: name,
               base_filter: nil,
               all_tenants?: false,
               nils_distinct?: false,
