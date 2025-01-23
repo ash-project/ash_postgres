@@ -16,6 +16,6 @@ jobs:
     with:
       postgres: true
       postgres-version: ${{ matrix.postgres-version }}
-      publish-docs: ${{ matrix.postgres-version == "16" }}
+      publish-docs: ${{ matrix.postgres-version == '16' }}
     secrets:
       hex_api_key: ${{ secrets.HEX_API_KEY }}
