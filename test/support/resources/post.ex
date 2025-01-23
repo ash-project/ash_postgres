@@ -345,6 +345,11 @@ defmodule AshPostgres.Test.Post do
       accept([:title])
       change(optimistic_lock(:version))
     end
+
+    read :read_with_related_list_agg_filter do
+      pagination(keyset?: true, default_limit: 25)
+      filter(expr(count_nils(latest_comment.linked_comment_post_ids) == 0))
+    end
   end
 
   identities do
