@@ -17,5 +17,8 @@ jobs:
       postgres: true
       postgres-version: ${{ matrix.postgres-version }}
       publish-docs: ${{ matrix.postgres-version == '16' }}
+      release: ${{ matrix.postgres-version == '16' }}
+      igniter-upgrade: ${{matrix.postgres-version == '16'}}
+
     secrets:
       hex_api_key: ${{ secrets.HEX_API_KEY }}
