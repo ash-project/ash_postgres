@@ -230,6 +230,10 @@ defmodule AshPostgres.Test.Post do
       )
     end
 
+    destroy :cascade_destroy do
+      change(cascade_destroy(:high_ratings))
+    end
+
     update :update do
       primary?(true)
       require_atomic?(false)
@@ -520,6 +524,13 @@ defmodule AshPostgres.Test.Post do
       destination_attribute: :resource_id,
       relationship_context: %{data_layer: %{table: "post_ratings"}}
     )
+
+    has_many :high_ratings, AshPostgres.Test.Rating do
+      public?(true)
+      destination_attribute(:resource_id)
+      relationship_context(%{data_layer: %{table: "post_ratings"}})
+      filter(expr(score > parent(score)))
+    end
 
     has_many(:post_links, AshPostgres.Test.PostLink,
       public?: true,
