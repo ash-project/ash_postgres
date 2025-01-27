@@ -5,6 +5,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.1](https://github.com/ash-project/ash_postgres/compare/v2.5.0...v2.5.1) (2025-01-27)
+
+
+
+
+### Bug Fixes:
+
+* handle cross global to tenant references in migration generator
+
 ## [v2.5.0](https://github.com/ash-project/ash_postgres/compare/v2.4.22...v2.5.0) (2025-01-20)
 
 
