@@ -32,7 +32,7 @@ defmodule AshPostgres.MixProject do
       dialyzer: [
         plt_add_apps: [:ecto, :ash, :mix]
       ],
-      docs: docs(),
+      docs: &docs/0,
       aliases: aliases(),
       package: package(),
       source_url: "https://github.com/ash-project/ash_postgres/",
@@ -98,7 +98,8 @@ defmodule AshPostgres.MixProject do
         "documentation/topics/advanced/expressions.md",
         "documentation/topics/advanced/schema-based-multitenancy.md",
         "documentation/topics/advanced/manual-relationships.md",
-        "documentation/dsls/DSL-AshPostgres.DataLayer.md",
+        {"documentation/dsls/DSL-AshPostgres.DataLayer.md",
+         search_data: Spark.Docs.search_data_for(AshPostgres.DataLayer)},
         "CHANGELOG.md"
       ],
       groups_for_extras: [
@@ -107,8 +108,7 @@ defmodule AshPostgres.MixProject do
         Development: ~r"documentation/topics/development",
         "About AshPostgres": ["CHANGELOG.md"],
         Advanced: ~r"documentation/topics/advanced",
-        Reference: ~r"documentation/topics/dsls",
-        DSLs: ~r"documentation/dsls"
+        Reference: ~r"documentation/topics/dsls"
       ],
       skip_undefined_reference_warnings_on: [
         "CHANGELOG.md",
@@ -178,7 +178,7 @@ defmodule AshPostgres.MixProject do
       {:simple_sat, "~> 0.1", only: [:dev, :test]},
       {:benchee, "~> 1.1", only: [:dev, :test]},
       {:git_ops, "~> 2.5", only: [:dev, :test]},
-      {:ex_doc, github: "elixir-lang/ex_doc", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.37-rc", only: [:dev, :test], runtime: false},
       {:ex_check, "~> 0.14", only: [:dev, :test]},
       {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:mix_audit, ">= 0.0.0", only: [:dev, :test], runtime: false},
@@ -233,14 +233,11 @@ defmodule AshPostgres.MixProject do
       docs: [
         "spark.cheat_sheets",
         "docs",
-        "spark.replace_doc_links",
-        "spark.cheat_sheets_in_search"
+        "spark.replace_doc_links"
       ],
       format: "format --migrate",
       "spark.formatter": "spark.formatter --extensions AshPostgres.DataLayer",
       "spark.cheat_sheets": "spark.cheat_sheets --extensions AshPostgres.DataLayer",
-      "spark.cheat_sheets_in_search":
-        "spark.cheat_sheets_in_search --extensions AshPostgres.DataLayer",
       "test.generate_migrations": "ash_postgres.generate_migrations",
       "test.check_migrations": "ash_postgres.generate_migrations --check",
       "test.migrate_tenants": "ash_postgres.migrate --tenants",
