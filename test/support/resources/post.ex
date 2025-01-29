@@ -231,7 +231,7 @@ defmodule AshPostgres.Test.Post do
     end
 
     destroy :cascade_destroy do
-      change(cascade_destroy(:high_ratings))
+      change(cascade_destroy(:high_ratings, require_atomic?: false))
     end
 
     update :update do

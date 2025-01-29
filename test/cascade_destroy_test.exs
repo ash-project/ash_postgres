@@ -7,11 +7,10 @@ defmodule AshPostgresTest.CascadeDestroyTest do
     post =
       Post.create!("post", %{score: 1})
 
-    comment =
-      Rating
-      |> Ash.Changeset.for_create(:create, %{score: 2, resource_id: post.id})
-      |> Ash.Changeset.set_context(%{data_layer: %{table: "post_ratings"}})
-      |> Ash.create!()
+    Rating
+    |> Ash.Changeset.for_create(:create, %{score: 2, resource_id: post.id})
+    |> Ash.Changeset.set_context(%{data_layer: %{table: "post_ratings"}})
+    |> Ash.create!()
 
     post
     |> Ash.Changeset.for_destroy(:cascade_destroy)
