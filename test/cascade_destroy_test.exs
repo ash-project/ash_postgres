@@ -1,7 +1,7 @@
 defmodule AshPostgresTest.CascadeDestroyTest do
   use AshPostgres.RepoCase, async: true
 
-  alias AshPostgres.Test.{Rating, Post}
+  alias AshPostgres.Test.{Post, Rating}
 
   test "can cascade destroy a has_many with parent filter" do
     post =
