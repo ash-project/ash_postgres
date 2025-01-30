@@ -11,9 +11,6 @@ exclude_tags =
     "15" ->
       [:postgres_16]
 
-    "16" ->
-      []
-
     _ ->
       []
   end
