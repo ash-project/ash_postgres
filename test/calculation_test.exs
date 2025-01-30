@@ -44,6 +44,11 @@ defmodule AshPostgres.CalculationTest do
              |> Ash.read!()
   end
 
+  test "start_of_day functions the same as Elixir's start of ay" do
+    assert Ash.calculate!(Post, :start_of_day) ==
+             Ash.Expr.eval!(Ash.Expr.expr(start_of_day(^DateTime.utc_now(), "EST")))
+  end
+
   @tag :regression
   test "an expression calculation that requires a left join & distinct doesn't raise errors on out of order params" do
     post =
