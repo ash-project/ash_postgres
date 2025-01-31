@@ -819,6 +819,45 @@ defmodule AshPostgres.MigrationGeneratorTest do
                "create unique_index(:posts, [:title], name: \"posts_unique_title_index\")"
     end
 
+    test "when concurrent-indexes flag set to true, identities are added in separate migration" do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:name, :string, public?: true)
+        end
+
+        identities do
+          identity(:unique_title, [:title])
+          identity(:unique_name, [:name])
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        concurrent_indexes: true,
+        format: false
+      )
+
+      assert [_file1, _file2, file3] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      file3_content = File.read!(file3)
+
+      assert file3_content =~ ~S[@disable_ddl_transaction true]
+
+      assert file3_content =~
+               "create unique_index(:posts, [:title], name: \"posts_unique_title_index\")"
+
+      assert file3_content =~
+               "create unique_index(:posts, [:name], name: \"posts_unique_name_index\")"
+    end
+
     test "when an attribute exists only on some of the resources that use the same table, it isn't marked as null: false" do
       defposts do
         attributes do
