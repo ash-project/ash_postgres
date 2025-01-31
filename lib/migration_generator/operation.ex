@@ -807,7 +807,15 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule AddUniqueIndex do
     @moduledoc false
-    defstruct [:identity, :table, :schema, :multitenancy, :old_multitenancy, no_phase: true]
+    defstruct [
+      :identity,
+      :table,
+      :schema,
+      :multitenancy,
+      :old_multitenancy,
+      no_phase: true,
+      concurrently: false
+    ]
 
     import Helper
 
