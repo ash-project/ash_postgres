@@ -12,6 +12,7 @@ defmodule AshPostgres.MigrationGenerator do
             name: nil,
             tenant_migration_path: nil,
             quiet: false,
+            concurrent_indexes: false,
             current_snapshots: nil,
             answers: [],
             no_shell?: false,
@@ -471,6 +472,9 @@ defmodule AshPostgres.MigrationGenerator do
                   %Operation.AddCustomIndex{index: %{concurrently: true}} ->
                     true
 
+                  %Operation.AddUniqueIndex{concurrently: true} ->
+                    true
+
                   _ ->
                     false
                 end)
@@ -491,6 +495,9 @@ defmodule AshPostgres.MigrationGenerator do
     operations
     |> Enum.split_with(fn
       %Operation.AddCustomIndex{index: %{concurrently: true}} ->
+        true
+
+      %Operation.AddUniqueIndex{concurrently: true} ->
         true
 
       _ ->
@@ -2000,7 +2007,8 @@ defmodule AshPostgres.MigrationGenerator do
         %Operation.AddUniqueIndex{
           identity: identity,
           schema: snapshot.schema,
-          table: snapshot.table
+          table: snapshot.table,
+          concurrently: opts.concurrent_indexes
         }
       end)
 
