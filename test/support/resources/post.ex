@@ -619,6 +619,7 @@ defmodule AshPostgres.Test.Post do
     calculate(:upper_thing, :string, expr(fragment("UPPER(?)", uniq_on_upper)))
 
     calculate(:upper_title, :string, expr(fragment("UPPER(?)", title)))
+    calculate(:title_twice, :string, expr(title <> title))
 
     calculate(
       :author_has_post_with_follower_named_fred,

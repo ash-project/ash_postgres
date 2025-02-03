@@ -4,6 +4,13 @@ defmodule AshPostgres.CalculationTest do
 
   require Ash.Query
   import Ash.Expr
+  import ExUnit.CaptureLog
+
+  setup do
+    on_exit(fn ->
+      Logger.configure(level: :debug)
+    end)
+  end
 
   test "a calculation that references a first optimizable aggregate can be sorted on" do
     author1 =
@@ -85,6 +92,31 @@ defmodule AshPostgres.CalculationTest do
     |> Ash.Query.load_calculation_as(:category_label, {:some, :other_thing})
     |> Ash.Query.sort(:title)
     |> Ash.read!()
+  end
+
+  test "expression calculations don't load when `reuse_values?` is true" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
+
+    Logger.configure(level: :debug)
+
+    log1 =
+      capture_log(fn ->
+        post
+        |> Ash.load!(:title_twice)
+      end)
+
+    refute log1 == ""
+
+    log2 =
+      capture_log(fn ->
+        post
+        |> Ash.load!(:title_twice, reuse_values?: true, lazy?: true)
+      end)
+
+    assert log2 == ""
   end
 
   test "an expression calculation can be filtered on" do
