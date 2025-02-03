@@ -8,7 +8,7 @@ defmodule AshPostgres.CalculationTest do
 
   setup do
     on_exit(fn ->
-      Logger.configure(level: :debug)
+      Logger.configure(level: :error)
     end)
   end
 
