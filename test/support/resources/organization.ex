@@ -24,6 +24,12 @@ defmodule AshPostgres.Test.Organization do
     end
   end
 
+  aggregates do
+    count :no_cast_open_posts_count, :posts do
+      filter(expr(status_enum_no_cast != :closed))
+    end
+  end
+
   actions do
     default_accept(:*)
 

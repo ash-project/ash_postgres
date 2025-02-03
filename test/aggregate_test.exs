@@ -12,6 +12,10 @@ defmodule AshSql.AggregateTest do
            |> Ash.read!() == []
   end
 
+  test "count aggregate on no cast enum field" do
+    Organization |> Ash.read!(load: [:no_cast_open_posts_count])
+  end
+
   test "relates to actor via has_many and with an aggregate" do
     org =
       Organization
