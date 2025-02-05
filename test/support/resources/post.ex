@@ -66,6 +66,26 @@ defmodule AshPostgres.Test.Post do
 
   require Ash.Sort
 
+  defmodule TitleTwice do
+    @moduledoc false
+    use Ash.Resource.Calculation
+
+    def load(_, _, _), do: [:title]
+
+    # it would always be a bug for these
+    # to produce different values
+    # but we do it here for testing
+    def calculate(records, _, _) do
+      Enum.map(records, fn record ->
+        "in calc:" <> record.title <> record.title
+      end)
+    end
+
+    def expression(_, _) do
+      expr("in expr:" <> title <> title)
+    end
+  end
+
   policies do
     bypass action_type(:read) do
       # Check that the post is in the same org as actor
@@ -620,6 +640,7 @@ defmodule AshPostgres.Test.Post do
 
     calculate(:upper_title, :string, expr(fragment("UPPER(?)", title)))
     calculate(:title_twice, :string, expr(title <> title))
+    calculate(:title_twice_with_calc, :string, TitleTwice)
 
     calculate(
       :author_has_post_with_follower_named_fred,

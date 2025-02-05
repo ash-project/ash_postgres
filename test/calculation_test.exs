@@ -113,10 +113,31 @@ defmodule AshPostgres.CalculationTest do
     log2 =
       capture_log(fn ->
         post
-        |> Ash.load!(:title_twice, reuse_values?: true, lazy?: true)
+        |> Ash.load!(:title_twice, reuse_values?: true)
+
+        assert "in calc:" <> _ =
+                 post
+                 |> Ash.load!(:title_twice_with_calc, reuse_values?: true)
+                 |> Map.get(:title_twice_with_calc)
       end)
 
     assert log2 == ""
+  end
+
+  test "calculations use `calculate/3` when possible" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
+
+    Logger.configure(level: :debug)
+
+    log =
+      capture_log(fn ->
+        assert "in calc:" <> _ = Ash.calculate!(post, :title_twice_with_calc, reuse_values?: true)
+      end)
+
+    assert log == ""
   end
 
   test "an expression calculation can be filtered on" do

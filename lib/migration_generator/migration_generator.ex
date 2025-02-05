@@ -645,7 +645,7 @@ defmodule AshPostgres.MigrationGenerator do
           |> Kernel.!()
         end)
         |> Enum.uniq_by(fn identity ->
-          {identity.keys, identity.base_filter}
+          {identity.keys, identity.base_filter, identity.where}
         end)
 
       new_snapshot = %{new_snapshot | identities: all_identities}
