@@ -1316,6 +1316,9 @@ defmodule AshPostgres.DataLayer do
         [] ->
           raise "Cannot use lateral joins with a resource that has no primary key and no identities"
 
+        [key] ->
+          Ash.Expr.expr(^Ash.Expr.ref(key) in ^Enum.map(records, &Map.get(&1, key)))
+
         keys ->
           Enum.reduce(records, Ash.Expr.expr(false), fn record, filter_expr ->
             all_keys_match_expr =
