@@ -173,7 +173,7 @@ defmodule AshPostgres.MixProject do
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
       # dev/test dependencies
-      {:tz, "~> 0.28.1"},
+      {:tz, "~> 0.28.1", only: [:dev, :test]},
       {:ecto_dev_logger, "~> 0.14", only: :test},
       {:eflame, "~> 1.0", only: [:dev, :test]},
       {:simple_sat, "~> 0.1", only: [:dev, :test]},
