@@ -694,6 +694,7 @@ defmodule AshPostgres.DataLayer do
     |> Enum.any?()
   end
 
+  def can?(_, :through), do: true
   def can?(_, :filter), do: true
   def can?(_, :limit), do: true
   def can?(_, :offset), do: true
