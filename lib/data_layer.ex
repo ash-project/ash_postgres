@@ -1015,7 +1015,7 @@ defmodule AshPostgres.DataLayer do
   defp lateral_join_query(
          query,
          root_data,
-         [{source_query, source_attribute, destination_attribute, relationship}]
+         [{source_query, source_attribute, destination_attribute, relationship}] = path
        ) do
     source_query = Ash.Query.new(source_query)
 
@@ -1065,7 +1065,7 @@ defmodule AshPostgres.DataLayer do
 
     source_pkey = Ash.Resource.Info.primary_key(source_query.resource)
 
-    case lateral_join_source_query(query, source_query, root_data) do
+    case lateral_join_source_query(query, source_query, root_data, path) do
       {:ok, data_layer_query} ->
         source_values = Enum.map(root_data, &Map.get(&1, source_attribute))
 
@@ -1148,13 +1148,13 @@ defmodule AshPostgres.DataLayer do
            {source_query, source_attribute, source_attribute_on_join_resource, relationship},
            {through_resource, destination_attribute_on_join_resource, destination_attribute,
             through_relationship}
-         ]
+         ] = path
        ) do
     source_query = Ash.Query.new(source_query)
     source_values = Enum.map(root_data, &Map.get(&1, source_attribute))
     source_pkey = Ash.Resource.Info.primary_key(source_query.resource)
 
-    case lateral_join_source_query(query, source_query, root_data) do
+    case lateral_join_source_query(query, source_query, root_data, path) do
       {:ok, data_layer_query} ->
         data_layer_query = Ecto.Query.exclude(data_layer_query, :select)
 
@@ -1275,7 +1275,8 @@ defmodule AshPostgres.DataLayer do
            }
          },
          source_query,
-         _root_data
+         _root_data,
+         _path
        )
        when not is_nil(lateral_join_source_query) do
     {:ok,
@@ -1283,15 +1284,44 @@ defmodule AshPostgres.DataLayer do
      |> set_subquery_prefix(source_query, lateral_join_source_query.__ash_bindings__.resource)}
   end
 
-  defp lateral_join_source_query(query, source_query, root_data) do
+  defp lateral_join_source_query(query, source_query, root_data, path) do
     source_query.resource
     |> Ash.Query.set_context(%{:data_layer => source_query.context[:data_layer]})
+    |> Ash.Query.set_context(%{
+      :data_layer =>
+        Map.put(
+          source_query.context[:data_layer] || %{},
+          :no_inner_join?,
+          true
+        )
+    })
     |> Ash.Query.set_tenant(source_query.tenant)
     |> filter_for_records(root_data)
     |> set_lateral_join_prefix(query)
     |> case do
       %{valid?: true} = query ->
-        Ash.Query.data_layer_query(query)
+        relationship = path |> List.first() |> elem(3)
+
+        {:ok, expr} =
+          Ash.Filter.hydrate_refs(relationship.filter, %{
+            resource: relationship.destination,
+            parent_stack: [relationship.source]
+          })
+
+        parent_expr = AshSql.Join.parent_expr(expr)
+
+        used_aggregates =
+          Ash.Filter.used_aggregates(parent_expr, [])
+
+        with {:ok, query} <- Ash.Query.data_layer_query(query) do
+          AshSql.Aggregate.add_aggregates(
+            query,
+            used_aggregates,
+            relationship.source,
+            false,
+            query.__ash_bindings__.root_binding
+          )
+        end
 
       query ->
         {:error, query}

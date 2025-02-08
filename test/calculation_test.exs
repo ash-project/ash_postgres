@@ -51,9 +51,11 @@ defmodule AshPostgres.CalculationTest do
              |> Ash.read!()
   end
 
-  test "start_of_day functions the same as Elixir's start of ay" do
-    assert Ash.calculate!(Post, :start_of_day) ==
-             Ash.Expr.eval!(Ash.Expr.expr(start_of_day(^DateTime.utc_now(), "EST")))
+  test "start_of_day functions the same as Elixir's start of day" do
+    Logger.configure(level: :debug)
+
+    assert Ash.calculate!(Post, :start_of_day, data_layer?: true) ==
+             Ash.Expr.eval!(Ash.Expr.expr(start_of_day(now(), "EST")))
   end
 
   @tag :regression
