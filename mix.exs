@@ -197,7 +197,7 @@ defmodule AshPostgres.MixProject do
         [path: "../ash", override: true]
 
       "main" ->
-        [git: "https://github.com/ash-project/ash.git"]
+        [git: "https://github.com/ash-project/ash.git", override: true]
 
       version when is_binary(version) ->
         "~> #{version}"

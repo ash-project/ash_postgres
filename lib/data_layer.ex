@@ -2317,11 +2317,9 @@ defmodule AshPostgres.DataLayer do
         {:error, Ash.Error.to_ash_error(error, stacktrace)}
 
       constraints ->
-        identities = Ash.Resource.Info.identities(resource)
-
         {:error,
          fake_changeset
-         |> constraints_to_errors(:insert, constraints, identities)
+         |> constraints_to_errors(:insert, constraints, resource)
          |> Ash.Error.to_ash_error()}
     end
   end
@@ -2374,7 +2372,7 @@ defmodule AshPostgres.DataLayer do
     {:error, Ash.Error.to_ash_error(error, stacktrace)}
   end
 
-  defp constraints_to_errors(%{constraints: user_constraints} = changeset, action, constraints, identities) do
+  defp constraints_to_errors(%{constraints: user_constraints} = changeset, action, constraints, resource) do
     Enum.map(constraints, fn {type, constraint} ->
       user_constraint =
         Enum.find(user_constraints, fn c ->
@@ -2389,8 +2387,11 @@ defmodule AshPostgres.DataLayer do
 
       case user_constraint do
         %{field: field, error_message: error_message, type: type, constraint: constraint} ->
+          identities = Ash.Resource.Info.identities(resource)
+          table = AshPostgres.DataLayer.Info.table(resource)
+
           identity = Enum.find(identities, fn identity ->
-            String.contains?(constraint, to_string(identity.name))
+            "#{table}_#{identity.name}_index" == constraint
           end)
 
           field_names = if identity, do: identity.field_names, else: [field]
