@@ -2959,6 +2959,14 @@ defmodule AshPostgres.MigrationGenerator do
   defp migration_type(Ash.Type.UUIDv7, _), do: :uuid
   defp migration_type(Ash.Type.Integer, _), do: :bigint
 
+  defp migration_type(Ash.Type.Vector, constraints) do
+    if constraints[:dimensions] do
+      {:vector, constraints[:dimensions]}
+    else
+      :vector
+    end
+  end
+
   defp migration_type(other, constraints) do
     type = Ash.Type.get_type(other)
 

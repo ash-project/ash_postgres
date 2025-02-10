@@ -820,7 +820,8 @@ defmodule AshPostgres.DataLayer do
     if "vector" in (config[:installed_extensions] || []) do
       functions ++
         [
-          AshPostgres.Functions.VectorCosineDistance
+          AshPostgres.Functions.VectorCosineDistance,
+          AshPostgres.Functions.VectorL2Distance
         ]
     else
       functions

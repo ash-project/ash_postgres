@@ -155,6 +155,26 @@ defmodule AshPostgres.SqlImplementation do
 
   def expr(
         query,
+        %AshPostgres.Functions.VectorL2Distance{
+          arguments: [arg1, arg2],
+          embedded?: pred_embedded?
+        },
+        bindings,
+        embedded?,
+        acc,
+        _type
+      ) do
+    {arg1, acc} =
+      AshSql.Expr.dynamic_expr(query, arg1, bindings, pred_embedded? || embedded?, :string, acc)
+
+    {arg2, acc} =
+      AshSql.Expr.dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?, :string, acc)
+
+    {:ok, Ecto.Query.dynamic(fragment("(? <-> ?)", ^arg1, ^arg2)), acc}
+  end
+
+  def expr(
+        query,
         %Ash.Query.Ref{
           attribute: %Ash.Resource.Attribute{
             type: attr_type,
