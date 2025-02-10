@@ -379,7 +379,6 @@ defmodule AshPostgres.Test.Post do
   identities do
     identity(:uniq_one_and_two, [:uniq_one, :uniq_two])
     identity(:uniq_on_upper, [:upper_thing])
-    identity(:uniq_on_upper_title, [:upper_title], field_names: [:title])
 
     identity(:uniq_if_contains_foo, [:uniq_if_contains_foo]) do
       where expr(contains(uniq_if_contains_foo, "foo"))
