@@ -772,7 +772,11 @@ defmodule AshPostgres.Test.Post do
       )
     )
 
-    calculate(:start_of_day, :datetime, expr(start_of_day(now(), "EST")))
+    calculate(
+      :start_of_day,
+      :datetime,
+      expr(start_of_day(fragment("now() AT TIME ZONE 'UTC'"), "EST"))
+    )
 
     calculate(:author_count_of_posts, :integer, expr(author.count_of_posts_with_calc))
 
