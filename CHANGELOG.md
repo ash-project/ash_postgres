@@ -5,6 +5,29 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.2](https://github.com/ash-project/ash_postgres/compare/v2.5.1...v2.5.2) (2025-02-11)
+
+
+
+
+### Bug Fixes:
+
+* update lateral join logic to match ash_sql's
+
+* simplify lateral join source filter
+
+* update sql log switches for migration and rollback tasks (#470)
+
+### Improvements:
+
+* add vector l2 distance function
+
+* use dimenstions constraint on vector for size
+
+* consider identity.where in identity deduplicator
+
+* generate migrations task support concurrent indexes flag (#471)
+
 ## [v2.5.1](https://github.com/ash-project/ash_postgres/compare/v2.5.0...v2.5.1) (2025-01-27)
 
 
