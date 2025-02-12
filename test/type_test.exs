@@ -48,7 +48,7 @@ defmodule AshPostgres.Test.TypeTest do
 
     assert [_] =
              Post
-             |> Ash.Query.filter(point == {1.0, 2.0, 3.0})
+             |> Ash.Query.filter(point == ^{1.0, 2.0, 3.0})
              |> Ash.read!()
   end
 end
