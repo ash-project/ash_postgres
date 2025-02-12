@@ -15,8 +15,6 @@ defmodule AshPostgres.MultiTenancy do
       migrations_path ||
         repo.config()[:tenant_migrations_path] || default_tenant_migration_path(repo)
 
-    Code.compiler_options(ignore_module_conflict: true)
-
     Ecto.Migration.SchemaMigration.ensure_schema_migrations_table!(
       repo,
       repo.config(),
@@ -44,8 +42,6 @@ defmodule AshPostgres.MultiTenancy do
 
       Ecto.Migration.SchemaMigration.up(repo, repo.config(), version, prefix: tenant_name)
     end)
-  after
-    Code.compiler_options(ignore_module_conflict: false)
   end
 
   # sobelow_skip ["SQL"]
