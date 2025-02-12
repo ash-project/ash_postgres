@@ -35,4 +35,20 @@ defmodule AshPostgres.Test.TypeTest do
     |> Ash.Query.filter(fragment("? = ?", id, type(^uuid, :uuid)))
     |> Ash.read!()
   end
+
+  test "complex custom types can be used in filters" do
+    Post
+    |> Ash.Changeset.for_create(:create, %{point: {1.0, 2.0, 3.0}, composite_point: %{x: 1, y: 2}})
+    |> Ash.create!()
+
+    assert [_] =
+             Post
+             |> Ash.Query.filter(composite_point == %{x: 1, y: 2})
+             |> Ash.read!()
+
+    assert [_] =
+             Post
+             |> Ash.Query.filter(point == {1.0, 2.0, 3.0})
+             |> Ash.read!()
+  end
 end
