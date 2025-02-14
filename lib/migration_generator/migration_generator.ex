@@ -1298,6 +1298,12 @@ defmodule AshPostgres.MigrationGenerator do
   defp after?(%Operation.RemovePrimaryKeyDown{}, _), do: true
   defp after?(_, %Operation.RemovePrimaryKeyDown{}), do: false
 
+  defp after?(%Operation.AddPrimaryKeyDown{}, _), do: false
+  defp after?(_, %Operation.AddPrimaryKeyDown{}), do: true
+
+  defp after?(%Operation.AddPrimaryKey{}, _), do: true
+  defp after?(_, %Operation.AddPrimaryKey{}), do: false
+
   defp after?(
          %Operation.AddCustomStatement{},
          _
@@ -1803,7 +1809,9 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp do_fetch_operations(snapshot, old_snapshot, opts, acc) do
     attribute_operations = attribute_operations(snapshot, old_snapshot, opts)
-    pkey_operations = pkey_operations(snapshot, old_snapshot, attribute_operations, opts)
+
+    {pkey_operations, attribute_operations} =
+      pkey_operations(snapshot, old_snapshot, attribute_operations, opts)
 
     rewrite_all_identities? = changing_multitenancy_affects_identities?(snapshot, old_snapshot)
 
@@ -2097,7 +2105,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp pkey_operations(snapshot, old_snapshot, attribute_operations, opts) do
     if old_snapshot[:empty?] do
-      []
+      {[], attribute_operations}
     else
       must_drop_pkey? =
         Enum.any?(
@@ -2115,10 +2123,37 @@ defmodule AshPostgres.MigrationGenerator do
             } ->
               true
 
+            %Operation.RemoveAttribute{
+              attribute: %{primary_key?: true}
+            } ->
+              true
+
             _ ->
               false
           end
         )
+
+      must_add_primary_key? =
+        must_drop_pkey? &&
+          Enum.any?(snapshot.attributes, fn attribute ->
+            attribute.primary_key?
+          end)
+
+      must_add_primary_key_in_down? =
+        must_drop_pkey? &&
+          Enum.any?(snapshot.attributes, fn attribute ->
+            attribute.primary_key? &&
+              !Enum.any?(attribute_operations, fn
+                %Operation.AlterAttribute{} = operation ->
+                  operation.new_attribute.source == attribute.source
+
+                %Operation.AddAttribute{} = operation ->
+                  operation.attribute.source == attribute.source
+
+                _ ->
+                  false
+              end)
+          end)
 
       drop_in_down? =
         Enum.any?(attribute_operations, fn
@@ -2148,17 +2183,94 @@ defmodule AshPostgres.MigrationGenerator do
             false
         end)
 
-      [
-        must_drop_pkey? &&
-          %Operation.RemovePrimaryKey{schema: snapshot.schema, table: snapshot.table},
-        must_drop_pkey? && drop_in_down? &&
-          %Operation.RemovePrimaryKeyDown{
-            commented?: opts.dont_drop_columns && drop_in_down_commented?,
-            schema: snapshot.schema,
-            table: snapshot.table
-          }
-      ]
-      |> Enum.filter(& &1)
+      attribute_operations =
+        if must_add_primary_key? do
+          Enum.map(
+            attribute_operations,
+            fn
+              %Operation.AlterAttribute{} = operation ->
+                %{
+                  operation
+                  | new_attribute: %{
+                      operation.new_attribute
+                      | primary_key?: operation.old_attribute.primary_key?
+                    }
+                }
+
+              %Operation.AddAttribute{} = operation ->
+                %{operation | attribute: %{operation.attribute | primary_key?: false}}
+
+              other ->
+                other
+            end
+          )
+        else
+          attribute_operations
+        end
+
+      attribute_operations =
+        if must_add_primary_key_in_down? do
+          Enum.map(
+            attribute_operations,
+            fn
+              %Operation.AlterAttribute{} = operation ->
+                %{
+                  operation
+                  | old_attribute: %{
+                      operation.old_attribute
+                      | primary_key?: operation.new_attribute.primary_key?
+                    }
+                }
+
+              %Operation.RemoveAttribute{} = operation ->
+                %{operation | attribute: %{operation.attribute | primary_key?: false}}
+
+              other ->
+                other
+            end
+          )
+        else
+          attribute_operations
+        end
+
+      {[
+         must_drop_pkey? &&
+           %Operation.RemovePrimaryKey{schema: snapshot.schema, table: snapshot.table},
+         must_drop_pkey? && drop_in_down? &&
+           %Operation.RemovePrimaryKeyDown{
+             commented?: opts.dont_drop_columns && drop_in_down_commented?,
+             schema: snapshot.schema,
+             table: snapshot.table
+           },
+         must_add_primary_key? &&
+           %Operation.AddPrimaryKey{
+             schema: snapshot.schema,
+             table: snapshot.table,
+             keys:
+               Enum.flat_map(snapshot.attributes, fn attribute ->
+                 if attribute.primary_key? do
+                   [attribute.source]
+                 else
+                   []
+                 end
+               end)
+           },
+         must_add_primary_key_in_down? &&
+           %Operation.AddPrimaryKeyDown{
+             schema: old_snapshot.schema,
+             table: old_snapshot.table,
+             remove_old?: must_add_primary_key? && !(must_drop_pkey? && drop_in_down?),
+             keys:
+               Enum.flat_map(old_snapshot.attributes, fn attribute ->
+                 if attribute.primary_key? do
+                   [attribute.source]
+                 else
+                   []
+                 end
+               end)
+           }
+       ]
+       |> Enum.filter(& &1), attribute_operations}
     end
   end
 

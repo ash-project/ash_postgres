@@ -1051,6 +1051,68 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     end
   end
 
+  defmodule AddPrimaryKey do
+    @moduledoc false
+    defstruct [:schema, :table, :keys, no_phase: true]
+
+    def up(%{schema: schema, table: table, keys: keys}) do
+      keys = Enum.join(keys, ", ")
+
+      if schema do
+        """
+        execute("ALTER TABLE \\\"#{schema}.#{table}\\\" ADD PRIMARY KEY (#{keys})")
+        """
+      else
+        """
+        execute("ALTER TABLE \\\"#{table}\\\" ADD PRIMARY KEY (#{keys})")
+        """
+      end
+    end
+
+    def down(_) do
+      ""
+    end
+  end
+
+  defmodule AddPrimaryKeyDown do
+    @moduledoc false
+    defstruct [:schema, :table, :keys, :remove_old?, no_phase: true]
+
+    def up(_) do
+      ""
+    end
+
+    def down(%{schema: schema, table: table, remove_old?: remove_old?, keys: keys}) do
+      keys = Enum.join(keys, ", ")
+
+      if schema do
+        remove_old =
+          if remove_old? do
+            """
+            execute("ALTER TABLE \\\"#{schema}.#{table}\\\" DROP constraint #{table}_pkey")
+            """
+          end
+
+        """
+        #{remove_old}
+        execute("ALTER TABLE \\\"#{schema}.#{table}\\\" ADD PRIMARY KEY (#{keys})")
+        """
+      else
+        remove_old =
+          if remove_old? do
+            """
+            execute("ALTER TABLE \\\"#{table}\\\" DROP constraint #{table}_pkey")
+            """
+          end
+
+        """
+        #{remove_old}
+        execute("ALTER TABLE \\\"#{table}\\\" ADD PRIMARY KEY (#{keys})")
+        """
+      end
+    end
+  end
+
   defmodule RemovePrimaryKey do
     @moduledoc false
     defstruct [:schema, :table, no_phase: true]
