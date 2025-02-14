@@ -5,6 +5,17 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.3](https://github.com/ash-project/ash_postgres/compare/v2.5.2...v2.5.3) (2025-02-14)
+
+
+
+
+### Bug Fixes:
+
+* handle dropping primary key columns properly
+
+* Ignore module conflict when compiling migration file (#482)
+
 ## [v2.5.2](https://github.com/ash-project/ash_postgres/compare/v2.5.1...v2.5.2) (2025-02-11)
 
 
