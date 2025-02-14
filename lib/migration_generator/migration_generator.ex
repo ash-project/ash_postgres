@@ -2136,7 +2136,17 @@ defmodule AshPostgres.MigrationGenerator do
       must_add_primary_key? =
         must_drop_pkey? &&
           Enum.any?(snapshot.attributes, fn attribute ->
-            attribute.primary_key?
+            attribute.primary_key? &&
+              !Enum.any?(attribute_operations, fn
+                %Operation.AlterAttribute{} = operation ->
+                  operation.new_attribute.source == attribute.source
+
+                %Operation.AddAttribute{} = operation ->
+                  operation.attribute.source == attribute.source
+
+                _ ->
+                  false
+              end)
           end)
 
       must_add_primary_key_in_down? =
