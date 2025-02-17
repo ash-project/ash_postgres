@@ -2310,7 +2310,7 @@ defmodule AshPostgres.DataLayer do
          %Postgrex.Error{} = error,
          stacktrace,
          {:bulk_create, fake_changeset},
-         _resource
+         resource
        ) do
     case Ecto.Adapters.Postgres.Connection.to_constraints(error, []) do
       [] ->
@@ -2319,7 +2319,7 @@ defmodule AshPostgres.DataLayer do
       constraints ->
         {:error,
          fake_changeset
-         |> constraints_to_errors(:insert, constraints)
+         |> constraints_to_errors(:insert, constraints, resource)
          |> Ash.Error.to_ash_error()}
     end
   end
@@ -2372,7 +2372,7 @@ defmodule AshPostgres.DataLayer do
     {:error, Ash.Error.to_ash_error(error, stacktrace)}
   end
 
-  defp constraints_to_errors(%{constraints: user_constraints} = changeset, action, constraints) do
+  defp constraints_to_errors(%{constraints: user_constraints} = changeset, action, constraints, resource) do
     Enum.map(constraints, fn {type, constraint} ->
       user_constraint =
         Enum.find(user_constraints, fn c ->
@@ -2387,14 +2387,25 @@ defmodule AshPostgres.DataLayer do
 
       case user_constraint do
         %{field: field, error_message: error_message, type: type, constraint: constraint} ->
-          Ash.Error.Changes.InvalidAttribute.exception(
-            field: field,
-            message: error_message,
-            private_vars: [
-              constraint: constraint,
-              constraint_type: type
-            ]
-          )
+          identities = Ash.Resource.Info.identities(resource)
+          table = AshPostgres.DataLayer.Info.table(resource)
+
+          identity = Enum.find(identities, fn identity ->
+            "#{table}_#{identity.name}_index" == constraint
+          end)
+
+          field_names = if identity, do: identity.field_names, else: [field]
+
+          Enum.map(field_names, fn field_name ->
+            Ash.Error.Changes.InvalidAttribute.exception(
+              field: field_name,
+              message: error_message,
+              private_vars: [
+                constraint: constraint,
+                constraint_type: type
+              ]
+            )
+          end)
 
         nil ->
           Ecto.ConstraintError.exception(
