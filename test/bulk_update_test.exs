@@ -20,6 +20,14 @@ defmodule AshPostgres.BulkUpdateTest do
     assert Enum.all?(posts, &String.ends_with?(&1.title, "_stuff"))
   end
 
+  @tag :regression
+  test "bulk updates can update maps with the join strategy" do
+    Post
+    |> Ash.Query.limit(1)
+    |> Ash.Query.filter(exists(comments, title == parent(title)))
+    |> Ash.bulk_update!(:update_metadata, %{metadata: %{1 => 2}})
+  end
+
   test "bulk updates can set datetimes" do
     Post
     |> Ash.Changeset.for_create(:create, %{title: "fred"})
