@@ -5,6 +5,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.4](https://github.com/ash-project/ash_postgres/compare/v2.5.3...v2.5.4) (2025-02-17)
+
+
+
+
+### Improvements:
+
+* Add support for field names in idenitity constraints (#478)
+
 ## [v2.5.3](https://github.com/ash-project/ash_postgres/compare/v2.5.2...v2.5.3) (2025-02-14)
 
 
