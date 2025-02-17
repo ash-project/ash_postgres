@@ -2372,7 +2372,12 @@ defmodule AshPostgres.DataLayer do
     {:error, Ash.Error.to_ash_error(error, stacktrace)}
   end
 
-  defp constraints_to_errors(%{constraints: user_constraints} = changeset, action, constraints, resource) do
+  defp constraints_to_errors(
+         %{constraints: user_constraints} = changeset,
+         action,
+         constraints,
+         resource
+       ) do
     Enum.map(constraints, fn {type, constraint} ->
       user_constraint =
         Enum.find(user_constraints, fn c ->
@@ -2390,9 +2395,10 @@ defmodule AshPostgres.DataLayer do
           identities = Ash.Resource.Info.identities(resource)
           table = AshPostgres.DataLayer.Info.table(resource)
 
-          identity = Enum.find(identities, fn identity ->
-            "#{table}_#{identity.name}_index" == constraint
-          end)
+          identity =
+            Enum.find(identities, fn identity ->
+              "#{table}_#{identity.name}_index" == constraint
+            end)
 
           field_names = if identity, do: identity.field_names, else: [field]
 
