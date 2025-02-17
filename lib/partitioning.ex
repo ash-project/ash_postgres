@@ -48,7 +48,7 @@ defmodule AshPostgres.Partitioning do
       |> tenant_schema(resource)
 
     if partition_exists?(repo, resource, partition_name, opts) do
-      {:error, :allready_exists}
+      {:error, :already_exists}
     else
       Ecto.Adapters.SQL.query(
         repo,
