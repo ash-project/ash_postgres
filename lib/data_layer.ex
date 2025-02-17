@@ -2400,7 +2400,7 @@ defmodule AshPostgres.DataLayer do
               "#{table}_#{identity.name}_index" == constraint
             end)
 
-          field_names = if identity, do: identity.field_names, else: [field]
+          field_names = if identity, do: identity.field_names || [field], else: [field]
 
           Enum.map(field_names, fn field_name ->
             Ash.Error.Changes.InvalidAttribute.exception(
