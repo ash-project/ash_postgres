@@ -1,7 +1,7 @@
 defmodule AshPostgres.Test.UniqueIdentityTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.Post
   alias AshPostgres.Test.Organization
+  alias AshPostgres.Test.Post
 
   require Ash.Query
 
