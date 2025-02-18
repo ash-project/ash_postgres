@@ -584,6 +584,77 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "changing global multitenancy" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+
+      defposts do
+        identities do
+          identity(:title, [:title])
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:organization_id)
+          global?(false)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:organization_id, :string)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      :ok
+    end
+
+    test "when changing multitenancy to global, identities aren't rewritten" do
+      defposts do
+        identities do
+          identity(:title, [:title])
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:organization_id)
+          global?(true)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:organization_id, :string)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [_file1] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+    end
+  end
+
   describe "creating follow up migrations" do
     setup do
       on_exit(fn ->
@@ -612,6 +683,37 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
 
       :ok
+    end
+
+    test "when renaming an attribute of an index, it is properly renamed without modifying the attribute" do
+      defposts do
+        identities do
+          identity(:title, [:foobar])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:foobar, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      contents = File.read!(file2)
+      refute contents =~ "modify"
     end
 
     test "when renaming an index, it is properly renamed" do
