@@ -2312,8 +2312,7 @@ defmodule AshPostgres.MigrationGenerator do
                  end
                end)
 
-             (renaming_to_source || old_attribute.source) ==
-               attribute.source &&
+             if (renaming_to_source || old_attribute.source) == attribute.source do
                attributes_unequal?(
                  old_attribute,
                  attribute,
@@ -2322,6 +2321,7 @@ defmodule AshPostgres.MigrationGenerator do
                  snapshot,
                  not is_nil(renaming_to_source)
                )
+             end
            end
          )}
       end)
@@ -2537,7 +2537,7 @@ defmodule AshPostgres.MigrationGenerator do
 
     right =
       if ignore_names? do
-        Map.drop(left, [:source, :name])
+        Map.drop(right, [:source, :name])
       else
         right
       end
