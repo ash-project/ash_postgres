@@ -5,6 +5,9 @@ defmodule AshPostgresTest do
   test "transaction metadata is given to on_transaction_begin" do
     AshPostgres.Test.Post
     |> Ash.Changeset.for_create(:create, %{title: "title"})
+    |> Ash.Changeset.after_action(fn _, result ->
+      {:ok, result}
+    end)
     |> Ash.create!()
 
     assert_receive %{
@@ -62,7 +65,7 @@ defmodule AshPostgresTest do
           actor: nil,
           actor: author
         )
-        |> then(&AshPostgres.Test.Post.can_update_if_author?(author, &1))
+        |> then(&AshPostgres.Test.Post.can_update_if_author?(author, &1, reuse_values?: true))
       end)
 
     assert log == ""
