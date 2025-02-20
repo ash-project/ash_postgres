@@ -140,8 +140,6 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
         :second_member
       ])
 
-    IO.inspect(channel)
-
     assert channel.first_member.id == channel_member_1.id
     assert channel.second_member.id == channel_member_2.id
 
