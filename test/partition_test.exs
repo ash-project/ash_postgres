@@ -3,9 +3,9 @@ defmodule AshPostgres.PartitionTest do
   alias AshPostgres.Test.PartitionedPost
 
   test "seeding data works" do
-    assert false == AshPostgres.Partitioning.exists?(PartitionedPost, key: 1)
+    assert false == AshPostgres.Partitioning.existing_partition?(PartitionedPost, key: 1)
     assert :ok == AshPostgres.Partitioning.create_partition(PartitionedPost, key: 1)
-    assert true == AshPostgres.Partitioning.exists?(PartitionedPost, key: 1)
+    assert true == AshPostgres.Partitioning.existing_partition?(PartitionedPost, key: 1)
 
     Ash.Seed.seed!(%PartitionedPost{key: 1})
 
