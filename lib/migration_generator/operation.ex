@@ -131,7 +131,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule CreateTable do
     @moduledoc false
-    defstruct [:table, :schema, :multitenancy, :old_multitenancy, :partitioning]
+    defstruct [:table, :schema, :multitenancy, :old_multitenancy]
   end
 
   defmodule AddAttribute do
