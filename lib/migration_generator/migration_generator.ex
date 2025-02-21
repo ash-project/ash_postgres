@@ -2305,22 +2305,23 @@ defmodule AshPostgres.MigrationGenerator do
          Enum.find(
            old_snapshot.attributes,
            fn old_attribute ->
-             source_match =
-               Enum.find_value(attributes_to_rename, old_attribute.source, fn {new, old} ->
+             renaming_to_source =
+               Enum.find_value(attributes_to_rename, fn {new, old} ->
                  if old.source == old_attribute.source do
                    new.source
                  end
                end)
 
-             source_match ==
-               attribute.source &&
+             if (renaming_to_source || old_attribute.source) == attribute.source do
                attributes_unequal?(
                  old_attribute,
                  attribute,
                  snapshot.repo,
                  old_snapshot,
-                 snapshot
+                 snapshot,
+                 not is_nil(renaming_to_source)
                )
+             end
            end
          )}
       end)
@@ -2522,10 +2523,24 @@ defmodule AshPostgres.MigrationGenerator do
 
   # This exists to handle the fact that the remapping of the key name -> source caused attributes
   # to be considered unequal. We ignore things that only differ in that way using this function.
-  defp attributes_unequal?(left, right, repo, _old_snapshot, _new_snapshot) do
+  defp attributes_unequal?(left, right, repo, _old_snapshot, _new_snapshot, ignore_names?) do
     left = clean_for_equality(left, repo)
 
     right = clean_for_equality(right, repo)
+
+    left =
+      if ignore_names? do
+        Map.drop(left, [:source, :name])
+      else
+        left
+      end
+
+    right =
+      if ignore_names? do
+        Map.drop(right, [:source, :name])
+      else
+        right
+      end
 
     left != right
   end
@@ -2583,7 +2598,7 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   def changing_multitenancy_affects_identities?(snapshot, old_snapshot) do
-    snapshot.multitenancy != old_snapshot.multitenancy ||
+    Map.delete(snapshot.multitenancy, :global) != Map.delete(old_snapshot.multitenancy, :global) ||
       snapshot.base_filter != old_snapshot.base_filter
   end
 

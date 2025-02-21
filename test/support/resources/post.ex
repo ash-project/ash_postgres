@@ -159,6 +159,28 @@ defmodule AshPostgres.Test.Post do
       change(atomic_update(:limited_score, expr((limited_score || 0) + ^arg(:amount))))
     end
 
+    update :change_nothing do
+      accept([])
+      require_atomic?(false)
+      change(fn changeset, _ -> changeset end)
+    end
+
+    update :change_nothing_atomic do
+      accept([])
+      require_atomic?(true)
+    end
+
+    update :change_title do
+      accept([:title])
+      require_atomic?(false)
+      change(fn changeset, _ -> changeset end)
+    end
+
+    update :change_title_atomic do
+      accept([:title])
+      require_atomic?(true)
+    end
+
     destroy :destroy_only_freds do
       change(filter(expr(title == "fred")))
     end
@@ -248,6 +270,10 @@ defmodule AshPostgres.Test.Post do
           )
         )
       )
+    end
+
+    update :update_metadata do
+      accept([:metadata])
     end
 
     destroy :cascade_destroy do
@@ -410,6 +436,7 @@ defmodule AshPostgres.Test.Post do
     attribute(:decimal, :decimal, default: Decimal.new(0), public?: true)
     attribute(:status, AshPostgres.Test.Types.Status, public?: true)
     attribute(:status_enum, AshPostgres.Test.Types.StatusEnum, public?: true)
+    attribute(:metadata, :map)
 
     attribute(:status_enum_no_cast, AshPostgres.Test.Types.StatusEnumNoCast,
       source: :status_enum,

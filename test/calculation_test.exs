@@ -563,7 +563,7 @@ defmodule AshPostgres.CalculationTest do
 
     assert [%{first_name: "abc"}, %{first_name: "tom"}] =
              Author
-             |> Ash.Query.sort(param_full_name: [separator: "~"])
+             |> Ash.Query.sort(param_full_name: %{separator: "~"})
              |> Ash.read!()
   end
 

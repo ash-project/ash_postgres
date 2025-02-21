@@ -1,4 +1,6 @@
-ExUnit.start()
+ExUnit.start(capture_log: true)
+
+Logger.configure(level: :debug)
 
 exclude_tags =
   case System.get_env("PG_VERSION") do
