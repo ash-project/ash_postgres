@@ -1055,17 +1055,24 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     @moduledoc false
     defstruct [:schema, :table, :keys, no_phase: true]
 
-    def up(%{schema: schema, table: table, keys: keys}) do
+    def up(%{schema: schema, table: table, keys: keys, multitenancy: multitenancy}) do
       keys = Enum.join(keys, ", ")
 
-      if schema do
-        """
-        execute("ALTER TABLE \\\"#{schema}.#{table}\\\" ADD PRIMARY KEY (#{keys})")
-        """
-      else
-        """
-        execute("ALTER TABLE \\\"#{table}\\\" ADD PRIMARY KEY (#{keys})")
-        """
+      cond do
+        multitenancy.strategy == :context ->
+          """
+          execute("ALTER TABLE \\\"\#{prefix()}\\\".\\\"#{table}\\\" ADD PRIMARY KEY (#{keys})")
+          """
+
+        schema ->
+          """
+          execute("ALTER TABLE \\\"#{schema}.#{table}\\\" ADD PRIMARY KEY (#{keys})")
+          """
+
+        true ->
+          """
+          execute("ALTER TABLE \\\"#{table}\\\" ADD PRIMARY KEY (#{keys})")
+          """
       end
     end
 
@@ -1082,33 +1089,54 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       ""
     end
 
-    def down(%{schema: schema, table: table, remove_old?: remove_old?, keys: keys}) do
+    def down(%{
+          schema: schema,
+          table: table,
+          remove_old?: remove_old?,
+          keys: keys,
+          multitenancy: multitenancy
+        }) do
       keys = Enum.join(keys, ", ")
 
-      if schema do
-        remove_old =
-          if remove_old? do
-            """
-            execute("ALTER TABLE \\\"#{schema}.#{table}\\\" DROP constraint #{table}_pkey")
-            """
-          end
+      cond do
+        multitenancy.strategy == :context ->
+          remove_old =
+            if remove_old? do
+              """
+              execute("ALTER TABLE \\\"\#{prefix()}\\\".\\\"#{table}\\\" DROP constraint #{table}_pkey")
+              """
+            end
 
-        """
-        #{remove_old}
-        execute("ALTER TABLE \\\"#{schema}.#{table}\\\" ADD PRIMARY KEY (#{keys})")
-        """
-      else
-        remove_old =
-          if remove_old? do
-            """
-            execute("ALTER TABLE \\\"#{table}\\\" DROP constraint #{table}_pkey")
-            """
-          end
+          """
+          #{remove_old}
+          execute("ALTER TABLE \\\"\#{prefix()}\\\".\\\"#{table}\\\" ADD PRIMARY KEY (#{keys})")
+          """
 
-        """
-        #{remove_old}
-        execute("ALTER TABLE \\\"#{table}\\\" ADD PRIMARY KEY (#{keys})")
-        """
+        not is_nil(schema) ->
+          remove_old =
+            if remove_old? do
+              """
+              execute("ALTER TABLE \\\"#{schema}.#{table}\\\" DROP constraint #{table}_pkey")
+              """
+            end
+
+          """
+          #{remove_old}
+          execute("ALTER TABLE \\\"#{schema}.#{table}\\\" ADD PRIMARY KEY (#{keys})")
+          """
+
+        true ->
+          remove_old =
+            if remove_old? do
+              """
+              execute("ALTER TABLE \\\"#{table}\\\" DROP constraint #{table}_pkey")
+              """
+            end
+
+          """
+          #{remove_old}
+          execute("ALTER TABLE \\\"#{table}\\\" ADD PRIMARY KEY (#{keys})")
+          """
       end
     end
   end
@@ -1117,11 +1145,16 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     @moduledoc false
     defstruct [:schema, :table, no_phase: true]
 
-    def up(%{schema: schema, table: table}) do
-      if schema do
-        "drop constraint(#{inspect(table)}, \"#{table}_pkey\", prefix: \"#{schema}\")"
-      else
-        "drop constraint(#{inspect(table)}, \"#{table}_pkey\")"
+    def up(%{schema: schema, table: table, multitenancy: multitenancy}) do
+      cond do
+        multitenancy.strategy == :context ->
+          "drop constraint(#{inspect(table)}, \"#{table}_pkey\", prefix: prefix())"
+
+        schema ->
+          "drop constraint(#{inspect(table)}, \"#{table}_pkey\", prefix: \"#{schema}\")"
+
+        true ->
+          "drop constraint(#{inspect(table)}, \"#{table}_pkey\")"
       end
     end
 
@@ -1138,7 +1171,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       ""
     end
 
-    def down(%{schema: schema, table: table, commented?: commented?}) do
+    def down(%{schema: schema, table: table, commented?: commented?, multitenancy: multitenancy}) do
       comment =
         if commented? do
           """
@@ -1149,10 +1182,15 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           ""
         end
 
-      if schema do
-        "#{comment}drop constraint(#{inspect(table)}, \"#{table}_pkey\", prefix: \"#{schema}\")"
-      else
-        "#{comment}drop constraint(#{inspect(table)}, \"#{table}_pkey\")"
+      cond do
+        multitenancy.strategy == :context ->
+          "#{comment}drop constraint(#{inspect(table)}, \"#{table}_pkey\", prefix: prefix())"
+
+        schema ->
+          "#{comment}drop constraint(#{inspect(table)}, \"#{table}_pkey\", prefix: \"#{schema}\")"
+
+        true ->
+          "#{comment}drop constraint(#{inspect(table)}, \"#{table}_pkey\")"
       end
     end
   end
