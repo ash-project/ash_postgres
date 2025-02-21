@@ -304,6 +304,56 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "creating initial snapshots for resources with partitioning" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+
+      defposts do
+        postgres do
+          partitioning do
+            method(:list)
+            attribute(:title)
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: false,
+        format: false
+      )
+
+      :ok
+    end
+
+    test "the migration sets up resources correctly" do
+      # the snapshot exists and contains valid json
+      assert File.read!(Path.wildcard("test_snapshots_path/test_repo/posts/*.json"))
+             |> Jason.decode!(keys: :atoms!)
+
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      file_contents = File.read!(file)
+
+      # the migration creates the table with options specifing how to partition the table
+      assert file_contents =~
+               ~S{create table(:posts, primary_key: false, options: "PARTITION BY LIST (title)") do}
+    end
+  end
+
   describe "custom_indexes with `concurrently: true`" do
     setup do
       on_exit(fn ->
@@ -489,6 +539,89 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert up_side =~ ~S[execute("ALTER TABLE \"example.posts\" ADD PRIMARY KEY (id, title)")]
       assert down_side =~ ~S[execute("ALTER TABLE \"example.posts\" ADD PRIMARY KEY (id)")]
+    end
+  end
+
+  describe "creating a multitenancy resource without composite key, adding it later" do
+    setup do
+      on_exit(fn ->
+        nil
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+        File.rm_rf!("test_tenant_migration_path")
+      end)
+
+      :ok
+    end
+
+    test "create without composite key, then add extra key" do
+      defposts do
+        postgres do
+          schema("example")
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true, allow_nil?: false)
+        end
+
+        multitenancy do
+          strategy(:context)
+        end
+      end
+
+      defdomain([Post])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        tenant_migration_path: "test_tenant_migration_path",
+        quiet: false,
+        format: false
+      )
+
+      defposts do
+        postgres do
+          schema("example")
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true, primary_key?: true, allow_nil?: false)
+        end
+
+        multitenancy do
+          strategy(:context)
+        end
+      end
+
+      defdomain([Post])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        tenant_migration_path: "test_tenant_migration_path",
+        quiet: false,
+        format: false
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("test_tenant_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      contents = File.read!(file2)
+
+      [up_side, down_side] = String.split(contents, "def down", parts: 2)
+
+      assert up_side =~
+               ~S[execute("ALTER TABLE \"#{prefix()}\".\"posts\" ADD PRIMARY KEY (id, title)")]
+
+      assert down_side =~
+               ~S[execute("ALTER TABLE \"#{prefix()}\".\"posts\" ADD PRIMARY KEY (id)")]
     end
   end
 
@@ -1156,7 +1289,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
     test "returns code(1) if snapshots and resources don't fit", %{domain: domain} do
       assert catch_exit(
                AshPostgres.MigrationGenerator.generate(domain,
-                 snapshot_path: "test_snapshot_path",
+                 snapshot_path: "test_snapshots_path",
                  migration_path: "test_migration_path",
                  check: true
                )

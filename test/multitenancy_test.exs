@@ -2,7 +2,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
   use AshPostgres.RepoCase, async: false
 
   require Ash.Query
-  alias AshPostgres.MultitenancyTest.{Org, Post, User}
+  alias AshPostgres.MultitenancyTest.{Org, Post, User, CompositeKeyPost}
   alias AshPostgres.Test.Post, as: GlobalPost
 
   setup do
@@ -123,6 +123,15 @@ defmodule AshPostgres.Test.MultitenancyTest do
                SELECT schema_name FROM information_schema.schemata WHERE schema_name = '#{new_tenant}';
                """
              )
+  end
+
+  test "composite key multitenancy works", %{org1: org1} do
+    CompositeKeyPost
+    |> Ash.Changeset.for_create(:create, %{title: "foo"})
+    |> Ash.Changeset.set_tenant(org1)
+    |> Ash.create!()
+
+    assert [_] = CompositeKeyPost |> Ash.Query.set_tenant(org1) |> Ash.read!()
   end
 
   test "loading attribute multitenant resources from context multitenant resources works" do
