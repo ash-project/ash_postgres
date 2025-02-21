@@ -16,6 +16,10 @@ defmodule AshSql.AggregateTest do
     Organization |> Ash.read!(load: [:no_cast_open_posts_count])
   end
 
+  test "count aggregate on resource with no primary key with no field specified" do
+    assert Ash.count!(AshPostgres.Test.PostView) == 0
+  end
+
   test "relates to actor via has_many and with an aggregate" do
     org =
       Organization
