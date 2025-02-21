@@ -2,7 +2,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
   use AshPostgres.RepoCase, async: false
 
   require Ash.Query
-  alias AshPostgres.MultitenancyTest.{Org, Post, User, CompositeKeyPost}
+  alias AshPostgres.MultitenancyTest.{CompositeKeyPost, Org, Post, User}
   alias AshPostgres.Test.Post, as: GlobalPost
 
   setup do
