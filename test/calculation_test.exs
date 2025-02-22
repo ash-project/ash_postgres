@@ -1,9 +1,16 @@
 defmodule AshPostgres.CalculationTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Account, Author, Comment, Post, User}
+  alias AshPostgres.Test.{Account, Author, Comedian, Comment, Post, User}
 
   require Ash.Query
   import Ash.Expr
+  import ExUnit.CaptureLog
+
+  setup do
+    on_exit(fn ->
+      Logger.configure(level: :warning)
+    end)
+  end
 
   test "a calculation that references a first optimizable aggregate can be sorted on" do
     author1 =
@@ -44,6 +51,11 @@ defmodule AshPostgres.CalculationTest do
              |> Ash.read!()
   end
 
+  test "start_of_day functions the same as Elixir's start of day" do
+    assert Ash.calculate!(Post, :start_of_day, data_layer?: true) ==
+             Ash.Expr.eval!(Ash.Expr.expr(start_of_day(now(), "EST")))
+  end
+
   @tag :regression
   test "an expression calculation that requires a left join & distinct doesn't raise errors on out of order params" do
     post =
@@ -80,6 +92,52 @@ defmodule AshPostgres.CalculationTest do
     |> Ash.Query.load_calculation_as(:category_label, {:some, :other_thing})
     |> Ash.Query.sort(:title)
     |> Ash.read!()
+  end
+
+  test "expression calculations don't load when `reuse_values?` is true" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
+
+    Logger.configure(level: :debug)
+
+    log1 =
+      capture_log(fn ->
+        post
+        |> Ash.load!(:title_twice)
+      end)
+
+    refute log1 == ""
+
+    log2 =
+      capture_log(fn ->
+        post
+        |> Ash.load!(:title_twice, reuse_values?: true)
+
+        assert "in calc:" <> _ =
+                 post
+                 |> Ash.load!(:title_twice_with_calc, reuse_values?: true)
+                 |> Map.get(:title_twice_with_calc)
+      end)
+
+    assert log2 == ""
+  end
+
+  test "calculations use `calculate/3` when possible" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
+
+    Logger.configure(level: :debug)
+
+    log =
+      capture_log(fn ->
+        assert "in calc:" <> _ = Ash.calculate!(post, :title_twice_with_calc, reuse_values?: true)
+      end)
+
+    assert log == ""
   end
 
   test "an expression calculation can be filtered on" do
@@ -505,7 +563,7 @@ defmodule AshPostgres.CalculationTest do
 
     assert [%{first_name: "abc"}, %{first_name: "tom"}] =
              Author
-             |> Ash.Query.sort(param_full_name: [separator: "~"])
+             |> Ash.Query.sort(param_full_name: %{separator: "~"})
              |> Ash.read!()
   end
 
@@ -935,6 +993,12 @@ defmodule AshPostgres.CalculationTest do
              Post
              |> Ash.Query.filter(has_no_followers)
              |> Ash.read!()
+  end
+
+  test "module calculation inside expr calculation works" do
+    commedian = Comedian.create!(%{name: "John"})
+    commedian = Ash.get!(Comedian, commedian.id, load: [:has_jokes_expr], authorize?: false)
+    assert %{has_jokes_expr: false} = commedian
   end
 
   def fred do

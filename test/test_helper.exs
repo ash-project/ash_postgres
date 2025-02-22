@@ -1,5 +1,7 @@
 ExUnit.start(capture_log: true)
 
+Logger.configure(level: :debug)
+
 exclude_tags =
   case System.get_env("PG_VERSION") do
     "13" ->
@@ -10,9 +12,6 @@ exclude_tags =
 
     "15" ->
       [:postgres_16]
-
-    "16" ->
-      []
 
     _ ->
       []

@@ -7,6 +7,9 @@ defmodule AshPostgres.MultitenancyTest.Domain do
     resource(AshPostgres.MultitenancyTest.User)
     resource(AshPostgres.MultitenancyTest.Post)
     resource(AshPostgres.MultitenancyTest.PostLink)
+    resource(AshPostgres.MultitenancyTest.NonMultitenantPostLink)
+    resource(AshPostgres.MultitenancyTest.CrossTenantPostLink)
+    resource(AshPostgres.MultitenancyTest.CompositeKeyPost)
   end
 
   authorization do

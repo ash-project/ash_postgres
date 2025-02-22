@@ -84,12 +84,31 @@ defmodule AshPostgres.Repo do
   @doc "Whether or not to explicitly start and close a transaction for each atomic update action, even if there are no transaction hooks. Defaults to `false`."
   @callback prefer_transaction_for_atomic_updates?() :: boolean
 
+  @doc """
+  Determine how constraint names are matched when generating errors.
+
+  This is useful if you are using something like citus that creates generated constraint
+  names for each node. In that case, for example, you might return a regex that
+  matches the name plus digits.
+  """
+  @callback default_constraint_match_type(
+              type :: :custom | :exclusion | :unique | :foreign | :check,
+              name :: String.t()
+            ) ::
+              :exact | :prefix | :suffix | {:regex, Regex.t()}
+
   @doc "Allows overriding a given migration type for *all* fields, for example if you wanted to always use :timestamptz for :utc_datetime fields"
   @callback override_migration_type(atom) :: atom
   @doc "Should the repo should be created by `mix ash_postgres.create`?"
   @callback create?() :: boolean
   @doc "Should the repo should be dropped by `mix ash_postgres.drop`?"
   @callback drop?() :: boolean
+
+  @doc "Disable atomic actions for this repo"
+  @callback disable_atomic_actions?() :: boolean
+
+  @doc "Disable expression errors for this repo"
+  @callback disable_expr_error?() :: boolean
 
   defmacro __using__(opts) do
     quote bind_quoted: [opts: opts] do
@@ -120,11 +139,15 @@ defmodule AshPostgres.Repo do
       def override_migration_type(type), do: type
       def create?, do: true
       def drop?, do: true
+      def disable_atomic_actions?, do: false
+      def disable_expr_error?, do: false
 
       # default to false in 4.0
       def prefer_transaction?, do: true
 
       def prefer_transaction_for_atomic_updates?, do: false
+
+      def default_constraint_match_type(_type, _name), do: :exact
 
       def transaction!(fun) do
         case fun.() do
@@ -266,13 +289,16 @@ defmodule AshPostgres.Repo do
                      on_transaction_begin: 1,
                      installed_extensions: 0,
                      all_tenants: 0,
+                     default_constraint_match_type: 2,
                      prefer_transaction?: 0,
                      prefer_transaction_for_atomic_updates?: 0,
                      tenant_migrations_path: 0,
                      default_prefix: 0,
                      override_migration_type: 1,
                      create?: 0,
-                     drop?: 0
+                     drop?: 0,
+                     disable_atomic_actions?: 0,
+                     disable_expr_error?: 0
 
       # We do this switch because `!@warn_on_missing_ash_functions` in the function body triggers
       # a dialyzer error

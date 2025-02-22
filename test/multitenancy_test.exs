@@ -1,7 +1,9 @@
 defmodule AshPostgres.Test.MultitenancyTest do
   use AshPostgres.RepoCase, async: false
 
-  alias AshPostgres.MultitenancyTest.{Org, Post, User}
+  require Ash.Query
+  alias AshPostgres.MultitenancyTest.{CompositeKeyPost, Org, Post, User}
+  alias AshPostgres.Test.Post, as: GlobalPost
 
   setup do
     org1 =
@@ -44,6 +46,20 @@ defmodule AshPostgres.Test.MultitenancyTest do
              |> Ash.read!()
   end
 
+  test "joining to non multitenant through relationship works", %{org1: org1} do
+    Post
+    |> Ash.Query.filter(linked_non_multitenant_posts.title == "fred")
+    |> Ash.Query.set_tenant("org_" <> org1.id)
+    |> Ash.read!()
+  end
+
+  test "joining from non multitenant through relationship works", %{org1: org1} do
+    GlobalPost
+    |> Ash.Query.filter(linked_multitenant_posts.name == "fred")
+    |> Ash.Query.set_tenant("org_" <> org1.id)
+    |> Ash.read!()
+  end
+
   test "attribute multitenancy works with authorization", %{org1: org1} do
     user =
       User
@@ -53,7 +69,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
 
     assert [] =
              Org
-             |> Ash.Query.set_tenant(org1)
+             |> Ash.Query.set_tenant("org_" <> org1.id)
              |> Ash.Query.for_read(:has_policies, %{}, actor: user, authorize?: true)
              |> Ash.read!()
   end
@@ -107,6 +123,16 @@ defmodule AshPostgres.Test.MultitenancyTest do
                SELECT schema_name FROM information_schema.schemata WHERE schema_name = '#{new_tenant}';
                """
              )
+  end
+
+  test "composite key multitenancy works", %{org1: org1} do
+    CompositeKeyPost
+    |> Ash.Changeset.for_create(:create, %{title: "foo"})
+    |> Ash.Changeset.manage_relationship(:org, org1, type: :append_and_remove)
+    |> Ash.Changeset.set_tenant(org1)
+    |> Ash.create!()
+
+    assert [_] = CompositeKeyPost |> Ash.Query.set_tenant(org1) |> Ash.read!()
   end
 
   test "loading attribute multitenant resources from context multitenant resources works" do

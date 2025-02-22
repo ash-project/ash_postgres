@@ -28,11 +28,14 @@ defmodule AshPostgres.MigrationCompileCache do
   defp ensure_compiled(state, file) do
     case Map.get(state, file) do
       nil ->
+        Code.put_compiler_option(:ignore_module_conflict, true)
         compiled = Code.compile_file(file)
         Map.put(state, file, compiled)
 
       _ ->
         state
     end
+  after
+    Code.put_compiler_option(:ignore_module_conflict, false)
   end
 end

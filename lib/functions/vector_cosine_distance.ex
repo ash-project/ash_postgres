@@ -6,4 +6,6 @@ defmodule AshPostgres.Functions.VectorCosineDistance do
   use Ash.Query.Function, name: :vector_cosine_distance
 
   def args, do: [[:vector, :vector]]
+
+  def returns, do: [:float]
 end

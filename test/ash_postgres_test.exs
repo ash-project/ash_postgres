@@ -1,9 +1,13 @@
 defmodule AshPostgresTest do
   use AshPostgres.RepoCase, async: false
+  import ExUnit.CaptureLog
 
   test "transaction metadata is given to on_transaction_begin" do
     AshPostgres.Test.Post
     |> Ash.Changeset.for_create(:create, %{title: "title"})
+    |> Ash.Changeset.after_action(fn _, result ->
+      {:ok, result}
+    end)
     |> Ash.create!()
 
     assert_receive %{
@@ -39,5 +43,31 @@ defmodule AshPostgresTest do
       )
       |> Map.get(:title)
     end
+  end
+
+  test "it does not run queries for exists/2 expressions that can be determined from loaded data" do
+    author =
+      AshPostgres.Test.Author
+      |> Ash.Changeset.for_create(:create, %{}, authorize?: false)
+      |> Ash.create!()
+
+    post =
+      AshPostgres.Test.Post
+      |> Ash.Changeset.for_create(:create, %{title: "good", author_id: author.id})
+      |> Ash.create!()
+      |> Ash.load!(:author)
+
+    log =
+      capture_log(fn ->
+        post
+        |> Ash.Changeset.for_update(:update_if_author, %{title: "bad"},
+          authorize?: true,
+          actor: nil,
+          actor: author
+        )
+        |> then(&AshPostgres.Test.Post.can_update_if_author?(author, &1, reuse_values?: true))
+      end)
+
+    assert log == ""
   end
 end

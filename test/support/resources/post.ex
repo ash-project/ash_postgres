@@ -66,6 +66,26 @@ defmodule AshPostgres.Test.Post do
 
   require Ash.Sort
 
+  defmodule TitleTwice do
+    @moduledoc false
+    use Ash.Resource.Calculation
+
+    def load(_, _, _), do: [:title]
+
+    # it would always be a bug for these
+    # to produce different values
+    # but we do it here for testing
+    def calculate(records, _, _) do
+      Enum.map(records, fn record ->
+        "in calc:" <> record.title <> record.title
+      end)
+    end
+
+    def expression(_, _) do
+      expr("in expr:" <> title <> title)
+    end
+  end
+
   policies do
     bypass action_type(:read) do
       # Check that the post is in the same org as actor
@@ -78,6 +98,10 @@ defmodule AshPostgres.Test.Post do
 
     policy action(:requires_initial_data) do
       authorize_if(PassIfOriginalDataPresent)
+    end
+
+    bypass action(:update_if_author) do
+      authorize_if(relates_to_actor_via(:author))
     end
 
     policy action_type(:update) do
@@ -133,6 +157,28 @@ defmodule AshPostgres.Test.Post do
     update :add_to_limited_score do
       argument(:amount, :integer, allow_nil?: false)
       change(atomic_update(:limited_score, expr((limited_score || 0) + ^arg(:amount))))
+    end
+
+    update :change_nothing do
+      accept([])
+      require_atomic?(false)
+      change(fn changeset, _ -> changeset end)
+    end
+
+    update :change_nothing_atomic do
+      accept([])
+      require_atomic?(true)
+    end
+
+    update :change_title do
+      accept([:title])
+      require_atomic?(false)
+      change(fn changeset, _ -> changeset end)
+    end
+
+    update :change_title_atomic do
+      accept([:title])
+      require_atomic?(true)
     end
 
     destroy :destroy_only_freds do
@@ -226,8 +272,20 @@ defmodule AshPostgres.Test.Post do
       )
     end
 
+    update :update_metadata do
+      accept([:metadata])
+    end
+
+    destroy :cascade_destroy do
+      change(cascade_destroy(:high_ratings, after_action?: false))
+    end
+
     update :update do
       primary?(true)
+      require_atomic?(false)
+    end
+
+    update :update_if_author do
       require_atomic?(false)
     end
 
@@ -337,6 +395,11 @@ defmodule AshPostgres.Test.Post do
       accept([:title])
       change(optimistic_lock(:version))
     end
+
+    read :read_with_related_list_agg_filter do
+      pagination(keyset?: true, default_limit: 25)
+      filter(expr(count_nils(latest_comment.linked_comment_post_ids) == 0))
+    end
   end
 
   identities do
@@ -373,6 +436,7 @@ defmodule AshPostgres.Test.Post do
     attribute(:decimal, :decimal, default: Decimal.new(0), public?: true)
     attribute(:status, AshPostgres.Test.Types.Status, public?: true)
     attribute(:status_enum, AshPostgres.Test.Types.StatusEnum, public?: true)
+    attribute(:metadata, :map)
 
     attribute(:status_enum_no_cast, AshPostgres.Test.Types.StatusEnumNoCast,
       source: :status_enum,
@@ -423,6 +487,7 @@ defmodule AshPostgres.Test.Post do
     define(:get_by_id, action: :read, get_by: [:id])
     define(:increment_score, args: [{:optional, :amount}])
     define(:destroy)
+    define(:update_if_author)
     define(:update_constrained_int, args: [:amount])
 
     define_calculation(:upper_title, args: [:title])
@@ -446,6 +511,24 @@ defmodule AshPostgres.Test.Post do
 
     belongs_to(:author, AshPostgres.Test.Author) do
       public?(true)
+    end
+
+    has_many :co_author_posts, AshPostgres.Test.CoAuthorPost do
+      public?(true)
+
+      destination_attribute(:post_id)
+    end
+
+    many_to_many :co_authors, AshPostgres.Test.Author do
+      public?(true)
+      join_relationship(:co_author_posts)
+
+      filter(expr(is_nil(parent(co_author_posts.was_cancelled_at))))
+    end
+
+    many_to_many :co_authors_unfiltered, AshPostgres.Test.Author do
+      public?(true)
+      join_relationship(:co_author_posts)
     end
 
     has_many :posts_with_matching_title, __MODULE__ do
@@ -489,6 +572,13 @@ defmodule AshPostgres.Test.Post do
       relationship_context: %{data_layer: %{table: "post_ratings"}}
     )
 
+    has_many :high_ratings, AshPostgres.Test.Rating do
+      public?(true)
+      destination_attribute(:resource_id)
+      relationship_context(%{data_layer: %{table: "post_ratings"}})
+      filter(expr(score > parent(score)))
+    end
+
     has_many(:post_links, AshPostgres.Test.PostLink,
       public?: true,
       destination_attribute: :source_post_id,
@@ -501,6 +591,13 @@ defmodule AshPostgres.Test.Post do
       join_relationship: :post_links,
       source_attribute_on_join_resource: :source_post_id,
       destination_attribute_on_join_resource: :destination_post_id
+    )
+
+    many_to_many(:linked_multitenant_posts, AshPostgres.MultitenancyTest.Post,
+      public?: true,
+      through: AshPostgres.MultitenancyTest.CrossTenantPostLink,
+      source_attribute_on_join_resource: :source_id,
+      destination_attribute_on_join_resource: :dest_id
     )
 
     many_to_many(:followers, AshPostgres.Test.User,
@@ -569,6 +666,8 @@ defmodule AshPostgres.Test.Post do
     calculate(:upper_thing, :string, expr(fragment("UPPER(?)", uniq_on_upper)))
 
     calculate(:upper_title, :string, expr(fragment("UPPER(?)", title)))
+    calculate(:title_twice, :string, expr(title <> title))
+    calculate(:title_twice_with_calc, :string, TitleTwice)
 
     calculate(
       :author_has_post_with_follower_named_fred,
@@ -698,6 +797,12 @@ defmodule AshPostgres.Test.Post do
           false
         )
       )
+    )
+
+    calculate(
+      :start_of_day,
+      :datetime,
+      expr(start_of_day(fragment("now() AT TIME ZONE 'UTC'"), "EST"))
     )
 
     calculate(:author_count_of_posts, :integer, expr(author.count_of_posts_with_calc))

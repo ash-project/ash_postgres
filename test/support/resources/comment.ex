@@ -48,6 +48,10 @@ defmodule AshPostgres.Test.Comment do
     count(:co_popular_comments, [:post, :popular_comments])
     count(:count_of_comments_containing_title, [:post, :comments_containing_title])
     list(:posts_for_comments_containing_title, [:post, :comments_containing_title, :post], :title)
+
+    list :linked_comment_post_ids, [:linked_comments, :post], :id do
+      uniq?(true)
+    end
   end
 
   calculations do
@@ -70,6 +74,13 @@ defmodule AshPostgres.Test.Comment do
 
     belongs_to(:author, AshPostgres.Test.Author) do
       public?(true)
+    end
+
+    many_to_many(:linked_comments, AshPostgres.Test.Comment) do
+      public?(true)
+      through(AshPostgres.Test.CommentLink)
+      source_attribute_on_join_resource(:source_id)
+      destination_attribute_on_join_resource(:dest_id)
     end
 
     has_many(:ratings, AshPostgres.Test.Rating,

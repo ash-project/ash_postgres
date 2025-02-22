@@ -170,16 +170,19 @@ defmodule AshPostgres.Mix.Helpers do
   end
 
   def derive_migrations_path(repo) do
-    config = repo.config()
-    priv = config[:priv] || "priv/#{repo |> Module.split() |> List.last() |> Macro.underscore()}"
-    app = Keyword.fetch!(config, :otp_app)
-    Application.app_dir(app, Path.join(priv, "migrations"))
+    priv = source_repo_priv(repo)
+    Path.join(priv, "migrations")
   end
 
   def derive_tenant_migrations_path(repo) do
+    priv = source_repo_priv(repo)
+    Path.join(priv, "tenant_migrations")
+  end
+
+  def source_repo_priv(repo) do
     config = repo.config()
     priv = config[:priv] || "priv/#{repo |> Module.split() |> List.last() |> Macro.underscore()}"
     app = Keyword.fetch!(config, :otp_app)
-    Application.app_dir(app, Path.join(priv, "tenant_migrations"))
+    Path.join(Mix.Project.deps_paths()[app] || File.cwd!(), priv)
   end
 end

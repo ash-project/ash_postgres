@@ -340,4 +340,10 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
              |> Ash.Query.filter(sum_of_author_count_of_posts == 1)
              |> Ash.read!()
   end
+
+  test "filters with nested related list aggregate references don't raise errors" do
+    AshPostgres.Test.Note
+    |> Ash.Query.for_read(:failing_many_reference)
+    |> Ash.read!(page: [count: true])
+  end
 end

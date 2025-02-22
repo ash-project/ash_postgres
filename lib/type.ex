@@ -8,12 +8,21 @@ defmodule AshPostgres.Type do
   @callback value_to_postgres_default(Ash.Type.t(), Ash.Type.constraints(), term) ::
               {:ok, String.t()} | :error
 
+  @callback postgres_reference_expr(Ash.Type.t(), Ash.Type.constraints(), term) ::
+              {:ok, term} | :error
+
+  @optional_callbacks value_to_postgres_default: 3,
+                      postgres_reference_expr: 3
+
   defmacro __using__(_) do
     quote do
       @behaviour AshPostgres.Type
-      def value_to_postgres_default(_, _, _), do: :error
 
-      defoverridable value_to_postgres_default: 3
+      def value_to_postgres_default(_, _, _), do: :error
+      def postgres_reference_expr(_, _, _), do: :error
+
+      defoverridable value_to_postgres_default: 3,
+                     postgres_reference_expr: 3
     end
   end
 end

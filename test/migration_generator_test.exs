@@ -393,6 +393,188 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "creating follow up migrations with a composite primary key" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+
+      defposts do
+        postgres do
+          schema("example")
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true, primary_key?: true, allow_nil?: false)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      :ok
+    end
+
+    test "when removing an element, it recreates the primary key" do
+      defposts do
+        postgres do
+          schema("example")
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defdomain([Post])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      contents = File.read!(file2)
+
+      [up_side, down_side] = String.split(contents, "def down", parts: 2)
+
+      assert up_side =~ ~S[execute("ALTER TABLE \"example.posts\" ADD PRIMARY KEY (id)")]
+      assert down_side =~ ~S[execute("ALTER TABLE \"example.posts\" DROP constraint posts_pkey")]
+      assert down_side =~ ~S[execute("ALTER TABLE \"example.posts\" ADD PRIMARY KEY (id, title)")]
+
+      defposts do
+        postgres do
+          schema("example")
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true, primary_key?: true, allow_nil?: false)
+        end
+      end
+
+      defdomain([Post])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [_file1, _file2, file3] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      contents = File.read!(file3)
+
+      [up_side, down_side] = String.split(contents, "def down", parts: 2)
+
+      assert up_side =~ ~S[execute("ALTER TABLE \"example.posts\" ADD PRIMARY KEY (id, title)")]
+      assert down_side =~ ~S[execute("ALTER TABLE \"example.posts\" ADD PRIMARY KEY (id)")]
+    end
+  end
+
+  describe "creating a multitenancy resource without composite key, adding it later" do
+    setup do
+      on_exit(fn ->
+        nil
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+        File.rm_rf!("test_tenant_migration_path")
+      end)
+
+      :ok
+    end
+
+    test "create without composite key, then add extra key" do
+      defposts do
+        postgres do
+          schema("example")
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true, allow_nil?: false)
+        end
+
+        multitenancy do
+          strategy(:context)
+        end
+      end
+
+      defdomain([Post])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        tenant_migration_path: "test_tenant_migration_path",
+        quiet: false,
+        format: false
+      )
+
+      defposts do
+        postgres do
+          schema("example")
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true, primary_key?: true, allow_nil?: false)
+        end
+
+        multitenancy do
+          strategy(:context)
+        end
+      end
+
+      defdomain([Post])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        tenant_migration_path: "test_tenant_migration_path",
+        quiet: false,
+        format: false
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("test_tenant_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      contents = File.read!(file2)
+
+      [up_side, down_side] = String.split(contents, "def down", parts: 2)
+
+      assert up_side =~
+               ~S[execute("ALTER TABLE \"#{prefix()}\".\"posts\" ADD PRIMARY KEY (id, title)")]
+
+      assert down_side =~
+               ~S[execute("ALTER TABLE \"#{prefix()}\".\"posts\" ADD PRIMARY KEY (id)")]
+    end
+  end
+
   describe "creating follow up migrations with a schema" do
     setup do
       on_exit(fn ->
@@ -485,6 +667,77 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "changing global multitenancy" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+
+      defposts do
+        identities do
+          identity(:title, [:title])
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:organization_id)
+          global?(false)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:organization_id, :string)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      :ok
+    end
+
+    test "when changing multitenancy to global, identities aren't rewritten" do
+      defposts do
+        identities do
+          identity(:title, [:title])
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:organization_id)
+          global?(true)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:organization_id, :string)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [_file1] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+    end
+  end
+
   describe "creating follow up migrations" do
     setup do
       on_exit(fn ->
@@ -513,6 +766,37 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
 
       :ok
+    end
+
+    test "when renaming an attribute of an index, it is properly renamed without modifying the attribute" do
+      defposts do
+        identities do
+          identity(:title, [:foobar])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:foobar, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      contents = File.read!(file2)
+      refute contents =~ "modify"
     end
 
     test "when renaming an index, it is properly renamed" do
@@ -819,6 +1103,45 @@ defmodule AshPostgres.MigrationGeneratorTest do
                "create unique_index(:posts, [:title], name: \"posts_unique_title_index\")"
     end
 
+    test "when concurrent-indexes flag set to true, identities are added in separate migration" do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:name, :string, public?: true)
+        end
+
+        identities do
+          identity(:unique_title, [:title])
+          identity(:unique_name, [:name])
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        concurrent_indexes: true,
+        format: false
+      )
+
+      assert [_file1, _file2, file3] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      file3_content = File.read!(file3)
+
+      assert file3_content =~ ~S[@disable_ddl_transaction true]
+
+      assert file3_content =~
+               "create unique_index(:posts, [:title], name: \"posts_unique_title_index\")"
+
+      assert file3_content =~
+               "create unique_index(:posts, [:name], name: \"posts_unique_name_index\")"
+    end
+
     test "when an attribute exists only on some of the resources that use the same table, it isn't marked as null: false" do
       defposts do
         attributes do
@@ -916,7 +1239,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
     test "returns code(1) if snapshots and resources don't fit", %{domain: domain} do
       assert catch_exit(
                AshPostgres.MigrationGenerator.generate(domain,
-                 snapshot_path: "test_snapshot_path",
+                 snapshot_path: "test_snapshots_path",
                  migration_path: "test_migration_path",
                  check: true
                )

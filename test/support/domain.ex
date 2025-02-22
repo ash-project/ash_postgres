@@ -3,8 +3,11 @@ defmodule AshPostgres.Test.Domain do
   use Ash.Domain
 
   resources do
+    resource(AshPostgres.Test.CoAuthorPost)
     resource(AshPostgres.Test.Post)
+    resource(AshPostgres.Test.Comedian)
     resource(AshPostgres.Test.Comment)
+    resource(AshPostgres.Test.CommentLink)
     resource(AshPostgres.Test.IntegerPost)
     resource(AshPostgres.Test.Rating)
     resource(AshPostgres.Test.PostLink)
@@ -13,10 +16,16 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.Profile)
     resource(AshPostgres.Test.User)
     resource(AshPostgres.Test.Invite)
+    resource(AshPostgres.Test.Joke)
+    resource(AshPostgres.Test.Note)
+    resource(AshPostgres.Test.StaffGroup)
+    resource(AshPostgres.Test.StaffGroupMember)
+    resource(AshPostgres.Test.Content)
     resource(AshPostgres.Test.Account)
     resource(AshPostgres.Test.Organization)
     resource(AshPostgres.Test.Manager)
     resource(AshPostgres.Test.Entity)
+    resource(AshPostgres.Test.ContentVisibilityGroup)
     resource(AshPostgres.Test.TempEntity)
     resource(AshPostgres.Test.Permalink)
     resource(AshPostgres.Test.Record)

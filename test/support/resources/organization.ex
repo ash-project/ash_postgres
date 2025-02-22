@@ -10,6 +10,8 @@ defmodule AshPostgres.Test.Organization do
   postgres do
     table("orgs")
     repo(AshPostgres.TestRepo)
+
+    calculations_to_sql(lower_department: "LOWER(department)")
   end
 
   policies do
@@ -24,6 +26,12 @@ defmodule AshPostgres.Test.Organization do
     end
   end
 
+  aggregates do
+    count :no_cast_open_posts_count, :posts do
+      filter(expr(status_enum_no_cast != :closed))
+    end
+  end
+
   actions do
     default_accept(:*)
 
@@ -33,6 +41,15 @@ defmodule AshPostgres.Test.Organization do
   attributes do
     uuid_primary_key(:id, writable?: true)
     attribute(:name, :string, public?: true)
+    attribute(:department, :string, public?: true)
+  end
+
+  calculations do
+    calculate(:lower_department, :string, expr(fragment("LOWER(?)", department)))
+  end
+
+  identities do
+    identity(:department, [:lower_department], field_names: [:department_slug])
   end
 
   relationships do

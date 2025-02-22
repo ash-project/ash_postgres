@@ -9,7 +9,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
   * `migration-path` - a custom path to store the migrations, defaults to "priv/repo_name/migrations".
     Migrations are stored in a folder for each repo, so `priv/repo_name/migrations`
   * `tenant-migration-path` - Same as `migration_path`, except for tenant-specific migrations
-  * `drop-columns` - whether or not to drop columns as attributes are removed. See below for more
+  * `dont-drop-columns` - whether or not to drop columns as attributes are removed. See below for more
   * `name` -
       names the generated migrations, prepending with the timestamp. The default is `migrate_resources_<n>`,
       where `<n>` is the count of migrations matching `*migrate_resources*` plus one.
@@ -22,6 +22,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
   * `dry-run` - no files are created, instead the new migration is printed
   * `check` - no files are created, returns an exit(1) code if the current snapshots and resources don't fit
   * `snapshots-only` - no migrations are generated, only snapshots are stored
+  * `concurrent-indexes` - new identities will be run concurrently and in a separate migration (like concurrent custom indexes)
 
   #### Snapshots
 
@@ -96,7 +97,8 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
           no_format: :boolean,
           dry_run: :boolean,
           check: :boolean,
-          dont_drop_columns: :boolean
+          dont_drop_columns: :boolean,
+          concurrent_indexes: :boolean
         ]
       )
 

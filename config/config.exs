@@ -18,6 +18,7 @@ if Mix.env() == :dev do
 end
 
 if Mix.env() == :test do
+  config :elixir, :time_zone_database, Tz.TimeZoneDatabase
   config :ash_postgres, AshPostgres.TestRepo, log: false
   config :ash_postgres, AshPostgres.TestNoSandboxRepo, log: false
 

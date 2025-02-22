@@ -5,6 +5,7 @@ defmodule AshPostgres.Test.Subquery.Access do
   use Ash.Resource,
     domain: AshPostgres.Test.Subquery.ParentDomain,
     data_layer: AshPostgres.DataLayer,
+    primary_read_warning?: false,
     authorizers: [
       Ash.Policy.Authorizer
     ]

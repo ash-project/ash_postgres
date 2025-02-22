@@ -12,6 +12,7 @@ defmodule AshPostgres.MigrationGenerator do
             name: nil,
             tenant_migration_path: nil,
             quiet: false,
+            concurrent_indexes: false,
             current_snapshots: nil,
             answers: [],
             no_shell?: false,
@@ -156,18 +157,8 @@ defmodule AshPostgres.MigrationGenerator do
     if snapshot_path = config[:snapshots_path] do
       snapshot_path
     else
-      priv =
-        config[:priv] || "priv/"
-
       app = Keyword.fetch!(config, :otp_app)
-
-      Application.app_dir(
-        app,
-        Path.join([
-          priv,
-          "resource_snapshots"
-        ])
-      )
+      Path.join(Mix.Project.deps_paths()[app] || File.cwd!(), "priv/resource_snapshots")
     end
   end
 
@@ -183,7 +174,7 @@ defmodule AshPostgres.MigrationGenerator do
         |> Path.join(repo_name)
         |> Path.join("extensions.json")
 
-      unless opts.dry_run || opts.check do
+      if !(opts.dry_run || opts.check) do
         File.rename(legacy_snapshot_file, snapshot_file)
       end
 
@@ -481,6 +472,9 @@ defmodule AshPostgres.MigrationGenerator do
                   %Operation.AddCustomIndex{index: %{concurrently: true}} ->
                     true
 
+                  %Operation.AddUniqueIndex{concurrently: true} ->
+                    true
+
                   _ ->
                     false
                 end)
@@ -501,6 +495,9 @@ defmodule AshPostgres.MigrationGenerator do
     operations
     |> Enum.split_with(fn
       %Operation.AddCustomIndex{index: %{concurrently: true}} ->
+        true
+
+      %Operation.AddUniqueIndex{concurrently: true} ->
         true
 
       _ ->
@@ -648,7 +645,7 @@ defmodule AshPostgres.MigrationGenerator do
           |> Kernel.!()
         end)
         |> Enum.uniq_by(fn identity ->
-          {identity.keys, identity.base_filter}
+          {identity.keys, identity.base_filter, identity.where}
         end)
 
       new_snapshot = %{new_snapshot | identities: all_identities}
@@ -824,7 +821,12 @@ defmodule AshPostgres.MigrationGenerator do
 
             %{
               keys: pkey_names,
-              name: name
+              name: name,
+              index_name: name,
+              base_filter: nil,
+              all_tenants?: false,
+              nils_distinct?: false,
+              where: nil
             }
           end)
 
@@ -859,7 +861,11 @@ defmodule AshPostgres.MigrationGenerator do
 
           %{
             keys: pkey_names,
-            name: name
+            name: name,
+            base_filter: nil,
+            all_tenants?: false,
+            nils_distinct?: false,
+            where: nil
           }
         end)
 
@@ -895,25 +901,24 @@ defmodule AshPostgres.MigrationGenerator do
   defp migration_path(opts, repo, tenant? \\ false) do
     # Copied from ecto's mix task, thanks Ecto ❤️
     config = repo.config()
-    app = Keyword.fetch!(config, :otp_app)
 
     if tenant? do
       if path = opts.tenant_migration_path || config[:tenant_migrations_path] do
         path
       else
         priv =
-          config[:priv] || "priv/#{repo |> Module.split() |> List.last() |> Macro.underscore()}"
+          AshPostgres.Mix.Helpers.source_repo_priv(repo)
 
-        Application.app_dir(app, Path.join(priv, "tenant_migrations"))
+        Path.join(priv, "tenant_migrations")
       end
     else
       if path = opts.migration_path || config[:tenant_migrations_path] do
         path
       else
         priv =
-          config[:priv] || "priv/#{repo |> Module.split() |> List.last() |> Macro.underscore()}"
+          AshPostgres.Mix.Helpers.source_repo_priv(repo)
 
-        Application.app_dir(app, Path.join(priv, "migrations"))
+        Path.join(priv, "migrations")
       end
     end
   end
@@ -1033,7 +1038,7 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp create_new_snapshot(snapshots, repo_name, opts, tenant?) do
-    unless opts.dry_run do
+    if !opts.dry_run do
       Enum.each(snapshots, fn snapshot ->
         snapshot_binary = snapshot_to_binary(snapshot)
 
@@ -1292,6 +1297,12 @@ defmodule AshPostgres.MigrationGenerator do
   defp after?(_, %Operation.RemovePrimaryKey{}), do: true
   defp after?(%Operation.RemovePrimaryKeyDown{}, _), do: true
   defp after?(_, %Operation.RemovePrimaryKeyDown{}), do: false
+
+  defp after?(%Operation.AddPrimaryKeyDown{}, _), do: false
+  defp after?(_, %Operation.AddPrimaryKeyDown{}), do: true
+
+  defp after?(%Operation.AddPrimaryKey{}, _), do: true
+  defp after?(_, %Operation.AddPrimaryKey{}), do: false
 
   defp after?(
          %Operation.AddCustomStatement{},
@@ -1798,7 +1809,9 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp do_fetch_operations(snapshot, old_snapshot, opts, acc) do
     attribute_operations = attribute_operations(snapshot, old_snapshot, opts)
-    pkey_operations = pkey_operations(snapshot, old_snapshot, attribute_operations, opts)
+
+    {pkey_operations, attribute_operations} =
+      pkey_operations(snapshot, old_snapshot, attribute_operations, opts)
 
     rewrite_all_identities? = changing_multitenancy_affects_identities?(snapshot, old_snapshot)
 
@@ -2002,7 +2015,8 @@ defmodule AshPostgres.MigrationGenerator do
         %Operation.AddUniqueIndex{
           identity: identity,
           schema: snapshot.schema,
-          table: snapshot.table
+          table: snapshot.table,
+          concurrently: opts.concurrent_indexes
         }
       end)
 
@@ -2091,7 +2105,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp pkey_operations(snapshot, old_snapshot, attribute_operations, opts) do
     if old_snapshot[:empty?] do
-      []
+      {[], attribute_operations}
     else
       must_drop_pkey? =
         Enum.any?(
@@ -2109,10 +2123,47 @@ defmodule AshPostgres.MigrationGenerator do
             } ->
               true
 
+            %Operation.RemoveAttribute{
+              attribute: %{primary_key?: true}
+            } ->
+              true
+
             _ ->
               false
           end
         )
+
+      must_add_primary_key? =
+        must_drop_pkey? &&
+          Enum.any?(snapshot.attributes, fn attribute ->
+            attribute.primary_key? &&
+              !Enum.any?(attribute_operations, fn
+                %Operation.AlterAttribute{} = operation ->
+                  operation.new_attribute.source == attribute.source
+
+                %Operation.AddAttribute{} = operation ->
+                  operation.attribute.source == attribute.source
+
+                _ ->
+                  false
+              end)
+          end)
+
+      must_add_primary_key_in_down? =
+        must_drop_pkey? &&
+          Enum.any?(snapshot.attributes, fn attribute ->
+            attribute.primary_key? &&
+              !Enum.any?(attribute_operations, fn
+                %Operation.AlterAttribute{} = operation ->
+                  operation.new_attribute.source == attribute.source
+
+                %Operation.AddAttribute{} = operation ->
+                  operation.attribute.source == attribute.source
+
+                _ ->
+                  false
+              end)
+          end)
 
       drop_in_down? =
         Enum.any?(attribute_operations, fn
@@ -2142,17 +2193,94 @@ defmodule AshPostgres.MigrationGenerator do
             false
         end)
 
-      [
-        must_drop_pkey? &&
-          %Operation.RemovePrimaryKey{schema: snapshot.schema, table: snapshot.table},
-        must_drop_pkey? && drop_in_down? &&
-          %Operation.RemovePrimaryKeyDown{
-            commented?: opts.dont_drop_columns && drop_in_down_commented?,
-            schema: snapshot.schema,
-            table: snapshot.table
-          }
-      ]
-      |> Enum.filter(& &1)
+      attribute_operations =
+        if must_add_primary_key? do
+          Enum.map(
+            attribute_operations,
+            fn
+              %Operation.AlterAttribute{} = operation ->
+                %{
+                  operation
+                  | new_attribute: %{
+                      operation.new_attribute
+                      | primary_key?: operation.old_attribute.primary_key?
+                    }
+                }
+
+              %Operation.AddAttribute{} = operation ->
+                %{operation | attribute: %{operation.attribute | primary_key?: false}}
+
+              other ->
+                other
+            end
+          )
+        else
+          attribute_operations
+        end
+
+      attribute_operations =
+        if must_add_primary_key_in_down? do
+          Enum.map(
+            attribute_operations,
+            fn
+              %Operation.AlterAttribute{} = operation ->
+                %{
+                  operation
+                  | old_attribute: %{
+                      operation.old_attribute
+                      | primary_key?: operation.new_attribute.primary_key?
+                    }
+                }
+
+              %Operation.RemoveAttribute{} = operation ->
+                %{operation | attribute: %{operation.attribute | primary_key?: false}}
+
+              other ->
+                other
+            end
+          )
+        else
+          attribute_operations
+        end
+
+      {[
+         must_drop_pkey? &&
+           %Operation.RemovePrimaryKey{schema: snapshot.schema, table: snapshot.table},
+         must_drop_pkey? && drop_in_down? &&
+           %Operation.RemovePrimaryKeyDown{
+             commented?: opts.dont_drop_columns && drop_in_down_commented?,
+             schema: snapshot.schema,
+             table: snapshot.table
+           },
+         must_add_primary_key? &&
+           %Operation.AddPrimaryKey{
+             schema: snapshot.schema,
+             table: snapshot.table,
+             keys:
+               Enum.flat_map(snapshot.attributes, fn attribute ->
+                 if attribute.primary_key? do
+                   [attribute.source]
+                 else
+                   []
+                 end
+               end)
+           },
+         must_add_primary_key_in_down? &&
+           %Operation.AddPrimaryKeyDown{
+             schema: old_snapshot.schema,
+             table: old_snapshot.table,
+             remove_old?: must_add_primary_key? && !(must_drop_pkey? && drop_in_down?),
+             keys:
+               Enum.flat_map(old_snapshot.attributes, fn attribute ->
+                 if attribute.primary_key? do
+                   [attribute.source]
+                 else
+                   []
+                 end
+               end)
+           }
+       ]
+       |> Enum.filter(& &1), attribute_operations}
     end
   end
 
@@ -2177,22 +2305,23 @@ defmodule AshPostgres.MigrationGenerator do
          Enum.find(
            old_snapshot.attributes,
            fn old_attribute ->
-             source_match =
-               Enum.find_value(attributes_to_rename, old_attribute.source, fn {new, old} ->
+             renaming_to_source =
+               Enum.find_value(attributes_to_rename, fn {new, old} ->
                  if old.source == old_attribute.source do
                    new.source
                  end
                end)
 
-             source_match ==
-               attribute.source &&
+             if (renaming_to_source || old_attribute.source) == attribute.source do
                attributes_unequal?(
                  old_attribute,
                  attribute,
                  snapshot.repo,
                  old_snapshot,
-                 snapshot
+                 snapshot,
+                 not is_nil(renaming_to_source)
                )
+             end
            end
          )}
       end)
@@ -2394,10 +2523,24 @@ defmodule AshPostgres.MigrationGenerator do
 
   # This exists to handle the fact that the remapping of the key name -> source caused attributes
   # to be considered unequal. We ignore things that only differ in that way using this function.
-  defp attributes_unequal?(left, right, repo, _old_snapshot, _new_snapshot) do
+  defp attributes_unequal?(left, right, repo, _old_snapshot, _new_snapshot, ignore_names?) do
     left = clean_for_equality(left, repo)
 
     right = clean_for_equality(right, repo)
+
+    left =
+      if ignore_names? do
+        Map.drop(left, [:source, :name])
+      else
+        left
+      end
+
+    right =
+      if ignore_names? do
+        Map.drop(right, [:source, :name])
+      else
+        right
+      end
 
     left != right
   end
@@ -2455,7 +2598,7 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   def changing_multitenancy_affects_identities?(snapshot, old_snapshot) do
-    snapshot.multitenancy != old_snapshot.multitenancy ||
+    Map.delete(snapshot.multitenancy, :global) != Map.delete(old_snapshot.multitenancy, :global) ||
       snapshot.base_filter != old_snapshot.base_filter
   end
 
@@ -2858,7 +3001,10 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp find_reference(resource, table, attribute) do
-    Enum.find_value(Ash.Resource.Info.relationships(resource), fn relationship ->
+    resource
+    |> Ash.Resource.Info.relationships()
+    |> Enum.filter(&(&1.type == :belongs_to))
+    |> Enum.find_value(fn relationship ->
       source_attribute_name =
         relationship.source
         |> Ash.Resource.Info.attribute(relationship.source_attribute)
@@ -2866,12 +3012,12 @@ defmodule AshPostgres.MigrationGenerator do
           attribute.source || attribute.name
         end)
 
-      if attribute.source == source_attribute_name && relationship.type == :belongs_to &&
+      if attribute.source == source_attribute_name &&
            foreign_key?(relationship) do
         configured_reference =
           configured_reference(resource, table, attribute.source || attribute.name, relationship)
 
-        unless Map.get(configured_reference, :ignore?) do
+        if !Map.get(configured_reference, :ignore?) do
           destination_attribute =
             Ash.Resource.Info.attribute(
               relationship.destination,
@@ -2950,6 +3096,14 @@ defmodule AshPostgres.MigrationGenerator do
   defp migration_type(Ash.Type.UUIDv7, _), do: :uuid
   defp migration_type(Ash.Type.Integer, _), do: :bigint
 
+  defp migration_type(Ash.Type.Vector, constraints) do
+    if constraints[:dimensions] do
+      {:vector, constraints[:dimensions]}
+    else
+      :vector
+    end
+  end
+
   defp migration_type(other, constraints) do
     type = Ash.Type.get_type(other)
 
@@ -3012,9 +3166,11 @@ defmodule AshPostgres.MigrationGenerator do
           where:
             if identity.where do
               AshPostgres.DataLayer.Info.identity_where_to_sql(resource, identity.name) ||
-                raise(
-                  "Must provide an entry for :#{identity.name} in `postgres.identity_wheres_to_sql`, or skip this identity with `postgres.skip_unique_indexes`"
-                )
+                raise("""
+                Must provide an entry for :#{identity.name} in `postgres.identity_wheres_to_sql`, or skip this identity with `postgres.skip_unique_indexes`.
+
+                See https://hexdocs.pm/ash_postgres/AshPostgres.DataLayer.Info.html#identity_wheres_to_sql/1 for an example.
+                """)
             end
       }
     end)

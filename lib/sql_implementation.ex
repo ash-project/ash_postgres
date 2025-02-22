@@ -154,6 +154,53 @@ defmodule AshPostgres.SqlImplementation do
   end
 
   def expr(
+        query,
+        %AshPostgres.Functions.VectorL2Distance{
+          arguments: [arg1, arg2],
+          embedded?: pred_embedded?
+        },
+        bindings,
+        embedded?,
+        acc,
+        _type
+      ) do
+    {arg1, acc} =
+      AshSql.Expr.dynamic_expr(query, arg1, bindings, pred_embedded? || embedded?, :string, acc)
+
+    {arg2, acc} =
+      AshSql.Expr.dynamic_expr(query, arg2, bindings, pred_embedded? || embedded?, :string, acc)
+
+    {:ok, Ecto.Query.dynamic(fragment("(? <-> ?)", ^arg1, ^arg2)), acc}
+  end
+
+  def expr(
+        query,
+        %Ash.Query.Ref{
+          attribute: %Ash.Resource.Attribute{
+            type: attr_type,
+            constraints: constraints
+          },
+          bare?: true
+        } = ref,
+        bindings,
+        embedded?,
+        acc,
+        type
+      ) do
+    if function_exported?(attr_type, :postgres_reference_expr, 3) do
+      non_bare_ref = %Ash.Query.Ref{ref | bare?: nil}
+      {expr, acc} = AshSql.Expr.dynamic_expr(query, non_bare_ref, bindings, embedded?, type, acc)
+
+      case attr_type.postgres_reference_expr(attr_type, constraints, expr) do
+        {:ok, bare_expr} -> {:ok, bare_expr, acc}
+        :error -> :error
+      end
+    else
+      :error
+    end
+  end
+
+  def expr(
         _query,
         _expr,
         _bindings,
@@ -218,6 +265,10 @@ defmodule AshPostgres.SqlImplementation do
     end
   end
 
+  def parameterized_type({type, constraints}, [], no_maps?) do
+    parameterized_type(type, constraints, no_maps?)
+  end
+
   def parameterized_type(Ash.Type.CiString, constraints, no_maps?) do
     parameterized_type(AshPostgres.Type.CiStringWrapper, constraints, no_maps?)
   end
@@ -239,10 +290,6 @@ defmodule AshPostgres.SqlImplementation do
       do: nil
 
   def parameterized_type(type, constraints, no_maps?) do
-    if type == :array do
-      raise "WHAT"
-    end
-
     if Ash.Type.ash_type?(type) do
       cast_in_query? =
         if function_exported?(Ash.Type, :cast_in_query?, 2) do
@@ -283,28 +330,18 @@ defmodule AshPostgres.SqlImplementation do
 
   @impl true
   def determine_types(mod, args, returns \\ nil) do
-    {types, new_returns} = Ash.Expr.determine_types(mod, args, returns)
-
-    new_returns =
-      case new_returns do
-        {:parameterized, _} = parameterized -> parameterized
-        {:array, _} = type -> parameterized_type(type, [])
-        {type, constraints} -> parameterized_type(type, constraints)
+    returns =
+      case returns do
+        {:parameterized, _} -> nil
+        {:array, {:parameterized, _}} -> nil
+        {:array, {type, constraints}} when type != :array -> {type, [items: constraints]}
+        {:array, _} -> nil
+        {type, constraints} -> {type, constraints}
         other -> other
       end
 
-    {Enum.map(types, fn
-       {:parameterized, _} = parameterized ->
-         parameterized
+    {types, new_returns} = Ash.Expr.determine_types(mod, args, returns)
 
-       {:array, _} = type ->
-         parameterized_type(type, [])
-
-       {type, constraints} ->
-         parameterized_type(type, constraints)
-
-       other ->
-         other
-     end), new_returns || returns}
+    {types, new_returns || returns}
   end
 end

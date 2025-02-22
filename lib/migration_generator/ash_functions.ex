@@ -1,5 +1,5 @@
 defmodule AshPostgres.MigrationGenerator.AshFunctions do
-  @latest_version 4
+  @latest_version 5
 
   def latest_version, do: @latest_version
 
@@ -10,6 +10,7 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     CREATE OR REPLACE FUNCTION ash_elixir_or(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
     AS $$ SELECT COALESCE(NULLIF($1, FALSE), $2) $$
     LANGUAGE SQL
+    SET search_path = ''
     IMMUTABLE;
     \"\"\")
 
@@ -17,6 +18,7 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     CREATE OR REPLACE FUNCTION ash_elixir_or(left ANYCOMPATIBLE, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
     AS $$ SELECT COALESCE($1, $2) $$
     LANGUAGE SQL
+    SET search_path = ''
     IMMUTABLE;
     \"\"\")
 
@@ -27,6 +29,7 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
         ELSE $1
       END $$
     LANGUAGE SQL
+    SET search_path = ''
     IMMUTABLE;
     \"\"\")
 
@@ -37,6 +40,7 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
         ELSE $1
       END $$
     LANGUAGE SQL
+    SET search_path = ''
     IMMUTABLE;
     \"\"\")
 
@@ -62,6 +66,7 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
         END IF;
     END; $$
     LANGUAGE plpgsql
+    SET search_path = ''
     IMMUTABLE;
     \"\"\")
 
@@ -115,6 +120,7 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
         END IF;
     END; $$
     LANGUAGE plpgsql
+    SET search_path = ''
     IMMUTABLE;
     \"\"\")
     """
@@ -137,7 +143,26 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
   end
 
   def install(3) do
-    uuid_generate_v7()
+    """
+    execute("ALTER FUNCTION ash_raise_error(jsonb) STABLE;")
+    execute("ALTER FUNCTION ash_raise_error(jsonb, ANYCOMPATIBLE) STABLE")
+    #{uuid_generate_v7()}
+    """
+  end
+
+  def install(4) do
+    """
+    execute("ALTER FUNCTION ash_raise_error(jsonb) STABLE;")
+    execute("ALTER FUNCTION ash_raise_error(jsonb, ANYCOMPATIBLE) STABLE")
+    #{uuid_generate_v7()}
+    """
+  end
+
+  def drop(4) do
+    """
+    execute("ALTER FUNCTION ash_raise_error(jsonb) VOLATILE;")
+    execute("ALTER FUNCTION ash_raise_error(jsonb, ANYCOMPATIBLE) VOLATILE")
+    """
   end
 
   def drop(3) do
@@ -177,7 +202,9 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
         RAISE EXCEPTION '#{prefix}%', json_data::text;
         RETURN NULL;
     END;
-    $$ LANGUAGE plpgsql;
+    $$ LANGUAGE plpgsql
+    STABLE
+    SET search_path = '';
     \"\"\")
 
     execute(\"\"\"
@@ -189,7 +216,9 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
         RAISE EXCEPTION '#{prefix}%', json_data::text;
         RETURN NULL;
     END;
-    $$ LANGUAGE plpgsql;
+    $$ LANGUAGE plpgsql
+    STABLE
+    SET search_path = '';
     \"\"\")
     """
   end
@@ -220,6 +249,7 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     END
     $$
     LANGUAGE PLPGSQL
+    SET search_path = ''
     VOLATILE;
     \"\"\")
 
@@ -230,6 +260,7 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
       SELECT to_timestamp(('x0000' || substr(_uuid::TEXT, 1, 8) || substr(_uuid::TEXT, 10, 4))::BIT(64)::BIGINT::NUMERIC / 1000);
     $$
     LANGUAGE SQL
+    SET search_path = ''
     IMMUTABLE PARALLEL SAFE STRICT;
     \"\"\")
     """

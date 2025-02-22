@@ -3,7 +3,7 @@ defmodule AshPostgres.Repo.BeforeCompile do
 
   defmacro __before_compile__(_env) do
     quote do
-      unless Module.defines?(__MODULE__, {:min_pg_version, 0}, :def) do
+      if !Module.defines?(__MODULE__, {:min_pg_version, 0}, :def) do
         IO.warn("""
         Please define `min_pg_version/0` in repo module: #{inspect(__MODULE__)}
 

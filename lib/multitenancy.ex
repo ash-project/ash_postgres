@@ -15,8 +15,6 @@ defmodule AshPostgres.MultiTenancy do
       migrations_path ||
         repo.config()[:tenant_migrations_path] || default_tenant_migration_path(repo)
 
-    Code.compiler_options(ignore_module_conflict: true)
-
     Ecto.Migration.SchemaMigration.ensure_schema_migrations_table!(
       repo,
       repo.config(),
@@ -44,8 +42,6 @@ defmodule AshPostgres.MultiTenancy do
 
       Ecto.Migration.SchemaMigration.up(repo, repo.config(), version, prefix: tenant_name)
     end)
-  after
-    Code.compiler_options(ignore_module_conflict: false)
   end
 
   # sobelow_skip ["SQL"]
@@ -90,7 +86,7 @@ defmodule AshPostgres.MultiTenancy do
   end
 
   defp validate_tenant_name!(tenant_name) do
-    unless Regex.match?(@tenant_name_regex, tenant_name) do
+    if !Regex.match?(@tenant_name_regex, tenant_name) do
       raise "Tenant name must match #{inspect(@tenant_name_regex)}, got: #{tenant_name}"
     end
   end

@@ -1,5 +1,6 @@
 defmodule AshPostgres.Test.UniqueIdentityTest do
   use AshPostgres.RepoCase, async: false
+  alias AshPostgres.Test.Organization
   alias AshPostgres.Test.Post
 
   require Ash.Query
@@ -17,6 +18,19 @@ defmodule AshPostgres.Test.UniqueIdentityTest do
                    |> Ash.Changeset.for_create(:create, %{id: post.id})
                    |> Ash.create!()
                  end
+  end
+
+  test "unique constraint field names are property set" do
+    Organization
+    |> Ash.Changeset.for_create(:create, %{name: "Acme", department: "Sales"})
+    |> Ash.create!()
+
+    assert {:error, %Ash.Error.Invalid{errors: [invalid_attribute]}} =
+             Organization
+             |> Ash.Changeset.for_create(:create, %{name: "Acme", department: "SALES"})
+             |> Ash.create()
+
+    assert %Ash.Error.Changes.InvalidAttribute{field: :department_slug} = invalid_attribute
   end
 
   test "a unique constraint can be used to upsert when the resource has a base filter" do

@@ -5,6 +5,198 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.5](https://github.com/ash-project/ash_postgres/compare/v2.5.4...v2.5.5) (2025-02-17)
+
+
+
+
+### Bug Fixes:
+
+* ensure field names defaults to the field of the constraint
+
+## [v2.5.4](https://github.com/ash-project/ash_postgres/compare/v2.5.3...v2.5.4) (2025-02-17)
+
+
+
+
+### Improvements:
+
+* Add support for field names in idenitity constraints (#478)
+
+## [v2.5.3](https://github.com/ash-project/ash_postgres/compare/v2.5.2...v2.5.3) (2025-02-14)
+
+
+
+
+### Bug Fixes:
+
+* handle dropping primary key columns properly
+
+* Ignore module conflict when compiling migration file (#482)
+
+## [v2.5.2](https://github.com/ash-project/ash_postgres/compare/v2.5.1...v2.5.2) (2025-02-11)
+
+
+
+
+### Bug Fixes:
+
+* update lateral join logic to match ash_sql's
+
+* simplify lateral join source filter
+
+* update sql log switches for migration and rollback tasks (#470)
+
+### Improvements:
+
+* add vector l2 distance function
+
+* use dimenstions constraint on vector for size
+
+* consider identity.where in identity deduplicator
+
+* generate migrations task support concurrent indexes flag (#471)
+
+## [v2.5.1](https://github.com/ash-project/ash_postgres/compare/v2.5.0...v2.5.1) (2025-01-27)
+
+
+
+
+### Bug Fixes:
+
+* handle cross global to tenant references in migration generator
+
+## [v2.5.0](https://github.com/ash-project/ash_postgres/compare/v2.4.22...v2.5.0) (2025-01-20)
+
+
+
+
+### Features:
+
+* add repo callback to disable atomic actions and error expressions (#464)
+
+### Bug Fixes:
+
+* generate a repo when selecting one
+
+* handle regex match correctly (#460)
+
+### Improvements:
+
+* use prettier SQL in `Ash.calculate`
+
+* add `c:AshPostgres.Repo.default_constraint_match_type`
+
+* mark ash_raise_error as STABLE
+
+## [v2.4.22](https://github.com/ash-project/ash_postgres/compare/v2.4.21...v2.4.22) (2025-01-13)
+
+
+
+
+### Bug Fixes:
+
+* inner join bulk operations if distinct? is present
+
+* fully specificy synthesized indices from multi-resource tables
+
+## [v2.4.21](https://github.com/ash-project/ash_postgres/compare/v2.4.20...v2.4.21) (2025-01-06)
+
+
+
+
+### Bug Fixes:
+
+* filter query by source record ids when lateral joining
+
+* don't use symlinked app dir for migration's path
+
+## [v2.4.20](https://github.com/ash-project/ash_postgres/compare/v2.4.19...v2.4.20) (2024-12-26)
+
+
+
+
+### Bug Fixes:
+
+* use passed in version of postgres when modifying existing repo
+
+## [v2.4.19](https://github.com/ash-project/ash_postgres/compare/v2.4.18...v2.4.19) (2024-12-26)
+
+
+
+
+### Bug Fixes:
+
+* ensure there is always at least one upsert field so filter is run
+
+### Improvements:
+
+* better min_pg_version when modifying a repo
+
+* automatically set `min_pg_version` where possible
+
+* use a notice to suggest configuring `min_pg_version`
+
+## [v2.4.18](https://github.com/ash-project/ash_postgres/compare/v2.4.17...v2.4.18) (2024-12-20)
+
+
+
+
+### Bug Fixes:
+
+* handle double select issue
+
+### Improvements:
+
+* make igniter optional
+
+* make tsvector type selectable
+
+## [v2.4.17](https://github.com/ash-project/ash_postgres/compare/v2.4.16...v2.4.17) (2024-12-16)
+
+
+
+
+### Bug Fixes:
+
+* Fix query for metadata on foreign keys and fix duplicate references being produced (#444)
+
+* alter resource generation query to go to the source pg_constraints table instead of to the view to fetch constraint data (#443)
+
+## [v2.4.16](https://github.com/ash-project/ash_postgres/compare/v2.4.15...v2.4.16) (2024-12-12)
+
+
+
+
+### Bug Fixes:
+
+* properly support expr errors in bulk create
+
+* only build references for belongs_to relationships
+
+### Improvements:
+
+* add postgres_reference_expr callback (#438)
+
+## [v2.4.15](https://github.com/ash-project/ash_postgres/compare/v2.4.14...v2.4.15) (2024-12-06)
+
+
+
+
+### Bug Fixes:
+
+* split off varchar options from index
+
+* don't attempt to use non-existent relationship
+
+* handle manual/no_attributes? relationships in lateral join logic
+
+* don't use `priv` configuration for snapshot_path
+
+### Improvements:
+
+* update sql implementation for type determination
+
 ## [v2.4.14](https://github.com/ash-project/ash_postgres/compare/v2.4.13...v2.4.14) (2024-11-27)
 
 

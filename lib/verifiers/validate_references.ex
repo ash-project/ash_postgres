@@ -7,7 +7,7 @@ defmodule AshPostgres.Verifiers.ValidateReferences do
     dsl
     |> AshPostgres.DataLayer.Info.references()
     |> Enum.each(fn reference ->
-      unless Ash.Resource.Info.relationship(dsl, reference.relationship) do
+      if !Ash.Resource.Info.relationship(dsl, reference.relationship) do
         raise Spark.Error.DslError,
           path: [:postgres, :references, reference.relationship],
           module: Verifier.get_persisted(dsl, :module),

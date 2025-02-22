@@ -2,6 +2,8 @@ defmodule AshPostgres.UpdateTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.Post
   require Ash.Query
+  import ExUnit.CaptureLog
+  import Ash.Expr
 
   test "can update with nested maps" do
     Post
@@ -58,6 +60,99 @@ defmodule AshPostgres.UpdateTest do
       }
     )
     |> Ash.update!()
+  end
+
+  test "timestamps arent updated if there are no changes non-atomically" do
+    post =
+      AshPostgres.Test.Post
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
+
+    post2 =
+      post
+      |> Ash.update!(action: :change_nothing)
+
+    assert post.updated_at == post2.updated_at
+  end
+
+  test "no queries are run if there are no changes non-atomically" do
+    post =
+      AshPostgres.Test.Post
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
+
+    assert "" =
+             capture_log(fn ->
+               post
+               |> Ash.update!(action: :change_nothing)
+             end)
+  end
+
+  test "queries are run if there are no changes but there are filters non-atomically" do
+    post =
+      AshPostgres.Test.Post
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
+
+    assert_raise Ash.Error.Invalid, ~r/stale/, fn ->
+      post
+      |> Ash.Changeset.for_update(:change_nothing, %{})
+      |> Ash.Changeset.filter(expr(title != "match"))
+      |> Ash.update!(action: :change_nothing)
+    end
+  end
+
+  test "timestamps arent updated if there are no changes atomically" do
+    post =
+      AshPostgres.Test.Post
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
+
+    post2 =
+      post
+      |> Ash.update!(action: :change_nothing_atomic)
+
+    assert post.updated_at == post2.updated_at
+  end
+
+  test "timestamps arent updated if nothing changes non-atomically" do
+    post =
+      AshPostgres.Test.Post
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
+
+    post2 =
+      post
+      |> Ash.update!(%{title: "match"}, action: :change_title)
+
+    assert post.updated_at == post2.updated_at
+  end
+
+  test "timestamps arent updated if nothing changes atomically" do
+    post =
+      AshPostgres.Test.Post
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
+
+    post2 =
+      post
+      |> Ash.update!(%{title: "match"}, action: :change_title_atomic)
+
+    assert post.updated_at == post2.updated_at
+  end
+
+  test "queries are run if there are no changes atomically" do
+    post =
+      AshPostgres.Test.Post
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
+
+    assert_raise Ash.Error.Invalid, ~r/stale/, fn ->
+      post
+      |> Ash.Changeset.for_update(:change_nothing_atomic, %{})
+      |> Ash.Changeset.filter(expr(title != "match"))
+      |> Ash.update!(action: :change_nothing)
+    end
   end
 
   test "can unrelate belongs_to" do

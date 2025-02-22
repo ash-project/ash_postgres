@@ -5,7 +5,7 @@ defmodule AshPostgres.MixProject do
   The PostgreSQL data layer for Ash Framework
   """
 
-  @version "2.4.14"
+  @version "2.5.5"
 
   def project do
     [
@@ -32,7 +32,7 @@ defmodule AshPostgres.MixProject do
       dialyzer: [
         plt_add_apps: [:ecto, :ash, :mix]
       ],
-      docs: docs(),
+      docs: &docs/0,
       aliases: aliases(),
       package: package(),
       source_url: "https://github.com/ash-project/ash_postgres/",
@@ -59,6 +59,7 @@ defmodule AshPostgres.MixProject do
       files: ~w(lib .formatter.exs mix.exs README* LICENSE*
       CHANGELOG* documentation),
       links: %{
+        Changelog: "https://hexdocs.pm/ash_postgres/changelog.html",
         GitHub: "https://github.com/ash-project/ash_postgres"
       }
     ]
@@ -97,7 +98,8 @@ defmodule AshPostgres.MixProject do
         "documentation/topics/advanced/expressions.md",
         "documentation/topics/advanced/schema-based-multitenancy.md",
         "documentation/topics/advanced/manual-relationships.md",
-        "documentation/dsls/DSL-AshPostgres.DataLayer.md",
+        {"documentation/dsls/DSL-AshPostgres.DataLayer.md",
+         search_data: Spark.Docs.search_data_for(AshPostgres.DataLayer)},
         "CHANGELOG.md"
       ],
       groups_for_extras: [
@@ -106,8 +108,7 @@ defmodule AshPostgres.MixProject do
         Development: ~r"documentation/topics/development",
         "About AshPostgres": ["CHANGELOG.md"],
         Advanced: ~r"documentation/topics/advanced",
-        Reference: ~r"documentation/topics/dsls",
-        DSLs: ~r"documentation/dsls"
+        Reference: ~r"documentation/topics/dsls"
       ],
       skip_undefined_reference_warnings_on: [
         "CHANGELOG.md",
@@ -164,22 +165,21 @@ defmodule AshPostgres.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ash, ash_version("~> 3.4 and >= 3.4.37")},
-      {:ash_sql, ash_sql_version("~> 0.2 and >= 0.2.39")},
-      {:igniter, "~> 0.4 and >= 0.4.4"},
+      {:ash, ash_version("~> 3.4 and >= 3.4.64")},
+      {:ash_sql, ash_sql_version("~> 0.2 and >= 0.2.43")},
+      {:igniter, "~> 0.5 and >= 0.5.16", optional: true},
       {:ecto_sql, "~> 3.12"},
       {:ecto, "~> 3.12 and >= 3.12.1"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
-      {:inflex, "~> 2.1"},
-      {:owl, "~> 0.11"},
       # dev/test dependencies
+      {:tz, "~> 0.28.1", only: [:dev, :test]},
       {:ecto_dev_logger, "~> 0.14", only: :test},
       {:eflame, "~> 1.0", only: [:dev, :test]},
       {:simple_sat, "~> 0.1", only: [:dev, :test]},
       {:benchee, "~> 1.1", only: [:dev, :test]},
       {:git_ops, "~> 2.5", only: [:dev, :test]},
-      {:ex_doc, github: "elixir-lang/ex_doc", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.37-rc", only: [:dev, :test], runtime: false},
       {:ex_check, "~> 0.14", only: [:dev, :test]},
       {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:mix_audit, ">= 0.0.0", only: [:dev, :test], runtime: false},
@@ -197,7 +197,7 @@ defmodule AshPostgres.MixProject do
         [path: "../ash", override: true]
 
       "main" ->
-        [git: "https://github.com/ash-project/ash.git"]
+        [git: "https://github.com/ash-project/ash.git", override: true]
 
       version when is_binary(version) ->
         "~> #{version}"
@@ -234,13 +234,11 @@ defmodule AshPostgres.MixProject do
       docs: [
         "spark.cheat_sheets",
         "docs",
-        "spark.replace_doc_links",
-        "spark.cheat_sheets_in_search"
+        "spark.replace_doc_links"
       ],
+      format: "format --migrate",
       "spark.formatter": "spark.formatter --extensions AshPostgres.DataLayer",
       "spark.cheat_sheets": "spark.cheat_sheets --extensions AshPostgres.DataLayer",
-      "spark.cheat_sheets_in_search":
-        "spark.cheat_sheets_in_search --extensions AshPostgres.DataLayer",
       "test.generate_migrations": "ash_postgres.generate_migrations",
       "test.check_migrations": "ash_postgres.generate_migrations --check",
       "test.migrate_tenants": "ash_postgres.migrate --tenants",
