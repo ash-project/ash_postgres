@@ -3214,6 +3214,13 @@ defmodule AshPostgres.DataLayer do
     def lock(query, unquote(lock), _) do
       {:ok, Ecto.Query.lock(query, [{^0, a}], fragment(unquote(frag), a))}
     end
+
+    frag = "#{lock} OF ? SKIP LOCKED"
+    lock = "#{lock} SKIP LOCKED"
+
+    def lock(query, unquote(lock), _) do
+      {:ok, Ecto.Query.lock(query, [{^0, a}], fragment(unquote(frag), a))}
+    end
   end
 
   @impl true
