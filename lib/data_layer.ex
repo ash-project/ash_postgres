@@ -1296,6 +1296,9 @@ defmodule AshPostgres.DataLayer do
           true
         )
     })
+    # This is a hack, but surely there is just no way someone writes
+    # a 500 binding query as the base of a lateral join query...
+    |> Ash.Query.set_context(%{data_layer: %{start_bindings_at: 500}})
     |> Ash.Query.set_tenant(source_query.tenant)
     |> filter_for_records(root_data)
     |> set_lateral_join_prefix(query)
