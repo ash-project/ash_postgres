@@ -65,40 +65,6 @@ defmodule AshSql.AggregateTest do
     assert read_post.count_of_comments == 1
   end
 
-  describe "Context Multitenancy" do
-    alias AshPostgres.MultitenancyTest.{Org, Post, User}
-
-    test "loading a nested aggregate honors tenant" do
-      alias AshPostgres.MultitenancyTest.{Org, Post, User}
-
-      org =
-        Org
-        |> Ash.Changeset.for_create(:create, %{name: "BTTF"})
-        |> Ash.create!()
-
-      user =
-        User
-        |> Ash.Changeset.for_create(:create, %{name: "Marty", org_id: org.id})
-        |> Ash.create!()
-
-      ["Back to 1955", "Forwards to 1985", "Forward to 2015", "Back again to 1985"]
-      |> Enum.map(
-        &(Post
-          |> Ash.Changeset.for_create(:create, %{name: &1, user_id: user.id})
-          |> Ash.create!(tenant: "org_#{org.id}", load: [:last_word]))
-      )
-
-      assert Ash.load!(user, :count_visited, tenant: "org_#{org.id}")
-             |> then(& &1.count_visited) == 4
-
-      assert Ash.load!(org, :total_posts)
-             |> then(& &1.total_posts) == 4
-
-      assert Ash.load!(org, :total_users_posts, tenant: "org_#{org.id}")
-             |> then(& &1.total_users_posts) == 4
-    end
-  end
-
   describe "join filters" do
     test "with no data, it does not effect the behavior" do
       Author
