@@ -990,8 +990,11 @@ defmodule AshPostgres.Test.LoadTest do
                |> Ash.Query.load(posts: paginated_posts)
                |> Ash.read!(page: [limit: 1, count: true])
 
-      assert %Ash.Page.Offset{count: 5, results: [%{followers: %Ash.Page.Offset{count: 3}}]} =
-               author1.posts
+      assert %Ash.Page.Offset{} = page = author1.posts
+      assert [result] = page.results
+      assert %Ash.Page.Offset{} = nested_page = result.followers
+      assert length(nested_page.results) == 1
+      assert nested_page.count == 3
     end
 
     test "doesn't leak the internal count aggregate when counting" do

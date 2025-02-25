@@ -1159,10 +1159,12 @@ defmodule AshPostgres.DataLayer do
       {:ok, data_layer_query} ->
         data_layer_query = Ecto.Query.exclude(data_layer_query, :select)
 
+        through_binding = Map.get(query, :__ash_bindings__)[:current]
+
         through_resource
         |> Ash.Query.new()
         |> Ash.Query.put_context(:data_layer, %{
-          start_bindings_at: Map.get(data_layer_query, :__ash_bindings__)[:current]
+          start_bindings_at: through_binding
         })
         |> Ash.Query.set_context(through_relationship.context)
         |> Ash.Query.do_filter(through_relationship.filter)
@@ -1192,7 +1194,7 @@ defmodule AshPostgres.DataLayer do
                         source_query,
                         relationship.through
                       ),
-                    as: ^Map.get(data_layer_query, :__ash_bindings__)[:current],
+                    as: ^through_binding,
                     on:
                       field(through, ^destination_attribute_on_join_resource) ==
                         field(destination, ^destination_attribute),
@@ -1230,7 +1232,7 @@ defmodule AshPostgres.DataLayer do
                         source_query,
                         relationship.through
                       ),
-                    as: ^Map.get(data_layer_query, :__ash_bindings__)[:current],
+                    as: ^through_binding,
                     on:
                       field(through, ^destination_attribute_on_join_resource) ==
                         field(destination, ^destination_attribute),
@@ -1295,10 +1297,8 @@ defmodule AshPostgres.DataLayer do
           :no_inner_join?,
           true
         )
+        |> Map.delete(:lateral_join_source)
     })
-    # This is a hack, but surely there is just no way someone writes
-    # a 500 binding query as the base of a lateral join query...
-    |> Ash.Query.set_context(%{data_layer: %{start_bindings_at: 500}})
     |> Ash.Query.set_tenant(source_query.tenant)
     |> filter_for_records(root_data)
     |> set_lateral_join_prefix(query)
@@ -3259,12 +3259,20 @@ defmodule AshPostgres.DataLayer do
   def filter(query, filter, resource, opts \\ []) do
     used_aggregates = Ash.Filter.used_aggregates(filter, [])
 
+    query =
+      AshSql.Bindings.default_bindings(query, resource, AshPostgres.SqlImplementation)
+
     query
     |> AshSql.Join.join_all_relationships(filter, opts)
     |> case do
       {:ok, query} ->
         query
-        |> AshSql.Aggregate.add_aggregates(used_aggregates, resource, false, 0)
+        |> AshSql.Aggregate.add_aggregates(
+          used_aggregates,
+          resource,
+          false,
+          query.__ash_bindings__.root_binding
+        )
         |> case do
           {:ok, query} ->
             {:ok, AshSql.Filter.add_filter_expression(query, filter)}
@@ -3280,12 +3288,24 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def add_aggregates(query, aggregates, resource) do
-    AshSql.Aggregate.add_aggregates(query, aggregates, resource, true, 0)
+    AshSql.Aggregate.add_aggregates(
+      query,
+      aggregates,
+      resource,
+      true,
+      query.__ash_bindings__.root_binding
+    )
   end
 
   @impl true
   def add_calculations(query, calculations, resource, select? \\ true) do
-    AshSql.Calculation.add_calculations(query, calculations, resource, 0, select?)
+    AshSql.Calculation.add_calculations(
+      query,
+      calculations,
+      resource,
+      query.__ash_bindings__.root_binding,
+      select?
+    )
   end
 
   def add_known_binding(query, data, known_binding) do
