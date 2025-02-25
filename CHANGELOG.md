@@ -5,6 +5,25 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.6](https://github.com/ash-project/ash_postgres/compare/v2.5.5...v2.5.6) (2025-02-25)
+
+
+
+
+### Bug Fixes:
+
+* start lateral join source query bindings at 500
+
+* Ensure primary key migrations use prefix for multitenancy (#488)
+
+* don't rewrite identities when only global? is changed
+
+* don't modify an attribute when it only needs to be renamed
+
+### Improvements:
+
+* support SKIP LOCKED in locks
+
 ## [v2.5.5](https://github.com/ash-project/ash_postgres/compare/v2.5.4...v2.5.5) (2025-02-17)
 
 
