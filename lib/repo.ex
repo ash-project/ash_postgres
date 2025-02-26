@@ -182,6 +182,17 @@ defmodule AshPostgres.Repo do
 
       def on_transaction_begin(_reason), do: :ok
 
+      # copied from Ecto.Repo
+      defp ash_postgres_prepare_opts(operation_name, []),
+        do: default_options(operation_name)
+
+      defp ash_postgres_prepare_opts(operation_name, [{key, _} | _rest] = opts)
+           when is_atom(key) do
+        operation_name
+        |> default_options()
+        |> Keyword.merge(opts)
+      end
+
       def insert(struct_or_changeset, opts \\ []) do
         struct_or_changeset
         |> to_ecto()
@@ -192,7 +203,7 @@ defmodule AshPostgres.Repo do
             __MODULE__,
             repo,
             value,
-            Ecto.Repo.Supervisor.tuplet(repo, prepare_opts(:insert, opts))
+            Ecto.Repo.Supervisor.tuplet(repo, ash_postgres_prepare_opts(:insert, opts))
           )
         end)
         |> from_ecto()
@@ -208,7 +219,7 @@ defmodule AshPostgres.Repo do
             __MODULE__,
             repo,
             value,
-            Ecto.Repo.Supervisor.tuplet(repo, prepare_opts(:insert, opts))
+            Ecto.Repo.Supervisor.tuplet(repo, ash_postgres_prepare_opts(:insert, opts))
           )
         end)
         |> from_ecto()
