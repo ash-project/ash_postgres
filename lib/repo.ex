@@ -183,8 +183,6 @@ defmodule AshPostgres.Repo do
       def on_transaction_begin(_reason), do: :ok
 
       # copied from Ecto.Repo
-      def default_options(_operation), do: []
-
       defp ash_postgres_prepare_opts(operation_name, []),
         do: default_options(operation_name)
 
