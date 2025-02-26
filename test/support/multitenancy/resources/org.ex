@@ -59,6 +59,11 @@ defmodule AshPostgres.MultitenancyTest.Org do
     parse_attribute({__MODULE__, :tenant, []})
   end
 
+  aggregates do
+    count(:total_users_posts, [:users, :posts])
+    count(:total_posts, :posts)
+  end
+
   relationships do
     belongs_to :owner, AshPostgres.MultitenancyTest.User do
       attribute_public?(false)
