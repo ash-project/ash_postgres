@@ -91,8 +91,8 @@ defmodule AshSql.AggregateTest do
       assert Ash.load!(user, :count_visited, tenant: "org_#{org.id}")
              |> then(& &1.count_visited) == 4
 
-      assert Ash.load!(org, :total_posts)
-             |> then(& &1.total_posts) == 4
+      assert Ash.load!(org, :total_posts, tenant: "org_#{org.id}")
+             |> then(& &1.total_posts) == 0
 
       assert Ash.load!(org, :total_users_posts, tenant: "org_#{org.id}")
              |> then(& &1.total_users_posts) == 4
