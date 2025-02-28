@@ -50,9 +50,12 @@ defmodule AshPostgres.UpdateTest do
       }
     )
 
-    Post
-    |> Ash.Changeset.for_create(:create, %{title: "fred"})
-    |> Ash.create!()
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "fred"})
+      |> Ash.create!()
+
+    post
     |> Ash.Changeset.for_update(
       :optimistic_lock,
       %{
@@ -60,6 +63,17 @@ defmodule AshPostgres.UpdateTest do
       }
     )
     |> Ash.update!()
+
+    assert_raise Ash.Error.Invalid, ~r/Attempted to update stale record/, fn ->
+      post
+      |> Ash.Changeset.for_update(
+        :optimistic_lock,
+        %{
+          title: "harry"
+        }
+      )
+      |> Ash.update!()
+    end
   end
 
   test "timestamps arent updated if there are no changes non-atomically" do

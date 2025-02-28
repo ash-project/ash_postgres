@@ -3170,9 +3170,18 @@ defmodule AshPostgres.DataLayer do
                 query,
                 repo_opts
               )
-            end)
+              |> case do
+                {0, _} ->
+                  {:error,
+                   Ash.Error.Changes.StaleRecord.exception(
+                     resource: resource,
+                     filter: changeset.filter
+                   )}
 
-            :ok
+                _ ->
+                  :ok
+              end
+            end)
           rescue
             e ->
               handle_raised_error(e, __STACKTRACE__, ecto_changeset, resource)

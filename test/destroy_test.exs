@@ -40,4 +40,29 @@ defmodule AshPostgres.DestroyTest do
       |> Ash.destroy!()
     end
   end
+
+  test "can optimistic lock" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{})
+      |> Ash.create!()
+
+    post
+    |> Ash.Changeset.for_update(
+      :optimistic_lock,
+      %{
+        title: "george"
+      }
+    )
+    |> Ash.update!()
+
+    assert_raise Ash.Error.Invalid, ~r/Attempted to update stale record/, fn ->
+      post
+      |> Ash.Changeset.for_destroy(
+        :optimistic_lock_destroy,
+        %{}
+      )
+      |> Ash.destroy!()
+    end
+  end
 end
