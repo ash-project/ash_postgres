@@ -2102,27 +2102,37 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def create(resource, changeset) do
-    changeset = %{
-      changeset
-      | data:
-          Map.update!(
-            changeset.data,
-            :__meta__,
-            &Map.put(&1, :source, table(resource, changeset))
-          )
-    }
+    start_time = :erlang.monotonic_time(:millisecond)
 
-    case bulk_create(resource, [changeset], %{
-           single?: true,
-           tenant: Map.get(changeset, :to_tenant, changeset.tenant),
-           action_select: changeset.action_select,
-           return_records?: true
-         }) do
-      {:ok, [result]} ->
-        {:ok, result}
+    try do
+      changeset = %{
+        changeset
+        | data:
+            Map.update!(
+              changeset.data,
+              :__meta__,
+              &Map.put(&1, :source, table(resource, changeset))
+            )
+      }
 
-      {:error, error} ->
-        {:error, error}
+      case bulk_create(resource, [changeset], %{
+             single?: true,
+             tenant: Map.get(changeset, :to_tenant, changeset.tenant),
+             action_select: changeset.action_select,
+             return_records?: true
+           }) do
+        {:ok, [result]} ->
+          {:ok, result}
+
+        {:error, error} ->
+          {:error, error}
+      end
+    after
+      end_time = :erlang.monotonic_time(:millisecond)
+
+      IO.puts(
+        "3Time taken: #{:erlang.convert_time_unit(end_time - start_time, :millisecond, :millisecond)} ms"
+      )
     end
   end
 

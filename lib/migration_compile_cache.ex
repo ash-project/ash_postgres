@@ -11,8 +11,15 @@ defmodule AshPostgres.MigrationCompileCache do
   once, which would error out.
   """
 
-  def start_link(opts \\ %{}) do
-    Agent.start_link(fn -> opts end, name: __MODULE__)
+  def start_link(state \\ %{}, opts \\ []) do
+    Agent.start_link(fn -> state end, opts)
+  end
+
+  def child_spec(opts) do
+    %{
+      id: __MODULE__,
+      start: {__MODULE__, :start_link, [%{}, opts]}
+    }
   end
 
   @doc """

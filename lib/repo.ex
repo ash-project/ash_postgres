@@ -126,7 +126,30 @@ defmodule AshPostgres.Repo do
       @before_compile AshPostgres.Repo.BeforeCompile
       require Logger
 
-      defoverridable insert: 2, insert: 1, insert!: 2, insert!: 1, transaction: 1, transaction: 2
+      defoverridable insert: 2,
+                     insert: 1,
+                     insert!: 2,
+                     insert!: 1,
+                     transaction: 1,
+                     transaction: 2,
+                     start_link: 1
+
+      def start_link(opts) do
+        config = config()
+
+        if config[:eager_load_tenant_migrations?] &&
+             !:persistent_term.get({__MODULE__, :tenant_migrations}, nil) do
+          config[:tenant_migrations_path]
+          |> Kernel.||(tenant_migrations_path())
+          |> Kernel.||(default_tenant_migration_path(config))
+          |> AshPostgres.MultiTenancy.tenant_migrations()
+          |> then(&:persistent_term.put({__MODULE__, :tenant_migrations}, &1))
+        else
+          opts
+        end
+
+        super(opts)
+      end
 
       def transaction(fun, opts \\ []) do
         super(fun, opts)
@@ -170,17 +193,27 @@ defmodule AshPostgres.Repo do
       end
 
       def init(type, config) do
-        new_config =
-          config
-          |> Keyword.put(:installed_extensions, installed_extensions())
-          |> Keyword.put(:tenant_migrations_path, tenant_migrations_path())
-          |> Keyword.put(:migrations_path, migrations_path())
-          |> Keyword.put(:default_prefix, default_prefix())
-
-        {:ok, new_config}
+        config
+        |> Keyword.put(:installed_extensions, installed_extensions())
+        |> Keyword.put(
+          :tenant_migrations_path,
+          tenant_migrations_path() || default_tenant_migration_path(config)
+        )
+        |> Keyword.put(:migrations_path, migrations_path())
+        |> Keyword.put(:default_prefix, default_prefix())
+        |> then(&{:ok, &1})
       end
 
       def on_transaction_begin(_reason), do: :ok
+
+      defp default_tenant_migration_path(options) do
+        repo_name = __MODULE__ |> Module.split() |> List.last() |> Macro.underscore()
+        otp_app = options[:otp_app]
+
+        :code.priv_dir(otp_app)
+        |> Path.join(repo_name)
+        |> Path.join("tenant_migrations")
+      end
 
       # copied from Ecto.Repo
       defp ash_postgres_prepare_opts(operation_name, []),

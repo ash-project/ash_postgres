@@ -5,9 +5,18 @@ defmodule AshPostgres.MultiTenancy do
 
   @tenant_name_regex ~r/^[a-zA-Z0-9_-]+$/
   def create_tenant!(tenant_name, repo) do
+    start_time = :erlang.monotonic_time(:millisecond)
     Ecto.Adapters.SQL.query!(repo, "CREATE SCHEMA IF NOT EXISTS \"#{tenant_name}\"", [])
 
     migrate_tenant(tenant_name, repo)
+
+    end_time = :erlang.monotonic_time(:millisecond)
+
+    IO.puts(
+      "2Time taken: #{:erlang.convert_time_unit(end_time - start_time, :millisecond, :millisecond)} ms"
+    )
+
+    :ok
   end
 
   def migrate_tenant(tenant_name, repo, migrations_path \\ nil) do
@@ -21,13 +30,15 @@ defmodule AshPostgres.MultiTenancy do
       prefix: tenant_name
     )
 
-    [tenant_migrations_path, "**", "*.exs"]
-    |> Path.join()
-    |> Path.wildcard()
-    |> Enum.map(&extract_migration_info/1)
-    |> Enum.filter(& &1)
-    |> Enum.map(&load_migration!/1)
-    |> Enum.each(fn {version, mod} ->
+    migrations =
+      if repo.config()[:eager_load_tenant_migrations?] do
+        :persistent_term.get({repo, :tenant_migrations}, nil) ||
+          tenant_migrations(tenant_migrations_path)
+      else
+        tenant_migrations(tenant_migrations_path)
+      end
+
+    Enum.each(migrations, fn {version, mod} ->
       Ecto.Migration.Runner.run(
         repo,
         [],
@@ -42,6 +53,8 @@ defmodule AshPostgres.MultiTenancy do
 
       Ecto.Migration.SchemaMigration.up(repo, repo.config(), version, prefix: tenant_name)
     end)
+
+    :ok
   end
 
   # sobelow_skip ["SQL"]
@@ -56,6 +69,15 @@ defmodule AshPostgres.MultiTenancy do
     :ok
   end
 
+  def tenant_migrations(tenant_migrations_path) do
+    [tenant_migrations_path, "**", "*.exs"]
+    |> Path.join()
+    |> Path.wildcard()
+    |> Enum.map(&extract_migration_info/1)
+    |> Enum.filter(& &1)
+    |> Enum.map(&load_migration!/1)
+  end
+
   defp load_migration!({version, _, file}) when is_binary(file) do
     loaded_modules = file |> compile_file() |> Enum.map(&elem(&1, 0))
 
@@ -68,7 +90,7 @@ defmodule AshPostgres.MultiTenancy do
   end
 
   defp compile_file(file) do
-    AshPostgres.MigrationCompileCache.start_link()
+    AshPostgres.MigrationCompileCache.start_link(%{}, name: AshPostgres.MigrationCompileCache)
     AshPostgres.MigrationCompileCache.compile_file(file)
   end
 
