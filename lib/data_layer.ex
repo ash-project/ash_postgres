@@ -2555,13 +2555,13 @@ defmodule AshPostgres.DataLayer do
         {key, name} ->
           case repo.default_constraint_match_type(:check, name) do
             {:regex, regex} ->
-              Ecto.Changeset.check_constraint(changeset, key,
+              Ecto.Changeset.exclusion_constraint(changeset, key,
                 name: regex,
                 match: :exact
               )
 
             match ->
-              Ecto.Changeset.check_constraint(changeset, key,
+              Ecto.Changeset.exclusion_constraint(changeset, key,
                 name: name,
                 match: match
               )
@@ -2570,14 +2570,14 @@ defmodule AshPostgres.DataLayer do
         {key, name, message} ->
           case repo.default_constraint_match_type(:check, name) do
             {:regex, regex} ->
-              Ecto.Changeset.check_constraint(changeset, key,
+              Ecto.Changeset.exclusion_constraint(changeset, key,
                 name: regex,
                 message: message,
                 match: :exact
               )
 
             match ->
-              Ecto.Changeset.check_constraint(changeset, key,
+              Ecto.Changeset.exclusion_constraint(changeset, key,
                 name: name,
                 message: message,
                 match: match
