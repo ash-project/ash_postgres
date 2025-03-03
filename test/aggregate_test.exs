@@ -65,6 +65,35 @@ defmodule AshSql.AggregateTest do
     assert read_post.count_of_comments == 1
   end
 
+  test "nested filters on aggregates works" do
+    org =
+      Organization
+      |> Ash.Changeset.for_create(:create, %{name: "match"})
+      |> Ash.create!()
+
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.Changeset.manage_relationship(:organization, org, type: :append_and_remove)
+      |> Ash.create!()
+
+    post2 =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "match"})
+    |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
+    |> Ash.create!()
+
+    assert [%{count_of_comments_matching_org_name: 1}] =
+             Post
+             |> Ash.Query.load(:count_of_comments_matching_org_name)
+             |> Ash.Query.filter(id == ^post.id)
+             |> Ash.read!()
+  end
+
   describe "Context Multitenancy" do
     alias AshPostgres.MultitenancyTest.{Org, Post, User}
 
