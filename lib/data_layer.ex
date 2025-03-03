@@ -1964,7 +1964,17 @@ defmodule AshPostgres.DataLayer do
       end
     rescue
       e ->
-        changeset = Ash.Changeset.new(resource)
+        changeset =
+          case source do
+            {table, resource} ->
+              resource
+              |> Ash.Changeset.new()
+              |> Ash.Changeset.put_context(:data_layer, %{table: table})
+
+            resource ->
+              resource
+              |> Ash.Changeset.new()
+          end
 
         handle_raised_error(
           e,
