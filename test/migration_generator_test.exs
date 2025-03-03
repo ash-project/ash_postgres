@@ -1250,6 +1250,53 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "--dev option" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+    end
+
+    test "generates dev migration" do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        snapshots_only: false,
+        migration_path: "test_migration_path",
+        dev: true
+      )
+
+      assert [dev_file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert String.contains?(dev_file, "_dev.exs")
+      contents = File.read!(dev_file)
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path"
+      )
+
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      refute String.contains?(file, "_dev.exs")
+
+      assert contents == File.read!(file)
+    end
+  end
+
   describe "references" do
     setup do
       on_exit(fn ->
