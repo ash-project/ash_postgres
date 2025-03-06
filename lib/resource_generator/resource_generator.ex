@@ -16,6 +16,24 @@ if Code.ensure_loaded?(Igniter) do
 
       opts = handle_csv_opts(opts, [:tables, :skip_tables, :extend])
 
+      opts =
+        Keyword.update(opts, :tables, nil, fn tables ->
+          if tables == [] do
+            nil
+          else
+            tables
+          end
+        end)
+
+      opts =
+        Keyword.update(opts, :skip_tables, nil, fn tables ->
+          if tables == [] do
+            nil
+          else
+            tables
+          end
+        end)
+
       specs =
         repos
         |> Enum.flat_map(&Spec.tables(&1, skip_tables: opts[:skip_tables], tables: opts[:tables]))

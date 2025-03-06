@@ -73,9 +73,11 @@ if Code.ensure_loaded?(Igniter) do
       options = options!(argv)
 
       repos =
-        options[:repo] ||
-          Mix.Project.config()[:app]
-          |> Application.get_env(:ecto_repos, [])
+        case options[:repo] do
+          [] ->
+            Mix.Project.config()[:app]
+            |> Application.get_env(:ecto_repos, [])
+        end
 
       repos =
         repos
