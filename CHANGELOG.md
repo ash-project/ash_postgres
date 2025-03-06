@@ -5,6 +5,21 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.9](https://github.com/ash-project/ash_postgres/compare/v2.5.8...v2.5.9) (2025-03-06)
+
+
+
+
+### Bug Fixes:
+
+* match on non-empty repo options
+
+### Improvements:
+
+* add `--public` option to `gen.resources`, default `true`
+
+* add `--default-actions` option to `gen.resources`, default `true`
+
 ## [v2.5.8](https://github.com/ash-project/ash_postgres/compare/v2.5.7...v2.5.8) (2025-03-06)
 
 
