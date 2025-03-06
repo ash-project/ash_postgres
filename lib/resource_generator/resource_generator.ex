@@ -34,7 +34,6 @@ if Code.ensure_loaded?(Igniter) do
           end
           |> Enum.concat(["schema_migrations"])
         end)
-        |> IO.inspect()
 
       specs =
         repos
