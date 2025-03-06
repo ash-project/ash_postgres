@@ -28,10 +28,11 @@ if Code.ensure_loaded?(Igniter) do
       opts =
         Keyword.update(opts, :skip_tables, nil, fn tables ->
           if tables == [] do
-            nil
+            []
           else
             tables
           end
+          |> Enum.concat("schema_migrations")
         end)
 
       specs =

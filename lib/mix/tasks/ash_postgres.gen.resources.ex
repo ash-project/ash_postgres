@@ -22,7 +22,7 @@ if Code.ensure_loaded?(Igniter) do
 
     - `repo`, `r` - The repo or repos to generate resources for, comma separated. Can be specified multiple times. Defaults to all repos.
     - `tables`, `t` - Defaults to `public.*`. The tables to generate resources for, comma separated. Can be specified multiple times. See the section on tables for more.
-    - `skip-tables`, `s` - The tables to skip generating resources for, comma separated. Can be specified multiple times. See the section on tables for more.
+    - `skip-tables`, `s` - The tables to skip generating resources for, comma separated. Can be specified multiple times. See the section on tables for more. `schema_migrations` is always skipped.
     - `snapshots-only` - Only generate snapshots for the generated resources, and not migraitons.
     - `extend`, `e` - Extension or extensions to apply to the generated resources. See `mix ash.patch.extend` for more.
     - `yes`, `y` - Answer yes (or skip) to all questions.
