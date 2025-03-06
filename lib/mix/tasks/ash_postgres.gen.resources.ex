@@ -26,6 +26,8 @@ if Code.ensure_loaded?(Igniter) do
     - `snapshots-only` - Only generate snapshots for the generated resources, and not migraitons.
     - `extend`, `e` - Extension or extensions to apply to the generated resources. See `mix ash.patch.extend` for more.
     - `yes`, `y` - Answer yes (or skip) to all questions.
+    - `default-actions` - Add default actions for each resource. Defaults to `true`.
+    - `public` - Mark all attributes and relationships as `public? true`. Defaults to `true`.
 
     ## Tables
 
@@ -47,6 +49,8 @@ if Code.ensure_loaded?(Igniter) do
           yes: :boolean,
           tables: :keep,
           skip_tables: :keep,
+          default_actions: :boolean,
+          public: :boolean,
           extend: :keep,
           snapshots_only: :boolean,
           domain: :keep
@@ -58,6 +62,10 @@ if Code.ensure_loaded?(Igniter) do
           e: :extend,
           d: :domain,
           s: :skip_tables
+        ],
+        defaults: [
+          default_actions: true,
+          public: true
         ]
       }
     end
