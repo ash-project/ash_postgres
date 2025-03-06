@@ -1967,6 +1967,47 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[create constraint(:posts, :price_must_be_positive, check: "price > 0")]
     end
 
+    test "base filters are taken into account, negated" do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:price, :integer, public?: true)
+        end
+
+        resource do
+          base_filter(expr(price > 10))
+        end
+
+        postgres do
+          base_filter_sql "price > -10"
+
+          check_constraints do
+            check_constraint(:price, "price_must_be_positive", check: "price > 0")
+          end
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert file =
+               "test_migration_path/**/*_migrate_resources*.exs"
+               |> Path.wildcard()
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+               |> Enum.sort()
+               |> Enum.at(0)
+               |> File.read!()
+
+      assert file =~
+               ~S[create constraint(:posts, :price_must_be_positive, check: "(price > 0) OR NOT (price > -10)")]
+    end
+
     test "when removed, the constraint is dropped before modification" do
       defposts do
         attributes do
