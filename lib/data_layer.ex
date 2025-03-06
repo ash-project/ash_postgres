@@ -1964,7 +1964,17 @@ defmodule AshPostgres.DataLayer do
       end
     rescue
       e ->
-        changeset = Ash.Changeset.new(resource)
+        changeset =
+          case source do
+            {table, resource} ->
+              resource
+              |> Ash.Changeset.new()
+              |> Ash.Changeset.put_context(:data_layer, %{table: table})
+
+            resource ->
+              resource
+              |> Ash.Changeset.new()
+          end
 
         handle_raised_error(
           e,
@@ -2555,13 +2565,13 @@ defmodule AshPostgres.DataLayer do
         {key, name} ->
           case repo.default_constraint_match_type(:check, name) do
             {:regex, regex} ->
-              Ecto.Changeset.check_constraint(changeset, key,
+              Ecto.Changeset.exclusion_constraint(changeset, key,
                 name: regex,
                 match: :exact
               )
 
             match ->
-              Ecto.Changeset.check_constraint(changeset, key,
+              Ecto.Changeset.exclusion_constraint(changeset, key,
                 name: name,
                 match: match
               )
@@ -2570,14 +2580,14 @@ defmodule AshPostgres.DataLayer do
         {key, name, message} ->
           case repo.default_constraint_match_type(:check, name) do
             {:regex, regex} ->
-              Ecto.Changeset.check_constraint(changeset, key,
+              Ecto.Changeset.exclusion_constraint(changeset, key,
                 name: regex,
                 message: message,
                 match: :exact
               )
 
             match ->
-              Ecto.Changeset.check_constraint(changeset, key,
+              Ecto.Changeset.exclusion_constraint(changeset, key,
                 name: name,
                 message: message,
                 match: match

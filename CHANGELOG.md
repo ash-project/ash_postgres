@@ -5,6 +5,21 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.7](https://github.com/ash-project/ash_postgres/compare/v2.5.6...v2.5.7) (2025-03-04)
+
+
+
+
+### Bug Fixes:
+
+* handle errors from identities in polymorphic resources properly (#497)
+
+* Use exclusion_constraint instead of check_constraint in add_exclusion_constraints (#495)
+
+* check for stale record errors on destroy
+
+* don't rely on private function from `Ecto.Repo` (#492)
+
 ## [v2.5.6](https://github.com/ash-project/ash_postgres/compare/v2.5.5...v2.5.6) (2025-02-25)
 
 

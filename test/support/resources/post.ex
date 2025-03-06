@@ -850,6 +850,13 @@ defmodule AshPostgres.Test.Post do
       filter(title: "match")
     end
 
+    count :count_of_comments_matching_org_name, [
+      :posts_with_matching_title,
+      :comments
+    ] do
+      filter(expr(parent(organization.name) == title))
+    end
+
     count(:count_of_comments_containing_title, :comments_containing_title)
 
     first :first_comment, :comments, :title do
