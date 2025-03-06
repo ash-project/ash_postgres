@@ -5,6 +5,19 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.10](https://github.com/ash-project/ash_postgres/compare/v2.5.9...v2.5.10) (2025-03-06)
+
+
+
+
+### Bug Fixes:
+
+* honor skip_tables
+
+### Improvements:
+
+* never import `schema_migrations` table
+
 ## [v2.5.9](https://github.com/ash-project/ash_postgres/compare/v2.5.8...v2.5.9) (2025-03-06)
 
 
