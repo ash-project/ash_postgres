@@ -114,6 +114,9 @@ defmodule AshPostgres.ResourceGenerator.Spec do
           |> add_indexes()
           |> add_check_constraints()
         end)
+        |> Enum.reject(fn spec ->
+          spec.table_name in List.wrap(opts[:skip_tables])
+        end)
       end)
 
     result
