@@ -85,6 +85,9 @@ if Code.ensure_loaded?(Igniter) do
           [] ->
             Mix.Project.config()[:app]
             |> Application.get_env(:ecto_repos, [])
+
+          repos ->
+            repos
         end
 
       repos =
