@@ -5,6 +5,17 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.8](https://github.com/ash-project/ash_postgres/compare/v2.5.7...v2.5.8) (2025-03-06)
+
+
+
+
+### Bug Fixes:
+
+* handle CLI args better for ash_postgres.gen.resources
+
+* compose check constraints and base filters properly
+
 ## [v2.5.7](https://github.com/ash-project/ash_postgres/compare/v2.5.6...v2.5.7) (2025-03-04)
 
 
