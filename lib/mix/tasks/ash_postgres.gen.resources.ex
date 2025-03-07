@@ -148,7 +148,7 @@ if Code.ensure_loaded?(Igniter) do
           options =
             cond do
               options[:migrations] == false ->
-                Keyword.put(options, :no_migrations, false)
+                Keyword.put(options, :no_migrations, true)
 
               options[:migrations] || options[:yes] || Mix.shell().yes?(prompt) ->
                 Keyword.put(options, :no_migrations, false)
