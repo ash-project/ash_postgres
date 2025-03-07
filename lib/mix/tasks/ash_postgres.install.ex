@@ -162,8 +162,8 @@ if Code.ensure_loaded?(Igniter) do
           "config/runtime.exs",
           default_runtime,
           fn zipper ->
-            if Igniter.Project.Config.configures_key?(zipper, otp_app, [repo, :url]) do
-              zipper
+            if Igniter.Project.Config.configures_key?(zipper, otp_app, [repo]) do
+              {:ok, zipper}
             else
               patterns = [
                 """
@@ -182,47 +182,51 @@ if Code.ensure_loaded?(Igniter) do
               |> Igniter.Code.Common.move_to_cursor_match_in_scope(patterns)
               |> case do
                 {:ok, zipper} ->
-                  case Igniter.Code.Function.move_to_function_call_in_current_scope(
-                         zipper,
-                         :=,
-                         2,
-                         fn call ->
-                           Igniter.Code.Function.argument_matches_pattern?(
-                             call,
-                             0,
-                             {:database_url, _, ctx} when is_atom(ctx)
-                           )
-                         end
-                       ) do
-                    {:ok, _zipper} ->
-                      zipper
-                      |> Igniter.Project.Config.modify_configuration_code(
-                        [repo, :url],
-                        otp_app,
-                        {:database_url, [], nil}
-                      )
-                      |> Igniter.Project.Config.modify_configuration_code(
-                        [repo, :pool_size],
-                        otp_app,
-                        Sourceror.parse_string!("""
-                        String.to_integer(System.get_env("POOL_SIZE") || "10")
+                  if Igniter.Project.Config.configures_key?(zipper, "runtime.exs", otp_app, [repo]) do
+                    {:ok, zipper}
+                  else
+                    case Igniter.Code.Function.move_to_function_call_in_current_scope(
+                           zipper,
+                           :=,
+                           2,
+                           fn call ->
+                             Igniter.Code.Function.argument_matches_pattern?(
+                               call,
+                               0,
+                               {:database_url, _, ctx} when is_atom(ctx)
+                             )
+                           end
+                         ) do
+                      {:ok, _zipper} ->
+                        zipper
+                        |> Igniter.Project.Config.modify_configuration_code(
+                          [repo, :url],
+                          otp_app,
+                          {:database_url, [], nil}
+                        )
+                        |> Igniter.Project.Config.modify_configuration_code(
+                          [repo, :pool_size],
+                          otp_app,
+                          Sourceror.parse_string!("""
+                          String.to_integer(System.get_env("POOL_SIZE") || "10")
+                          """)
+                        )
+                        |> then(&{:ok, &1})
+
+                      _ ->
+                        Igniter.Code.Common.add_code(zipper, """
+                          database_url =
+                            System.get_env("DATABASE_URL") ||
+                              raise \"\"\"
+                              environment variable DATABASE_URL is missing.
+                              For example: ecto://USER:PASS@HOST/DATABASE
+                              \"\"\"
+
+                          config #{inspect(otp_app)}, #{inspect(repo)},
+                            url: database_url,
+                            pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
                         """)
-                      )
-                      |> then(&{:ok, &1})
-
-                    _ ->
-                      Igniter.Code.Common.add_code(zipper, """
-                        database_url =
-                          System.get_env("DATABASE_URL") ||
-                            raise \"\"\"
-                            environment variable DATABASE_URL is missing.
-                            For example: ecto://USER:PASS@HOST/DATABASE
-                            \"\"\"
-
-                        config #{inspect(otp_app)}, Helpdesk.Repo,
-                          url: database_url,
-                          pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
-                      """)
+                    end
                   end
 
                 :error ->
@@ -235,7 +239,7 @@ if Code.ensure_loaded?(Igniter) do
                         For example: ecto://USER:PASS@HOST/DATABASE
                         \"\"\"
 
-                    config #{inspect(otp_app)}, Helpdesk.Repo,
+                    config #{inspect(otp_app)}, #{inspect(repo)},
                       url: database_url,
                       pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
                   end
