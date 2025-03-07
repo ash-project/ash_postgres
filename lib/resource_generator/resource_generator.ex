@@ -37,7 +37,13 @@ if Code.ensure_loaded?(Igniter) do
 
       specs =
         repos
-        |> Enum.flat_map(&Spec.tables(&1, skip_tables: opts[:skip_tables], tables: opts[:tables]))
+        |> Enum.flat_map(
+          &Spec.tables(&1,
+            skip_tables: opts[:skip_tables],
+            tables: opts[:tables],
+            skip_unknown: opts[:skip_unknown]
+          )
+        )
         |> Enum.map(fn %{table_name: table} = spec ->
           resource =
             table
