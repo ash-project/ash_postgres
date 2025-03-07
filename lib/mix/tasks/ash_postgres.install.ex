@@ -169,7 +169,6 @@ if Code.ensure_loaded?(Igniter) do
                 """
                 if config_env() == :prod do
                   __cursor__()
-
                 end
                 """,
                 """
@@ -178,6 +177,8 @@ if Code.ensure_loaded?(Igniter) do
                 end
                 """
               ]
+
+              zipper = zipper |> Sourceror.Zipper.up() |> Sourceror.Zipper.down()
 
               zipper
               |> Igniter.Code.Common.move_to_cursor_match_in_scope(patterns)
