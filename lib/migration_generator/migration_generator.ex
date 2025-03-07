@@ -520,8 +520,17 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.filter(&String.contains?(&1, "_dev.exs"))
     |> then(fn dev_migrations ->
       version = dev_migrations |> Enum.min() |> String.split("_") |> hd()
+      opts = [env: [{"MIX_ENV", "test"}]]
       System.cmd("mix", ["ash_postgres.rollback", "--to", version])
-      System.cmd("mix", ["ash_postgres.rollback", "--to", version], env: [{"MIX_ENV", "test"}])
+      System.cmd("mix", ["ash_postgres.rollback", "--to", version], opts)
+
+      if tenant? do
+        for tenant <- AshPostgres.Mix.Helpers.tenants(repo, opts) do
+          System.cmd("mix", ["ash_postgres.rollback", "--to", version, "--prefix", tenant])
+          System.cmd("mix", ["ash_postgres.rollback", "--to", version, "--prefix", tenant], opts)
+        end
+      end
+
       dev_migrations
     end)
     |> Enum.each(fn migration_name ->
