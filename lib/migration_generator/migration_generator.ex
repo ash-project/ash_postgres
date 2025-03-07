@@ -518,6 +518,12 @@ defmodule AshPostgres.MigrationGenerator do
     |> migration_path(repo)
     |> File.ls!()
     |> Enum.filter(&String.contains?(&1, "_dev.exs"))
+    |> then(fn dev_migrations ->
+      version = dev_migrations |> Enum.min() |> String.split("_") |> hd()
+      System.cmd("mix", ["ash_postgres.rollback", "--to", version])
+      System.cmd("mix", ["ash_postgres.rollback", "--to", version], env: [{"MIX_ENV", "test"}])
+      dev_migrations
+    end)
     |> Enum.each(fn migration_name ->
       opts
       |> migration_path(repo)
