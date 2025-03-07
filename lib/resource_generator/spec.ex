@@ -872,19 +872,23 @@ defmodule AshPostgres.ResourceGenerator.Spec do
 
   def set_types(attributes, opts) do
     attributes
-    |> Enum.map(fn attribute ->
+    |> Enum.flat_map(fn attribute ->
       case Process.get({:type_cache, attribute.type}) do
         nil ->
           case type(attribute.type) do
             {:ok, type} ->
-              %{attribute | attr_type: type}
+              [%{attribute | attr_type: type}]
 
             :error ->
-              get_type(attribute, opts)
+              case get_type(attribute, opts) do
+                :skip -> []
+                {:ok, type} -> [%{attribute | attr_type: type}]
+                :error -> []
+              end
           end
 
         type ->
-          %{attribute | attr_type: type}
+          [%{attribute | attr_type: type}]
       end
     end)
   end
@@ -895,6 +899,8 @@ defmodule AshPostgres.ResourceGenerator.Spec do
       if opts[:yes?] || opts[:skip_unknown] do
         "skip"
       else
+        raise "what"
+
         Mix.shell().prompt("""
         Unknown type: #{attribute.type}. What should we use as the type?
 
@@ -911,20 +917,20 @@ defmodule AshPostgres.ResourceGenerator.Spec do
 
     case result do
       skip when skip in ["skip", "skip\n"] ->
-        attribute
+        :skip
 
       new_type ->
         case String.trim(new_type) do
           ":" <> type ->
             new_type = String.to_atom(type)
             Process.put({:type_cache, attribute.type}, new_type)
-            %{attribute | attr_type: new_type}
+            {:ok, %{attribute | attr_type: new_type}}
 
           type ->
             try do
               Code.eval_string(type)
               Process.put({:type_cache, attribute.type}, new_type)
-              %{attribute | attr_type: new_type}
+              {:ok, %{attribute | attr_type: new_type}}
             rescue
               _e ->
                 get_type(attribute, opts)
