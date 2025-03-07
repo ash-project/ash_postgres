@@ -777,7 +777,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
           |> String.trim_trailing()
       end
 
-    Owl.IO.input(label: label)
+    Owl.IO.input(label: label, optional: true)
     |> String.trim()
     # common typo
     |> String.trim_leading(":")
