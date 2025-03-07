@@ -169,6 +169,7 @@ if Code.ensure_loaded?(Igniter) do
                 """
                 if config_env() == :prod do
                   __cursor__()
+
                 end
                 """,
                 """
@@ -182,7 +183,7 @@ if Code.ensure_loaded?(Igniter) do
               |> Igniter.Code.Common.move_to_cursor_match_in_scope(patterns)
               |> case do
                 {:ok, zipper} ->
-                  if Igniter.Project.Config.configures_key?(zipper, "runtime.exs", otp_app, [repo]) do
+                  if Igniter.Project.Config.configures_key?(zipper, otp_app, [repo]) do
                     {:ok, zipper}
                   else
                     case Igniter.Code.Function.move_to_function_call_in_current_scope(
