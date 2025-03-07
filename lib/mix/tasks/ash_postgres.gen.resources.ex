@@ -28,6 +28,9 @@ if Code.ensure_loaded?(Igniter) do
     - `yes`, `y` - Answer yes (or skip) to all questions.
     - `default-actions` - Add default actions for each resource. Defaults to `true`.
     - `public` - Mark all attributes and relationships as `public? true`. Defaults to `true`.
+    - `no-migrations` - Do not generate snapshots & migrations for the resources. Defaults to `false`.
+    - `skip-unknown` - Skip any attributes with types that we don't have a corresponding Elixir type for, and relationships that we can't assume the name of.
+    - `public` - Mark all attributes and relationships as `public? true`. Defaults to `true`.
 
     ## Tables
 
@@ -53,6 +56,7 @@ if Code.ensure_loaded?(Igniter) do
           public: :boolean,
           extend: :keep,
           skip_unknown: :boolean,
+          migrations: :boolean,
           snapshots_only: :boolean,
           domain: :keep
         ],
@@ -66,6 +70,7 @@ if Code.ensure_loaded?(Igniter) do
         ],
         defaults: [
           default_actions: true,
+          migrations: true,
           public: true
         ]
       }
@@ -141,7 +146,7 @@ if Code.ensure_loaded?(Igniter) do
             """
 
           options =
-            if options[:yes] || Mix.shell().yes?(prompt) do
+            if options[:migrations] || options[:yes] || Mix.shell().yes?(prompt) do
               Keyword.put(options, :no_migrations, false)
             else
               Keyword.put(options, :no_migrations, true)
