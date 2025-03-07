@@ -1255,6 +1255,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       on_exit(fn ->
         File.rm_rf!("test_snapshots_path")
         File.rm_rf!("test_migration_path")
+        File.rm_rf!("test_tenant_migration_path")
       end)
     end
 
@@ -1270,7 +1271,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
-        snapshots_only: false,
         migration_path: "test_migration_path",
         dev: true
       )
@@ -1289,6 +1289,55 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert [file] =
                Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      refute String.contains?(file, "_dev.exs")
+
+      assert contents == File.read!(file)
+    end
+
+    test "generates dev migration for tenant" do
+      defposts do
+        postgres do
+          schema("example")
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true, primary_key?: true, allow_nil?: false)
+        end
+
+        multitenancy do
+          strategy(:context)
+        end
+      end
+
+      defdomain([Post])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        tenant_migration_path: "test_tenant_migration_path",
+        dev: true
+      )
+
+      assert [dev_file] =
+               Enum.sort(Path.wildcard("test_tenant_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert String.contains?(dev_file, "_dev.exs")
+      contents = File.read!(dev_file)
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        tenant_migration_path: "test_tenant_migration_path"
+      )
+
+      assert [file] =
+               Path.wildcard("test_tenant_migration_path/**/*_migrate_resources*.exs")
                |> Enum.reject(&String.contains?(&1, "extensions"))
 
       refute String.contains?(file, "_dev.exs")
