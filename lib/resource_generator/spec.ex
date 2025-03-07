@@ -738,57 +738,61 @@ defmodule AshPostgres.ResourceGenerator.Spec do
   defp name_all_relationships(_type, _opts, _spec, _name, [], acc), do: acc
 
   defp name_all_relationships(type, opts, spec, name, [relationship | rest], acc) do
-    label =
-      case type do
-        :belongs_to ->
-          """
-          Multiple foreign keys found from `#{inspect(spec.resource)}` to `#{inspect(relationship.destination)}` with the guessed name `#{name}`.
+    if opts[:yes?] || opts[:skip_unknown] do
+      name_all_relationships(type, opts, spec, name, rest, acc)
+    else
+      label =
+        case type do
+          :belongs_to ->
+            """
+            Multiple foreign keys found from `#{inspect(spec.resource)}` to `#{inspect(relationship.destination)}` with the guessed name `#{name}`.
 
-          Provide a relationship name for the one with the following info:
+            Provide a relationship name for the one with the following info:
 
-          Resource: `#{inspect(spec.resource)}`
-          Relationship Type: :belongs_to
-          Guessed Name: `:#{name}`
-          Relationship Destination: `#{inspect(relationship.destination)}`
-          Constraint Name: `#{inspect(relationship.constraint_name)}`.
+            Resource: `#{inspect(spec.resource)}`
+            Relationship Type: :belongs_to
+            Guessed Name: `:#{name}`
+            Relationship Destination: `#{inspect(relationship.destination)}`
+            Constraint Name: `#{inspect(relationship.constraint_name)}`.
 
-          Leave empty to skip adding this relationship.
+            Leave empty to skip adding this relationship.
 
-          Name:
-          """
-          |> String.trim_trailing()
+            Name:
+            """
+            |> String.trim_trailing()
 
-        _ ->
-          """
-          Multiple foreign keys found from `#{inspect(relationship.source)}` to `#{inspect(spec.resource)}` with the guessed name `#{name}`.
+          _ ->
+            """
+            Multiple foreign keys found from `#{inspect(relationship.source)}` to `#{inspect(spec.resource)}` with the guessed name `#{name}`.
 
-          Provide a relationship name for the one with the following info:
+            Provide a relationship name for the one with the following info:
 
-          Resource: `#{inspect(relationship.source)}`
-          Relationship Type: :#{relationship.type}
-          Guessed Name: `:#{name}`
-          Relationship Destination: `#{inspect(spec.resource)}`
-          Constraint Name: `#{inspect(relationship.constraint_name)}`.
+            Resource: `#{inspect(relationship.source)}`
+            Relationship Type: :#{relationship.type}
+            Guessed Name: `:#{name}`
+            Relationship Destination: `#{inspect(spec.resource)}`
+            Constraint Name: `#{inspect(relationship.constraint_name)}`.
 
-          Leave empty to skip adding this relationship.
+            Leave empty to skip adding this relationship.
 
-          Name:
-          """
-          |> String.trim_trailing()
+            Name:
+            """
+            |> String.trim_trailing()
+        end
+
+      Owl.IO.input(label: label, optional: true)
+      |> String.trim()
+      # common typo
+      |> String.trim_leading(":")
+      |> case do
+        "" ->
+          name_all_relationships(type, opts, spec, name, rest, acc)
+
+        new_name ->
+          name_all_relationships(type, opts, spec, name, rest, [
+            %{relationship | name: new_name} | acc
+          ])
       end
-
-    Owl.IO.input(label: label, optional: true)
-    |> String.trim()
-    # common typo
-    |> String.trim_leading(":")
-    |> case do
-      "" ->
-        name_all_relationships(type, opts, spec, name, rest, acc)
-
-      new_name ->
-        name_all_relationships(type, opts, spec, name, rest, [
-          %{relationship | name: new_name} | acc
-        ])
     end
   end
 
@@ -888,7 +892,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
   # sobelow_skip ["RCE.CodeModule", "DOS.StringToAtom"]
   defp get_type(attribute, opts) do
     result =
-      if opts[:yes?] do
+      if opts[:yes?] || opts[:skip_unknown] do
         "skip"
       else
         Mix.shell().prompt("""

@@ -52,6 +52,7 @@ if Code.ensure_loaded?(Igniter) do
           default_actions: :boolean,
           public: :boolean,
           extend: :keep,
+          skip_unknown: :boolean,
           snapshots_only: :boolean,
           domain: :keep
         ],
