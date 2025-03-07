@@ -182,8 +182,6 @@ if Code.ensure_loaded?(Igniter) do
               |> Igniter.Code.Common.move_to_cursor_match_in_scope(patterns)
               |> case do
                 {:ok, zipper} ->
-                  zipper = zipper |> Sourceror.Zipper.up() |> Sourceror.Zipper.down()
-
                   if Igniter.Project.Config.configures_key?(zipper, otp_app, [repo]) do
                     {:ok, zipper}
                   else
