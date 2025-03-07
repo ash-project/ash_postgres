@@ -19,6 +19,7 @@ defmodule AshPostgres.MigrationGenerator do
             format: true,
             dry_run: false,
             check: false,
+            dev: false,
             snapshots_only: false,
             dont_drop_columns: false
 
@@ -452,6 +453,23 @@ defmodule AshPostgres.MigrationGenerator do
           :ok
 
         operations ->
+          dev_migrations = get_dev_migrations(opts, tenant?, repo)
+
+          if !opts.dev and dev_migrations != [] do
+            if opts.check do
+              Mix.shell().error("""
+              Generated migrations are from dev mode.
+
+              Generate migrations without `--dev` flag.
+              """)
+
+              exit({:shutdown, 1})
+            else
+              remove_dev_migrations(dev_migrations, tenant?, repo, opts)
+              remove_dev_snapshots(snapshots, opts)
+            end
+          end
+
           if opts.check do
             Mix.shell().error("""
             Migrations would have been generated, but the --check flag was provided.
@@ -488,6 +506,59 @@ defmodule AshPostgres.MigrationGenerator do
 
           create_new_snapshot(snapshots, repo_name(repo), opts, tenant?)
       end
+    end)
+  end
+
+  defp get_dev_migrations(opts, tenant?, repo) do
+    opts
+    |> migration_path(repo, tenant?)
+    |> File.ls()
+    |> case do
+      {:error, _error} -> []
+      {:ok, migrations} -> Enum.filter(migrations, &String.contains?(&1, "_dev.exs"))
+    end
+  end
+
+  defp remove_dev_migrations(dev_migrations, tenant?, repo, opts) do
+    version = dev_migrations |> Enum.min() |> String.split("_") |> hd()
+    test_env = [env: [{"MIX_ENV", "test"}]]
+    System.cmd("mix", ["ash_postgres.rollback", "--to", version])
+    System.cmd("mix", ["ash_postgres.rollback", "--to", version], test_env)
+
+    if tenant? do
+      for tenant <- repo.all_tenants() do
+        System.cmd("mix", ["ash_postgres.rollback", "--to", version, "--prefix", tenant])
+
+        System.cmd(
+          "mix",
+          ["ash_postgres.rollback", "--to", version, "--prefix", tenant],
+          opts
+        )
+      end
+    end
+
+    dev_migrations
+    |> Enum.each(fn migration_name ->
+      opts
+      |> migration_path(repo, tenant?)
+      |> Path.join(migration_name)
+      |> File.rm!()
+    end)
+  end
+
+  def remove_dev_snapshots(snapshots, opts) do
+    Enum.each(snapshots, fn snapshot ->
+      folder = get_snapshot_folder(snapshot, opts)
+      snapshot_path = get_snapshot_path(snapshot, folder)
+
+      snapshot_path
+      |> File.ls!()
+      |> Enum.filter(&String.contains?(&1, "_dev.json"))
+      |> Enum.each(fn snapshot_name ->
+        snapshot_path
+        |> Path.join(snapshot_name)
+        |> File.rm!()
+      end)
     end)
   end
 
@@ -960,7 +1031,7 @@ defmodule AshPostgres.MigrationGenerator do
 
     migration_file =
       migration_path
-      |> Path.join(migration_name <> ".exs")
+      |> Path.join(migration_name <> "#{if opts.dev, do: "_dev"}.exs")
 
     module_name =
       if tenant? do
@@ -1054,20 +1125,25 @@ defmodule AshPostgres.MigrationGenerator do
             |> Path.join(repo_name)
           end
 
+        dev = if opts.dev, do: "_dev"
+
         snapshot_file =
           if snapshot.schema do
-            Path.join(snapshot_folder, "#{snapshot.schema}.#{snapshot.table}/#{timestamp()}.json")
+            Path.join(
+              snapshot_folder,
+              "#{snapshot.schema}.#{snapshot.table}/#{timestamp()}#{dev}.json"
+            )
           else
-            Path.join(snapshot_folder, "#{snapshot.table}/#{timestamp()}.json")
+            Path.join(snapshot_folder, "#{snapshot.table}/#{timestamp()}#{dev}.json")
           end
 
         File.mkdir_p(Path.dirname(snapshot_file))
         create_file(snapshot_file, snapshot_binary, force: true)
 
-        old_snapshot_folder = Path.join(snapshot_folder, "#{snapshot.table}.json")
+        old_snapshot_folder = Path.join(snapshot_folder, "#{snapshot.table}#{dev}.json")
 
         if File.exists?(old_snapshot_folder) do
-          new_snapshot_folder = Path.join(snapshot_folder, "#{snapshot.table}/initial.json")
+          new_snapshot_folder = Path.join(snapshot_folder, "#{snapshot.table}/initial#{dev}.json")
           File.rename(old_snapshot_folder, new_snapshot_folder)
         end
       end)
@@ -2610,49 +2686,55 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   def get_existing_snapshot(snapshot, opts) do
-    repo_name = snapshot.repo |> Module.split() |> List.last() |> Macro.underscore()
+    folder = get_snapshot_folder(snapshot, opts)
+    snapshot_path = get_snapshot_path(snapshot, folder)
 
-    folder =
-      if snapshot.multitenancy.strategy == :context do
-        opts
-        |> snapshot_path(snapshot.repo)
-        |> Path.join(repo_name)
-        |> Path.join("tenants")
-      else
-        opts
-        |> snapshot_path(snapshot.repo)
-        |> Path.join(repo_name)
-      end
-
-    snapshot_folder =
-      if snapshot.schema do
-        schema_dir = Path.join(folder, "#{snapshot.schema}.#{snapshot.table}")
-
-        if File.dir?(schema_dir) do
-          schema_dir
-        else
-          Path.join(folder, snapshot.table)
-        end
-      else
-        Path.join(folder, snapshot.table)
-      end
-
-    if File.exists?(snapshot_folder) do
-      snapshot_folder
+    if File.exists?(snapshot_path) do
+      snapshot_path
       |> File.ls!()
-      |> Enum.filter(&String.match?(&1, ~r/^\d{14}\.json$/))
+      |> Enum.filter(
+        &(String.match?(&1, ~r/^\d{14}\.json$/) or
+            (opts.dev and String.match?(&1, ~r/^\d{14}\_dev.json$/)))
+      )
       |> case do
         [] ->
           get_old_snapshot(folder, snapshot)
 
         snapshot_files ->
-          snapshot_folder
+          snapshot_path
           |> Path.join(Enum.max(snapshot_files))
           |> File.read!()
           |> load_snapshot()
       end
     else
       get_old_snapshot(folder, snapshot)
+    end
+  end
+
+  defp get_snapshot_folder(snapshot, opts) do
+    if snapshot.multitenancy.strategy == :context do
+      opts
+      |> snapshot_path(snapshot.repo)
+      |> Path.join(repo_name(snapshot.repo))
+      |> Path.join("tenants")
+    else
+      opts
+      |> snapshot_path(snapshot.repo)
+      |> Path.join(repo_name(snapshot.repo))
+    end
+  end
+
+  defp get_snapshot_path(snapshot, folder) do
+    if snapshot.schema do
+      schema_dir = Path.join(folder, "#{snapshot.schema}.#{snapshot.table}")
+
+      if File.dir?(schema_dir) do
+        schema_dir
+      else
+        Path.join(folder, snapshot.table)
+      end
+    else
+      Path.join(folder, snapshot.table)
     end
   end
 
