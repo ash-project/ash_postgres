@@ -526,15 +526,11 @@ defmodule AshPostgres.MigrationGenerator do
     System.cmd("mix", ["ash_postgres.rollback", "--to", version], test_env)
 
     if tenant? do
-      for tenant <- repo.all_tenants() do
-        System.cmd("mix", ["ash_postgres.rollback", "--to", version, "--prefix", tenant])
-
-        System.cmd(
-          "mix",
-          ["ash_postgres.rollback", "--to", version, "--prefix", tenant],
-          opts
-        )
-      end
+      Enum.each(repo.all_tenants(), fn tenant ->
+        args = ["ash_postgres.rollback", "--to", version, "--prefix", tenant]
+        System.cmd("mix", args)
+        System.cmd("mix", args, test_env)
+      end)
     end
 
     dev_migrations
