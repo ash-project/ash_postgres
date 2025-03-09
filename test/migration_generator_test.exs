@@ -4,6 +4,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
   import ExUnit.CaptureLog
 
+  alias AshPostgres.MigrationGenerator
+
   setup do
     current_shell = Mix.shell()
 
@@ -113,11 +115,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
   describe "creating initial snapshots" do
     setup do
-      on_exit(fn ->
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-      end)
-
       defposts do
         postgres do
           migration_types(second_title: {:varchar, 16})
@@ -142,27 +139,23 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       defdomain([Post])
-
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
-
-      :ok
+      paths = ["test_snapshots_path", "test_migration_path"]
+      on_exit(fn -> for path <- paths, do: File.rm_rf!(path) end)
+      [snapshot_path, migration_path] = paths
+      path_opts = [snapshot_path: snapshot_path, migration_path: migration_path]
+      test_opts = [quiet: true, format: false]
+      opts = path_opts ++ test_opts
+      MigrationGenerator.generate(Domain, opts)
+      {:ok, [opts: opts]}
     end
 
-    test "the migration sets up resources correctly" do
+    test "the migration sets up resources correctly", %{opts: opts} do
+      snapshot_path = "test_snapshots_path/test_repo/posts/*.json"
       # the snapshot exists and contains valid json
-      assert File.read!(Path.wildcard("test_snapshots_path/test_repo/posts/*.json"))
-             |> Jason.decode!(keys: :atoms!)
-
-      assert [file] =
-               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      file_contents = File.read!(file)
+      assert {:ok, contents} = File.read(Path.wildcard(snapshot_path))
+      assert {:ok, _json} = Jason.decode(contents, keys: :atoms!)
+      assert [file] = get_files(opts[:migration_path])
+      assert {:ok, file_contents} = File.read(file)
 
       # the migration creates the table
       assert file_contents =~ "create table(:posts, primary_key: false) do"
@@ -210,11 +203,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
   describe "creating initial snapshots for resources with a schema" do
     setup do
-      on_exit(fn ->
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-      end)
-
       defposts do
         postgres do
           migration_types(second_title: {:varchar, 16})
@@ -251,26 +239,23 @@ defmodule AshPostgres.MigrationGeneratorTest do
           """
         )
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
-
-      :ok
+      paths = ["test_snapshots_path", "test_migration_path"]
+      on_exit(fn -> for path <- paths, do: File.rm_rf!(path) end)
+      [snapshot_path, migration_path] = paths
+      path_opts = [snapshot_path: snapshot_path, migration_path: migration_path]
+      test_opts = [quiet: true, format: false]
+      opts = path_opts ++ test_opts
+      MigrationGenerator.generate(Domain, opts)
+      {:ok, [opts: opts]}
     end
 
-    test "the migration sets up resources correctly" do
+    test "the migration sets up resources correctly", %{opts: opts} do
+      snapshot_path = "test_snapshots_path/test_repo/example.posts/*.json"
       # the snapshot exists and contains valid json
-      assert File.read!(Path.wildcard("test_snapshots_path/test_repo/example.posts/*.json"))
-             |> Jason.decode!(keys: :atoms!)
-
-      assert [file] =
-               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      file_contents = File.read!(file)
+      assert {:ok, contents} = File.read(Path.wildcard(snapshot_path))
+      assert {:ok, _json} = Jason.decode(contents, keys: :atoms!)
+      assert [file] = get_files(opts[:migration_path])
+      assert {:ok, file_contents} = File.read(file)
 
       # the migration creates the table
       assert file_contents =~ "create table(:posts, primary_key: false, prefix: \"example\") do"
@@ -306,11 +291,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
   describe "custom_indexes with `concurrently: true`" do
     setup do
-      on_exit(fn ->
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-      end)
-
       defposts do
         postgres do
           custom_indexes do
@@ -327,34 +307,26 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      paths = ["test_snapshots_path", "test_migration_path"]
+      on_exit(fn -> for path <- paths, do: File.rm_rf!(path) end)
+      [snapshot_path, migration_path] = paths
+      path_opts = [snapshot_path: snapshot_path, migration_path: migration_path]
+      test_opts = [quiet: true, format: false]
+      opts = path_opts ++ test_opts
+      MigrationGenerator.generate(Domain, opts)
+      {:ok, [opts: opts]}
     end
 
-    test "it creates multiple migration files" do
-      assert [_, custom_index_migration] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      file = File.read!(custom_index_migration)
-
+    test "it creates multiple migration files", %{opts: opts} do
+      assert [_, custom_index_migration] = get_files(opts[:migration_path])
+      assert {:ok, file} = File.read(custom_index_migration)
       assert file =~ ~S[@disable_ddl_transaction true]
-
       assert file =~ ~S<create index(:posts, [:title], concurrently: true)>
     end
   end
 
   describe "custom_indexes with `null_distinct: false`" do
     setup do
-      on_exit(fn ->
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-      end)
-
       defposts do
         postgres do
           custom_indexes do
@@ -372,21 +344,19 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      paths = ["test_snapshots_path", "test_migration_path"]
+      on_exit(fn -> for path <- paths, do: File.rm_rf!(path) end)
+      [snapshot_path, migration_path] = paths
+      path_opts = [snapshot_path: snapshot_path, migration_path: migration_path]
+      test_opts = [quiet: true, format: false]
+      opts = path_opts ++ test_opts
+      MigrationGenerator.generate(Domain, opts)
+      {:ok, [opts: opts]}
     end
 
-    test "it adds nulls_distinct option to create index migration" do
-      assert [custom_index_migration] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      file = File.read!(custom_index_migration)
-
+    test "it adds nulls_distinct option to create index migration", %{opts: opts} do
+      assert [custom_index_migration] = get_files(opts[:migration_path])
+      assert {:ok, file} = File.read(custom_index_migration)
       assert file =~ ~S<create index(:posts, [:uniq_one])>
       assert file =~ ~S<create index(:posts, [:uniq_two], nulls_distinct: false)>
       assert file =~ ~S<create index(:posts, [:uniq_custom_one])>
@@ -395,11 +365,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
   describe "creating follow up migrations with a composite primary key" do
     setup do
-      on_exit(fn ->
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-      end)
-
       defposts do
         postgres do
           schema("example")
@@ -413,17 +378,17 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
-
-      :ok
+      paths = ["test_snapshots_path", "test_migration_path"]
+      on_exit(fn -> for path <- paths, do: File.rm_rf!(path) end)
+      [snapshot_path, migration_path] = paths
+      path_opts = [snapshot_path: snapshot_path, migration_path: migration_path]
+      test_opts = [quiet: true, format: false]
+      opts = path_opts ++ test_opts
+      MigrationGenerator.generate(Domain, opts)
+      {:ok, [opts: opts]}
     end
 
-    test "when removing an element, it recreates the primary key" do
+    test "when removing an element, it recreates the primary key", %{opts: opts} do
       defposts do
         postgres do
           schema("example")
@@ -435,24 +400,13 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       defdomain([Post])
-
       send(self(), {:mix_shell_input, :yes?, true})
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      contents = File.read!(file2)
-
-      [up_side, down_side] = String.split(contents, "def down", parts: 2)
-
+      assert [_file1, file2] = Enum.sort(get_files(opts[:migration_path]))
+      assert {:ok, contents} = File.read(file2)
+      assert [up_side, down_side] = String.split(contents, "def down", parts: 2)
       assert up_side =~ ~S[execute("ALTER TABLE \"example.posts\" ADD PRIMARY KEY (id)")]
       assert down_side =~ ~S[execute("ALTER TABLE \"example.posts\" DROP constraint posts_pkey")]
       assert down_side =~ ~S[execute("ALTER TABLE \"example.posts\" ADD PRIMARY KEY (id, title)")]
@@ -469,24 +423,13 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       defdomain([Post])
-
       send(self(), {:mix_shell_input, :yes?, true})
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [_file1, _file2, file3] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      contents = File.read!(file3)
-
-      [up_side, down_side] = String.split(contents, "def down", parts: 2)
-
+      assert [_file1, _file2, file3] = Enum.sort(get_files(opts[:migration_path]))
+      {:ok, contents} = File.read(file3)
+      assert [up_side, down_side] = String.split(contents, "def down", parts: 2)
       assert up_side =~ ~S[execute("ALTER TABLE \"example.posts\" ADD PRIMARY KEY (id, title)")]
       assert down_side =~ ~S[execute("ALTER TABLE \"example.posts\" ADD PRIMARY KEY (id)")]
     end
@@ -494,17 +437,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
   describe "creating a multitenancy resource without composite key, adding it later" do
     setup do
-      on_exit(fn ->
-        nil
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-        File.rm_rf!("test_tenant_migration_path")
-      end)
-
-      :ok
+      paths = ["test_snapshots_path", "test_migration_path", "test_tenant_migration_path"]
+      on_exit(fn -> for path <- paths, do: File.rm_rf!(path) end)
+      [snapshot_path, migration_path, tenant_migration_path] = paths
+      path_opts = [snapshot_path: snapshot_path, migration_path: migration_path]
+      test_opts = [quiet: true, format: false]
+      opts = path_opts ++ test_opts ++ [tenant_migration_path: tenant_migration_path]
+      {:ok, [opts: opts]}
     end
 
-    test "create without composite key, then add extra key" do
+    test "create without composite key, then add extra key", %{opts: opts} do
       defposts do
         postgres do
           schema("example")
@@ -521,16 +463,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       defdomain([Post])
-
       send(self(), {:mix_shell_input, :yes?, true})
-
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        tenant_migration_path: "test_tenant_migration_path",
-        quiet: false,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
       defposts do
         postgres do
@@ -548,24 +482,12 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       defdomain([Post])
-
       send(self(), {:mix_shell_input, :yes?, true})
+      MigrationGenerator.generate(Domain, opts)
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        tenant_migration_path: "test_tenant_migration_path",
-        quiet: false,
-        format: false
-      )
-
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_tenant_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      contents = File.read!(file2)
-
-      [up_side, down_side] = String.split(contents, "def down", parts: 2)
+      assert [_file1, file2] = get_files(opts[:tenant_migration_path])
+      assert {:ok, contents} = File.read(file2)
+      assert [up_side, down_side] = String.split(contents, "def down", parts: 2)
 
       assert up_side =~
                ~S[execute("ALTER TABLE \"#{prefix()}\".\"posts\" ADD PRIMARY KEY (id, title)")]
@@ -577,11 +499,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
   describe "creating follow up migrations with a schema" do
     setup do
-      on_exit(fn ->
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-      end)
-
       defposts do
         postgres do
           schema("example")
@@ -595,17 +512,19 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
-
-      :ok
+      paths = ["test_snapshots_path", "test_migration_path"]
+      on_exit(fn -> for path <- paths, do: File.rm_rf!(path) end)
+      [snapshot_path, migration_path] = paths
+      path_opts = [snapshot_path: snapshot_path, migration_path: migration_path]
+      test_opts = [quiet: true, format: false]
+      opts = path_opts ++ test_opts
+      MigrationGenerator.generate(Domain, opts)
+      {:ok, [opts: opts]}
     end
 
-    test "when renaming a field, it asks if you are renaming it, and renames it if you are" do
+    test "when renaming a field, it asks if you are renaming it, and renames it if you are", %{
+      opts: opts
+    } do
       defposts do
         postgres do
           schema("example")
@@ -621,21 +540,13 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       send(self(), {:mix_shell_input, :yes?, true})
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
+      assert [_file1, file2] = get_files(opts[:migration_path])
       assert File.read!(file2) =~ ~S[rename table(:posts, prefix: "example"), :title, to: :name]
     end
 
-    test "renaming a field honors additional changes" do
+    test "renaming a field honors additional changes", %{opts: opts} do
       defposts do
         postgres do
           schema("example")
@@ -651,17 +562,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       send(self(), {:mix_shell_input, :yes?, true})
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
+      assert [_file1, file2] = get_files(opts[:migration_path])
       assert File.read!(file2) =~ ~S[rename table(:posts, prefix: "example"), :title, to: :name]
       assert File.read!(file2) =~ ~S[modify :title, :text, null: true, default: nil]
     end
@@ -669,11 +572,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
   describe "changing global multitenancy" do
     setup do
-      on_exit(fn ->
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-      end)
-
       defposts do
         identities do
           identity(:title, [:title])
@@ -694,17 +592,17 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
-
-      :ok
+      paths = ["test_snapshots_path", "test_migration_path"]
+      on_exit(fn -> for path <- paths, do: File.rm_rf!(path) end)
+      [snapshot_path, migration_path] = paths
+      path_opts = [snapshot_path: snapshot_path, migration_path: migration_path]
+      test_opts = [quiet: true, format: false]
+      opts = path_opts ++ test_opts
+      MigrationGenerator.generate(Domain, opts)
+      {:ok, [opts: opts]}
     end
 
-    test "when changing multitenancy to global, identities aren't rewritten" do
+    test "when changing multitenancy to global, identities aren't rewritten", %{opts: opts} do
       defposts do
         identities do
           identity(:title, [:title])
@@ -725,26 +623,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [_file1] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      assert [_file1] = get_files(opts[:migration_path])
     end
   end
 
   describe "creating follow up migrations" do
     setup do
-      on_exit(fn ->
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-      end)
-
       defposts do
         identities do
           identity(:title, [:title])
@@ -758,17 +644,18 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
-
-      :ok
+      paths = ["test_snapshots_path", "test_migration_path"]
+      on_exit(fn -> for path <- paths, do: File.rm_rf!(path) end)
+      [snapshot_path, migration_path] = paths
+      path_opts = [snapshot_path: snapshot_path, migration_path: migration_path]
+      test_opts = [quiet: true, format: false]
+      opts = path_opts ++ test_opts
+      MigrationGenerator.generate(Domain, opts)
+      {:ok, [opts: opts]}
     end
 
-    test "when renaming an attribute of an index, it is properly renamed without modifying the attribute" do
+    test "when renaming an attribute of an index, it is properly renamed without modifying the attribute",
+         %{opts: opts} do
       defposts do
         identities do
           identity(:title, [:foobar])
@@ -784,22 +671,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       send(self(), {:mix_shell_input, :yes?, true})
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      contents = File.read!(file2)
+      assert [_file1, file2] = get_files(opts[:migration_path])
+      assert {:ok, contents} = File.read(file2)
       refute contents =~ "modify"
     end
 
-    test "when renaming an index, it is properly renamed" do
+    test "when renaming an index, it is properly renamed", %{opts: opts} do
       defposts do
         postgres do
           identity_index_names(title: "titles_r_unique_dawg")
@@ -817,22 +696,15 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      assert [_file1, file2] = get_files(opts[:migration_path])
 
       assert File.read!(file2) =~
                ~S[ALTER INDEX posts_title_index RENAME TO titles_r_unique_dawg]
     end
 
-    test "when changing the where clause, it is properly dropped and recreated" do
+    test "when changing the where clause, it is properly dropped and recreated", %{opts: opts} do
       defposts do
         postgres do
           identity_wheres_to_sql(title: "title != 'fred' and title != 'george'")
@@ -850,16 +722,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      assert [_file1, file2] = get_files(opts[:migration_path])
 
       assert [file_before, _] =
                String.split(
@@ -871,7 +736,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S{drop_if_exists unique_index(:posts, [:title], name: "posts_title_index")}
     end
 
-    test "when adding a field, it adds the field" do
+    test "when adding a field, it adds the field", %{opts: opts} do
       defposts do
         identities do
           identity(:title, [:title])
@@ -886,22 +751,15 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      assert File.read!(file2) =~
-               ~S[add :name, :text, null: false]
+      assert [_file1, file2] = get_files(opts[:migration_path])
+      assert File.read!(file2) =~ ~S[add :name, :text, null: false]
     end
 
-    test "when renaming a field, it asks if you are renaming it, and renames it if you are" do
+    test "when renaming a field, it asks if you are renaming it, and renames it if you are", %{
+      opts: opts
+    } do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -913,21 +771,15 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       send(self(), {:mix_shell_input, :yes?, true})
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
+      assert [_file1, file2] = get_files(opts[:migration_path])
       assert File.read!(file2) =~ ~S[rename table(:posts), :title, to: :name]
     end
 
-    test "when renaming a field, it asks if you are renaming it, and adds it if you aren't" do
+    test "when renaming a field, it asks if you are renaming it, and adds it if you aren't", %{
+      opts: opts
+    } do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -939,22 +791,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       send(self(), {:mix_shell_input, :yes?, false})
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      assert File.read!(file2) =~
-               ~S[add :name, :text, null: false]
+      assert [_file1, file2] = get_files(opts[:migration_path])
+      assert File.read!(file2) =~ ~S[add :name, :text, null: false]
     end
 
-    test "when renaming a field, it asks which field you are renaming it to, and renames it if you are" do
+    test "when renaming a field, it asks which field you are renaming it to, and renames it if you are",
+         %{opts: opts} do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -968,16 +812,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
       send(self(), {:mix_shell_input, :yes?, true})
       send(self(), {:mix_shell_input, :prompt, "subject"})
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      assert [_file1, file2] = get_files(opts[:migration_path])
 
       # Up migration
       assert File.read!(file2) =~ ~S[rename table(:posts), :title, to: :subject]
@@ -986,7 +823,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert File.read!(file2) =~ ~S[rename table(:posts), :subject, to: :title]
     end
 
-    test "when renaming a field, it asks which field you are renaming it to, and adds it if you arent" do
+    test "when renaming a field, it asks which field you are renaming it to, and adds it if you arent",
+         %{opts: opts} do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -999,22 +837,13 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       send(self(), {:mix_shell_input, :yes?, false})
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      assert File.read!(file2) =~
-               ~S[add :subject, :text, null: false]
+      assert [_file1, file2] = get_files(opts[:migration_path])
+      assert File.read!(file2) =~ ~S[add :subject, :text, null: false]
     end
 
-    test "when multiple schemas apply to the same table, all attributes are added" do
+    test "when multiple schemas apply to the same table, all attributes are added", %{opts: opts} do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -1032,25 +861,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post, Post2])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      assert File.read!(file2) =~
-               ~S[add :foobar, :text]
-
-      assert File.read!(file2) =~
-               ~S[add :foobar, :text]
+      assert [_file1, file2] = get_files(opts[:migration_path])
+      assert File.read!(file2) =~ ~S[add :foobar, :text]
+      assert File.read!(file2) =~ ~S[add :foobar, :text]
     end
 
-    test "when multiple schemas apply to the same table, all identities are added" do
+    test "when multiple schemas apply to the same table, all identities are added", %{opts: opts} do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -1075,23 +893,12 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post, Post2])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      file1_content = File.read!(file1)
-
-      assert file1_content =~
-               "create unique_index(:posts, [:title], name: \"posts_title_index\")"
-
-      file2_content = File.read!(file2)
+      assert [file1, file2] = get_files(opts[:migration_path])
+      assert {:ok, file1_content} = File.read(file1)
+      assert file1_content =~ "create unique_index(:posts, [:title], name: \"posts_title_index\")"
+      assert {:ok, file2_content} = File.read(file2)
 
       assert file2_content =~
                "drop_if_exists unique_index(:posts, [:title], name: \"posts_title_index\")"
@@ -1103,7 +910,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
                "create unique_index(:posts, [:title], name: \"posts_unique_title_index\")"
     end
 
-    test "when concurrent-indexes flag set to true, identities are added in separate migration" do
+    test "when concurrent-indexes flag set to true, identities are added in separate migration",
+         %{opts: opts} do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -1119,20 +927,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        concurrent_indexes: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts ++ [concurrent_indexes: true])
 
-      assert [_file1, _file2, file3] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      file3_content = File.read!(file3)
-
+      assert [_file1, _file2, file3] = get_files(opts[:migration_path])
+      assert {:ok, file3_content} = File.read(file3)
       assert file3_content =~ ~S[@disable_ddl_transaction true]
 
       assert file3_content =~
@@ -1142,7 +940,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
                "create unique_index(:posts, [:name], name: \"posts_unique_name_index\")"
     end
 
-    test "when an attribute exists only on some of the resources that use the same table, it isn't marked as null: false" do
+    test "when an attribute exists only on some of the resources that use the same table, it isn't marked as null: false",
+         %{opts: opts} do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -1159,31 +958,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post, Post2])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      assert File.read!(file2) =~
-               ~S[add :example, :text] <> "\n"
-
+      assert [_file1, file2] = get_files(opts[:migration_path])
+      assert File.read!(file2) =~ ~S[add :example, :text] <> "\n"
       refute File.read!(file2) =~ ~S[null: false]
     end
   end
 
   describe "auto incrementing integer, when generated" do
     setup do
-      on_exit(fn ->
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-      end)
-
       defposts do
         attributes do
           attribute(:id, :integer,
@@ -1199,31 +983,34 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
-
-      :ok
+      paths = ["test_snapshots_path", "test_migration_path"]
+      on_exit(fn -> for path <- paths, do: File.rm_rf!(path) end)
+      [snapshot_path, migration_path] = paths
+      path_opts = [snapshot_path: snapshot_path, migration_path: migration_path]
+      test_opts = [quiet: true, format: false]
+      opts = path_opts ++ test_opts
+      MigrationGenerator.generate(Domain, opts)
+      {:ok, [opts: opts]}
     end
 
-    test "when an integer is generated and default nil, it is a bigserial" do
-      assert [file] =
-               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      assert File.read!(file) =~
-               ~S[add :id, :bigserial, null: false, primary_key: true]
-
-      assert File.read!(file) =~
-               ~S[add :views, :bigint]
+    test "when an integer is generated and default nil, it is a bigserial", %{opts: opts} do
+      assert [file] = get_files(opts[:migration_path])
+      assert File.read!(file) =~ ~S[add :id, :bigserial, null: false, primary_key: true]
+      assert File.read!(file) =~ ~S[add :views, :bigint]
     end
   end
 
   describe "--check option" do
     setup do
+      paths = ["test_snapshots_path", "test_migration_path"]
+      [snapshot_path, migration_path] = paths
+      path_opts = [snapshot_path: snapshot_path, migration_path: migration_path]
+      test_opts = [quiet: true, format: false]
+      opts = path_opts ++ test_opts
+      {:ok, [opts: opts]}
+    end
+
+    test "returns code(1) if snapshots and resources don't fit", %{opts: opts} do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -1233,17 +1020,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      [domain: Domain]
-    end
-
-    test "returns code(1) if snapshots and resources don't fit", %{domain: domain} do
-      assert catch_exit(
-               AshPostgres.MigrationGenerator.generate(domain,
-                 snapshot_path: "test_snapshots_path",
-                 migration_path: "test_migration_path",
-                 check: true
-               )
-             ) == {:shutdown, 1}
+      assert catch_exit(MigrationGenerator.generate(Domain, opts ++ [check: true])) ==
+               {:shutdown, 1}
 
       refute File.exists?(Path.wildcard("test_migration_path2/**/*_migrate_resources*.exs"))
       refute File.exists?(Path.wildcard("test_snapshots_path2/test_repo/posts/*.json"))
@@ -1252,14 +1030,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
   describe "--dev option" do
     setup do
-      on_exit(fn ->
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-        File.rm_rf!("test_tenant_migration_path")
-      end)
+      paths = ["test_snapshots_path", "test_migration_path", "test_tenant_migration_path"]
+      on_exit(fn -> for path <- paths, do: File.rm_rf!(path) end)
+      [snapshot_path, migration_path, tenant_migration_path] = paths
+      path_opts = [snapshot_path: snapshot_path, migration_path: migration_path]
+      test_opts = [quiet: true, format: false]
+      opts = path_opts ++ test_opts ++ [tenant_migration_path: tenant_migration_path]
+      {:ok, [opts: opts]}
     end
 
-    test "generates dev migration" do
+    test "generates dev migration", %{opts: opts} do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -1269,34 +1049,20 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        dev: true
-      )
+      MigrationGenerator.generate(Domain, opts ++ [dev: true])
 
-      assert [dev_file] =
-               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
+      assert [dev_file] = get_files(opts[:migration_path])
       assert String.contains?(dev_file, "_dev.exs")
-      contents = File.read!(dev_file)
+      assert {:ok, contents} = File.read(dev_file)
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path"
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [file] =
-               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
+      assert [file] = get_files(opts[:migration_path])
       refute String.contains?(file, "_dev.exs")
-
       assert contents == File.read!(file)
     end
 
-    test "generates dev migration for tenant" do
+    test "generates dev migration for tenant", %{opts: opts} do
       defposts do
         postgres do
           schema("example")
@@ -1316,45 +1082,32 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       send(self(), {:mix_shell_input, :yes?, true})
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        tenant_migration_path: "test_tenant_migration_path",
-        dev: true
-      )
+      MigrationGenerator.generate(Domain, opts ++ [dev: true])
 
-      assert [dev_file] =
-               Enum.sort(Path.wildcard("test_tenant_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
+      assert [dev_file] = get_files(opts[:tenant_migration_path])
       assert String.contains?(dev_file, "_dev.exs")
-      contents = File.read!(dev_file)
+      assert {:ok, contents} = File.read(dev_file)
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        tenant_migration_path: "test_tenant_migration_path"
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [file] =
-               Path.wildcard("test_tenant_migration_path/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
+      assert [file] = get_files(opts[:tenant_migration_path])
       refute String.contains?(file, "_dev.exs")
-
       assert contents == File.read!(file)
     end
   end
 
   describe "references" do
     setup do
-      on_exit(fn ->
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-      end)
+      paths = ["test_snapshots_path", "test_migration_path"]
+      on_exit(fn -> for path <- paths, do: File.rm_rf!(path) end)
+      [snapshot_path, migration_path] = paths
+      path_opts = [snapshot_path: snapshot_path, migration_path: migration_path]
+      test_opts = [quiet: true, format: false]
+      opts = path_opts ++ test_opts
+      {:ok, [opts: opts]}
     end
 
-    test "references are inferred automatically" do
+    test "references are inferred automatically", %{opts: opts} do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -1376,22 +1129,17 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post, Post2])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [file] =
-               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      assert [file] = get_files(opts[:migration_path])
 
       assert File.read!(file) =~
                ~S[references(:posts, column: :id, name: "posts_post_id_fkey", type: :uuid, prefix: "public")]
     end
 
-    test "references are inferred automatically if the attribute has a different type" do
+    test "references are inferred automatically if the attribute has a different type", %{
+      opts: opts
+    } do
       defposts do
         attributes do
           attribute(:id, :string, primary_key?: true, allow_nil?: false, public?: true)
@@ -1413,22 +1161,15 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post, Post2])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [file] =
-               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      assert [file] = get_files(opts[:migration_path])
 
       assert File.read!(file) =~
                ~S[references(:posts, column: :id, name: "posts_post_id_fkey", type: :text, prefix: "public")]
     end
 
-    test "references allow passing :match_with and :match_type" do
+    test "references allow passing :match_with and :match_type", %{opts: opts} do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -1459,22 +1200,15 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post, Post2])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [file] =
-               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      assert [file] = get_files(opts[:migration_path])
 
       assert File.read!(file) =~
                ~S{references(:posts, column: :id, with: [related_key_id: :key_id], match: :partial, name: "posts_post_id_fkey", type: :uuid, prefix: "public")}
     end
 
-    test "references generate related index when index? true" do
+    test "references generate related index when index? true", %{opts: opts} do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -1505,12 +1239,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post, Post2])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
       assert [file] =
                Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
@@ -1519,7 +1248,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert File.read!(file) =~ ~S{create index(:posts, [:post_id])}
     end
 
-    test "index generated by index? true also adds column when using attribute multitenancy" do
+    test "index generated by index? true also adds column when using attribute multitenancy", %{
+      opts: opts
+    } do
       defresource Org, "orgs" do
         attributes do
           uuid_primary_key(:id, writable?: true, public?: true)
@@ -1582,21 +1313,13 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Org, Post, Post2])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [file] =
-               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
+      assert [file] = get_files(opts[:migration_path])
       assert File.read!(file) =~ ~S{create index(:posts, [:org_id, :post_id])}
     end
 
-    test "references merge :match_with and multitenancy attribute" do
+    test "references merge :match_with and multitenancy attribute", %{opts: opts} do
       defresource Org, "orgs" do
         attributes do
           uuid_primary_key(:id, writable?: true, public?: true)
@@ -1660,22 +1383,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Org, User, UserThing])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [file] =
-               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      assert [file] = get_files(opts[:migration_path])
 
       assert File.read!(file) =~
                ~S{references(:users, column: :secondary_id, with: [related_key_id: :key_id, org_id: :org_id], match: :full, name: "user_things_user_id_fkey", type: :uuid, prefix: "public")}
     end
 
-    test "identities using `all_tenants?: true` will not have the condition on multitenancy attribtue added" do
+    test "identities using `all_tenants?: true` will not have the condition on multitenancy attribtue added",
+         %{opts: opts} do
       defresource Org, "orgs" do
         attributes do
           uuid_primary_key(:id, writable?: true)
@@ -1715,22 +1432,15 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Org, User])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [file] =
-               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      assert [file] = get_files(opts[:migration_path])
 
       assert File.read!(file) =~
                ~S{create unique_index(:users, [:name], name: "users_unique_name_index")}
     end
 
-    test "when modified, the foreign key is dropped before modification" do
+    test "when modified, the foreign key is dropped before modification", %{opts: opts} do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -1754,12 +1464,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post, Post2])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
       defposts Post2 do
         postgres do
@@ -1780,17 +1485,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
       assert file =
-               "test_migration_path/**/*_migrate_resources*.exs"
-               |> Path.wildcard()
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+               opts[:migration_path]
+               |> get_files()
                |> Enum.sort()
                |> Enum.at(1)
                |> File.read!()
@@ -1799,7 +1498,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[references(:posts, column: :id, name: "special_post_fkey", type: :uuid, prefix: "public", on_delete: :delete_all, on_update: :update_all)]
 
       assert file =~ ~S[drop constraint(:posts, "posts_post_id_fkey")]
-
       assert [_, down_code] = String.split(file, "def down do")
 
       assert [_, after_drop] =
@@ -1808,7 +1506,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert after_drop =~ ~S[references(:posts]
     end
 
-    test "references with added only when needed on multitenant resources" do
+    test "references with added only when needed on multitenant resources", %{opts: opts} do
       defresource Org, "orgs" do
         attributes do
           uuid_primary_key(:id, writable?: true)
@@ -1886,16 +1584,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Org, User, UserThing1, UserThing2])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [file] =
-               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      assert [file] = get_files(opts[:migration_path])
 
       assert File.read!(file) =~
                ~S{references(:users, column: :secondary_id, with: [org_id: :org_id], match: :full, name: "user_things1_user_id_fkey", type: :uuid, prefix: "public")}
@@ -1904,7 +1595,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[references(:users, column: :id, name: "user_things2_user_id_fkey", type: :uuid, prefix: "public")]
     end
 
-    test "references on_delete: {:nilify, columns} works with multitenant resources" do
+    test "references on_delete: {:nilify, columns} works with multitenant resources", %{
+      opts: opts
+    } do
       defresource Tenant, "tenants" do
         attributes do
           uuid_primary_key(:id)
@@ -1966,16 +1659,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Tenant, Group, Item])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [file] =
-               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      assert [file] = get_files(opts[:migration_path])
 
       assert File.read!(file) =~
                ~S<references(:groups, column: :id, with: [tenant_id: :tenant_id], name: "items_group_id_fkey", type: :uuid, prefix: "public", on_delete: {:nilify, [:group_id]}>
@@ -1984,13 +1670,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
   describe "check constraints" do
     setup do
-      on_exit(fn ->
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-      end)
+      paths = ["test_snapshots_path", "test_migration_path"]
+      on_exit(fn -> for path <- paths, do: File.rm_rf!(path) end)
+      [snapshot_path, migration_path] = paths
+      path_opts = [snapshot_path: snapshot_path, migration_path: migration_path]
+      test_opts = [quiet: true, format: false]
+      opts = path_opts ++ test_opts
+      {:ok, [opts: opts]}
     end
 
-    test "when added, the constraint is created" do
+    test "when added, the constraint is created", %{opts: opts} do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -2006,23 +1695,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
       assert file =
-               "test_migration_path/**/*_migrate_resources*.exs"
-               |> Path.wildcard()
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+               opts[:migration_path]
+               |> get_files()
                |> Enum.sort()
                |> Enum.at(0)
                |> File.read!()
 
-      assert file =~
-               ~S[create constraint(:posts, :price_must_be_positive, check: "price > 0")]
+      assert file =~ ~S[create constraint(:posts, :price_must_be_positive, check: "price > 0")]
 
       defposts do
         attributes do
@@ -2039,17 +1721,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
       assert file =
-               "test_migration_path/**/*_migrate_resources*.exs"
-               |> Path.wildcard()
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+               opts[:migration_path]
+               |> get_files()
                |> Enum.sort()
                |> Enum.at(1)
                |> File.read!()
@@ -2063,7 +1739,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[create constraint(:posts, :price_must_be_positive, check: "price > 0")]
     end
 
-    test "when removed, the constraint is dropped before modification" do
+    test "when removed, the constraint is dropped before modification", %{opts: opts} do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -2079,12 +1755,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
       defposts do
         attributes do
@@ -2093,32 +1764,30 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
       assert file =
-               "test_migration_path/**/*_migrate_resources*.exs"
-               |> Path.wildcard()
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+               opts[:migration_path]
+               |> get_files()
                |> Enum.sort()
                |> Enum.at(1)
 
-      assert File.read!(file) =~
-               ~S[drop_if_exists constraint(:posts, :price_must_be_positive)]
+      assert File.read!(file) =~ ~S[drop_if_exists constraint(:posts, :price_must_be_positive)]
     end
   end
 
   describe "polymorphic resources" do
     setup do
-      on_exit(fn ->
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-      end)
+      paths = ["test_snapshots_path", "test_migration_path"]
+      on_exit(fn -> for path <- paths, do: File.rm_rf!(path) end)
+      [snapshot_path, migration_path] = paths
+      path_opts = [snapshot_path: snapshot_path, migration_path: migration_path]
+      test_opts = [quiet: true, format: false]
+      opts = path_opts ++ test_opts
+      {:ok, [opts: opts]}
+    end
 
+    test "it uses the relationship's table context if it is set", %{opts: opts} do
       defcomments do
         postgres do
           polymorphic?(true)
@@ -2170,20 +1839,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post, Comment])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      [domain: Domain]
-    end
-
-    test "it uses the relationship's table context if it is set" do
-      assert [file] =
-               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      assert [file] = get_files(opts[:migration_path])
 
       assert File.read!(file) =~
                ~S[references(:post_comments, column: :id, name: "posts_best_comment_id_fkey", type: :uuid, prefix: "public")]
@@ -2192,13 +1850,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
   describe "default values" do
     setup do
-      on_exit(fn ->
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-      end)
+      paths = ["test_snapshots_path", "test_migration_path"]
+      on_exit(fn -> for path <- paths, do: File.rm_rf!(path) end)
+      [snapshot_path, migration_path] = paths
+      path_opts = [snapshot_path: snapshot_path, migration_path: migration_path]
+      test_opts = [quiet: true, format: false]
+      opts = path_opts ++ test_opts
+      {:ok, [opts: opts]}
     end
 
-    test "when default value is specified that implements EctoMigrationDefault" do
+    test "when default value is specified that implements EctoMigrationDefault", %{opts: opts} do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -2227,24 +1888,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [file1] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      assert [file1] = get_files(opts[:migration_path])
 
       file = File.read!(file1)
 
-      assert file =~
-               ~S[add :start_date, :date, default: fragment("'2022-04-19'")]
-
-      assert file =~
-               ~S[add :start_time, :time, default: fragment("'08:30:45'")]
+      assert file =~ ~S[add :start_date, :date, default: fragment("'2022-04-19'")]
+      assert file =~ ~S[add :start_time, :time, default: fragment("'08:30:45'")]
 
       assert file =~
                ~S[add :timestamp, :utc_datetime, default: fragment("'2022-02-02 08:30:30Z'")]
@@ -2252,26 +1903,17 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert file =~
                ~S[add :timestamp_naive, :naive_datetime, default: fragment("'2022-02-02 08:30:30'")]
 
-      assert file =~
-               ~S[add :number, :bigint, default: 5]
-
-      assert file =~
-               ~S[add :fraction, :float, default: 0.25]
-
-      assert file =~
-               ~S[add :decimal, :decimal, default: "123.4567890987654321987"]
-
-      assert file =~
-               ~S[add :name, :text, default: "Fred"]
-
-      assert file =~
-               ~S[add :tag, :text, default: "value"]
-
-      assert file =~
-               ~S[add :enabled, :boolean, default: false]
+      assert file =~ ~S[add :number, :bigint, default: 5]
+      assert file =~ ~S[add :fraction, :float, default: 0.25]
+      assert file =~ ~S[add :decimal, :decimal, default: "123.4567890987654321987"]
+      assert file =~ ~S[add :name, :text, default: "Fred"]
+      assert file =~ ~S[add :tag, :text, default: "value"]
+      assert file =~ ~S[add :enabled, :boolean, default: false]
     end
 
-    test "when default value is specified that does not implement EctoMigrationDefault" do
+    test "when default value is specified that does not implement EctoMigrationDefault", %{
+      opts: opts
+    } do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -2281,36 +1923,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      log =
-        capture_log(fn ->
-          AshPostgres.MigrationGenerator.generate(Domain,
-            snapshot_path: "test_snapshots_path",
-            migration_path: "test_migration_path",
-            quiet: true,
-            format: false
-          )
-        end)
-
+      log = capture_log(fn -> MigrationGenerator.generate(Domain, opts) end)
       assert log =~ "`{\"xyz\"}`"
-
-      assert [file1] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
+      assert [file1] = get_files(opts[:migration_path])
       file = File.read!(file1)
-
-      assert file =~
-               ~S[add :product_code, :binary]
+      assert file =~ ~S[add :product_code, :binary]
     end
   end
 
   describe "follow up with references" do
     setup do
-      on_exit(fn ->
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-      end)
-
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -2332,17 +1954,17 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post, Comment])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
-
-      :ok
+      paths = ["test_snapshots_path", "test_migration_path"]
+      on_exit(fn -> for path <- paths, do: File.rm_rf!(path) end)
+      [snapshot_path, migration_path] = paths
+      path_opts = [snapshot_path: snapshot_path, migration_path: migration_path]
+      test_opts = [quiet: true, format: false]
+      opts = path_opts ++ test_opts
+      MigrationGenerator.generate(Domain, opts)
+      {:ok, [opts: opts]}
     end
 
-    test "when changing the primary key, it changes properly" do
+    test "when changing the primary key, it changes properly", %{opts: opts} do
       defposts do
         attributes do
           attribute(:id, :uuid,
@@ -2370,28 +1992,26 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post, Comment])
 
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
-        quiet: true,
-        format: false
-      )
+      MigrationGenerator.generate(Domain, opts)
 
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      file = File.read!(file2)
+      assert [_file1, file2] = get_files(opts[:migration_path])
+      assert {:ok, file} = File.read(file2)
 
       assert [before_index_drop, after_index_drop] =
                String.split(file, ~S[drop constraint("posts", "posts_pkey")], parts: 2)
 
       assert before_index_drop =~ ~S[drop constraint(:comments, "comments_post_id_fkey")]
-
       assert after_index_drop =~ ~S[modify :id, :uuid, null: true, primary_key: false]
 
       assert after_index_drop =~
                ~S[modify :post_id, references(:posts, column: :id, name: "comments_post_id_fkey", type: :uuid, prefix: "public")]
     end
+  end
+
+  defp get_files(path) do
+    path
+    |> Path.join("**/*_migrate_resources*.exs")
+    |> Path.wildcard()
+    |> Enum.reject(&String.contains?(&1, "extensions"))
   end
 end
