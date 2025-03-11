@@ -5,6 +5,41 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.11](https://github.com/ash-project/ash_postgres/compare/v2.5.10...v2.5.11) (2025-03-11)
+
+
+
+
+### Bug Fixes:
+
+* ignore attributes with no known type
+
+* honor skip_unknown option in spec table generator
+
+* honor --no-migrations flag
+
+* allow optional input for relationship name guesser
+
+* put move up/down in the right place
+
+* go to top of if block
+
+* use `configures_key?/3`
+
+* don't modify repo in runtime.exs
+
+* remove Helpdesk.Repo from installer ð¤¦
+
+* only configure repo in installer if not already configured
+
+* install ash if not installed already
+
+### Improvements:
+
+* document options, add `--no-migrations`
+
+* add `skip_unknown` option to `ash_postgres.gen.resources`
+
 ## [v2.5.10](https://github.com/ash-project/ash_postgres/compare/v2.5.9...v2.5.10) (2025-03-06)
 
 
