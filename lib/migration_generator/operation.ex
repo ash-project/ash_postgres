@@ -1012,10 +1012,12 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           multitenancy: multitenancy
         }) do
       keys =
-        if multitenancy.strategy == :attribute do
-          [multitenancy.attribute, source]
-        else
-          [source]
+        case multitenancy do
+          %{strategy: :attribute, attribute: attribute} when attribute != source ->
+            [attribute, source]
+
+          _ ->
+            [source]
         end
 
       opts =
@@ -1032,10 +1034,12 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def down(%{schema: schema, source: source, table: table, multitenancy: multitenancy}) do
       keys =
-        if multitenancy.strategy == :attribute do
-          [multitenancy.attribute, source]
-        else
-          [source]
+        case multitenancy do
+          %{strategy: :attribute, attribute: attribute} when attribute != source ->
+            [attribute, source]
+
+          _ ->
+            [source]
         end
 
       opts =
