@@ -456,6 +456,7 @@ defmodule AshPostgres.Test.Post do
 
     attribute(:point, AshPostgres.Test.Point, public?: true)
     attribute(:composite_point, AshPostgres.Test.CompositePoint, public?: true)
+    attribute(:string_point, AshPostgres.Test.StringPoint, public?: true)
     attribute(:stuff, :map, public?: true)
     attribute(:list_of_stuff, {:array, :map}, public?: true)
     attribute(:uniq_one, :string, public?: true)
@@ -539,6 +540,18 @@ defmodule AshPostgres.Test.Post do
       public?(true)
       no_attributes?(true)
       filter(expr(parent(title) == title and parent(id) != id))
+    end
+
+    has_many :posts_with_matching_point, __MODULE__ do
+      public?(true)
+      no_attributes?(true)
+      filter(expr(parent(point) == point and parent(id) != id))
+    end
+
+    has_many :posts_with_matching_string_point, __MODULE__ do
+      public?(true)
+      no_attributes?(true)
+      filter(expr(parent(string_point) == string_point and parent(id) != id))
     end
 
     has_many(:comments, AshPostgres.Test.Comment, destination_attribute: :post_id, public?: true)
@@ -658,6 +671,18 @@ defmodule AshPostgres.Test.Post do
     end
 
     has_many(:permalinks, AshPostgres.Test.Permalink)
+
+    belongs_to :db_point, AshPostgres.Test.DbPoint do
+      public?(true)
+      allow_nil?(true)
+      attribute_type(AshPostgres.Test.Point)
+    end
+
+    belongs_to :db_string_point, AshPostgres.Test.DbStringPoint do
+      public?(true)
+      allow_nil?(true)
+      attribute_type(AshPostgres.Test.StringPoint)
+    end
   end
 
   validations do
