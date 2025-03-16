@@ -89,6 +89,7 @@ defmodule AshPostgres.MixProject do
         {"README.md", title: "Home"},
         "documentation/tutorials/get-started-with-ash-postgres.md",
         "documentation/tutorials/set-up-with-existing-database.md",
+        "documentation/tutorials/using-multiple-repos.md",
         "documentation/topics/about-ash-postgres/what-is-ash-postgres.md",
         "documentation/topics/resources/references.md",
         "documentation/topics/resources/polymorphic-resources.md",
