@@ -34,6 +34,7 @@ Welcome! `AshPostgres` is the PostgreSQL data layer for [Ash Framework](https://
 - [Expressions](documentation/topics/advanced/expressions.md)
 - [Manual Relationships](documentation/topics/advanced/manual-relationships.md)
 - [Schema Based Multitenancy](documentation/topics/advanced/schema-based-multitenancy.md)
+- [Read Replicas](documentation/topics/advanced/using-multiple-repos.md)
 
 ## Reference
 
