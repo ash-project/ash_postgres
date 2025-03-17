@@ -20,6 +20,37 @@ defmodule AshSql.AggregateTest do
     assert Ash.count!(AshPostgres.Test.PostView) == 0
   end
 
+  test "can sum count aggregates" do
+    org =
+      Organization
+      |> Ash.Changeset.for_create(:create, %{name: "The Org"})
+      |> Ash.create!()
+
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "title"})
+      |> Ash.Changeset.manage_relationship(:organization, org, type: :append_and_remove)
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "match"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "title"})
+      |> Ash.Changeset.manage_relationship(:organization, org, type: :append_and_remove)
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "match"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    assert Decimal.eq?(Ash.sum!(Post, :count_of_comments), Decimal.new("2"))
+  end
+
   test "relates to actor via has_many and with an aggregate" do
     org =
       Organization
