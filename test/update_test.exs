@@ -76,6 +76,29 @@ defmodule AshPostgres.UpdateTest do
     end
   end
 
+  test "absent validations behave the same atomically and non-atomically" do
+    post =
+      AshPostgres.Test.Post
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
+
+    assert_raise Ash.Error.Invalid, ~r/must be absent/, fn ->
+      Ash.update!(post, %{title: "title"}, action: :validate_absent_non_atomically)
+    end
+
+    assert_raise Ash.Error.Invalid, ~r/must be absent/, fn ->
+      Ash.update!(post, %{}, action: :validate_absent_non_atomically)
+    end
+
+    assert_raise Ash.Error.Invalid, ~r/must be absent/, fn ->
+      Ash.update!(post, %{title: "title"}, action: :validate_absent)
+    end
+
+    assert_raise Ash.Error.Invalid, ~r/must be absent/, fn ->
+      Ash.update!(post, %{}, action: :validate_absent)
+    end
+  end
+
   test "timestamps arent updated if there are no changes non-atomically" do
     post =
       AshPostgres.Test.Post

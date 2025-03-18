@@ -159,6 +159,17 @@ defmodule AshPostgres.Test.Post do
       change(atomic_update(:limited_score, expr((limited_score || 0) + ^arg(:amount))))
     end
 
+    update :validate_absent_non_atomically do
+      require_atomic?(false)
+      accept([:title])
+      validate(absent(:title))
+    end
+
+    update :validate_absent do
+      accept([:title])
+      validate(absent(:title))
+    end
+
     update :change_nothing do
       accept([])
       require_atomic?(false)
