@@ -166,8 +166,8 @@ defmodule AshPostgres.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ash, ash_version("~> 3.4 and >= 3.4.65")},
-      {:ash_sql, ash_sql_version("~> 0.2 and >= 0.2.57")},
+      {:ash, ash_version("~> 3.4 and >= 3.4.69")},
+      {:ash_sql, ash_sql_version("~> 0.2 and >= 0.2.62")},
       {:igniter, "~> 0.5 and >= 0.5.16", optional: true},
       {:ecto_sql, "~> 3.12"},
       {:ecto, "~> 3.12 and >= 3.12.1"},

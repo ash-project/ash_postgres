@@ -883,7 +883,6 @@ defmodule AshPostgres.ResourceGenerator.Spec do
               case get_type(attribute, opts) do
                 :skip -> []
                 {:ok, type} -> [%{attribute | attr_type: type}]
-                :error -> []
               end
           end
 
