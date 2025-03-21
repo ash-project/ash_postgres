@@ -1376,6 +1376,19 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp after?(
+         %Operation.AddCustomIndex{
+           table: table,
+           schema: schema
+         },
+         %Operation.RenameAttribute{
+           table: table,
+           schema: schema
+         }
+       ) do
+    true
+  end
+
+  defp after?(
          %Operation.AddReferenceIndex{
            table: table,
            schema: schema

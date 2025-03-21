@@ -393,6 +393,87 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "custom_indexes with follow up migrations" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+
+      defposts do
+        postgres do
+          custom_indexes do
+            index([:title])
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+    end
+
+    test "it changes attribute and index in the correct order" do
+      defposts do
+        postgres do
+          custom_indexes do
+            index([:title_short])
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title_short, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      contents = File.read!(file2)
+
+      [up_side, down_side] = String.split(contents, "def down", parts: 2)
+
+      up_side_parts = String.split(up_side, "\n", trim: true)
+
+      assert Enum.find_index(up_side_parts, fn x ->
+               x == "rename table(:posts), :title, to: :title_short"
+             end) <
+               Enum.find_index(up_side_parts, fn x ->
+                 x == "create index(:posts, [:title_short])"
+               end)
+
+      down_side_parts = String.split(down_side, "\n", trim: true)
+
+      assert Enum.find_index(down_side_parts, fn x ->
+               x == "rename table(:posts), :title_short, to: :title"
+             end) <
+               Enum.find_index(down_side_parts, fn x -> x == "create index(:posts, [:title])" end)
+    end
+  end
+
   describe "creating follow up migrations with a composite primary key" do
     setup do
       on_exit(fn ->
