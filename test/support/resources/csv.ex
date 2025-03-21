@@ -1,4 +1,5 @@
 defmodule AshPostgres.Test.CSVColumnMatchingEmbedded do
+  @moduledoc false
   use Ash.Resource,
     data_layer: :embedded
 
@@ -9,6 +10,7 @@ defmodule AshPostgres.Test.CSVColumnMatchingEmbedded do
 end
 
 defmodule AshPostgres.Test.CSVColumnMappingNewType do
+  @moduledoc false
   use Ash.Type.NewType,
     subtype_of: :map,
     constraints: [

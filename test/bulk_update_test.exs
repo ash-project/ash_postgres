@@ -1,6 +1,6 @@
 defmodule AshPostgres.BulkUpdateTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Post, Record, CSV}
+  alias AshPostgres.Test.{CSV, Post, Record}
 
   require Ash.Expr
   require Ash.Query
