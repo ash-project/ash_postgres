@@ -264,7 +264,7 @@ defmodule AshPostgres.BulkUpdateTest do
              )
   end
 
-  @tag :wip
+  @tag :regression
   test "jsonb[] attribute with embedded Resource definition can be created and updated" do
     %{status: :success} =
       Ash.bulk_create!(
@@ -275,10 +275,9 @@ defmodule AshPostgres.BulkUpdateTest do
         return_errors?: true
       )
 
-    %{status: :success} =
-      Ash.bulk_update(CSV, :update, %{
-        column_mapping_embedded: [%{column: 1, attribute: "foo"}],
-        column_mapping_new_type: [%{column: 1, attribute: "foo"}]
-      })
+    Ash.bulk_update!(CSV, :update, %{
+      column_mapping_embedded: [%{column: 1, attribute: "foo"}],
+      column_mapping_new_type: [%{column: 1, attribute: "foo"}]
+    })
   end
 end

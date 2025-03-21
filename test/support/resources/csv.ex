@@ -50,7 +50,6 @@ defmodule AshPostgres.Test.CSV do
     table "csv"
     repo(AshPostgres.TestRepo)
 
-    storage_types column_mapping_embedded: :jsonb
-    storage_types column_mapping_new_type: :jsonb
+    storage_types column_mapping_embedded: :jsonb, column_mapping_new_type: :jsonb
   end
 end
