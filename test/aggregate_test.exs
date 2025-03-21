@@ -128,6 +128,32 @@ defmodule AshSql.AggregateTest do
   describe "Context Multitenancy" do
     alias AshPostgres.MultitenancyTest.{Org, Post, User}
 
+    test "aggregating with a filter on an aggregate honors the tenant" do
+      org =
+        Org
+        |> Ash.Changeset.for_create(:create, %{name: "BTTF"})
+        |> Ash.create!()
+
+      user =
+        User
+        |> Ash.Changeset.for_create(:create, %{name: "Marty", org_id: org.id})
+        |> Ash.create!()
+
+      ["Back to 1955", "Forwards to 1985", "Forward to 2015", "Back again to 1985"]
+      |> Enum.map(
+        &(Post
+          |> Ash.Changeset.for_create(:create, %{name: &1, user_id: user.id})
+          |> Ash.create!(tenant: "org_#{org.id}", load: [:last_word]))
+      )
+
+      assert 1 ==
+               User
+               |> Ash.Query.set_tenant("org_#{org.id}")
+               |> Ash.Query.filter(count_visited > 1)
+               |> Ash.Query.load(:count_visited)
+               |> Ash.count!()
+    end
+
     test "loading a nested aggregate honors tenant" do
       alias AshPostgres.MultitenancyTest.{Org, Post, User}
 
