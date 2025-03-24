@@ -397,7 +397,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     |> String.trim_leading("CREATE ")
     |> String.trim_leading("UNIQUE ")
     |> String.trim_leading("INDEX ")
-    |> String.replace(~r/^[a-zA-Z0-9_\.]+\s/, "")
+    |> String.replace(~r/^"?[a-zA-Z0-9_\.]+"?\s/, "")
     |> String.trim_leading("ON ")
     |> String.replace(~r/^[\S]+/, "")
     |> String.trim_leading()
