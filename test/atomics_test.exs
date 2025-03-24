@@ -118,9 +118,11 @@ defmodule AshPostgres.AtomicsTest do
              post
              |> Ash.Changeset.for_update(:update, %{})
              |> Ash.Changeset.atomic_update(%{
-               list_of_stuff: [
-                 %{foo: [%{a: 1, b: %{c: [1, 2, expr(type(fragment("3"), :integer))]}}]}
-               ]
+               list_of_stuff:
+                 {:atomic,
+                  [
+                    %{foo: [%{a: 1, b: %{c: [1, 2, expr(type(fragment("3"), :integer))]}}]}
+                  ]}
              })
              |> Ash.update!()
   end
