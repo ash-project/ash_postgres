@@ -5,6 +5,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.13](https://github.com/ash-project/ash_postgres/compare/v2.5.12...v2.5.13) (2025-03-25)
+
+
+
+
+### Bug Fixes:
+
+* order when renaming attribute with an index (#514)
+
 ## [v2.5.12](https://github.com/ash-project/ash_postgres/compare/v2.5.11...v2.5.12) (2025-03-18)
 
 
