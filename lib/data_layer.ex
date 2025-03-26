@@ -1512,7 +1512,23 @@ defmodule AshPostgres.DataLayer do
                 end)
 
               if options[:return_records?] do
-                {:ok, AshSql.Query.remap_mapped_fields(results, query)}
+                results = AshSql.Query.remap_mapped_fields(results, query)
+
+                if changeset.context[:data_layer][:use_atomic_update_data?] &&
+                     Enum.count_until(results, 2) == 1 do
+                  modifying =
+                    Map.keys(changeset.attributes) ++
+                      Keyword.keys(changeset.atomics) ++ Ash.Resource.Info.primary_key(resource)
+
+                  result = hd(results)
+
+                  Map.merge(changeset.data, Map.take(result, modifying))
+                  |> Map.update!(:aggregates, &Map.merge(&1, result.aggregates))
+                  |> Map.update!(:calculations, &Map.merge(&1, result.calculations))
+                  |> then(&{:ok, [&1]})
+                else
+                  {:ok, results}
+                end
               else
                 :ok
               end
@@ -3042,10 +3058,6 @@ defmodule AshPostgres.DataLayer do
   def update(resource, changeset) do
     source = resolve_source(resource, changeset)
 
-    modifying =
-      Map.keys(changeset.attributes) ++
-        Keyword.keys(changeset.atomics) ++ Ash.Resource.Info.primary_key(resource)
-
     query =
       from(row in source, as: ^0)
       |> AshSql.Bindings.default_bindings(
@@ -3075,10 +3087,6 @@ defmodule AshPostgres.DataLayer do
          )}
 
       {:ok, [record]} ->
-        record =
-          changeset.data
-          |> Map.merge(Map.take(record, modifying))
-
         maybe_update_tenant(resource, changeset, record)
 
         {:ok, record}

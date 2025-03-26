@@ -35,7 +35,11 @@ defmodule AshPostgres.Test.Author do
   actions do
     default_accept(:*)
 
-    defaults([:create, :read, :update, :destroy])
+    defaults([:create, :read, :destroy])
+
+    update :update do
+      primary?(true)
+    end
   end
 
   relationships do
