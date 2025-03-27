@@ -13,14 +13,16 @@ defmodule AshPostgres.MigrationGenerator.Phase do
           Enum.map_join(operations, "\n", fn operation -> operation.__struct__.up(operation) end) <>
           "\nend"
       else
-        opts =
+        {pre_create, opts} =
           if schema do
-            ", prefix: \"#{schema}\""
+            {"execute(\"CREATE SCHEMA IF NOT EXISTS #{schema}\")" <> "\n\n",
+             ", prefix: \"#{schema}\""}
           else
-            ""
+            {"", ""}
           end
 
-        "create table(:#{as_atom(table)}, primary_key: false#{opts}) do\n" <>
+        pre_create <>
+          "create table(:#{as_atom(table)}, primary_key: false#{opts}) do\n" <>
           Enum.map_join(operations, "\n", fn operation -> operation.__struct__.up(operation) end) <>
           "\nend"
       end
