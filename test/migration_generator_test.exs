@@ -243,14 +243,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      {:ok, _} =
-        Ecto.Adapters.SQL.query(
-          AshPostgres.TestRepo,
-          """
-          CREATE SCHEMA IF NOT EXISTS example;
-          """
-        )
-
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
@@ -271,6 +263,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
                |> Enum.reject(&String.contains?(&1, "extensions"))
 
       file_contents = File.read!(file)
+
+      # the migration creates the schema
+      assert file_contents =~ "execute(\"CREATE SCHEMA IF NOT EXISTS example\")"
 
       # the migration creates the table
       assert file_contents =~ "create table(:posts, primary_key: false, prefix: \"example\") do"
