@@ -5,6 +5,21 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.14](https://github.com/ash-project/ash_postgres/compare/v2.5.13...v2.5.14) (2025-03-28)
+
+
+
+
+### Bug Fixes:
+
+* remove debugging code accidentally committed
+
+* retain loads on atomic upgrade update actions
+
+### Improvements:
+
+* create schema before table creation (#518)
+
 ## [v2.5.13](https://github.com/ash-project/ash_postgres/compare/v2.5.12...v2.5.13) (2025-03-25)
 
 
