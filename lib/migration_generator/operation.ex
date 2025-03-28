@@ -454,16 +454,34 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     @moduledoc false
     defstruct [:table, :schema, :references, :direction, no_phase: true]
 
-    def up(%{direction: :up, table: table, references: %{name: name, deferrable: true}}) do
-      "execute(\"ALTER TABLE #{table} alter CONSTRAINT #{name} DEFERRABLE INITIALLY IMMEDIATE\");"
+    defp prefix_name(name, prefix) do
+      if prefix do
+        "#{prefix}.#{name}"
+      else
+        name
+      end
     end
 
-    def up(%{direction: :up, table: table, references: %{name: name, deferrable: :initially}}) do
-      "execute(\"ALTER TABLE #{table} alter CONSTRAINT #{name} DEFERRABLE INITIALLY DEFERRED\");"
+    def up(%{
+          direction: :up,
+          schema: schema,
+          table: table,
+          references: %{name: name, deferrable: true}
+        }) do
+      "execute(\"ALTER TABLE #{prefix_name(table, schema)} ALTER CONSTRAINT #{name} DEFERRABLE INITIALLY IMMEDIATE\");"
     end
 
-    def up(%{direction: :up, table: table, references: %{name: name}}) do
-      "execute(\"ALTER TABLE #{table} alter CONSTRAINT #{name} NOT DEFERRABLE\");"
+    def up(%{
+          direction: :up,
+          schema: schema,
+          table: table,
+          references: %{name: name, deferrable: :initially}
+        }) do
+      "execute(\"ALTER TABLE #{prefix_name(table, schema)} ALTER CONSTRAINT #{name} DEFERRABLE INITIALLY DEFERRED\");"
+    end
+
+    def up(%{direction: :up, schema: schema, table: table, references: %{name: name}}) do
+      "execute(\"ALTER TABLE #{prefix_name(table, schema)} ALTER CONSTRAINT #{name} NOT DEFERRABLE\");"
     end
 
     def up(_), do: ""
