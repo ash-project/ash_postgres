@@ -898,8 +898,6 @@ defmodule AshPostgres.ResourceGenerator.Spec do
       if opts[:yes?] || opts[:skip_unknown] do
         "skip"
       else
-        raise "what"
-
         Mix.shell().prompt("""
         Unknown type: #{attribute.type}. What should we use as the type?
 
