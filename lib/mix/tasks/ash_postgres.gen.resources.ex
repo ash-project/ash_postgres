@@ -22,10 +22,15 @@ if Code.ensure_loaded?(Igniter) do
 
     - `repo`, `r` - The repo or repos to generate resources for, comma separated. Can be specified multiple times. Defaults to all repos.
     - `tables`, `t` - Defaults to `public.*`. The tables to generate resources for, comma separated. Can be specified multiple times. See the section on tables for more.
-    - `skip-tables`, `s` - The tables to skip generating resources for, comma separated. Can be specified multiple times. See the section on tables for more.
+    - `skip-tables`, `s` - The tables to skip generating resources for, comma separated. Can be specified multiple times. See the section on tables for more. `schema_migrations` is always skipped.
     - `snapshots-only` - Only generate snapshots for the generated resources, and not migraitons.
     - `extend`, `e` - Extension or extensions to apply to the generated resources. See `mix ash.patch.extend` for more.
     - `yes`, `y` - Answer yes (or skip) to all questions.
+    - `default-actions` - Add default actions for each resource. Defaults to `true`.
+    - `public` - Mark all attributes and relationships as `public? true`. Defaults to `true`.
+    - `no-migrations` - Do not generate snapshots & migrations for the resources. Defaults to `false`.
+    - `skip-unknown` - Skip any attributes with types that we don't have a corresponding Elixir type for, and relationships that we can't assume the name of.
+    - `public` - Mark all attributes and relationships as `public? true`. Defaults to `true`.
 
     ## Tables
 
@@ -47,7 +52,11 @@ if Code.ensure_loaded?(Igniter) do
           yes: :boolean,
           tables: :keep,
           skip_tables: :keep,
+          default_actions: :boolean,
+          public: :boolean,
           extend: :keep,
+          skip_unknown: :boolean,
+          migrations: :boolean,
           snapshots_only: :boolean,
           domain: :keep
         ],
@@ -58,6 +67,11 @@ if Code.ensure_loaded?(Igniter) do
           e: :extend,
           d: :domain,
           s: :skip_tables
+        ],
+        defaults: [
+          default_actions: true,
+          migrations: true,
+          public: true
         ]
       }
     end
@@ -73,9 +87,14 @@ if Code.ensure_loaded?(Igniter) do
       options = options!(argv)
 
       repos =
-        options[:repo] ||
-          Mix.Project.config()[:app]
-          |> Application.get_env(:ecto_repos, [])
+        case options[:repo] do
+          [] ->
+            Mix.Project.config()[:app]
+            |> Application.get_env(:ecto_repos, [])
+
+          repos ->
+            repos
+        end
 
       repos =
         repos
@@ -127,10 +146,15 @@ if Code.ensure_loaded?(Igniter) do
             """
 
           options =
-            if options[:yes] || Mix.shell().yes?(prompt) do
-              Keyword.put(options, :no_migrations, false)
-            else
-              Keyword.put(options, :no_migrations, true)
+            cond do
+              options[:migrations] == false ->
+                Keyword.put(options, :no_migrations, true)
+
+              options[:migrations] || options[:yes] || Mix.shell().yes?(prompt) ->
+                Keyword.put(options, :no_migrations, false)
+
+              true ->
+                Keyword.put(options, :no_migrations, true)
             end
 
           migration_opts =

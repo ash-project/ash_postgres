@@ -5,7 +5,7 @@ defmodule AshPostgres.MixProject do
   The PostgreSQL data layer for Ash Framework
   """
 
-  @version "2.5.7"
+  @version "2.5.14"
 
   def project do
     [
@@ -97,6 +97,7 @@ defmodule AshPostgres.MixProject do
         "documentation/topics/development/upgrading-to-2.0.md",
         "documentation/topics/advanced/expressions.md",
         "documentation/topics/advanced/schema-based-multitenancy.md",
+        "documentation/topics/advanced/using-multiple-repos.md",
         "documentation/topics/advanced/manual-relationships.md",
         {"documentation/dsls/DSL-AshPostgres.DataLayer.md",
          search_data: Spark.Docs.search_data_for(AshPostgres.DataLayer)},
@@ -165,8 +166,8 @@ defmodule AshPostgres.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ash, ash_version("~> 3.4 and >= 3.4.65")},
-      {:ash_sql, ash_sql_version("~> 0.2 and >= 0.2.57")},
+      {:ash, ash_version("~> 3.4 and >= 3.4.69")},
+      {:ash_sql, ash_sql_version("~> 0.2 and >= 0.2.62")},
       {:igniter, "~> 0.5 and >= 0.5.16", optional: true},
       {:ecto_sql, "~> 3.12"},
       {:ecto, "~> 3.12 and >= 3.12.1"},

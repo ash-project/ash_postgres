@@ -243,14 +243,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([Post])
 
-      {:ok, _} =
-        Ecto.Adapters.SQL.query(
-          AshPostgres.TestRepo,
-          """
-          CREATE SCHEMA IF NOT EXISTS example;
-          """
-        )
-
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
@@ -271,6 +263,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
                |> Enum.reject(&String.contains?(&1, "extensions"))
 
       file_contents = File.read!(file)
+
+      # the migration creates the schema
+      assert file_contents =~ "execute(\"CREATE SCHEMA IF NOT EXISTS example\")"
 
       # the migration creates the table
       assert file_contents =~ "create table(:posts, primary_key: false, prefix: \"example\") do"
@@ -390,6 +385,87 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert file =~ ~S<create index(:posts, [:uniq_one])>
       assert file =~ ~S<create index(:posts, [:uniq_two], nulls_distinct: false)>
       assert file =~ ~S<create index(:posts, [:uniq_custom_one])>
+    end
+  end
+
+  describe "custom_indexes with follow up migrations" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+
+      defposts do
+        postgres do
+          custom_indexes do
+            index([:title])
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+    end
+
+    test "it changes attribute and index in the correct order" do
+      defposts do
+        postgres do
+          custom_indexes do
+            index([:title_short])
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title_short, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      contents = File.read!(file2)
+
+      [up_side, down_side] = String.split(contents, "def down", parts: 2)
+
+      up_side_parts = String.split(up_side, "\n", trim: true)
+
+      assert Enum.find_index(up_side_parts, fn x ->
+               x == "rename table(:posts), :title, to: :title_short"
+             end) <
+               Enum.find_index(up_side_parts, fn x ->
+                 x == "create index(:posts, [:title_short])"
+               end)
+
+      down_side_parts = String.split(down_side, "\n", trim: true)
+
+      assert Enum.find_index(down_side_parts, fn x ->
+               x == "rename table(:posts), :title_short, to: :title"
+             end) <
+               Enum.find_index(down_side_parts, fn x -> x == "create index(:posts, [:title])" end)
     end
   end
 
@@ -1519,6 +1595,90 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert File.read!(file) =~ ~S{create index(:posts, [:post_id])}
     end
 
+    test "references with deferrable modifications generate changes with the correct schema" do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:key_id, :uuid, allow_nil?: false, public?: true)
+          attribute(:foobar, :string, public?: true)
+        end
+
+        postgres do
+          schema "example"
+        end
+      end
+
+      defposts Post2 do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string, public?: true)
+          attribute(:related_key_id, :uuid, public?: true)
+        end
+
+        relationships do
+          belongs_to(:post, Post) do
+            public?(true)
+          end
+        end
+
+        postgres do
+          schema "example"
+
+          references do
+            reference(:post, index?: true, deferrable: :initially)
+          end
+        end
+      end
+
+      defdomain([Post, Post2])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      defposts Post2 do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string, public?: true)
+          attribute(:related_key_id, :uuid, public?: true)
+        end
+
+        relationships do
+          belongs_to(:post, Post) do
+            public?(true)
+          end
+        end
+
+        postgres do
+          schema "example"
+
+          references do
+            reference(:post, index?: true, deferrable: true)
+          end
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert file =
+               "test_migration_path/**/*_migrate_resources*.exs"
+               |> Path.wildcard()
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+               |> Enum.sort()
+               |> Enum.at(1)
+               |> File.read!()
+
+      assert file =~ ~S{execute("ALTER TABLE example.posts ALTER CONSTRAINT}
+    end
+
     test "index generated by index? true also adds column when using attribute multitenancy" do
       defresource Org, "orgs" do
         attributes do
@@ -1594,6 +1754,64 @@ defmodule AshPostgres.MigrationGeneratorTest do
                |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert File.read!(file) =~ ~S{create index(:posts, [:org_id, :post_id])}
+    end
+
+    test "index generated by index? true does not duplicate tenant column when using attribute multitenancy if reference is same as tenant column" do
+      defresource Org, "orgs" do
+        attributes do
+          uuid_primary_key(:id, writable?: true, public?: true)
+          attribute(:name, :string, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:id)
+        end
+      end
+
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:key_id, :uuid, allow_nil?: false, public?: true)
+          attribute(:foobar, :string, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+        end
+
+        postgres do
+          references do
+            reference(:org, index?: true)
+          end
+        end
+      end
+
+      defdomain([Org, Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert file =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+               |> File.read!()
+
+      assert [up_code, down_code] = String.split(file, "def down do")
+
+      assert up_code =~ ~S{create index(:posts, [:org_id])}
+      assert down_code =~ ~S{drop_if_exists index(:posts, [:org_id])}
     end
 
     test "references merge :match_with and multitenancy attribute" do
@@ -2061,6 +2279,47 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert remaining =~
                ~S[create constraint(:posts, :price_must_be_positive, check: "price > 0")]
+    end
+
+    test "base filters are taken into account, negated" do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:price, :integer, public?: true)
+        end
+
+        resource do
+          base_filter(expr(price > 10))
+        end
+
+        postgres do
+          base_filter_sql "price > -10"
+
+          check_constraints do
+            check_constraint(:price, "price_must_be_positive", check: "price > 0")
+          end
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert file =
+               "test_migration_path/**/*_migrate_resources*.exs"
+               |> Path.wildcard()
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+               |> Enum.sort()
+               |> Enum.at(0)
+               |> File.read!()
+
+      assert file =~
+               ~S[create constraint(:posts, :price_must_be_positive, check: "(price > 0) OR NOT (price > -10)")]
     end
 
     test "when removed, the constraint is dropped before modification" do

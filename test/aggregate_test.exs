@@ -20,6 +20,37 @@ defmodule AshSql.AggregateTest do
     assert Ash.count!(AshPostgres.Test.PostView) == 0
   end
 
+  test "can sum count aggregates" do
+    org =
+      Organization
+      |> Ash.Changeset.for_create(:create, %{name: "The Org"})
+      |> Ash.create!()
+
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "title"})
+      |> Ash.Changeset.manage_relationship(:organization, org, type: :append_and_remove)
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "match"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "title"})
+      |> Ash.Changeset.manage_relationship(:organization, org, type: :append_and_remove)
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "match"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    assert Decimal.eq?(Ash.sum!(Post, :count_of_comments), Decimal.new("2"))
+  end
+
   test "relates to actor via has_many and with an aggregate" do
     org =
       Organization
@@ -96,6 +127,32 @@ defmodule AshSql.AggregateTest do
 
   describe "Context Multitenancy" do
     alias AshPostgres.MultitenancyTest.{Org, Post, User}
+
+    test "aggregating with a filter on an aggregate honors the tenant" do
+      org =
+        Org
+        |> Ash.Changeset.for_create(:create, %{name: "BTTF"})
+        |> Ash.create!()
+
+      user =
+        User
+        |> Ash.Changeset.for_create(:create, %{name: "Marty", org_id: org.id})
+        |> Ash.create!()
+
+      ["Back to 1955", "Forwards to 1985", "Forward to 2015", "Back again to 1985"]
+      |> Enum.map(
+        &(Post
+          |> Ash.Changeset.for_create(:create, %{name: &1, user_id: user.id})
+          |> Ash.create!(tenant: "org_#{org.id}", load: [:last_word]))
+      )
+
+      assert 1 ==
+               User
+               |> Ash.Query.set_tenant("org_#{org.id}")
+               |> Ash.Query.filter(count_visited > 1)
+               |> Ash.Query.load(:count_visited)
+               |> Ash.count!()
+    end
 
     test "loading a nested aggregate honors tenant" do
       alias AshPostgres.MultitenancyTest.{Org, Post, User}

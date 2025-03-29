@@ -16,9 +16,34 @@ if Code.ensure_loaded?(Igniter) do
 
       opts = handle_csv_opts(opts, [:tables, :skip_tables, :extend])
 
+      opts =
+        Keyword.update(opts, :tables, nil, fn tables ->
+          if tables == [] do
+            nil
+          else
+            tables
+          end
+        end)
+
+      opts =
+        Keyword.update(opts, :skip_tables, nil, fn tables ->
+          if tables == [] do
+            []
+          else
+            tables
+          end
+          |> Enum.concat(["schema_migrations"])
+        end)
+
       specs =
         repos
-        |> Enum.flat_map(&Spec.tables(&1, skip_tables: opts[:skip_tables], tables: opts[:tables]))
+        |> Enum.flat_map(
+          &Spec.tables(&1,
+            skip_tables: opts[:skip_tables],
+            tables: opts[:tables],
+            skip_unknown: opts[:skip_unknown]
+          )
+        )
         |> Enum.map(fn %{table_name: table} = spec ->
           resource =
             table
@@ -85,6 +110,8 @@ if Code.ensure_loaded?(Igniter) do
           domain: #{inspect(domain)},
           data_layer: AshPostgres.DataLayer
 
+        #{default_actions(opts)}
+
         postgres do
           table #{inspect(table_spec.table_name)}
           repo #{inspect(table_spec.repo)}
@@ -97,11 +124,11 @@ if Code.ensure_loaded?(Igniter) do
         end
 
         attributes do
-          #{attributes(table_spec)}
+          #{attributes(table_spec, opts)}
         end
         """
         |> add_identities(table_spec)
-        |> add_relationships(table_spec)
+        |> add_relationships(table_spec, opts)
 
       igniter
       |> Ash.Domain.Igniter.add_resource_reference(domain, table_spec.resource)
@@ -115,6 +142,27 @@ if Code.ensure_loaded?(Igniter) do
           igniter
         end
       end)
+    end
+
+    defp default_actions(opts) do
+      cond do
+        opts[:default_actions] && opts[:public] ->
+          """
+          actions do
+            defaults [:read, :destroy, create: :*, update: :*]
+          end
+          """
+
+        opts[:default_actions] ->
+          """
+          actions do
+            defaults [:read, :destroy, create: :*, update: :*]
+          end
+          """
+
+        true ->
+          ""
+      end
     end
 
     defp check_constraints(%{check_constraints: _check_constraints}, true) do
@@ -239,14 +287,14 @@ if Code.ensure_loaded?(Igniter) do
 
     defp add_nils_distinct?(str, _), do: str
 
-    defp add_relationships(str, %{relationships: []}) do
+    defp add_relationships(str, %{relationships: []}, _opts) do
       str
     end
 
-    defp add_relationships(str, %{relationships: relationships} = spec) do
+    defp add_relationships(str, %{relationships: relationships} = spec, opts) do
       relationships
       |> Enum.map_join("\n", fn relationship ->
-        case relationship_options(spec, relationship) do
+        case relationship_options(spec, relationship, opts) do
           "" ->
             "#{relationship.type} :#{relationship.name}, #{inspect(relationship.destination)}"
 
@@ -269,7 +317,7 @@ if Code.ensure_loaded?(Igniter) do
       end)
     end
 
-    defp relationship_options(spec, %{type: :belongs_to} = rel) do
+    defp relationship_options(spec, %{type: :belongs_to} = rel, opts) do
       case Enum.find(spec.attributes, fn attribute ->
              attribute.name == rel.source_attribute
            end) do
@@ -285,6 +333,7 @@ if Code.ensure_loaded?(Igniter) do
           |> add_source_attribute(rel, "#{rel.name}_id")
           |> add_allow_nil(rel)
           |> add_filter(rel)
+          |> add_public(opts)
 
         attribute ->
           ""
@@ -294,10 +343,11 @@ if Code.ensure_loaded?(Igniter) do
           |> add_primary_key(attribute.primary_key?)
           |> add_attribute_type(attribute)
           |> add_filter(rel)
+          |> add_public(opts)
       end
     end
 
-    defp relationship_options(_spec, rel) do
+    defp relationship_options(_spec, rel, opts) do
       default_destination_attribute =
         rel.source
         |> Module.split()
@@ -309,6 +359,7 @@ if Code.ensure_loaded?(Igniter) do
       |> add_destination_attribute(rel, default_destination_attribute)
       |> add_source_attribute(rel, "id")
       |> add_filter(rel)
+      |> add_public(opts)
     end
 
     defp add_filter(str, %{match_with: []}), do: str
@@ -526,7 +577,7 @@ if Code.ensure_loaded?(Igniter) do
     defp add_include(str, include),
       do: str <> "\ninclude [#{Enum.map_join(include, ", ", &inspect/1)}]"
 
-    defp attributes(table_spec) do
+    defp attributes(table_spec, opts) do
       table_spec.attributes
       |> Enum.split_with(& &1.default)
       |> then(fn {l, r} -> r ++ l end)
@@ -542,10 +593,10 @@ if Code.ensure_loaded?(Igniter) do
           end)
         end
       end)
-      |> Enum.map_join("\n", &attribute(&1))
+      |> Enum.map_join("\n", &attribute(&1, opts))
     end
 
-    defp attribute(attribute) do
+    defp attribute(attribute, opts) do
       now_default = &DateTime.utc_now/0
       uuid_default = &Ash.UUID.generate/0
 
@@ -575,7 +626,7 @@ if Code.ensure_loaded?(Igniter) do
             {"attribute", attribute, true, false}
         end
 
-      case String.trim(options(attribute, type_option?)) do
+      case String.trim(options(attribute, type_option?, opts)) do
         "" ->
           if type? do
             "#{constructor} :#{attribute.name}, #{inspect(attribute.attr_type)}"
@@ -600,7 +651,7 @@ if Code.ensure_loaded?(Igniter) do
       end
     end
 
-    defp options(attribute, type_option?) do
+    defp options(attribute, type_option?, opts) do
       ""
       |> add_primary_key(attribute)
       |> add_allow_nil(attribute)
@@ -608,7 +659,16 @@ if Code.ensure_loaded?(Igniter) do
       |> add_default(attribute)
       |> add_type(attribute, type_option?)
       |> add_generated(attribute)
+      |> add_public(opts)
       |> add_source(attribute)
+    end
+
+    defp add_public(str, options) do
+      if options[:public] do
+        str <> "\n    public? true"
+      else
+        str
+      end
     end
 
     defp add_type(str, %{attr_type: attr_type}, true) do

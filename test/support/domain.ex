@@ -32,6 +32,9 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.PostFollower)
     resource(AshPostgres.Test.StatefulPostFollower)
     resource(AshPostgres.Test.PostWithEmptyUpdate)
+    resource(AshPostgres.Test.DbPoint)
+    resource(AshPostgres.Test.DbStringPoint)
+    resource(AshPostgres.Test.CSV)
   end
 
   authorization do

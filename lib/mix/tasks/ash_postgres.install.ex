@@ -35,6 +35,26 @@ if Code.ensure_loaded?(Igniter) do
 
       otp_app = Igniter.Project.Application.app_name(igniter)
 
+      igniter =
+        if Igniter.Project.Deps.has_dep?(igniter, :ash) do
+          igniter
+          |> Igniter.Project.Deps.add_dep({:ash, "~> 3.0"}, yes: opts[:yes])
+          |> then(fn
+            %{assigns: %{test_mode?: true}} = igniter ->
+              igniter
+
+            igniter ->
+              Igniter.apply_and_fetch_dependencies(igniter,
+                error_on_abort?: true,
+                yes: opts[:yes],
+                yes_to_deps: true
+              )
+          end)
+          |> Igniter.compose_task("ash.install", argv)
+        else
+          igniter
+        end
+
       igniter
       |> Igniter.Project.Formatter.import_dep(:ash_postgres)
       |> setup_aliases()
@@ -117,75 +137,101 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp configure_runtime(igniter, otp_app, repo) do
-      default_runtime = """
-      import Config
+      if Igniter.Project.Config.configures_key?(igniter, "runtime.exs", otp_app, [repo]) do
+        igniter
+      else
+        default_runtime = """
+        import Config
 
-      if config_env() == :prod do
-        database_url =
-          System.get_env("DATABASE_URL") ||
-            raise \"\"\"
-            environment variable DATABASE_URL is missing.
-            For example: ecto://USER:PASS@HOST/DATABASE
-            \"\"\"
+        if config_env() == :prod do
+          database_url =
+            System.get_env("DATABASE_URL") ||
+              raise \"\"\"
+              environment variable DATABASE_URL is missing.
+              For example: ecto://USER:PASS@HOST/DATABASE
+              \"\"\"
 
-        config #{inspect(otp_app)}, #{inspect(repo)},
-          url: database_url,
-          pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
-      end
-      """
+          config #{inspect(otp_app)}, #{inspect(repo)},
+            url: database_url,
+            pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
+        end
+        """
 
-      igniter
-      |> Igniter.create_or_update_elixir_file("config/runtime.exs", default_runtime, fn zipper ->
-        if Igniter.Project.Config.configures_key?(zipper, otp_app, [repo, :url]) do
-          zipper
-        else
-          patterns = [
-            """
-            if config_env() == :prod do
-              __cursor__()
-            end
-            """,
-            """
-            if :prod == config_env() do
-              __cursor__()
-            end
-            """
-          ]
+        igniter
+        |> Igniter.create_or_update_elixir_file(
+          "config/runtime.exs",
+          default_runtime,
+          fn zipper ->
+            if Igniter.Project.Config.configures_key?(zipper, otp_app, [repo]) do
+              {:ok, zipper}
+            else
+              patterns = [
+                """
+                if config_env() == :prod do
+                  __cursor__()
+                end
+                """,
+                """
+                if :prod == config_env() do
+                  __cursor__()
+                end
+                """
+              ]
 
-          zipper
-          |> Igniter.Code.Common.move_to_cursor_match_in_scope(patterns)
-          |> case do
-            {:ok, zipper} ->
-              case Igniter.Code.Function.move_to_function_call_in_current_scope(
-                     zipper,
-                     :=,
-                     2,
-                     fn call ->
-                       Igniter.Code.Function.argument_matches_pattern?(
-                         call,
-                         0,
-                         {:database_url, _, ctx} when is_atom(ctx)
-                       )
-                     end
-                   ) do
-                {:ok, _zipper} ->
-                  zipper
-                  |> Igniter.Project.Config.modify_configuration_code(
-                    [repo, :url],
-                    otp_app,
-                    {:database_url, [], nil}
-                  )
-                  |> Igniter.Project.Config.modify_configuration_code(
-                    [repo, :pool_size],
-                    otp_app,
-                    Sourceror.parse_string!("""
-                    String.to_integer(System.get_env("POOL_SIZE") || "10")
-                    """)
-                  )
-                  |> then(&{:ok, &1})
+              zipper
+              |> Igniter.Code.Common.move_to_cursor_match_in_scope(patterns)
+              |> case do
+                {:ok, zipper} ->
+                  if Igniter.Project.Config.configures_key?(zipper, otp_app, [repo]) do
+                    {:ok, zipper}
+                  else
+                    case Igniter.Code.Function.move_to_function_call_in_current_scope(
+                           zipper,
+                           :=,
+                           2,
+                           fn call ->
+                             Igniter.Code.Function.argument_matches_pattern?(
+                               call,
+                               0,
+                               {:database_url, _, ctx} when is_atom(ctx)
+                             )
+                           end
+                         ) do
+                      {:ok, _zipper} ->
+                        zipper
+                        |> Igniter.Project.Config.modify_configuration_code(
+                          [repo, :url],
+                          otp_app,
+                          {:database_url, [], nil}
+                        )
+                        |> Igniter.Project.Config.modify_configuration_code(
+                          [repo, :pool_size],
+                          otp_app,
+                          Sourceror.parse_string!("""
+                          String.to_integer(System.get_env("POOL_SIZE") || "10")
+                          """)
+                        )
+                        |> then(&{:ok, &1})
 
-                _ ->
+                      _ ->
+                        Igniter.Code.Common.add_code(zipper, """
+                          database_url =
+                            System.get_env("DATABASE_URL") ||
+                              raise \"\"\"
+                              environment variable DATABASE_URL is missing.
+                              For example: ecto://USER:PASS@HOST/DATABASE
+                              \"\"\"
+
+                          config #{inspect(otp_app)}, #{inspect(repo)},
+                            url: database_url,
+                            pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
+                        """)
+                    end
+                  end
+
+                :error ->
                   Igniter.Code.Common.add_code(zipper, """
+                  if config_env() == :prod do
                     database_url =
                       System.get_env("DATABASE_URL") ||
                         raise \"\"\"
@@ -193,89 +239,103 @@ if Code.ensure_loaded?(Igniter) do
                         For example: ecto://USER:PASS@HOST/DATABASE
                         \"\"\"
 
-                    config #{inspect(otp_app)}, Helpdesk.Repo,
+                    config #{inspect(otp_app)}, #{inspect(repo)},
                       url: database_url,
                       pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
+                  end
                   """)
               end
-
-            :error ->
-              Igniter.Code.Common.add_code(zipper, """
-              if config_env() == :prod do
-                database_url =
-                  System.get_env("DATABASE_URL") ||
-                    raise \"\"\"
-                    environment variable DATABASE_URL is missing.
-                    For example: ecto://USER:PASS@HOST/DATABASE
-                    \"\"\"
-
-                config #{inspect(otp_app)}, Helpdesk.Repo,
-                  url: database_url,
-                  pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
-              end
-              """)
+            end
           end
-        end
-      end)
+        )
+      end
     end
 
     defp configure_dev(igniter, otp_app, repo) do
-      igniter
-      |> Igniter.Project.Config.configure_new("dev.exs", otp_app, [repo, :username], "postgres")
-      |> Igniter.Project.Config.configure_new("dev.exs", otp_app, [repo, :password], "postgres")
-      |> Igniter.Project.Config.configure_new("dev.exs", otp_app, [repo, :hostname], "localhost")
-      |> Igniter.Project.Config.configure_new(
-        "dev.exs",
-        otp_app,
-        [repo, :database],
-        "#{otp_app}_dev"
-      )
-      |> Igniter.Project.Config.configure_new(
-        "dev.exs",
-        otp_app,
-        [repo, :show_sensitive_data_on_connection_error],
-        true
-      )
-      |> Igniter.Project.Config.configure_new("dev.exs", otp_app, [repo, :pool_size], 10)
+      if Igniter.Project.Config.configures_key?(igniter, "dev.exs", otp_app, [repo]) do
+        igniter
+      else
+        igniter
+        |> Igniter.Project.Config.configure_new("dev.exs", otp_app, [repo, :username], "postgres")
+        |> Igniter.Project.Config.configure_new("dev.exs", otp_app, [repo, :password], "postgres")
+        |> Igniter.Project.Config.configure_new(
+          "dev.exs",
+          otp_app,
+          [repo, :hostname],
+          "localhost"
+        )
+        |> Igniter.Project.Config.configure_new(
+          "dev.exs",
+          otp_app,
+          [repo, :database],
+          "#{otp_app}_dev"
+        )
+        |> Igniter.Project.Config.configure_new(
+          "dev.exs",
+          otp_app,
+          [repo, :show_sensitive_data_on_connection_error],
+          true
+        )
+        |> Igniter.Project.Config.configure_new("dev.exs", otp_app, [repo, :pool_size], 10)
+      end
     end
 
     defp configure_test(igniter, otp_app, repo) do
-      database =
-        {:<<>>, [],
-         [
-           "#{otp_app}_test",
-           {:"::", [],
-            [
-              {{:., [], [Kernel, :to_string]}, [from_interpolation: true],
-               [
-                 {{:., [], [{:__aliases__, [alias: false], [:System]}, :get_env]}, [],
-                  ["MIX_TEST_PARTITION"]}
-               ]},
-              {:binary, [], Elixir}
-            ]}
-         ]}
-        |> Sourceror.to_string()
-        |> Sourceror.parse_string!()
+      if Igniter.Project.Config.configures_key?(igniter, "test.exs", otp_app, [repo]) do
+        igniter
+      else
+        database =
+          {:<<>>, [],
+           [
+             "#{otp_app}_test",
+             {:"::", [],
+              [
+                {{:., [], [Kernel, :to_string]}, [from_interpolation: true],
+                 [
+                   {{:., [], [{:__aliases__, [alias: false], [:System]}, :get_env]}, [],
+                    ["MIX_TEST_PARTITION"]}
+                 ]},
+                {:binary, [], Elixir}
+              ]}
+           ]}
+          |> Sourceror.to_string()
+          |> Sourceror.parse_string!()
 
-      igniter
-      |> Igniter.Project.Config.configure_new("test.exs", otp_app, [repo, :username], "postgres")
-      |> Igniter.Project.Config.configure_new("test.exs", otp_app, [repo, :password], "postgres")
-      |> Igniter.Project.Config.configure_new("test.exs", otp_app, [repo, :hostname], "localhost")
-      |> Igniter.Project.Config.configure_new(
-        "test.exs",
-        otp_app,
-        [repo, :database],
-        {:code, database}
-      )
-      |> Igniter.Project.Config.configure_new(
-        "test.exs",
-        otp_app,
-        [repo, :pool],
-        Ecto.Adapters.SQL.Sandbox
-      )
-      |> Igniter.Project.Config.configure_new("test.exs", otp_app, [repo, :pool_size], 10)
-      |> Igniter.Project.Config.configure_new("test.exs", :ash, [:disable_async?], true)
-      |> Igniter.Project.Config.configure_new("test.exs", :logger, [:level], :warning)
+        igniter
+        |> Igniter.Project.Config.configure_new(
+          "test.exs",
+          otp_app,
+          [repo, :username],
+          "postgres"
+        )
+        |> Igniter.Project.Config.configure_new(
+          "test.exs",
+          otp_app,
+          [repo, :password],
+          "postgres"
+        )
+        |> Igniter.Project.Config.configure_new(
+          "test.exs",
+          otp_app,
+          [repo, :hostname],
+          "localhost"
+        )
+        |> Igniter.Project.Config.configure_new(
+          "test.exs",
+          otp_app,
+          [repo, :database],
+          {:code, database}
+        )
+        |> Igniter.Project.Config.configure_new(
+          "test.exs",
+          otp_app,
+          [repo, :pool],
+          Ecto.Adapters.SQL.Sandbox
+        )
+        |> Igniter.Project.Config.configure_new("test.exs", otp_app, [repo, :pool_size], 10)
+        |> Igniter.Project.Config.configure_new("test.exs", :ash, [:disable_async?], true)
+        |> Igniter.Project.Config.configure_new("test.exs", :logger, [:level], :warning)
+      end
     end
 
     defp setup_data_case(igniter) do

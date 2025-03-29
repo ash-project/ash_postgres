@@ -1,6 +1,6 @@
 defmodule AshPostgres.BulkUpdateTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Post, Record}
+  alias AshPostgres.Test.{CSV, Post, Record}
 
   require Ash.Expr
   require Ash.Query
@@ -262,5 +262,22 @@ defmodule AshPostgres.BulkUpdateTest do
                return_errors?: true,
                authorize?: false
              )
+  end
+
+  @tag :regression
+  test "jsonb[] attribute with embedded Resource definition can be created and updated" do
+    %{status: :success} =
+      Ash.bulk_create!(
+        [%{column_mapping_embedded: [%{column: 1, attribute: "foo"}]}],
+        CSV,
+        :create,
+        return_records?: true,
+        return_errors?: true
+      )
+
+    Ash.bulk_update!(CSV, :update, %{
+      column_mapping_embedded: [%{column: 1, attribute: "foo"}],
+      column_mapping_new_type: [%{column: 1, attribute: "foo"}]
+    })
   end
 end

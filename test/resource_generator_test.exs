@@ -32,18 +32,31 @@ defmodule AshPostgres.ResourceGeenratorTests do
         domain: MyApp.Accounts,
         data_layer: AshPostgres.DataLayer
 
+      actions do
+        defaults([:read, :destroy, create: :*, update: :*])
+      end
+
       postgres do
         table("example_table")
         repo(AshPostgres.TestRepo)
       end
 
       attributes do
-        uuid_primary_key(:id)
-        attribute(:name, :string)
-        attribute(:age, :integer)
+        uuid_primary_key :id do
+          public?(true)
+        end
+
+        attribute :name, :string do
+          public?(true)
+        end
+
+        attribute :age, :integer do
+          public?(true)
+        end
 
         attribute :email, :string do
           sensitive?(true)
+          public?(true)
         end
       end
     end

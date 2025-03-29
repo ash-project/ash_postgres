@@ -5,6 +5,113 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.14](https://github.com/ash-project/ash_postgres/compare/v2.5.13...v2.5.14) (2025-03-28)
+
+
+
+
+### Bug Fixes:
+
+* remove debugging code accidentally committed
+
+* retain loads on atomic upgrade update actions
+
+### Improvements:
+
+* create schema before table creation (#518)
+
+## [v2.5.13](https://github.com/ash-project/ash_postgres/compare/v2.5.12...v2.5.13) (2025-03-25)
+
+
+
+
+### Bug Fixes:
+
+* order when renaming attribute with an index (#514)
+
+## [v2.5.12](https://github.com/ash-project/ash_postgres/compare/v2.5.11...v2.5.12) (2025-03-18)
+
+
+
+
+### Improvements:
+
+* include error detail in constraint violation errors
+
+## [v2.5.11](https://github.com/ash-project/ash_postgres/compare/v2.5.10...v2.5.11) (2025-03-11)
+
+
+
+
+### Bug Fixes:
+
+* ignore attributes with no known type
+
+* honor skip_unknown option in spec table generator
+
+* honor --no-migrations flag
+
+* allow optional input for relationship name guesser
+
+* put move up/down in the right place
+
+* go to top of if block
+
+* use `configures_key?/3`
+
+* don't modify repo in runtime.exs
+
+* remove Helpdesk.Repo from installer ð¤¦
+
+* only configure repo in installer if not already configured
+
+* install ash if not installed already
+
+### Improvements:
+
+* document options, add `--no-migrations`
+
+* add `skip_unknown` option to `ash_postgres.gen.resources`
+
+## [v2.5.10](https://github.com/ash-project/ash_postgres/compare/v2.5.9...v2.5.10) (2025-03-06)
+
+
+
+
+### Bug Fixes:
+
+* honor skip_tables
+
+### Improvements:
+
+* never import `schema_migrations` table
+
+## [v2.5.9](https://github.com/ash-project/ash_postgres/compare/v2.5.8...v2.5.9) (2025-03-06)
+
+
+
+
+### Bug Fixes:
+
+* match on non-empty repo options
+
+### Improvements:
+
+* add `--public` option to `gen.resources`, default `true`
+
+* add `--default-actions` option to `gen.resources`, default `true`
+
+## [v2.5.8](https://github.com/ash-project/ash_postgres/compare/v2.5.7...v2.5.8) (2025-03-06)
+
+
+
+
+### Bug Fixes:
+
+* handle CLI args better for ash_postgres.gen.resources
+
+* compose check constraints and base filters properly
+
 ## [v2.5.7](https://github.com/ash-project/ash_postgres/compare/v2.5.6...v2.5.7) (2025-03-04)
 
 

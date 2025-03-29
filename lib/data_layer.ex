@@ -1512,7 +1512,23 @@ defmodule AshPostgres.DataLayer do
                 end)
 
               if options[:return_records?] do
-                {:ok, AshSql.Query.remap_mapped_fields(results, query)}
+                results = AshSql.Query.remap_mapped_fields(results, query)
+
+                if changeset.context[:data_layer][:use_atomic_update_data?] &&
+                     Enum.count_until(results, 2) == 1 do
+                  modifying =
+                    Map.keys(changeset.attributes) ++
+                      Keyword.keys(changeset.atomics) ++ Ash.Resource.Info.primary_key(resource)
+
+                  result = hd(results)
+
+                  Map.merge(changeset.data, Map.take(result, modifying))
+                  |> Map.update!(:aggregates, &Map.merge(&1, result.aggregates))
+                  |> Map.update!(:calculations, &Map.merge(&1, result.calculations))
+                  |> then(&{:ok, [&1]})
+                else
+                  {:ok, results}
+                end
               else
                 :ok
               end
@@ -2187,14 +2203,6 @@ defmodule AshPostgres.DataLayer do
     end)
   end
 
-  defp to_ash_error({field, {message, vars}}) do
-    Ash.Error.Changes.InvalidAttribute.exception(
-      field: field,
-      message: message,
-      private_vars: vars
-    )
-  end
-
   defp ecto_changeset(record, changeset, type, repo, table_error?) do
     attributes =
       changeset.resource
@@ -2332,7 +2340,7 @@ defmodule AshPostgres.DataLayer do
       constraints ->
         {:error,
          fake_changeset
-         |> constraints_to_errors(:insert, constraints, resource)
+         |> constraints_to_errors(:insert, constraints, resource, error)
          |> Ash.Error.to_ash_error()}
     end
   end
@@ -2349,35 +2357,18 @@ defmodule AshPostgres.DataLayer do
   defp handle_raised_error(
          %Postgrex.Error{} = error,
          stacktrace,
-         %{constraints: user_constraints},
-         _resource
+         changeset,
+         resource
        ) do
     case Ecto.Adapters.Postgres.Connection.to_constraints(error, []) do
-      [{type, constraint}] ->
-        user_constraint =
-          Enum.find(user_constraints, fn c ->
-            case {c.type, c.constraint, c.match} do
-              {^type, ^constraint, :exact} -> true
-              {^type, cc, :suffix} -> String.ends_with?(constraint, cc)
-              {^type, cc, :prefix} -> String.starts_with?(constraint, cc)
-              {^type, %Regex{} = r, _match} -> Regex.match?(r, constraint)
-              _ -> false
-            end
-          end)
+      [] ->
+        {:error, Ash.Error.to_ash_error(error, stacktrace)}
 
-        case user_constraint do
-          %{field: field, error_message: error_message, error_type: error_type} ->
-            {:error,
-             to_ash_error(
-               {field, {error_message, [constraint: error_type, constraint_name: constraint]}}
-             )}
-
-          nil ->
-            reraise error, stacktrace
-        end
-
-      _ ->
-        reraise error, stacktrace
+      constraints ->
+        {:error,
+         changeset
+         |> constraints_to_errors(:insert, constraints, resource, error)
+         |> Ash.Error.to_ash_error()}
     end
   end
 
@@ -2389,7 +2380,8 @@ defmodule AshPostgres.DataLayer do
          %{constraints: user_constraints} = changeset,
          action,
          constraints,
-         resource
+         resource,
+         error
        ) do
     Enum.map(constraints, fn {type, constraint} ->
       user_constraint =
@@ -2421,7 +2413,8 @@ defmodule AshPostgres.DataLayer do
               message: error_message,
               private_vars: [
                 constraint: constraint,
-                constraint_type: type
+                constraint_type: type,
+                detail: error.postgres.detail
               ]
             )
           end)
@@ -3065,10 +3058,6 @@ defmodule AshPostgres.DataLayer do
   def update(resource, changeset) do
     source = resolve_source(resource, changeset)
 
-    modifying =
-      Map.keys(changeset.attributes) ++
-        Keyword.keys(changeset.atomics) ++ Ash.Resource.Info.primary_key(resource)
-
     query =
       from(row in source, as: ^0)
       |> AshSql.Bindings.default_bindings(
@@ -3098,10 +3087,6 @@ defmodule AshPostgres.DataLayer do
          )}
 
       {:ok, [record]} ->
-        record =
-          changeset.data
-          |> Map.merge(Map.take(record, modifying))
-
         maybe_update_tenant(resource, changeset, record)
 
         {:ok, record}
