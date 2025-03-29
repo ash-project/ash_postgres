@@ -74,6 +74,8 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
 
     * `--all` - run all pending migrations
 
+    * `--repo`, `-r` - the repo to migrate
+
     * `--step`, `-n` - run n number of pending migrations
 
     * `--to` - run all migrations up to and including version

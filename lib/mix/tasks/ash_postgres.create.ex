@@ -28,6 +28,7 @@ defmodule Mix.Tasks.AshPostgres.Create do
   ## Command line options
 
     * `--domains` - the domains who's repos you want to migrate.
+    * `-r, --repo` - the repo to create
     * `--quiet` - do not log output
     * `--no-compile` - do not compile before creating
     * `--no-deps-check` - do not compile before creating
