@@ -7,11 +7,14 @@ defmodule Mix.Tasks.AshPostgres.Create do
     quiet: :boolean,
     domains: :string,
     no_compile: :boolean,
-    no_deps_check: :boolean
+    no_deps_check: :boolean,
+    repo: :string,
+    r: :string
   ]
 
   @aliases [
-    q: :quiet
+    q: :quiet,
+    r: :repo
   ]
 
   @moduledoc """

@@ -59,9 +59,10 @@ defmodule Mix.Tasks.AshPostgres.Rollback do
           log_migrations_sql: :boolean,
           log_migrator_sql: :boolean,
           only_tenants: :string,
-          except_tenants: :string
+          except_tenants: :string,
+          repo: :string
         ],
-        aliases: [n: :step, v: :to]
+        aliases: [n: :step, v: :to, r: :repo]
       )
 
     repos = AshPostgres.Mix.Helpers.repos!(opts, args)

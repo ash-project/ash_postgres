@@ -6,7 +6,8 @@ defmodule Mix.Tasks.AshPostgres.Drop do
 
   @aliases [
     f: :force,
-    q: :quiet
+    q: :quiet,
+    r: :repo
   ]
 
   @switches [
@@ -15,7 +16,8 @@ defmodule Mix.Tasks.AshPostgres.Drop do
     quiet: :boolean,
     domains: :string,
     no_compile: :boolean,
-    no_deps_check: :boolean
+    no_deps_check: :boolean,
+    repo: :string
   ]
 
   @moduledoc """
