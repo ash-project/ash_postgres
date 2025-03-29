@@ -31,6 +31,7 @@ defmodule Mix.Tasks.AshPostgres.Drop do
   ## Command line options
 
     * `--domains` - the domains who's repos should be dropped
+    * `-r, --repo` - the repo to drop
     * `-q`, `--quiet` - run the command quietly
     * `-f`, `--force` - do not ask for confirmation when dropping the database.
       Configuration is asked only when `:start_permanent` is set to true

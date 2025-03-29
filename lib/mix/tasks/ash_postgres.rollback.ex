@@ -32,6 +32,7 @@ defmodule Mix.Tasks.AshPostgres.Rollback do
   ## Command line options
     * `--domains` - the domains who's repos should be rolledback
     * `--all` - revert all applied migrations
+    * `--repo`, `-r` - the repo to rollback
     * `--step` / `-n` - revert n number of applied migrations
     * `--to` / `-v` - revert all migrations down to and including version
     * `--quiet` - do not log migration commands
