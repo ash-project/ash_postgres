@@ -24,7 +24,7 @@ defmodule Mix.Tasks.AshPostgres.Drop do
   ## Examples
 
       mix ash_postgres.drop
-      mix ash_postgres.drop -r MyApp.Repo1,MyApp.Repo2
+      mix ash_postgres.drop --domains MyApp.Domain1,MyApp.Domain2
 
   ## Command line options
 
