@@ -38,61 +38,81 @@ defmodule AshPostgres.Mix.Helpers do
   end
 
   def repos!(opts, args) do
-    if opts[:domains] && opts[:domains] != "" do
-      domains = domains!(opts, args)
+    cond do
+      opts[:repo] && opts[:repo] != "" ->
+        ensure_load(args)
 
-      resources =
-        domains
-        |> Enum.flat_map(&Ash.Domain.Info.resources/1)
-        |> Enum.filter(&(Ash.DataLayer.data_layer(&1) == AshPostgres.DataLayer))
+        opts[:repo]
+        |> Kernel.||("")
+        |> String.split(",")
+        |> Enum.flat_map(fn
+          "" ->
+            []
+
+          repo ->
+            [Module.concat([repo])]
+        end)
+        |> Enum.map(fn repo ->
+          case Code.ensure_compiled(repo) do
+            {:module, _} ->
+              repo
+
+            {:error, error} ->
+              Mix.raise("Could not load #{inspect(repo)}, error: #{inspect(error)}. ")
+          end
+        end)
+
+      opts[:domains] && opts[:domains] != "" ->
+        domains = domains!(opts, args)
+
+        resources =
+          domains
+          |> Enum.flat_map(&Ash.Domain.Info.resources/1)
+          |> Enum.filter(&(Ash.DataLayer.data_layer(&1) == AshPostgres.DataLayer))
+          |> case do
+            [] ->
+              raise """
+              No resources with `data_layer: AshPostgres.DataLayer` found in the domains #{Enum.map_join(domains, ",", &inspect/1)}.
+
+              Must be able to find at least one resource with `data_layer: AshPostgres.DataLayer`.
+              """
+
+            resources ->
+              resources
+          end
+
+        resources
+        |> Enum.flat_map(
+          &[
+            AshPostgres.DataLayer.Info.repo(&1, :read),
+            AshPostgres.DataLayer.Info.repo(&1, :mutate)
+          ]
+        )
+        |> Enum.uniq()
         |> case do
           [] ->
             raise """
-            No resources with `data_layer: AshPostgres.DataLayer` found in the domains #{Enum.map_join(domains, ",", &inspect/1)}.
+            No repos could be found configured on the resources in the domains: #{Enum.map_join(domains, ",", &inspect/1)}
 
-            Must be able to find at least one resource with `data_layer: AshPostgres.DataLayer`.
+            At least one resource must have a repo configured.
+
+            The following resources were found with `data_layer: AshPostgres.DataLayer`:
+
+            #{Enum.map_join(resources, "\n", &"* #{inspect(&1)}")}
             """
 
-          resources ->
-            resources
+          repos ->
+            repos
         end
 
-      resources
-      |> Enum.flat_map(
-        &[
-          AshPostgres.DataLayer.Info.repo(&1, :read),
-          AshPostgres.DataLayer.Info.repo(&1, :mutate)
-        ]
-      )
-      |> Enum.uniq()
-      |> case do
-        [] ->
-          raise """
-          No repos could be found configured on the resources in the domains: #{Enum.map_join(domains, ",", &inspect/1)}
+      true ->
+        ensure_load(args)
 
-          At least one resource must have a repo configured.
-
-          The following resources were found with `data_layer: AshPostgres.DataLayer`:
-
-          #{Enum.map_join(resources, "\n", &"* #{inspect(&1)}")}
-          """
-
-        repos ->
-          repos
-      end
-    else
-      if Code.ensure_loaded?(Mix.Tasks.App.Config) do
-        Mix.Task.run("app.config", args)
-      else
-        Mix.Task.run("loadpaths", args)
-        "--no-compile" not in args && Mix.Task.run("compile", args)
-      end
-
-      Mix.Project.config()[:app]
-      |> Application.get_env(:ecto_repos, [])
-      |> Enum.filter(fn repo ->
-        Spark.implements_behaviour?(repo, AshPostgres.Repo)
-      end)
+        Mix.Project.config()[:app]
+        |> Application.get_env(:ecto_repos, [])
+        |> Enum.filter(fn repo ->
+          Spark.implements_behaviour?(repo, AshPostgres.Repo)
+        end)
     end
   end
 
@@ -117,12 +137,7 @@ defmodule AshPostgres.Mix.Helpers do
   end
 
   defp ensure_compiled(domain, args) do
-    if Code.ensure_loaded?(Mix.Tasks.App.Config) do
-      Mix.Task.run("app.config", args)
-    else
-      Mix.Task.run("loadpaths", args)
-      "--no-compile" not in args && Mix.Task.run("compile", args)
-    end
+    ensure_load(args)
 
     case Code.ensure_compiled(domain) do
       {:module, _} ->
@@ -136,6 +151,15 @@ defmodule AshPostgres.Mix.Helpers do
 
       {:error, error} ->
         Mix.raise("Could not load #{inspect(domain)}, error: #{inspect(error)}. ")
+    end
+  end
+
+  defp ensure_load(args) do
+    if Code.ensure_loaded?(Mix.Tasks.App.Config) do
+      Mix.Task.run("app.config", args)
+    else
+      Mix.Task.run("loadpaths", args)
+      "--no-compile" not in args && Mix.Task.run("compile", args)
     end
   end
 
