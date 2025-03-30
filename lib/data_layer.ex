@@ -1182,18 +1182,26 @@ defmodule AshPostgres.DataLayer do
           {:ok, through_query} ->
             through_query = Ecto.Query.exclude(through_query, :select)
 
+            through_query =
+              if through_query.joins && through_query.joins != [] do
+                subquery(
+                  set_subquery_prefix(
+                    through_query,
+                    source_query,
+                    relationship.through
+                  )
+                )
+              else
+                through_query
+              end
+
             if query.__ash_bindings__[:__order__?] do
               subquery =
                 subquery(
                   from(
                     destination in query,
                     select_merge: %{__order__: over(row_number(), :order)},
-                    join:
-                      through in subquery(set_subquery_prefix(
-                        through_query,
-                        source_query,
-                        relationship.through
-                      )),
+                    join: through in ^through_query,
                     as: ^through_binding,
                     on:
                       field(through, ^destination_attribute_on_join_resource) ==
@@ -1227,11 +1235,7 @@ defmodule AshPostgres.DataLayer do
                   from(
                     destination in query,
                     join:
-                      through in subquery(set_subquery_prefix(
-                        through_query,
-                        source_query,
-                        relationship.through
-                      )),
+                      through in ^through_query,
                     as: ^through_binding,
                     on:
                       field(through, ^destination_attribute_on_join_resource) ==
