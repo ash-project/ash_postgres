@@ -1189,11 +1189,11 @@ defmodule AshPostgres.DataLayer do
                     destination in query,
                     select_merge: %{__order__: over(row_number(), :order)},
                     join:
-                      through in ^set_subquery_prefix(
+                      through in subquery(set_subquery_prefix(
                         through_query,
                         source_query,
                         relationship.through
-                      ),
+                      )),
                     as: ^through_binding,
                     on:
                       field(through, ^destination_attribute_on_join_resource) ==
@@ -1227,11 +1227,11 @@ defmodule AshPostgres.DataLayer do
                   from(
                     destination in query,
                     join:
-                      through in ^set_subquery_prefix(
+                      through in subquery(set_subquery_prefix(
                         through_query,
                         source_query,
                         relationship.through
-                      ),
+                      )),
                     as: ^through_binding,
                     on:
                       field(through, ^destination_attribute_on_join_resource) ==

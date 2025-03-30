@@ -533,6 +533,7 @@ defmodule AshPostgres.Test.Post do
       public?(true)
 
       destination_attribute(:post_id)
+      filter expr(not is_nil(post.id))
     end
 
     many_to_many :co_authors, AshPostgres.Test.Author do
