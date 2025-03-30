@@ -21,7 +21,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
   * `no-format` - files that are created will not be formatted with the code formatter
   * `dry-run` - no files are created, instead the new migration is printed
   * `check` - no files are created, returns an exit(1) code if the current snapshots and resources don't fit
-  * 'dev' - dev files are created
+  * `dev` - dev files are created
   * `snapshots-only` - no migrations are generated, only snapshots are stored
   * `concurrent-indexes` - new identities will be run concurrently and in a separate migration (like concurrent custom indexes)
 
