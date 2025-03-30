@@ -521,17 +521,8 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp remove_dev_migrations(dev_migrations, tenant?, repo, opts) do
     version = dev_migrations |> Enum.min() |> String.split("_") |> hd()
-    test_env = [env: [{"MIX_ENV", "test"}]]
-    System.cmd("mix", ["ash_postgres.rollback", "--to", version])
-    System.cmd("mix", ["ash_postgres.rollback", "--to", version], test_env)
-
-    if tenant? do
-      Enum.each(repo.all_tenants(), fn tenant ->
-        args = ["ash_postgres.rollback", "--to", version, "--prefix", tenant]
-        System.cmd("mix", args)
-        System.cmd("mix", args, test_env)
-      end)
-    end
+    Mix.Task.reenable("ash_postgres.rollback")
+    Mix.Task.run("ash_postgres.rollback", ["--repo", inspect(repo), "--to", version])
 
     dev_migrations
     |> Enum.each(fn migration_name ->
