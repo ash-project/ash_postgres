@@ -6,7 +6,8 @@ defmodule Mix.Tasks.AshPostgres.Drop do
 
   @aliases [
     f: :force,
-    q: :quiet
+    q: :quiet,
+    r: :repo
   ]
 
   @switches [
@@ -15,7 +16,8 @@ defmodule Mix.Tasks.AshPostgres.Drop do
     quiet: :boolean,
     domains: :string,
     no_compile: :boolean,
-    no_deps_check: :boolean
+    no_deps_check: :boolean,
+    repo: :string
   ]
 
   @moduledoc """
@@ -24,11 +26,12 @@ defmodule Mix.Tasks.AshPostgres.Drop do
   ## Examples
 
       mix ash_postgres.drop
-      mix ash_postgres.drop -r MyApp.Repo1,MyApp.Repo2
+      mix ash_postgres.drop --domains MyApp.Domain1,MyApp.Domain2
 
   ## Command line options
 
     * `--domains` - the domains who's repos should be dropped
+    * `-r, --repo` - the repo to drop
     * `-q`, `--quiet` - run the command quietly
     * `-f`, `--force` - do not ask for confirmation when dropping the database.
       Configuration is asked only when `:start_permanent` is set to true

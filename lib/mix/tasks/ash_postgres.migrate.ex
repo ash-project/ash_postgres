@@ -7,7 +7,8 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
   @shortdoc "Runs the repository migrations for all repositories in the provided (or congigured) domains"
 
   @aliases [
-    n: :step
+    n: :step,
+    r: :repo
   ]
 
   @switches [
@@ -26,7 +27,8 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
     no_deps_check: :boolean,
     migrations_path: :keep,
     only_tenants: :string,
-    except_tenants: :string
+    except_tenants: :string,
+    repo: :string
   ]
 
   @moduledoc """
@@ -71,6 +73,8 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
     * `--except-tenants` - in combo with `--tenants`, does not run migrations for the provided tenants, e.g `tenant1,tenant2,tenant3`
 
     * `--all` - run all pending migrations
+
+    * `--repo`, `-r` - the repo to migrate
 
     * `--step`, `-n` - run n number of pending migrations
 
