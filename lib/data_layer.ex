@@ -1645,7 +1645,7 @@ defmodule AshPostgres.DataLayer do
 
         needs_to_join? =
           requires_adding_inner_join? || query.distinct ||
-            query.limit || query.offset || has_exists?
+            query.limit || query.offset || has_exists? || query.union
 
         query =
           if needs_to_join? do

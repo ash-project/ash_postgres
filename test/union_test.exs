@@ -50,4 +50,34 @@ defmodule AshPostgres.UnionTest do
              |> Ash.Query.sort(title: :desc)
              |> Ash.read!()
   end
+
+  test "with data and sort, limit and filter" do
+    Post
+    |> Ash.Changeset.for_create(:create, %{title: "title1"})
+    |> Ash.create!()
+
+    Post
+    |> Ash.Changeset.for_create(:create, %{title: "title2"})
+    |> Ash.create!()
+
+    Post
+    |> Ash.Changeset.for_create(:create, %{title: "title3"})
+    |> Ash.create!()
+
+    Post
+    |> Ash.Changeset.for_create(:create, %{title: "title4"})
+    |> Ash.create!()
+
+    Post
+    |> Ash.Changeset.for_create(:create, %{title: "title5"})
+    |> Ash.create!()
+
+    assert [%{title: "title5"}, %{title: "title3"}] =
+             Post
+             |> Ash.Query.for_read(:first_and_last_two_posts)
+             |> Ash.Query.sort(title: :desc)
+             |> Ash.Query.filter(title in ["title3", "title4", "title5"])
+             |> Ash.Query.limit(3)
+             |> Ash.read!()
+  end
 end
