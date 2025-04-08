@@ -1041,12 +1041,16 @@ defmodule AshPostgres.DataLayer do
         Map.get(relationship, :manual) ->
           {module, opts} = relationship.manual
 
-          module.ash_postgres_subquery(
-            opts,
-            0,
-            0,
-            base_query
-          )
+          case module.ash_postgres_subquery(opts, 0, 0, base_query) do
+            {:ok, subquery} ->
+              subquery
+
+            {:error, error} ->
+              {:error, error}
+
+            subquery ->
+              subquery
+          end
 
         Map.get(relationship, :no_attributes?) ->
           base_query
@@ -1234,8 +1238,7 @@ defmodule AshPostgres.DataLayer do
                 subquery(
                   from(
                     destination in query,
-                    join:
-                      through in ^through_query,
+                    join: through in ^through_query,
                     as: ^through_binding,
                     on:
                       field(through, ^destination_attribute_on_join_resource) ==
