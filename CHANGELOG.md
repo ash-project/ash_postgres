@@ -5,6 +5,23 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.15](https://github.com/ash-project/ash_postgres/compare/v2.5.14...v2.5.15) (2025-04-09)
+
+
+
+
+### Bug Fixes:
+
+* ash postgres subquery usage (#524)
+
+* use subqueries for join resources
+
+* use schema when changing reference deferrability (#519)
+
+### Improvements:
+
+* propagate `-r` flag to Ecto (#521)
+
 ## [v2.5.14](https://github.com/ash-project/ash_postgres/compare/v2.5.13...v2.5.14) (2025-03-28)
 
 
