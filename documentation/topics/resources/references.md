@@ -14,6 +14,8 @@ postgres do
 end
 ```
 
+All supported DSL options can be found in a [datalayer documentation](https://hexdocs.pm/ash_postgres/dsl-ashpostgres-datalayer.html#postgres-references).
+
 > ### Actions are not used for this behavior {: .warning}
 >
 > No resource logic is applied with these operations! No authorization rules or validations take place, and no notifications are issued. This operation happens _directly_ in the database.
