@@ -912,7 +912,7 @@ defmodule AshPostgres.MigrationGenerator do
         Path.join(priv, "tenant_migrations")
       end
     else
-      if path = opts.migration_path || config[:tenant_migrations_path] do
+      if path = opts.migration_path || config[:migrations_path] do
         path
       else
         priv =

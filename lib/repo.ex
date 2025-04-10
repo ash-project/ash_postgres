@@ -304,6 +304,7 @@ defmodule AshPostgres.Repo do
                      prefer_transaction?: 0,
                      prefer_transaction_for_atomic_updates?: 0,
                      tenant_migrations_path: 0,
+                     migrations_path: 0,
                      default_prefix: 0,
                      override_migration_type: 1,
                      create?: 0,
