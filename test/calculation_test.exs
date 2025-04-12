@@ -776,6 +776,18 @@ defmodule AshPostgres.CalculationTest do
   end
 
   describe "maps" do
+    test "literal maps inside of conds can be loaded" do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "match", score: 42})
+        |> Ash.create!()
+
+      assert Ash.load!(post, :literal_map_in_expr).literal_map_in_expr == %{
+               match: true,
+               of: "match"
+             }
+    end
+
     test "maps can reference filtered aggregates" do
       post =
         Post

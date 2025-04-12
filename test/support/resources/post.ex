@@ -789,6 +789,25 @@ defmodule AshPostgres.Test.Post do
       load: [:count_of_comments, :count_of_linked_posts]
     )
 
+    calculate(
+      :literal_map_in_expr,
+      :map,
+      expr(
+        cond do
+          title == "match" ->
+            %{match: true, of: "match"}
+
+          title == "not-match" ->
+            %{match: true, of: "not-match"}
+
+          true ->
+            %{match: false}
+        end
+      )
+    ) do
+      constraints(fields: [match: [type: :boolean], of: [type: :string]])
+    end
+
     calculate :similarity,
               :boolean,
               expr(fragment("(to_tsvector(?) @@ ?)", title, ^arg(:search))) do
