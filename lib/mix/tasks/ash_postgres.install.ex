@@ -571,6 +571,7 @@ if Code.ensure_loaded?(Igniter) do
         _ ->
           {:ok,
            Igniter.Code.Common.add_code(zipper, """
+           @impl true
            def installed_extensions do
              # Add extensions here, and the migration generator will install them.
              ["ash-functions"]
@@ -589,6 +590,7 @@ if Code.ensure_loaded?(Igniter) do
            Igniter.Code.Common.add_code(zipper, """
            # Don't open unnecessary transactions
            # will default to `false` in 4.0
+           @impl true
            def prefer_transaction? do
              false
            end
@@ -604,6 +606,7 @@ if Code.ensure_loaded?(Igniter) do
         _ ->
           {:ok,
            Igniter.Code.Common.add_code(zipper, """
+           @impl true
            def min_pg_version do
              %Version{major: #{version.major}, minor: #{version.minor}, patch: #{version.patch}}
            end
