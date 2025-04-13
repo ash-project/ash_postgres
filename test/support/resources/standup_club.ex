@@ -1,4 +1,4 @@
-defmodule AshPostgres.Test.Joke do
+defmodule AshPostgres.Test.StandupClub do
   @moduledoc false
   use Ash.Resource,
     domain: AshPostgres.Test.Domain,
@@ -7,16 +7,14 @@ defmodule AshPostgres.Test.Joke do
 
   attributes do
     uuid_primary_key(:id)
-    attribute(:text, :string, public?: true)
-    attribute(:is_good, :boolean, default: false, public?: true)
+    attribute(:name, :string, public?: true)
     create_timestamp(:inserted_at, public?: true)
     update_timestamp(:updated_at, public?: true)
   end
 
   relationships do
-    belongs_to(:standup_club, AshPostgres.Test.StandupClub, public?: true)
-    belongs_to(:comedian, AshPostgres.Test.Comedian, public?: true)
-    has_many(:punchlines, AshPostgres.Test.Punchline, public?: true)
+    has_many(:comedians, AshPostgres.Test.Comedian, public?: true)
+    has_many(:jokes, AshPostgres.Test.Joke, public?: true)
   end
 
   actions do
@@ -24,11 +22,11 @@ defmodule AshPostgres.Test.Joke do
   end
 
   aggregates do
-    count(:punchline_count, :punchlines, public?: true)
+    count(:punchline_count, [:jokes, :punchlines], public?: true)
   end
 
   postgres do
-    table("jokes")
+    table("standup_clubs")
     repo(AshPostgres.TestRepo)
   end
 end
