@@ -1579,4 +1579,60 @@ defmodule AshSql.AggregateTest do
                |> Ash.read_one!()
     end
   end
+
+  test "filter and aggregate names do not collide with the same names" do
+    club = Ash.Seed.seed!(AshPostgres.Test.StandupClub, %{name: "Studio 54"})
+
+    club_comedians =
+      Enum.map([1, 2, 3], fn idx ->
+        Ash.Seed.seed!(AshPostgres.Test.Comedian, %{
+          name: "Bill Burr-#{idx}",
+          standup_club_id: club.id
+        })
+      end)
+
+    # |> IO.inspect()
+
+    Enum.each(club_comedians, fn comedian ->
+      Range.new(1, Enum.random([2, 3, 4, 5, 6]))
+      |> Enum.each(fn joke_idx ->
+        joke =
+          Ash.Seed.seed!(AshPostgres.Test.Joke, %{
+            comedian_id: comedian.id,
+            text: "Haha I am a joke number #{joke_idx}"
+          })
+
+        Range.new(1, Enum.random([2, 3, 4, 5, 6]))
+        |> Enum.each(fn idx ->
+          Ash.Seed.seed!(AshPostgres.Test.Punchline, %{joke_id: joke.id})
+        end)
+      end)
+    end)
+
+    Range.new(1, Enum.random([2, 3, 4, 5, 6]))
+    |> Enum.each(fn joke_idx ->
+      joke =
+        Ash.Seed.seed!(AshPostgres.Test.Joke, %{
+          standup_club_id: club.id,
+          text: "Haha I am a club joke number #{joke_idx}"
+        })
+
+      Range.new(1, Enum.random([2, 3, 4, 5, 6]))
+      |> Enum.each(fn idx ->
+        Ash.Seed.seed!(AshPostgres.Test.Punchline, %{joke_id: joke.id})
+      end)
+    end)
+
+    filter = %{
+      comedians: %{
+        jokes: %{
+          punchline_count: %{
+            greater_than: 0
+          }
+        }
+      }
+    }
+    Ash.Query.filter_input(AshPostgres.Test.StandupClub, filter)
+    |> Ash.read!(load: [:punchline_count, comedians: [jokes: :punchline_count]])
+  end
 end

@@ -13,12 +13,17 @@ defmodule AshPostgres.Test.Comedian do
   end
 
   relationships do
+    belongs_to(:standup_club, AshPostgres.Test.StandupClub, public?: true)
     has_many(:jokes, AshPostgres.Test.Joke, public?: true)
   end
 
   calculations do
     calculate(:has_jokes_mod, :boolean, AshPostgres.Test.Comedian.HasJokes)
     calculate(:has_jokes_expr, :boolean, expr(has_jokes_mod == true))
+  end
+
+  aggregates do
+    count(:punchline_count, [:jokes, :punchlines], public?: true)
   end
 
   actions do
