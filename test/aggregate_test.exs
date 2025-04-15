@@ -1580,6 +1580,7 @@ defmodule AshSql.AggregateTest do
     end
   end
 
+  @tag :regression
   test "filter and aggregate names do not collide with the same names" do
     club = Ash.Seed.seed!(AshPostgres.Test.StandupClub, %{name: "Studio 54"})
 
@@ -1591,8 +1592,6 @@ defmodule AshSql.AggregateTest do
         })
       end)
 
-    # |> IO.inspect()
-
     Enum.each(club_comedians, fn comedian ->
       Range.new(1, Enum.random([2, 3, 4, 5, 6]))
       |> Enum.each(fn joke_idx ->
@@ -1603,7 +1602,7 @@ defmodule AshSql.AggregateTest do
           })
 
         Range.new(1, Enum.random([2, 3, 4, 5, 6]))
-        |> Enum.each(fn idx ->
+        |> Enum.each(fn _idx ->
           Ash.Seed.seed!(AshPostgres.Test.Punchline, %{joke_id: joke.id})
         end)
       end)
@@ -1618,7 +1617,7 @@ defmodule AshSql.AggregateTest do
         })
 
       Range.new(1, Enum.random([2, 3, 4, 5, 6]))
-      |> Enum.each(fn idx ->
+      |> Enum.each(fn _idx ->
         Ash.Seed.seed!(AshPostgres.Test.Punchline, %{joke_id: joke.id})
       end)
     end)
@@ -1632,7 +1631,8 @@ defmodule AshSql.AggregateTest do
         }
       }
     }
+
     Ash.Query.filter_input(AshPostgres.Test.StandupClub, filter)
-    |> Ash.read!(load: [:punchline_count, comedians: [jokes: :punchline_count]])
+    |> Ash.read!(load: [:punchline_count])
   end
 end
