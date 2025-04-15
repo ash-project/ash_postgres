@@ -5,6 +5,17 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.16](https://github.com/ash-project/ash_postgres/compare/v2.5.15...v2.5.16) (2025-04-15)
+
+
+
+
+### Bug Fixes:
+
+* fixes for map types nested in expressions
+
+* use proper migrations path configuration
+
 ## [v2.5.15](https://github.com/ash-project/ash_postgres/compare/v2.5.14...v2.5.15) (2025-04-09)
 
 
