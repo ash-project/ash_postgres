@@ -156,30 +156,30 @@ defmodule AshPostgres.Test.Post do
 
     read :first_and_last_post do
       prepare(fn query, _ ->
-        Ash.Query.union_of(query, [
-          %Ash.Query.Union{
+        Ash.Query.combination_of(query, [
+          Ash.Query.Combination.base(
             limit: 1,
             sort: [created_at: :desc]
-          },
-          %Ash.Query.Union{
+          ),
+          Ash.Query.Combination.union(
             limit: 1,
             sort: [created_at: :asc]
-          }
+          )
         ])
       end)
     end
 
     read :first_and_last_two_posts do
       prepare(fn query, _ ->
-        Ash.Query.union_of(query, [
-          %Ash.Query.Union{
+        Ash.Query.combination_of(query, [
+          Ash.Query.Combination.base(
             limit: 2,
             sort: [created_at: :desc]
-          },
-          %Ash.Query.Union{
+          ),
+          Ash.Query.Combination.union(
             limit: 2,
             sort: [created_at: :asc]
-          }
+          )
         ])
       end)
     end

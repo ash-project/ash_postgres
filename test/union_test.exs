@@ -72,12 +72,22 @@ defmodule AshPostgres.UnionTest do
     |> Ash.Changeset.for_create(:create, %{title: "title5"})
     |> Ash.create!()
 
-    assert [%{title: "title5"}, %{title: "title3"}] =
+    assert ["title5", "title4", "title1"] =
              Post
              |> Ash.Query.for_read(:first_and_last_two_posts)
              |> Ash.Query.sort(title: :desc)
-             |> Ash.Query.filter(title in ["title3", "title4", "title5"])
+             |> Ash.Query.filter(title in ["title4", "title5", "title1"])
              |> Ash.Query.limit(3)
              |> Ash.read!()
+             |> Enum.map(& &1.title)
+
+    assert ["title5", "title4", "title2"] =
+             Post
+             |> Ash.Query.for_read(:first_and_last_two_posts)
+             |> Ash.Query.sort(title: :desc)
+             |> Ash.Query.filter(title in ["title4", "title5", "title2"])
+             |> Ash.Query.limit(3)
+             |> Ash.read!()
+             |> Enum.map(& &1.title)
   end
 end

@@ -615,7 +615,8 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def can?(_, :async_engine), do: true
-  def can?(_, :union_of), do: true
+  def can?(_, :combine), do: true
+  def can?(_, {:combine, _}), do: true
   def can?(_, :bulk_create), do: true
 
   def can?(_, :action_select), do: true
@@ -788,7 +789,7 @@ defmodule AshPostgres.DataLayer do
         )
         |> AshSql.Query.remap_mapped_fields(query)
         |> then(fn results ->
-          if query.__ash_bindings__.context[:data_layer][:union_of_queries?] do
+          if query.__ash_bindings__.context[:data_layer][:combination_of_queries?] do
             Enum.map(results, fn result ->
               struct(resource, result)
               |> Map.put(:__meta__, %Ecto.Schema.Metadata{
@@ -1437,8 +1438,8 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def union_of(union_of, resource, domain) do
-    AshSql.Query.union_of(union_of, resource, domain, AshPostgres.SqlImplementation)
+  def combination_of(combination_of, resource, domain) do
+    AshSql.Query.combination_of(combination_of, resource, domain, AshPostgres.SqlImplementation)
   end
 
   @impl true
@@ -1645,7 +1646,7 @@ defmodule AshPostgres.DataLayer do
 
         needs_to_join? =
           requires_adding_inner_join? || query.distinct ||
-            query.limit || query.offset || has_exists? || query.union
+            query.limit || query.offset || has_exists? || query.combinations != []
 
         query =
           if needs_to_join? do
@@ -3265,7 +3266,7 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def select(query, select, _resource) do
     if query.__ash_bindings__.context[:data_layer][:union_query?] ||
-         query.__ash_bindings__.context[:data_layer][:union_of_queries?] do
+         query.__ash_bindings__.context[:data_layer][:combination_of_queries?] do
       binding = query.__ash_bindings__.root_binding
 
       query =
