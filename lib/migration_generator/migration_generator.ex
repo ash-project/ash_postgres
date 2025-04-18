@@ -1475,6 +1475,21 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp after?(
+         %Operation.RenameAttribute{
+           old_attribute: %{source: source},
+           table: table,
+           schema: schema
+         },
+         %Operation.RemoveUniqueIndex{
+           identity: %{keys: keys},
+           table: table,
+           schema: schema
+         }
+       ) do
+    source in List.wrap(keys)
+  end
+
+  defp after?(
          %Operation.RemoveUniqueIndex{table: table, schema: schema},
          %{table: table, schema: schema}
        ) do
@@ -1699,6 +1714,19 @@ defmodule AshPostgres.MigrationGenerator do
          %Operation.AddUniqueIndex{identity: %{keys: keys}, table: table}
        ) do
     destination_attribute in keys
+  end
+
+  defp after?(
+         %Operation.AlterAttribute{
+           old_attribute: %{
+             source: source
+           },
+           table: table,
+           schema: schema
+         },
+         %Operation.RemoveUniqueIndex{identity: %{keys: keys}, table: table, schema: schema}
+       ) do
+    source in List.wrap(keys)
   end
 
   defp after?(

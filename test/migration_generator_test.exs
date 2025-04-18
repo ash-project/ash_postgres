@@ -1062,6 +1062,83 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert File.read!(file2) =~ ~S[rename table(:posts), :subject, to: :title]
     end
 
+    test "when renaming a field with an identity, it asks which field you are renaming it to, and updates indexes in the correct order" do
+      defposts do
+        identities do
+          identity(:subject, [:subject])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:subject, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+      send(self(), {:mix_shell_input, :prompt, "subject"})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      contents = File.read!(file2)
+      [up_side, down_side] = String.split(contents, "def down", parts: 2)
+
+      up_side_parts =
+        String.split(up_side, "\n", trim: true)
+        |> Enum.map(&String.trim/1)
+
+      drop_index =
+        Enum.find_index(up_side_parts, fn x ->
+          x == "drop_if_exists unique_index(:posts, [:title], name: \"posts_title_index\")"
+        end)
+
+      rename_table =
+        Enum.find_index(up_side_parts, fn x ->
+          x == "rename table(:posts), :title, to: :subject"
+        end)
+
+      create_index =
+        Enum.find_index(up_side_parts, fn x ->
+          x == "create unique_index(:posts, [:subject], name: \"posts_subject_index\")"
+        end)
+
+      assert drop_index < rename_table
+      assert rename_table < create_index
+
+      down_side_parts =
+        String.split(down_side, "\n", trim: true)
+        |> Enum.map(&String.trim/1)
+
+      drop_index =
+        Enum.find_index(down_side_parts, fn x ->
+          x ==
+            "drop_if_exists unique_index(:posts, [:subject], name: \"posts_subject_index\")"
+        end)
+
+      rename_table =
+        Enum.find_index(down_side_parts, fn x ->
+          x == "rename table(:posts), :subject, to: :title"
+        end)
+
+      create_index =
+        Enum.find_index(down_side_parts, fn x ->
+          x == "create unique_index(:posts, [:title], name: \"posts_title_index\")"
+        end)
+
+      assert drop_index < rename_table
+      assert rename_table < create_index
+    end
+
     test "when renaming a field, it asks which field you are renaming it to, and adds it if you arent" do
       defposts do
         attributes do
