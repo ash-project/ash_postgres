@@ -3074,10 +3074,11 @@ defmodule AshPostgres.DataLayer do
       )
       |> pkey_filter(changeset.data)
       |> then(fn query ->
-        %{
-          query
-          | __ash_bindings__: Map.put_new(query.__ash_bindings__, :tenant, changeset.tenant)
-        }
+        Map.put(
+          query,
+          :__ash_bindings__,
+          Map.put_new(query.__ash_bindings__, :tenant, changeset.tenant)
+        )
       end)
 
     changeset =
