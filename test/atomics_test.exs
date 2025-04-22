@@ -3,6 +3,7 @@ defmodule AshPostgres.AtomicsTest do
   alias AshPostgres.Test.Comment
 
   use AshPostgres.RepoCase, async: false
+
   alias AshPostgres.Test.Invite
   alias AshPostgres.Test.Post
   alias AshPostgres.Test.User
@@ -367,29 +368,29 @@ defmodule AshPostgres.AtomicsTest do
           |> Ash.update!()
         end
 
-        # assert_raise Ash.Error.Invalid, ~r/Can only update if Post has no comments/, fn ->
-        #   post
-        #   |> Ash.Changeset.new()
-        #   |> Ash.Changeset.put_context(:aggregate, unquote(aggregate))
-        #   |> Ash.Changeset.for_update(:update_if_no_comments_non_atomic, %{title: "bar"})
-        #   |> Ash.update!()
-        # end
+        assert_raise Ash.Error.Invalid, ~r/Can only update if Post has no comments/, fn ->
+          post
+          |> Ash.Changeset.new()
+          |> Ash.Changeset.put_context(:aggregate, unquote(aggregate))
+          |> Ash.Changeset.for_update(:update_if_no_comments_non_atomic, %{title: "bar"})
+          |> Ash.update!()
+        end
 
-        # assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no comments/, fn ->
-        #   post
-        #   |> Ash.Changeset.new()
-        #   |> Ash.Changeset.put_context(:aggregate, unquote(aggregate))
-        #   |> Ash.Changeset.for_destroy(:destroy_if_no_comments_non_atomic, %{})
-        #   |> Ash.destroy!()
-        # end
+        assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no comments/, fn ->
+          post
+          |> Ash.Changeset.new()
+          |> Ash.Changeset.put_context(:aggregate, unquote(aggregate))
+          |> Ash.Changeset.for_destroy(:destroy_if_no_comments_non_atomic, %{})
+          |> Ash.destroy!()
+        end
 
-        # assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no comments/, fn ->
-        #   post
-        #   |> Ash.Changeset.new()
-        #   |> Ash.Changeset.put_context(:aggregate, unquote(aggregate))
-        #   |> Ash.Changeset.for_destroy(:destroy_if_no_comments, %{})
-        #   |> Ash.destroy!()
-        # end
+        assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no comments/, fn ->
+          post
+          |> Ash.Changeset.new()
+          |> Ash.Changeset.put_context(:aggregate, unquote(aggregate))
+          |> Ash.Changeset.for_destroy(:destroy_if_no_comments, %{})
+          |> Ash.destroy!()
+        end
       end
     end
   )
