@@ -5,6 +5,17 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.17](https://github.com/ash-project/ash_postgres/compare/v2.5.16...v2.5.17) (2025-04-22)
+
+
+
+
+### Bug Fixes:
+
+* add tenant to ash bindings in update (#534)
+
+* correct order, when renaming attribute with an identity (#533)
+
 ## [v2.5.16](https://github.com/ash-project/ash_postgres/compare/v2.5.15...v2.5.16) (2025-04-15)
 
 
