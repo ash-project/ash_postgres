@@ -1219,29 +1219,38 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule RemoveCustomIndex do
     @moduledoc false
-    defstruct [:schema, :table, :index, :base_filter, :multitenancy, no_phase: true]
+    defstruct [
+      :schema,
+      :table,
+      :index,
+      :base_filter,
+      :multitenancy,
+      :old_multitenancy,
+      no_phase: true
+    ]
+
     import Helper
 
     def up(operation) do
-      AddCustomIndex.down(operation)
+      AddCustomIndex.down(%{operation | multitenancy: operation.old_multitenancy})
     end
 
     def down(operation) do
-      AddCustomIndex.up(operation)
+      AddCustomIndex.up(%{operation | multitenancy: operation.old_multitenancy})
     end
   end
 
   defmodule RemoveReferenceIndex do
     @moduledoc false
-    defstruct [:schema, :table, :source, :multitenancy, no_phase: true]
+    defstruct [:schema, :table, :source, :multitenancy, :old_multitenancy, no_phase: true]
     import Helper
 
     def up(operation) do
-      AddReferenceIndex.down(operation)
+      AddReferenceIndex.down(%{operation | multitenancy: operation.old_multitenancy})
     end
 
     def down(operation) do
-      AddReferenceIndex.up(operation)
+      AddReferenceIndex.up(%{operation | multitenancy: operation.old_multitenancy})
     end
   end
 
