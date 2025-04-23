@@ -135,6 +135,41 @@ defmodule AshPostgres.Test.MultitenancyTest do
     assert [_] = CompositeKeyPost |> Ash.Query.set_tenant(org1) |> Ash.read!()
   end
 
+  test "aggregate validations work with multitenancy", %{org1: org1} do
+    # Create a post in org1
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "foo"})
+      |> Ash.Changeset.set_tenant(org1)
+      |> Ash.create!()
+
+    # Create a user for the post
+    User
+    |> Ash.Changeset.for_create(:create, %{name: "commenter"})
+    |> Ash.Changeset.set_tenant(org1)
+    |> Ash.create!()
+
+    # Test that aggregate validation works with tenant context
+    assert_raise Ash.Error.Invalid, ~r/Can only update if Post has no users/, fn ->
+      post
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.put_context(:aggregate, :exists)
+      |> Ash.Changeset.for_update(:update_if_no_users, %{name: "updated"})
+      |> Ash.Changeset.set_tenant(org1)
+      |> Ash.update!()
+    end
+
+    # Test non-atomic validation
+    assert_raise Ash.Error.Invalid, ~r/Can only update if Post has no users/, fn ->
+      post
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.put_context(:aggregate, :exists)
+      |> Ash.Changeset.for_update(:update_if_no_users_non_atomic, %{name: "updated"})
+      |> Ash.Changeset.set_tenant(org1)
+      |> Ash.update!()
+    end
+  end
+
   test "loading attribute multitenant resources from context multitenant resources works" do
     org =
       Org
