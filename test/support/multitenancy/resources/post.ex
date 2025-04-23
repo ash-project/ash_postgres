@@ -1,3 +1,21 @@
+defmodule HasNoLinkedPosts do
+  @moduledoc false
+  use Ash.Resource.Validation
+
+  def atomic(changeset, _opts, context) do
+    condition = expr(exists(linked_posts, true))
+
+    [
+      {:atomic, [], condition,
+       expr(
+         error(^Ash.Error.Changes.InvalidChanges, %{
+           message: ^context.message || "Post has linked posts"
+         })
+       )}
+    ]
+  end
+end
+
 defmodule AshPostgres.MultitenancyTest.Post do
   @moduledoc false
   use Ash.Resource,
@@ -27,6 +45,20 @@ defmodule AshPostgres.MultitenancyTest.Post do
     defaults([:create, :read, :update, :destroy])
 
     update(:update_with_policy)
+
+    update :update_if_no_linked_posts do
+      validate HasNoLinkedPosts do
+        message "Can only update if Post has no linked posts"
+      end
+    end
+
+    update :update_if_no_linked_posts_non_atomic do
+      require_atomic?(false)
+
+      validate HasNoLinkedPosts do
+        message "Can only update if Post has no linked posts"
+      end
+    end
   end
 
   postgres do
