@@ -184,6 +184,26 @@ defmodule AshPostgres.Test.MultitenancyTest do
       |> Ash.update!()
     end
 
+    # Test destroy with atomic validation
+    assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no linked posts/, fn ->
+      post
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.put_context(:aggregate, :exists)
+      |> Ash.Changeset.for_destroy(:destroy_if_no_linked_posts, %{})
+      |> Ash.Changeset.set_tenant("org_" <> org1.id)
+      |> Ash.destroy!()
+    end
+
+    # Test destroy with non-atomic validation
+    assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no linked posts/, fn ->
+      post
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.put_context(:aggregate, :exists)
+      |> Ash.Changeset.for_destroy(:destroy_if_no_linked_posts_non_atomic, %{})
+      |> Ash.Changeset.set_tenant("org_" <> org1.id)
+      |> Ash.destroy!()
+    end
+
     # Verify that a post with no linked posts in org2 can be updated
     org2_post =
       Post
@@ -201,6 +221,21 @@ defmodule AshPostgres.Test.MultitenancyTest do
       |> Ash.update!()
 
     assert updated_post.name == "updated"
+
+    # Test that a post with no linked posts in org2 can be destroyed
+    org2_post_for_destroy =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "destroyable"})
+      |> Ash.Changeset.set_tenant("org_" <> org2.id)
+      |> Ash.create!()
+
+    # This should succeed since the post has no linked posts in org2
+    org2_post_for_destroy
+    |> Ash.Changeset.new()
+    |> Ash.Changeset.put_context(:aggregate, :exists)
+    |> Ash.Changeset.for_destroy(:destroy_if_no_linked_posts, %{})
+    |> Ash.Changeset.set_tenant("org_" <> org2.id)
+    |> Ash.destroy!()
   end
 
   test "loading attribute multitenant resources from context multitenant resources works" do

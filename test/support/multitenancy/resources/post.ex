@@ -59,6 +59,20 @@ defmodule AshPostgres.MultitenancyTest.Post do
         message "Can only update if Post has no linked posts"
       end
     end
+
+    destroy :destroy_if_no_linked_posts do
+      validate HasNoLinkedPosts do
+        message "Can only delete if Post has no linked posts"
+      end
+    end
+
+    destroy :destroy_if_no_linked_posts_non_atomic do
+      require_atomic?(false)
+
+      validate HasNoLinkedPosts do
+        message "Can only delete if Post has no linked posts"
+      end
+    end
   end
 
   postgres do
