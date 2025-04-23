@@ -135,7 +135,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
     assert [_] = CompositeKeyPost |> Ash.Query.set_tenant(org1) |> Ash.read!()
   end
 
-  test "aggregate validations work with multitenancy", %{org1: org1, org2: org2} do
+  test "aggregate validation prevents update with linked posts", %{org1: org1} do
     # Create a post in org1
     post =
       Post
@@ -148,13 +148,6 @@ defmodule AshPostgres.Test.MultitenancyTest do
       Post
       |> Ash.Changeset.for_create(:create, %{name: "linked post"})
       |> Ash.Changeset.set_tenant("org_" <> org1.id)
-      |> Ash.create!()
-
-    # Create a linked post in org2 - should not affect validation in org1
-    _org2_post =
-      Post
-      |> Ash.Changeset.for_create(:create, %{name: "org2 post"})
-      |> Ash.Changeset.set_tenant("org_" <> org2.id)
       |> Ash.create!()
 
     # Link the posts in org1
@@ -173,6 +166,29 @@ defmodule AshPostgres.Test.MultitenancyTest do
       |> Ash.Changeset.set_tenant("org_" <> org1.id)
       |> Ash.update!()
     end
+  end
+
+  test "non-atomic aggregate validation prevents update with linked posts", %{org1: org1} do
+    # Create a post in org1
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "foo"})
+      |> Ash.Changeset.set_tenant("org_" <> org1.id)
+      |> Ash.create!()
+
+    # Create a linked post for the post in org1
+    linked_post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "linked post"})
+      |> Ash.Changeset.set_tenant("org_" <> org1.id)
+      |> Ash.create!()
+
+    # Link the posts in org1
+    post
+    |> Ash.Changeset.new()
+    |> Ash.Changeset.manage_relationship(:linked_posts, linked_post, type: :append_and_remove)
+    |> Ash.Changeset.set_tenant("org_" <> org1.id)
+    |> Ash.update!()
 
     # Test non-atomic validation
     assert_raise Ash.Error.Invalid, ~r/Can only update if Post has no linked posts/, fn ->
@@ -183,6 +199,29 @@ defmodule AshPostgres.Test.MultitenancyTest do
       |> Ash.Changeset.set_tenant("org_" <> org1.id)
       |> Ash.update!()
     end
+  end
+
+  test "aggregate validation prevents destroy with linked posts", %{org1: org1} do
+    # Create a post in org1
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "foo"})
+      |> Ash.Changeset.set_tenant("org_" <> org1.id)
+      |> Ash.create!()
+
+    # Create a linked post for the post in org1
+    linked_post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "linked post"})
+      |> Ash.Changeset.set_tenant("org_" <> org1.id)
+      |> Ash.create!()
+
+    # Link the posts in org1
+    post
+    |> Ash.Changeset.new()
+    |> Ash.Changeset.manage_relationship(:linked_posts, linked_post, type: :append_and_remove)
+    |> Ash.Changeset.set_tenant("org_" <> org1.id)
+    |> Ash.update!()
 
     # Test destroy with atomic validation
     assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no linked posts/, fn ->
@@ -193,6 +232,29 @@ defmodule AshPostgres.Test.MultitenancyTest do
       |> Ash.Changeset.set_tenant("org_" <> org1.id)
       |> Ash.destroy!()
     end
+  end
+
+  test "non-atomic aggregate validation prevents destroy with linked posts", %{org1: org1} do
+    # Create a post in org1
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "foo"})
+      |> Ash.Changeset.set_tenant("org_" <> org1.id)
+      |> Ash.create!()
+
+    # Create a linked post for the post in org1
+    linked_post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "linked post"})
+      |> Ash.Changeset.set_tenant("org_" <> org1.id)
+      |> Ash.create!()
+
+    # Link the posts in org1
+    post
+    |> Ash.Changeset.new()
+    |> Ash.Changeset.manage_relationship(:linked_posts, linked_post, type: :append_and_remove)
+    |> Ash.Changeset.set_tenant("org_" <> org1.id)
+    |> Ash.update!()
 
     # Test destroy with non-atomic validation
     assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no linked posts/, fn ->
@@ -203,8 +265,29 @@ defmodule AshPostgres.Test.MultitenancyTest do
       |> Ash.Changeset.set_tenant("org_" <> org1.id)
       |> Ash.destroy!()
     end
+  end
 
-    # Verify that a post with no linked posts in org2 can be updated
+  test "post with no linked posts can be updated in another tenant", %{org1: org1, org2: org2} do
+    # Create a post in org1 with a linked post
+    post_in_org1 =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "foo"})
+      |> Ash.Changeset.set_tenant("org_" <> org1.id)
+      |> Ash.create!()
+
+    linked_post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "linked post"})
+      |> Ash.Changeset.set_tenant("org_" <> org1.id)
+      |> Ash.create!()
+
+    post_in_org1
+    |> Ash.Changeset.new()
+    |> Ash.Changeset.manage_relationship(:linked_posts, linked_post, type: :append_and_remove)
+    |> Ash.Changeset.set_tenant("org_" <> org1.id)
+    |> Ash.update!()
+
+    # Create a post in org2 with no linked posts
     org2_post =
       Post
       |> Ash.Changeset.for_create(:create, %{name: "updateable"})
@@ -221,8 +304,29 @@ defmodule AshPostgres.Test.MultitenancyTest do
       |> Ash.update!()
 
     assert updated_post.name == "updated"
+  end
 
-    # Test that a post with no linked posts in org2 can be destroyed
+  test "post with no linked posts can be destroyed in another tenant", %{org1: org1, org2: org2} do
+    # Create a post in org1 with a linked post
+    post_in_org1 =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "foo"})
+      |> Ash.Changeset.set_tenant("org_" <> org1.id)
+      |> Ash.create!()
+
+    linked_post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "linked post"})
+      |> Ash.Changeset.set_tenant("org_" <> org1.id)
+      |> Ash.create!()
+
+    post_in_org1
+    |> Ash.Changeset.new()
+    |> Ash.Changeset.manage_relationship(:linked_posts, linked_post, type: :append_and_remove)
+    |> Ash.Changeset.set_tenant("org_" <> org1.id)
+    |> Ash.update!()
+
+    # Create a post in org2 with no linked posts
     org2_post_for_destroy =
       Post
       |> Ash.Changeset.for_create(:create, %{name: "destroyable"})
@@ -236,6 +340,13 @@ defmodule AshPostgres.Test.MultitenancyTest do
     |> Ash.Changeset.for_destroy(:destroy_if_no_linked_posts, %{})
     |> Ash.Changeset.set_tenant("org_" <> org2.id)
     |> Ash.destroy!()
+
+    # Verify the post was destroyed
+    assert [] = 
+      Post
+      |> Ash.Query.filter(id == ^org2_post_for_destroy.id)
+      |> Ash.Query.set_tenant("org_" <> org2.id)
+      |> Ash.read!()
   end
 
   test "loading attribute multitenant resources from context multitenant resources works" do
