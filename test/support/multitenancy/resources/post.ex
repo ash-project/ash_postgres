@@ -2,7 +2,7 @@ defmodule HasNoLinkedPosts do
   @moduledoc false
   use Ash.Resource.Validation
 
-  def atomic(changeset, _opts, context) do
+  def atomic(_changeset, _opts, context) do
     condition = expr(exists(linked_posts, true))
 
     [
