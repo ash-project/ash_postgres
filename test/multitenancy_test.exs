@@ -143,28 +143,36 @@ defmodule AshPostgres.Test.MultitenancyTest do
       |> Ash.Changeset.set_tenant(org1)
       |> Ash.create!()
 
-    # Create a user for the post
-    User
-    |> Ash.Changeset.for_create(:create, %{name: "commenter"})
+    # Create a linked post for the post
+    linked_post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "linked post"})
+      |> Ash.Changeset.set_tenant(org1)
+      |> Ash.create!()
+
+    # Link the posts
+    post
+    |> Ash.Changeset.new()
+    |> Ash.Changeset.manage_relationship(:linked_posts, linked_post, type: :append_and_remove)
     |> Ash.Changeset.set_tenant(org1)
-    |> Ash.create!()
+    |> Ash.update!()
 
     # Test that aggregate validation works with tenant context
-    assert_raise Ash.Error.Invalid, ~r/Can only update if Post has no users/, fn ->
+    assert_raise Ash.Error.Invalid, ~r/Can only update if Post has no linked posts/, fn ->
       post
       |> Ash.Changeset.new()
       |> Ash.Changeset.put_context(:aggregate, :exists)
-      |> Ash.Changeset.for_update(:update_if_no_users, %{name: "updated"})
+      |> Ash.Changeset.for_update(:update_if_no_linked_posts, %{name: "updated"})
       |> Ash.Changeset.set_tenant(org1)
       |> Ash.update!()
     end
 
     # Test non-atomic validation
-    assert_raise Ash.Error.Invalid, ~r/Can only update if Post has no users/, fn ->
+    assert_raise Ash.Error.Invalid, ~r/Can only update if Post has no linked posts/, fn ->
       post
       |> Ash.Changeset.new()
       |> Ash.Changeset.put_context(:aggregate, :exists)
-      |> Ash.Changeset.for_update(:update_if_no_users_non_atomic, %{name: "updated"})
+      |> Ash.Changeset.for_update(:update_if_no_linked_posts_non_atomic, %{name: "updated"})
       |> Ash.Changeset.set_tenant(org1)
       |> Ash.update!()
     end
