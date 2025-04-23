@@ -336,11 +336,11 @@ defmodule AshPostgres.Test.MultitenancyTest do
     |> Ash.destroy!()
 
     # Verify the post was destroyed
-    assert [] = 
-      Post
-      |> Ash.Query.filter(id == ^org2_post_for_destroy.id)
-      |> Ash.Query.set_tenant("org_" <> org2.id)
-      |> Ash.read!()
+    assert [] =
+             Post
+             |> Ash.Query.filter(id == ^org2_post_for_destroy.id)
+             |> Ash.Query.set_tenant("org_" <> org2.id)
+             |> Ash.read!()
   end
 
   test "loading attribute multitenant resources from context multitenant resources works" do
