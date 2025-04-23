@@ -161,7 +161,6 @@ defmodule AshPostgres.Test.MultitenancyTest do
     assert_raise Ash.Error.Invalid, ~r/Can only update if Post has no linked posts/, fn ->
       post
       |> Ash.Changeset.new()
-      |> Ash.Changeset.put_context(:aggregate, :exists)
       |> Ash.Changeset.for_update(:update_if_no_linked_posts, %{name: "updated"})
       |> Ash.Changeset.set_tenant("org_" <> org1.id)
       |> Ash.update!()
@@ -194,7 +193,6 @@ defmodule AshPostgres.Test.MultitenancyTest do
     assert_raise Ash.Error.Invalid, ~r/Can only update if Post has no linked posts/, fn ->
       post
       |> Ash.Changeset.new()
-      |> Ash.Changeset.put_context(:aggregate, :exists)
       |> Ash.Changeset.for_update(:update_if_no_linked_posts_non_atomic, %{name: "updated"})
       |> Ash.Changeset.set_tenant("org_" <> org1.id)
       |> Ash.update!()
@@ -227,7 +225,6 @@ defmodule AshPostgres.Test.MultitenancyTest do
     assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no linked posts/, fn ->
       post
       |> Ash.Changeset.new()
-      |> Ash.Changeset.put_context(:aggregate, :exists)
       |> Ash.Changeset.for_destroy(:destroy_if_no_linked_posts, %{})
       |> Ash.Changeset.set_tenant("org_" <> org1.id)
       |> Ash.destroy!()
@@ -260,7 +257,6 @@ defmodule AshPostgres.Test.MultitenancyTest do
     assert_raise Ash.Error.Invalid, ~r/Can only delete if Post has no linked posts/, fn ->
       post
       |> Ash.Changeset.new()
-      |> Ash.Changeset.put_context(:aggregate, :exists)
       |> Ash.Changeset.for_destroy(:destroy_if_no_linked_posts_non_atomic, %{})
       |> Ash.Changeset.set_tenant("org_" <> org1.id)
       |> Ash.destroy!()
@@ -298,7 +294,6 @@ defmodule AshPostgres.Test.MultitenancyTest do
     updated_post =
       org2_post
       |> Ash.Changeset.new()
-      |> Ash.Changeset.put_context(:aggregate, :exists)
       |> Ash.Changeset.for_update(:update_if_no_linked_posts, %{name: "updated"})
       |> Ash.Changeset.set_tenant("org_" <> org2.id)
       |> Ash.update!()
@@ -336,7 +331,6 @@ defmodule AshPostgres.Test.MultitenancyTest do
     # This should succeed since the post has no linked posts in org2
     org2_post_for_destroy
     |> Ash.Changeset.new()
-    |> Ash.Changeset.put_context(:aggregate, :exists)
     |> Ash.Changeset.for_destroy(:destroy_if_no_linked_posts, %{})
     |> Ash.Changeset.set_tenant("org_" <> org2.id)
     |> Ash.destroy!()
