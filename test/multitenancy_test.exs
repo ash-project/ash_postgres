@@ -135,26 +135,33 @@ defmodule AshPostgres.Test.MultitenancyTest do
     assert [_] = CompositeKeyPost |> Ash.Query.set_tenant(org1) |> Ash.read!()
   end
 
-  test "aggregate validations work with multitenancy", %{org1: org1} do
+  test "aggregate validations work with multitenancy", %{org1: org1, org2: org2} do
     # Create a post in org1
     post =
       Post
       |> Ash.Changeset.for_create(:create, %{name: "foo"})
-      |> Ash.Changeset.set_tenant(org1)
+      |> Ash.Changeset.set_tenant("org_" <> org1.id)
       |> Ash.create!()
 
-    # Create a linked post for the post
+    # Create a linked post for the post in org1
     linked_post =
       Post
       |> Ash.Changeset.for_create(:create, %{name: "linked post"})
-      |> Ash.Changeset.set_tenant(org1)
+      |> Ash.Changeset.set_tenant("org_" <> org1.id)
       |> Ash.create!()
 
-    # Link the posts
+    # Create a linked post in org2 - should not affect validation in org1
+    _org2_post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "org2 post"})
+      |> Ash.Changeset.set_tenant("org_" <> org2.id)
+      |> Ash.create!()
+
+    # Link the posts in org1
     post
     |> Ash.Changeset.new()
     |> Ash.Changeset.manage_relationship(:linked_posts, linked_post, type: :append_and_remove)
-    |> Ash.Changeset.set_tenant(org1)
+    |> Ash.Changeset.set_tenant("org_" <> org1.id)
     |> Ash.update!()
 
     # Test that aggregate validation works with tenant context
@@ -163,7 +170,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
       |> Ash.Changeset.new()
       |> Ash.Changeset.put_context(:aggregate, :exists)
       |> Ash.Changeset.for_update(:update_if_no_linked_posts, %{name: "updated"})
-      |> Ash.Changeset.set_tenant(org1)
+      |> Ash.Changeset.set_tenant("org_" <> org1.id)
       |> Ash.update!()
     end
 
@@ -173,9 +180,27 @@ defmodule AshPostgres.Test.MultitenancyTest do
       |> Ash.Changeset.new()
       |> Ash.Changeset.put_context(:aggregate, :exists)
       |> Ash.Changeset.for_update(:update_if_no_linked_posts_non_atomic, %{name: "updated"})
-      |> Ash.Changeset.set_tenant(org1)
+      |> Ash.Changeset.set_tenant("org_" <> org1.id)
       |> Ash.update!()
     end
+
+    # Verify that a post with no linked posts in org2 can be updated
+    org2_post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "updateable"})
+      |> Ash.Changeset.set_tenant("org_" <> org2.id)
+      |> Ash.create!()
+
+    # This should succeed since the post has no linked posts in org2
+    updated_post =
+      org2_post
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.put_context(:aggregate, :exists)
+      |> Ash.Changeset.for_update(:update_if_no_linked_posts, %{name: "updated"})
+      |> Ash.Changeset.set_tenant("org_" <> org2.id)
+      |> Ash.update!()
+
+    assert updated_post.name == "updated"
   end
 
   test "loading attribute multitenant resources from context multitenant resources works" do
