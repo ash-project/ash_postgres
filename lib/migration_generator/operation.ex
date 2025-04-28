@@ -127,6 +127,14 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     end
 
     def match_type(_), do: nil
+
+    def index_keys(keys, all_tenants?, multitenancy) do
+      if multitenancy.strategy == :attribute and not all_tenants? do
+        [multitenancy.attribute | keys]
+      else
+        keys
+      end
+    end
   end
 
   defmodule CreateTable do
@@ -851,18 +859,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           schema: schema,
           multitenancy: multitenancy
         }) do
-      keys =
-        if all_tenants? do
-          keys
-        else
-          case multitenancy.strategy do
-            :attribute ->
-              [multitenancy.attribute | keys]
-
-            _ ->
-              keys
-          end
-        end
+      keys = index_keys(keys, all_tenants?, multitenancy)
 
       index_name = index_name || "#{table}_#{name}_index"
 
@@ -888,19 +885,12 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     end
 
     def down(%{
-          identity: %{name: name, keys: keys, index_name: index_name},
+          identity: %{name: name, keys: keys, index_name: index_name, all_tenants?: all_tenants?},
           table: table,
           schema: schema,
           multitenancy: multitenancy
         }) do
-      keys =
-        case multitenancy.strategy do
-          :attribute ->
-            [multitenancy.attribute | keys]
-
-          _ ->
-            keys
-        end
+      keys = index_keys(keys, all_tenants?, multitenancy)
 
       index_name = index_name || "#{table}_#{name}_index"
 
@@ -962,12 +952,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           base_filter: base_filter,
           multitenancy: multitenancy
         }) do
-      keys =
-        if !index.all_tenants? and multitenancy.strategy == :attribute do
-          [multitenancy.attribute | index.fields]
-        else
-          index.fields
-        end
+      keys = index_keys(index.fields, index.all_tenants?, multitenancy)
 
       index =
         case {index.where, base_filter} do
@@ -997,12 +982,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     end
 
     def down(%{schema: schema, index: index, table: table, multitenancy: multitenancy}) do
-      keys =
-        if !index.all_tenants? and multitenancy.strategy == :attribute do
-          [multitenancy.attribute | index.fields]
-        else
-          index.fields
-        end
+      keys = index_keys(index.fields, index.all_tenants?, multitenancy)
 
       opts =
         join([
@@ -1167,7 +1147,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     @moduledoc false
     defstruct [:schema, :table, no_phase: true]
 
-    def up(%{schema: schema, table: table, multitenancy: multitenancy}) do
+    def up(%{schema: schema, table: table, old_multitenancy: multitenancy}) do
       cond do
         multitenancy.strategy == :context ->
           "drop constraint(#{inspect(table)}, \"#{table}_pkey\", prefix: prefix())"
@@ -1305,48 +1285,12 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     import Helper
 
-    def up(%{
-          identity: %{name: name, keys: keys, index_name: index_name},
-          table: table,
-          schema: schema,
-          old_multitenancy: multitenancy
-        }) do
-      keys =
-        case multitenancy.strategy do
-          :attribute ->
-            [multitenancy.attribute | keys]
-
-          _ ->
-            keys
-        end
-
-      index_name = index_name || "#{table}_#{name}_index"
-
-      "drop_if_exists unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
+    def up(operation) do
+      AddUniqueIndex.down(%{operation | multitenancy: operation.old_multitenancy})
     end
 
-    def down(%{
-          identity: %{name: name, keys: keys, base_filter: base_filter, index_name: index_name},
-          table: table,
-          schema: schema,
-          multitenancy: multitenancy
-        }) do
-      keys =
-        case multitenancy.strategy do
-          :attribute ->
-            [multitenancy.attribute | keys]
-
-          _ ->
-            keys
-        end
-
-      index_name = index_name || "#{table}_#{name}_index"
-
-      if base_filter do
-        "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
-      else
-        "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option(:prefix, schema)])})"
-      end
+    def down(operation) do
+      AddUniqueIndex.up(%{operation | multitenancy: operation.old_multitenancy})
     end
   end
 
