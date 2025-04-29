@@ -5,6 +5,21 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.18](https://github.com/ash-project/ash_postgres/compare/v2.5.17...v2.5.18) (2025-04-29)
+
+
+
+
+### Bug Fixes:
+
+* fix some issues in migration generator related to tenancy (#539)
+
+* use old multitenancy in generated removals of previous indexes (#536)
+
+* add tenant to ash bindings in update (#534)
+
+* correct order, when renaming attribute with an identity (#533)
+
 ## [v2.5.17](https://github.com/ash-project/ash_postgres/compare/v2.5.16...v2.5.17) (2025-04-22)
 
 
