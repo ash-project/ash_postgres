@@ -1025,6 +1025,28 @@ defmodule AshSql.AggregateTest do
              |> Ash.read_one!()
   end
 
+  @tag :regression
+  test "aggregates with parent expressions in their filters are not grouped" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "title"})
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "title"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "something else"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    assert %{count_of_comments: 2, count_of_comments_with_same_name: 1} =
+             post
+             |> Ash.load!([:count_of_comments, :count_of_comments_with_same_name])
+  end
+
   describe "sum" do
     test "with no related data it returns nil" do
       post =

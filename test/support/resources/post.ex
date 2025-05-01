@@ -896,6 +896,11 @@ defmodule AshPostgres.Test.Post do
   aggregates do
     sum(:sum_of_comment_ratings_calc, [:comments, :ratings], :double_score)
     count(:count_of_comments, :comments)
+
+    count :count_of_comments_with_same_name, :comments do
+      filter(expr(title == parent(title)))
+    end
+
     count(:count_of_linked_posts, :linked_posts)
 
     count :count_of_comments_called_match, :comments do
