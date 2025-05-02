@@ -114,7 +114,9 @@ defmodule MyApp.Employee.ManagedEmployees do
   @impl true
   @spec load([Employee.t()], keyword, map) ::
           {:ok, %{Ash.UUID.t() => [Employee.t()]}} | {:error, any}
-  def load(employees, _opts, _context) do
+  def load(employees, _opts, context) do
+    relationship_name = context.relationship.name
+
     employee_ids = Enum.map(employees, & &1.id)
 
     all_descendants =
@@ -122,23 +124,21 @@ defmodule MyApp.Employee.ManagedEmployees do
       |> where([l], l.manager_id in ^employee_ids)
       |> recursive_cte_query("employee_tree", Employee)
       |> Repo.all()
-      |> Map.new(fn employee ->
-        {employee.id, employee}
-      end)
+      |> Enum.group_by(& &1.manager_id, & &1)
 
     employees
-    |> with_descendants(all_descendants)
-    |> Map.new(&{&1.id, &1.descendants})
+    |> with_descendants(all_descendants, relationship_name)
+    |> Map.new(&{&1.id, Map.get(&1, relationship_name)})
     |> then(&{:ok, &1})
   end
 
-  defp with_descendants([], _), do: []
+  defp with_descendants([], _, _), do: []
 
-  defp with_descendants(employees, all_descendants) do
+  defp with_descendants(employees, all_descendants, relationship_name) do
     Enum.map(employees, fn employee ->
       descendants = Map.get(all_descendants, employee.id, [])
 
-      %{employee | descendants: with_descendants(descendants, all_descendants)}
+      Map.put(employee, relationship_name, with_descendants(descendants, all_descendants, relationship_name))
     end)
   end
 
