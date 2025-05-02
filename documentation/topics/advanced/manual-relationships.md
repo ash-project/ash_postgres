@@ -122,6 +122,9 @@ defmodule MyApp.Employee.ManagedEmployees do
       |> where([l], l.manager_id in ^employee_ids)
       |> recursive_cte_query("employee_tree", Employee)
       |> Repo.all()
+      |> Map.new(fn employee ->
+        {employee.id, employee}
+      end)
 
     employees
     |> with_descendants(all_descendants)
