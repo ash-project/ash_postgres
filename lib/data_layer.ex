@@ -615,6 +615,8 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def can?(_, :async_engine), do: true
+  def can?(_, :combine), do: true
+  def can?(_, {:combine, _}), do: true
   def can?(_, :bulk_create), do: true
 
   def can?(_, :action_select), do: true
@@ -781,12 +783,24 @@ defmodule AshPostgres.DataLayer do
       repo = AshSql.dynamic_repo(resource, AshPostgres.SqlImplementation, query)
 
       with_savepoint(repo, query, fn ->
-        {:ok,
-         repo.all(
-           query,
-           AshSql.repo_opts(repo, AshPostgres.SqlImplementation, nil, nil, resource)
-         )
-         |> AshSql.Query.remap_mapped_fields(query)}
+        repo.all(
+          query,
+          AshSql.repo_opts(repo, AshPostgres.SqlImplementation, nil, nil, resource)
+        )
+        |> AshSql.Query.remap_mapped_fields(query)
+        |> then(fn results ->
+          if query.__ash_bindings__.context[:data_layer][:combination_of_queries?] do
+            Enum.map(results, fn result ->
+              struct(resource, result)
+              |> Map.put(:__meta__, %Ecto.Schema.Metadata{
+                state: :loaded
+              })
+            end)
+          else
+            results
+          end
+        end)
+        |> then(&{:ok, &1})
       end)
     end
   rescue
@@ -1424,6 +1438,11 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
+  def combination_of(combination_of, resource, domain) do
+    AshSql.Query.combination_of(combination_of, resource, domain, AshPostgres.SqlImplementation)
+  end
+
+  @impl true
   def update_query(query, changeset, resource, options) do
     repo = AshSql.dynamic_repo(resource, AshPostgres.SqlImplementation, changeset)
 
@@ -1627,7 +1646,7 @@ defmodule AshPostgres.DataLayer do
 
         needs_to_join? =
           requires_adding_inner_join? || query.distinct ||
-            query.limit || query.offset || has_exists?
+            query.limit || query.offset || has_exists? || query.combinations != []
 
         query =
           if needs_to_join? do
@@ -3253,7 +3272,20 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def select(query, select, _resource) do
-    {:ok, from(row in query, select: struct(row, ^Enum.uniq(select)))}
+    if query.__ash_bindings__.context[:data_layer][:combination_query?] ||
+         query.__ash_bindings__.context[:data_layer][:combination_of_queries?] do
+      binding = query.__ash_bindings__.root_binding
+
+      query =
+        from(row in Ecto.Query.exclude(query, :select), select: %{})
+
+      Enum.reduce(select, query, fn field, query ->
+        from(row in query, select_merge: %{^field => field(as(^binding), ^field)})
+      end)
+      |> then(&{:ok, &1})
+    else
+      {:ok, from(row in query, select: struct(row, ^Enum.uniq(select)))}
+    end
   end
 
   @impl true

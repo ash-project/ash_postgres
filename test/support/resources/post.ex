@@ -154,6 +154,36 @@ defmodule AshPostgres.Test.Post do
 
     defaults([:read, :destroy])
 
+    read :first_and_last_post do
+      prepare(fn query, _ ->
+        Ash.Query.combination_of(query, [
+          Ash.Query.Combination.base(
+            limit: 1,
+            sort: [created_at: :desc]
+          ),
+          Ash.Query.Combination.union(
+            limit: 1,
+            sort: [created_at: :asc]
+          )
+        ])
+      end)
+    end
+
+    read :first_and_last_two_posts do
+      prepare(fn query, _ ->
+        Ash.Query.combination_of(query, [
+          Ash.Query.Combination.base(
+            limit: 2,
+            sort: [created_at: :desc]
+          ),
+          Ash.Query.Combination.union(
+            limit: 2,
+            sort: [created_at: :asc]
+          )
+        ])
+      end)
+    end
+
     update :add_to_limited_score do
       argument(:amount, :integer, allow_nil?: false)
       change(atomic_update(:limited_score, expr((limited_score || 0) + ^arg(:amount))))
