@@ -559,6 +559,12 @@ defmodule AshPostgres.Test.Post do
       public?(true)
     end
 
+    has_one :author_from_exists, AshPostgres.Test.Author do
+      public?(true)
+      no_attributes?(true)
+      filter(expr(exists(posts, id == parent(parent(id)))))
+    end
+
     has_many :co_author_posts, AshPostgres.Test.CoAuthorPost do
       public?(true)
 

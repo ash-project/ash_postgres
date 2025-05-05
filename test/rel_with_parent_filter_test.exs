@@ -2,6 +2,7 @@ defmodule AshPostgres.RelWithParentFilterTest do
   use AshPostgres.RepoCase, async: false
 
   alias AshPostgres.Test.Author
+  alias AshPostgres.Test.Post
 
   require Ash.Query
 
@@ -74,5 +75,50 @@ defmodule AshPostgres.RelWithParentFilterTest do
              |> Ash.read_one!()
 
     assert length(authors) == 1
+  end
+
+  test "can stack parents" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{
+        first_name: "abc"
+      })
+      |> Ash.create!()
+
+    Post
+    |> Ash.Changeset.for_create(:create, %{title: "the one", author_id: author.id})
+    |> Ash.create!()
+
+    assert %{author_from_exists: author_from_exists} =
+             Post
+             |> Ash.Query.for_read(:read)
+             |> Ash.Query.filter(title == "the one")
+             |> Ash.Query.load(:author_from_exists)
+             |> Ash.Query.limit(1)
+             |> Ash.read_one!()
+
+    assert author_from_exists.id == author.id
+  end
+
+  test "can filter with stack parents" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{
+        first_name: "abc"
+      })
+      |> Ash.create!()
+
+    Post
+    |> Ash.Changeset.for_create(:create, %{title: "the one", author_id: author.id})
+    |> Ash.create!()
+
+    assert %{author_from_exists: author_from_exists} =
+             Post
+             |> Ash.Query.for_read(:read)
+             |> Ash.Query.filter(author_from_exists.first_name == "abc")
+             |> Ash.Query.load(:author_from_exists)
+             |> Ash.read_one!()
+
+    assert author_from_exists.id == author.id
   end
 end
