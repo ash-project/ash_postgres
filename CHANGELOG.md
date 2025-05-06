@@ -5,6 +5,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.19](https://github.com/ash-project/ash_postgres/compare/v2.5.18...v2.5.19) (2025-05-06)
+
+
+
+
+### Improvements:
+
+* support unions (#543)
+
 ## [v2.5.18](https://github.com/ash-project/ash_postgres/compare/v2.5.17...v2.5.18) (2025-04-29)
 
 
