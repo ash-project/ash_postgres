@@ -957,6 +957,16 @@ defmodule AshSql.AggregateTest do
 
     assert %{sum_of_popular_comment_rating_scores_2: 80} =
              values
+
+    values =
+      post
+      |> Ash.load!([
+        :sum_of_odd_comment_rating_scores
+      ])
+      |> Map.take([:sum_of_odd_comment_rating_scores])
+
+    assert %{sum_of_popular_comment_rating_scores_2: 120} =
+             values
   end
 
   test "can't define multidimensional array aggregate types" do
