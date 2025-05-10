@@ -77,14 +77,13 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     @impl Igniter.Mix.Task
-    def igniter(igniter, argv) do
+    def igniter(igniter) do
       Mix.Task.run("compile")
 
-      {%{domain: domain}, argv} = positional_args!(argv)
+      options = igniter.args.options
+      domain = igniter.args.positional.domain
 
       domain = Igniter.Project.Module.parse(domain)
-
-      options = options!(argv)
 
       repos =
         case options[:repo] do

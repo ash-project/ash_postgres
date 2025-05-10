@@ -21,8 +21,9 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     @impl true
-    def igniter(igniter, argv) do
-      opts = options!(argv)
+    def igniter(igniter) do
+      argv = igniter.args.argv
+      opts = igniter.args.options
 
       repo =
         case opts[:repo] do
@@ -465,22 +466,22 @@ if Code.ensure_loaded?(Igniter) do
       notice =
         if min_pg_version do
           """
-          A `min_pg_version/0` function has been defined 
+          A `min_pg_version/0` function has been defined
           in `#{inspect(repo)}` as `#{min_pg_version}`.
 
           This was based on running `postgres -V`.
 
-          You may wish to update this configuration. It should 
-          be set to the lowest version that your application 
+          You may wish to update this configuration. It should
+          be set to the lowest version that your application
           expects to be run against.
           """
         else
           """
-          A `min_pg_version/0` function has been defined in 
+          A `min_pg_version/0` function has been defined in
           `#{inspect(repo)}` automatically.
 
-          You may wish to update this configuration. It should 
-          be set to the lowest version that your application 
+          You may wish to update this configuration. It should
+          be set to the lowest version that your application
           expects to be run against.
           """
         end
