@@ -10,6 +10,22 @@ The generated migrations include a lot of niceties around multitenancy. Specific
 
 Migrations in the tenant directory will call `repo().all_tenants()`, which is a callback you will need to implement in your repo that should return a list of all schemas that need to be migrated.
 
+For example, if you use the `manage_tenant` directive described below, you could do:
+
+```elixir
+defmodule Myapp.Repo do
+  use AshPostgres.Repo, ...
+
+  import Ecto.Query, only: [from: 2]
+
+  ...
+
+  def all_tenants do
+    all(from(row in "organizations", select: fragment("? || ?", "org_", row.id)))
+  end
+end
+```
+
 ## Automatically managing tenants
 
 By setting the `template` configuration, in the `manage_tenant` section, you can cause the creation/updating of a given resource to create/rename tenants. For example:
