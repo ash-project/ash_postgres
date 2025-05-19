@@ -110,7 +110,7 @@ defmodule AshPostgres.CombinationTest do
       |> Ash.Changeset.for_create(:create, %{title: "post4"})
       |> Ash.create!()
 
-      assert [%Post{title: "post4"}, %Post{title: "post1"}] =
+      assert [%{title: "post4"}, %{title: "post1"}] =
                Post
                |> Ash.Query.combination_of([
                  Ash.Query.Combination.base(
@@ -122,7 +122,9 @@ defmodule AshPostgres.CombinationTest do
                    limit: 1
                  )
                ])
+               |> Ash.Query.sort(title: :desc)
                |> Ash.read!()
+               |> Enum.map(&Map.take(&1, [:title]))
     end
 
     test "you can define computed properties" do
@@ -143,6 +145,7 @@ defmodule AshPostgres.CombinationTest do
                |> Ash.Query.combination_of([
                  Ash.Query.Combination.base(
                    filter: expr(title == "post3"),
+                   select: [:id],
                    limit: 1,
                    calculations: %{
                      post_group: calc(1, type: :integer),
@@ -151,6 +154,7 @@ defmodule AshPostgres.CombinationTest do
                  ),
                  Ash.Query.Combination.union_all(
                    filter: expr(title == "post1"),
+                   select: [:id],
                    calculations: %{
                      post_group: calc(2, type: :integer),
                      common_value: calc(1, type: :integer)
@@ -158,9 +162,8 @@ defmodule AshPostgres.CombinationTest do
                    limit: 1
                  )
                ])
-               |> Ash.Query.distinct_sort([{calc(^combinations(:common_value)), :asc}])
-               |> Ash.Query.sort([{calc(^combinations(:post_group)), :desc}])
-               |> Ash.Query.distinct([{calc(^combinations(:common_value)), :asc}])
+               |> Ash.Query.sort([{calc(^combinations(:post_group)), :asc}])
+               |> Ash.Query.distinct([calc(^combinations(:common_value))])
                |> Ash.Query.calculate(:post_group, :integer, expr(^combinations(:post_group)))
                |> Ash.read!()
     end
@@ -388,6 +391,40 @@ defmodule AshPostgres.CombinationTest do
 
       assert "low" in groups
       assert "high" in groups
+    end
+
+    test "combination with filters not included in the field set" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "post1", score: 10, category: "category1"})
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "post2", score: 10, category: "category2"})
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "post3", score: 20, category: "category3"})
+      |> Ash.create!()
+
+      assert ["category1"] =
+               Post
+               |> Ash.Query.combination_of([
+                 Ash.Query.Combination.base(
+                   filter: expr(score == 10),
+                   select: [:id, :score],
+                   calculations: %{score_group: calc("low", type: :string)}
+                 ),
+                 Ash.Query.Combination.union_all(
+                   filter: expr(score == 20),
+                   select: [:id, :score],
+                   calculations: %{score_group: calc("high", type: :string)}
+                 )
+               ])
+               |> Ash.Query.filter(category == "category1")
+               |> Ash.Query.distinct([{calc(^combinations(:score_group)), :asc}])
+               |> Ash.Query.calculate(:upper_title, :string, expr(fragment("UPPER(?)", title)))
+               |> Ash.read!()
+               |> Enum.map(&to_string(&1.category))
     end
   end
 end

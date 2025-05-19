@@ -3262,6 +3262,8 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def sort(query, sort, _resource) do
+    query = maybe_subquery_upgrade(query, {:sort, sort})
+
     {:ok,
      Map.update!(
        query,
@@ -3272,12 +3274,18 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def select(query, select, _resource) do
+    query = maybe_subquery_upgrade(query, {:select, select})
+
     if query.__ash_bindings__.context[:data_layer][:combination_query?] ||
          query.__ash_bindings__.context[:data_layer][:combination_of_queries?] do
       binding = query.__ash_bindings__.root_binding
 
-      query =
-        from(row in Ecto.Query.exclude(query, :select), select: %{})
+      {query, select} =
+        if field_set = query.__ash_bindings__[:already_selected] do
+          {query, select -- field_set}
+        else
+          {from(row in Ecto.Query.exclude(query, :select), select: %{}), select}
+        end
 
       Enum.reduce(select, query, fn field, query ->
         from(row in query, select_merge: %{^field => field(as(^binding), ^field)})
@@ -3294,6 +3302,7 @@ defmodule AshPostgres.DataLayer do
   end
 
   def distinct_sort(query, sort, _) do
+    query = maybe_subquery_upgrade(query, {:distinct_sort, sort})
     {:ok, Map.update!(query, :__ash_bindings__, &Map.put(&1, :distinct_sort, sort))}
   end
 
@@ -3302,11 +3311,13 @@ defmodule AshPostgres.DataLayer do
   # to come up with alternatives here.
   @impl true
   def distinct(query, distinct, resource) do
+    query = maybe_subquery_upgrade(query, {:distinct, distinct})
     AshSql.Distinct.distinct(query, distinct, resource)
   end
 
   @impl true
   def filter(query, filter, resource, opts \\ []) do
+    query = maybe_subquery_upgrade(query, {:filter, filter})
     used_aggregates = Ash.Filter.used_aggregates(filter, [])
 
     query =
@@ -3336,6 +3347,112 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
+  defp maybe_subquery_upgrade(
+         %{__ash_bindings__: %{subquery_upgrade?: true}} = query,
+         _
+       ) do
+    query
+  end
+
+  defp maybe_subquery_upgrade(query, type) do
+    fieldset = query.__ash_bindings__.context[:data_layer][:combination_fieldset]
+
+    if query.__ash_bindings__.context[:data_layer][:combination_of_queries?] && fieldset do
+      requires_join? =
+        case type do
+          {:filter, contents} ->
+            Enum.any?(
+              Ash.Filter.list_refs(contents),
+              &(&1.relationship_path != [] || &1.attribute.name not in fieldset)
+            )
+
+          {:calculations, calculations} ->
+            Enum.any?(calculations, fn {_, expr} ->
+              Enum.any?(
+                Ash.Filter.list_refs(expr),
+                &(&1.relationship_path != [] || &1.attribute.name not in fieldset)
+              )
+            end)
+
+          {sort, sorts} when sort in [:sort, :distinct, :distinct_sort] ->
+            Enum.any?(sorts, fn
+              {atom, _} when is_atom(atom) ->
+                atom not in fieldset
+
+              {%Ash.Query.Calculation{} = calc, _} ->
+                calc.opts
+                |> calc.module.expression(calc.context)
+                |> Ash.Filter.hydrate_refs(%{
+                  resource: query.__ash_bindings__.resource,
+                  parent_stack: query.__ash_bindings__[:parent_resources] || [],
+                  public?: false
+                })
+                |> Ash.Filter.list_refs()
+                |> Enum.any?(&(&1.relationship_path != [] || &1.attribute.name not in fieldset))
+
+              _ ->
+                true
+            end)
+
+          {:select, select} ->
+            Enum.any?(select, &(&1 not in fieldset))
+        end
+
+      resource = query.__ash_bindings__.resource
+
+      if requires_join? do
+        primary_key = Ash.Resource.Info.primary_key(query.__ash_bindings__.resource)
+
+        if primary_key != [] && primary_key -- fieldset == [] do
+          dynamic =
+            Enum.reduce(primary_key, nil, fn key, expr ->
+              if is_nil(expr) do
+                Ecto.Query.dynamic([l, r], field(l, ^key) == field(r, ^key))
+              else
+                Ecto.Query.dynamic([l, r], field(l, ^key) == field(r, ^key) and ^expr)
+              end
+            end)
+
+          default_select =
+            MapSet.to_list(
+              Ash.Resource.Info.selected_by_default_attribute_names(
+                query.__ash_bindings__.resource
+              )
+            )
+
+          query_with_select =
+            from(sub in query,
+              join: row in ^query.__ash_bindings__.resource,
+              # why doesn't `.root_binding` work the way I expect it to here?
+              on: ^dynamic,
+              select: map(row, ^default_select),
+              select_merge: map(sub, ^fieldset)
+            )
+
+          from(row in subquery(query_with_select), as: ^0)
+          |> AshSql.Bindings.default_bindings(resource, AshPostgres.SqlImplementation)
+          |> Map.update!(
+            :__ash_bindings__,
+            &Map.merge(&1, %{
+              already_selected: fieldset,
+              subquery_upgrade?: true,
+              context: query.__ash_bindings__.context
+            })
+          )
+        else
+          raise """
+          Unsupported combination query. Combinations must select the primary key if referencing
+          any fields that are *not* selected by the combinations in filter, sort & distinct.
+          """
+        end
+      else
+        query
+      end
+    else
+      query
+    end
+  end
+
   @impl true
   def add_aggregates(query, aggregates, resource) do
     AshSql.Aggregate.add_aggregates(
@@ -3349,6 +3466,8 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def add_calculations(query, calculations, resource, select? \\ true) do
+    query = maybe_subquery_upgrade(query, {:calculations, calculations})
+
     AshSql.Calculation.add_calculations(
       query,
       calculations,
