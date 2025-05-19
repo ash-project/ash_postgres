@@ -5,6 +5,7 @@ defmodule AshPostgres.MultiTenancy do
 
   @tenant_name_regex ~r/^[a-zA-Z0-9_-]+$/
   def create_tenant!(tenant_name, repo) do
+    validate_tenant_name!(tenant_name)
     Ecto.Adapters.SQL.query!(repo, "CREATE SCHEMA IF NOT EXISTS \"#{tenant_name}\"", [])
 
     migrate_tenant(tenant_name, repo)
