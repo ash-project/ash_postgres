@@ -5,6 +5,17 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.20](https://github.com/ash-project/ash_postgres/compare/v2.5.19...v2.5.20) (2025-05-20)
+
+
+
+
+### Bug Fixes:
+
+* self-join if combination queries require more fields
+
+* enforce tenant name rules at creation (#550)
+
 ## [v2.5.19](https://github.com/ash-project/ash_postgres/compare/v2.5.18...v2.5.19) (2025-05-06)
 
 
