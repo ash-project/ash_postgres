@@ -498,6 +498,7 @@ defmodule AshPostgres.Test.Post do
     attribute(:point, AshPostgres.Test.Point, public?: true)
     attribute(:composite_point, AshPostgres.Test.CompositePoint, public?: true)
     attribute(:string_point, AshPostgres.Test.StringPoint, public?: true)
+    attribute(:person_detail, AshPostgres.Test.PersonDetail, public?: true)
     attribute(:stuff, :map, public?: true)
     attribute(:list_of_stuff, {:array, :map}, public?: true)
     attribute(:uniq_one, :string, public?: true)
