@@ -47,7 +47,7 @@ if Code.ensure_loaded?(Igniter) do
         |> Enum.map(fn %{table_name: table} = spec ->
           resource =
             table
-            |> Inflex.singularize()
+            |> Igniter.Inflex.singularize()
             |> Macro.camelize()
             |> then(&Module.concat([domain, &1]))
 

@@ -644,7 +644,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
                   [
                     %Relationship{
                       type: :belongs_to,
-                      name: Inflex.singularize(references),
+                      name: Igniter.Inflex.singularize(references),
                       source: spec.resource,
                       constraint_name: constraint_name,
                       match_with: match_with,
@@ -694,16 +694,16 @@ defmodule AshPostgres.ResourceGenerator.Spec do
 
           {name, type} =
             if has_unique_index? do
-              if Inflex.pluralize(table) == table do
-                {Inflex.singularize(table), :has_one}
+              if Igniter.Inflex.pluralize(table) == table do
+                {Igniter.Inflex.singularize(table), :has_one}
               else
                 {table, :has_one}
               end
             else
-              if Inflex.pluralize(table) == table do
+              if Igniter.Inflex.pluralize(table) == table do
                 {table, :has_many}
               else
-                {Inflex.pluralize(table), :has_many}
+                {Igniter.Inflex.pluralize(table), :has_many}
               end
             end
 
