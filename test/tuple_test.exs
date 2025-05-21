@@ -18,6 +18,20 @@ defmodule AshPostgres.Test.TupleTest do
     assert elem(post.person_detail, 1) == "Doe"
   end
 
+  test "tuple type with force_attribute_change can be updated" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{
+        title: "Tuple Test",
+        score: 1
+      })
+      |> Ash.create!()
+
+    post = AshPostgres.Test.Domain.review!(post)
+
+    assert post.model == {1.0, 2.0, 3.0}
+  end
+
   test "tuple type can be filtered by exact match" do
     # Create first post
     Post
