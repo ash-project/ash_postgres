@@ -326,6 +326,9 @@ defmodule AshPostgres.Test.Post do
       require_atomic?(false)
     end
 
+    update :atomic_update do
+    end
+
     update :update_if_author do
       require_atomic?(false)
     end
@@ -411,6 +414,19 @@ defmodule AshPostgres.Test.Post do
     update :increment_score do
       argument(:amount, :integer, default: 1)
       change(atomic_update(:score, expr((score || 0) + ^arg(:amount))))
+    end
+
+    update :review do
+      change(after_action(fn changeset, record, _context ->
+        new_model = {1.0, 2.0, 3.0}
+
+        record
+        |> Ash.Changeset.for_update(:atomic_update)
+        |> Ash.Changeset.force_change_attribute(:model, new_model)
+        |> Ash.update()
+      end))
+
+      require_atomic?(false)
     end
 
     update :requires_initial_data do
@@ -507,6 +523,18 @@ defmodule AshPostgres.Test.Post do
     attribute(:uniq_custom_two, :string, public?: true)
     attribute(:uniq_on_upper, :string, public?: true)
     attribute(:uniq_if_contains_foo, :string, public?: true)
+
+    attribute :model, :tuple do
+      constraints [
+        fields: [
+          alpha: [type: :float, description: "The alpha field"],
+          beta: [type: :float, description: "The beta field"],
+          t: [type: :float, description: "The t field"]
+        ]
+      ]
+      allow_nil? false
+      default fn -> {3.0, 3.0, 1.0} end
+    end
 
     attribute :list_containing_nils, {:array, :string} do
       public?(true)
