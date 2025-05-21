@@ -37,5 +37,18 @@ defmodule AshPostgres.Test.PostWithEmptyUpdate do
       public?(true)
       source(:title_column)
     end
+
+    attribute :model, :tuple do
+      constraints(
+        fields: [
+          alpha: [type: :float, description: "The alpha field"],
+          beta: [type: :float, description: "The beta field"],
+          t: [type: :float, description: "The t field"]
+        ]
+      )
+
+      allow_nil?(false)
+      default(fn -> {3.0, 3.0, 1.0} end)
+    end
   end
 end

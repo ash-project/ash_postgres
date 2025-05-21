@@ -417,14 +417,16 @@ defmodule AshPostgres.Test.Post do
     end
 
     update :review do
-      change(after_action(fn changeset, record, _context ->
-        new_model = {1.0, 2.0, 3.0}
+      change(
+        after_action(fn changeset, record, _context ->
+          new_model = {1.0, 2.0, 3.0}
 
-        record
-        |> Ash.Changeset.for_update(:atomic_update)
-        |> Ash.Changeset.force_change_attribute(:model, new_model)
-        |> Ash.update()
-      end))
+          record
+          |> Ash.Changeset.for_update(:atomic_update)
+          |> Ash.Changeset.force_change_attribute(:model, new_model)
+          |> Ash.update()
+        end)
+      )
 
       require_atomic?(false)
     end
@@ -525,15 +527,16 @@ defmodule AshPostgres.Test.Post do
     attribute(:uniq_if_contains_foo, :string, public?: true)
 
     attribute :model, :tuple do
-      constraints [
+      constraints(
         fields: [
           alpha: [type: :float, description: "The alpha field"],
           beta: [type: :float, description: "The beta field"],
           t: [type: :float, description: "The t field"]
         ]
-      ]
-      allow_nil? false
-      default fn -> {3.0, 3.0, 1.0} end
+      )
+
+      allow_nil?(false)
+      default(fn -> {3.0, 3.0, 1.0} end)
     end
 
     attribute :list_containing_nils, {:array, :string} do
