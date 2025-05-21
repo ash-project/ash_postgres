@@ -5,6 +5,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.21](https://github.com/ash-project/ash_postgres/compare/v2.5.20...v2.5.21) (2025-05-21)
+
+
+
+
+### Improvements:
+
+* update igniter, remove inflex
+
 ## [v2.5.20](https://github.com/ash-project/ash_postgres/compare/v2.5.19...v2.5.20) (2025-05-20)
 
 
