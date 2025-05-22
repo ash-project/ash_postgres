@@ -4,9 +4,11 @@ defmodule AshPostgres.Test.Domain do
 
   resources do
     resource(AshPostgres.Test.CoAuthorPost)
+
     resource(AshPostgres.Test.Post) do
-      define :review, action: :review
+      define(:review, action: :review)
     end
+
     resource(AshPostgres.Test.Comedian)
     resource(AshPostgres.Test.Comment)
     resource(AshPostgres.Test.CommentLink)
