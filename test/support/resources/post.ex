@@ -1061,6 +1061,10 @@ defmodule AshPostgres.Test.Post do
       filter(expr(score > 5))
     end
 
+    sum :sum_of_odd_comment_rating_scores, [:comments, :ratings], :score do
+      filter(expr(rem(score, 2) == 1))
+    end
+
     sum(:sum_of_popular_comment_rating_scores_2, [:comments, :popular_ratings], :score)
 
     sum :sum_of_comment_likes_called_match, :comments, :likes do
