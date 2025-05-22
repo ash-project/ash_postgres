@@ -5,6 +5,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.5.22](https://github.com/ash-project/ash_postgres/compare/v2.5.21...v2.5.22) (2025-05-22)
+
+
+
+
+### Bug Fixes:
+
+* Convert sensitive patterns from module constant to function for OTP/28 (#552)
+
 ## [v2.5.21](https://github.com/ash-project/ash_postgres/compare/v2.5.20...v2.5.21) (2025-05-21)
 
 
