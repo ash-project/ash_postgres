@@ -694,6 +694,8 @@ defmodule AshPostgres.MigrationGenerator do
         generated?: Enum.any?(attributes, & &1.generated?),
         references: merge_references(Enum.map(attributes, & &1.references), source, table),
         primary_key?: false,
+        scale: attributes |> Enum.map(& &1[:scale]) |> Enum.max(),
+        precision: attributes |> Enum.map(& &1[:precision]) |> Enum.max(),
         order: attributes |> Enum.map(& &1.order) |> Enum.min()
       }
     end)
@@ -3012,19 +3014,25 @@ defmodule AshPostgres.MigrationGenerator do
           type
         end
 
-      {type, size} =
+      {type, size, precision, scale} =
         case type do
           {:varchar, size} ->
-            {:varchar, size}
+            {:varchar, size, nil, nil}
 
           {:binary, size} ->
-            {:binary, size}
+            {:binary, size, nil, nil}
+
+          {:decimal, precision, scale} ->
+            {:decimal, nil, precision, scale}
+
+          {:decimal, precision} ->
+            {:decimal, nil, precision, nil}
 
           {other, size} when is_atom(other) and is_integer(size) ->
-            {other, size}
+            {other, size, nil, nil}
 
           other ->
-            {other, nil}
+            {other, nil, nil, nil}
         end
 
       attribute
@@ -3033,6 +3041,20 @@ defmodule AshPostgres.MigrationGenerator do
       |> Map.put(:type, type)
       |> Map.put(:source, attribute.source || attribute.name)
       |> Map.drop([:name, :constraints])
+      |> then(fn map ->
+        if precision do
+          Map.put(map, :precision, precision)
+        else
+          map
+        end
+      end)
+      |> then(fn map ->
+        if scale do
+          Map.put(map, :scale, scale)
+        else
+          map
+        end
+      end)
     end)
     |> Enum.map(fn attribute ->
       references = find_reference(resource, table, attribute)
@@ -3142,6 +3164,28 @@ defmodule AshPostgres.MigrationGenerator do
       {:vector, constraints[:dimensions]}
     else
       :vector
+    end
+  end
+
+  defp migration_type(Ash.Type.Decimal, constraints) do
+    precision =
+      case constraints[:precision] do
+        :arbitrary -> nil
+        nil -> nil
+        precision -> precision
+      end
+
+    scale =
+      case constraints[:scale] do
+        :arbitrary -> nil
+        nil -> nil
+        scale -> scale
+      end
+
+    cond do
+      precision && scale -> {:decimal, precision, scale}
+      precision -> {:decimal, precision}
+      true -> :decimal
     end
   end
 
@@ -3451,19 +3495,25 @@ defmodule AshPostgres.MigrationGenerator do
   defp load_attribute(attribute, table) do
     type = load_type(attribute.type)
 
-    {type, size} =
+    {type, size, scale, precision} =
       case type do
         {:varchar, size} ->
-          {:varchar, size}
+          {:varchar, size, nil, nil}
 
         {:binary, size} ->
-          {:binary, size}
+          {:binary, size, nil, nil}
 
         {other, size} when is_atom(other) and is_integer(size) ->
-          {other, size}
+          {other, size, nil, nil}
+
+        {:decimal, scale} ->
+          {:decimal, scale, nil, nil}
+
+        {:decimal, scale, precision} ->
+          {:decimal, scale, precision, nil}
 
         other ->
-          {other, nil}
+          {other, nil, nil, nil}
       end
 
     attribute =
@@ -3476,6 +3526,8 @@ defmodule AshPostgres.MigrationGenerator do
     attribute
     |> Map.put(:type, type)
     |> Map.put(:size, size)
+    |> Map.put(:precision, precision)
+    |> Map.put(:scale, scale)
     |> Map.put_new(:default, "nil")
     |> Map.update!(:default, &(&1 || "nil"))
     |> Map.update!(:references, fn
@@ -3560,6 +3612,14 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp load_type(["binary", size]) do
     {:binary, size}
+  end
+
+  defp load_type(["decimal", scale]) do
+    {:decimal, scale}
+  end
+
+  defp load_type(["decimal", scale, precision]) do
+    {:decimal, scale, precision}
   end
 
   defp load_type([string, size]) when is_binary(string) and is_integer(size) do

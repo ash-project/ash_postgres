@@ -3,7 +3,6 @@ defmodule AshPostgres.MultiTenancy do
 
   @dialyzer {:nowarn_function, load_migration!: 1}
 
-  @tenant_name_regex ~r/^[a-zA-Z0-9_-]+$/
   def create_tenant!(tenant_name, repo) do
     validate_tenant_name!(tenant_name)
     Ecto.Adapters.SQL.query!(repo, "CREATE SCHEMA IF NOT EXISTS \"#{tenant_name}\"", [])
@@ -87,8 +86,8 @@ defmodule AshPostgres.MultiTenancy do
   end
 
   defp validate_tenant_name!(tenant_name) do
-    if !Regex.match?(@tenant_name_regex, tenant_name) do
-      raise "Tenant name must match #{inspect(@tenant_name_regex)}, got: #{tenant_name}"
+    if !Regex.match?(tenant_name_regex(), tenant_name) do
+      raise "Tenant name must match #{inspect(tenant_name_regex())}, got: #{tenant_name}"
     end
   end
 
@@ -99,5 +98,9 @@ defmodule AshPostgres.MultiTenancy do
     :code.priv_dir(otp_app)
     |> Path.join(repo_name)
     |> Path.join("tenant_migrations")
+  end
+
+  defp tenant_name_regex do
+    ~r/^[a-zA-Z0-9_-]+$/
   end
 end

@@ -135,6 +135,12 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         keys
       end
     end
+
+    def maybe_add_precision(nil), do: nil
+    def maybe_add_precision(precision), do: "precision: #{precision}"
+
+    def maybe_add_scale(nil), do: nil
+    def maybe_add_scale(scale), do: "scale: #{scale}"
   end
 
   defmodule CreateTable do
@@ -179,7 +185,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           option("prefix", destination_schema),
           on_delete(reference),
           on_update(reference),
-          size
+          size,
+          maybe_add_precision(attribute[:precision]),
+          maybe_add_scale(attribute[:scale])
         ],
         ")",
         maybe_add_default(attribute.default),
@@ -219,6 +227,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "name: #{inspect(reference.name)}",
           "type: #{inspect(reference_type(attribute, reference))}",
           size,
+          maybe_add_precision(attribute[:precision]),
+          maybe_add_scale(attribute[:scale]),
           on_delete(reference),
           on_update(reference)
         ],
@@ -250,6 +260,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         maybe_add_default(attribute.default),
         maybe_add_primary_key(attribute.primary_key?),
         size,
+        maybe_add_precision(attribute[:precision]),
+        maybe_add_scale(attribute[:scale]),
         maybe_add_null(attribute.allow_nil?)
       ]
       |> join()
@@ -275,6 +287,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         maybe_add_default(attribute.default),
         maybe_add_primary_key(attribute.primary_key?),
         size,
+        maybe_add_precision(attribute[:precision]),
+        maybe_add_scale(attribute[:scale]),
         maybe_add_null(attribute.allow_nil?)
       ]
       |> join()
@@ -309,6 +323,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "type: #{inspect(reference_type(attribute, reference))}",
           "prefix: prefix()",
           size,
+          maybe_add_precision(attribute[:precision]),
+          maybe_add_scale(attribute[:scale]),
           on_delete(reference),
           on_update(reference)
         ],
@@ -355,6 +371,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "type: #{inspect(reference_type(attribute, reference))}",
           option("prefix", destination_schema),
           size,
+          maybe_add_precision(attribute[:precision]),
+          maybe_add_scale(attribute[:scale]),
           on_delete(reference),
           on_update(reference)
         ],
@@ -394,6 +412,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "type: #{inspect(reference_type(attribute, reference))}",
           option("prefix", destination_schema),
           size,
+          maybe_add_precision(attribute[:precision]),
+          maybe_add_scale(attribute[:scale]),
           on_delete(reference),
           on_update(reference)
         ],
@@ -437,6 +457,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         maybe_add_null(attribute.allow_nil?),
         maybe_add_default(attribute.default),
         size,
+        maybe_add_precision(attribute[:precision]),
+        maybe_add_scale(attribute[:scale]),
         maybe_add_primary_key(attribute.primary_key?)
       ]
       |> join()
@@ -538,7 +560,21 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           ", null: #{attribute.allow_nil?}"
         end
 
-      "#{null}#{default}#{primary_key}"
+      precision =
+        if Map.get(attribute, :precision) != Map.get(old_attribute, :precision) do
+          if attribute.precision do
+            ", precision: #{attribute.precision}"
+          end
+        end
+
+      scale =
+        if Map.get(attribute, :scale) != Map.get(old_attribute, :scale) do
+          if attribute.scale do
+            ", scale: #{attribute.scale}"
+          end
+        end
+
+      "#{null}#{default}#{precision}#{scale}#{primary_key}"
     end
 
     def up(%{
@@ -587,6 +623,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
         size,
+        maybe_add_precision(attribute[:precision]),
+        maybe_add_scale(attribute[:scale]),
         "prefix: prefix()",
         on_delete(reference),
         on_update(reference),
@@ -625,6 +663,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
         size,
+        maybe_add_precision(attribute[:precision]),
+        maybe_add_scale(attribute[:scale]),
         option("prefix", destination_schema),
         on_delete(reference),
         on_update(reference),
@@ -699,6 +739,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "name: #{inspect(reference.name)}",
         "type: #{inspect(reference_type(attribute, reference))}",
         size,
+        maybe_add_precision(attribute[:precision]),
+        maybe_add_scale(attribute[:scale]),
         option("prefix", destination_schema),
         on_delete(reference),
         on_update(reference),

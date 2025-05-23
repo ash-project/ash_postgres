@@ -2634,4 +2634,330 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[modify :post_id, references(:posts, column: :id, name: "comments_post_id_fkey", type: :uuid, prefix: "public")]
     end
   end
+
+  describe "decimal precision and scale" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+    end
+
+    test "creates decimal columns with precision and scale" do
+      defresource Product do
+        postgres do
+          table "products"
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+
+          attribute(:price, :decimal,
+            constraints: [precision: 10, scale: 2],
+            public?: true,
+            allow_nil?: false
+          )
+
+          attribute(:weight, :decimal,
+            constraints: [precision: 8],
+            public?: true,
+            allow_nil?: false
+          )
+
+          attribute(:rating, :decimal, public?: true, allow_nil?: false)
+        end
+      end
+
+      defdomain([Product])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [file] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      file_content = File.read!(file)
+
+      # Check that precision and scale are included for the price field
+      assert file_content =~ ~S[add :price, :decimal, null: false, precision: 10, scale: 2]
+
+      # Check that only precision is included for the weight field
+      assert file_content =~ ~S[add :weight, :decimal, null: false, precision: 8]
+
+      # Check that no precision or scale is included for the rating field
+      assert file_content =~ ~S[add :rating, :decimal, null: false]
+    end
+
+    test "alters decimal columns with precision and scale changes" do
+      defresource Product do
+        postgres do
+          table "products"
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:price, :decimal, constraints: [precision: 8, scale: 2], public?: true)
+        end
+      end
+
+      defdomain([Product])
+
+      # Generate initial migration
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      # Now update the precision and scale
+      defresource Product do
+        postgres do
+          table "products"
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:price, :decimal, constraints: [precision: 12, scale: 4], public?: true)
+        end
+      end
+
+      # Generate follow-up migration
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      migration_files =
+        Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert length(migration_files) == 2
+
+      # Check the second migration file
+      second_migration = File.read!(Enum.at(migration_files, 1))
+
+      # Should contain the alter statement with new precision and scale
+      assert second_migration =~ ~S[modify :price, :decimal, precision: 12, scale: 4]
+    end
+
+    test "handles arbitrary precision and scale constraints" do
+      defresource Product do
+        postgres do
+          table "products"
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+
+          attribute(:price, :decimal,
+            constraints: [precision: :arbitrary, scale: :arbitrary],
+            public?: true,
+            allow_nil?: false
+          )
+        end
+      end
+
+      defdomain([Product])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [file] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      file_content = File.read!(file)
+
+      # Check that no precision or scale is included when they are :arbitrary
+      assert file_content =~ ~S[add :price, :decimal, null: false]
+      refute file_content =~ ~S[precision:]
+      refute file_content =~ ~S[scale:]
+    end
+
+    test "removes precision and scale when changing to arbitrary" do
+      defresource Product do
+        postgres do
+          table "products"
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+
+          attribute(:price, :decimal,
+            constraints: [precision: 10, scale: 2],
+            public?: true,
+            allow_nil?: false
+          )
+        end
+      end
+
+      defdomain([Product])
+
+      # Generate initial migration
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      # Now change to arbitrary precision and scale
+      defresource Product do
+        postgres do
+          table "products"
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+
+          attribute(:price, :decimal,
+            constraints: [precision: :arbitrary, scale: :arbitrary],
+            public?: true,
+            allow_nil?: false
+          )
+        end
+      end
+
+      # Generate follow-up migration
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      migration_files =
+        Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert length(migration_files) == 2
+
+      # Check the second migration file
+      second_migration = File.read!(Enum.at(migration_files, 1))
+
+      # Should contain the alter statement removing precision and scale
+      assert second_migration =~ ~S[modify :price, :decimal]
+      refute second_migration =~ ~S[precision:]
+      refute second_migration =~ ~S[scale:]
+    end
+
+    test "works with decimal references that have precision and scale" do
+      defresource Category do
+        postgres do
+          table "categories"
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          attribute(:id, :decimal,
+            constraints: [precision: 10, scale: 0],
+            primary_key?: true,
+            allow_nil?: false,
+            public?: true
+          )
+
+          attribute(:name, :string, public?: true)
+        end
+      end
+
+      defresource Product do
+        postgres do
+          table "products"
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+
+          attribute(:category_id, :decimal,
+            constraints: [precision: 10, scale: 0],
+            allow_nil?: false,
+            public?: true
+          )
+        end
+
+        relationships do
+          belongs_to(:category, Category) do
+            source_attribute(:category_id)
+            destination_attribute(:id)
+            public?(true)
+          end
+        end
+      end
+
+      defdomain([Category, Product])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false
+      )
+
+      assert [file] =
+               Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      file_content = File.read!(file)
+
+      # Check that both tables are created with proper decimal precision
+      assert file_content =~
+               ~S[add :id, :decimal, null: false, precision: 10, scale: 0, primary_key: true]
+
+      assert file_content =~ ~S[add :category_id, :decimal, null: false, precision: 10, scale: 0]
+
+      assert file_content =~
+               ~S[modify :category_id, references(:categories, column: :id, name: "products_category_id_fkey", type: :decimal, precision: 10, scale: 0]
+    end
+  end
 end
