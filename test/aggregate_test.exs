@@ -965,7 +965,7 @@ defmodule AshSql.AggregateTest do
       ])
       |> Map.take([:sum_of_odd_comment_rating_scores])
 
-    assert %{sum_of_popular_comment_rating_scores_2: 120} =
+    assert %{sum_of_odd_comment_rating_scores: 120} =
              values
   end
 
