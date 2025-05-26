@@ -3,6 +3,7 @@ defmodule AshPostgres.DevMigrationsTest do
   @moduletag :migration
 
   import ExUnit.CaptureLog
+  require Logger
 
   alias Ecto.Adapters.SQL.Sandbox
 
@@ -34,9 +35,9 @@ defmodule AshPostgres.DevMigrationsTest do
     end
   end
 
-  defmacrop defposts(mod \\ Post, do: body) do
+  defmacrop defposts(do: body) do
     quote do
-      defresource unquote(mod) do
+      defresource Post do
         postgres do
           table "posts"
           repo(AshPostgres.DevTestRepo)
@@ -75,22 +76,54 @@ defmodule AshPostgres.DevMigrationsTest do
     end
   end
 
-  describe "--dev option" do
-    setup do
-      on_exit(fn ->
-        resource_dev_path = "priv/resource_snapshots/dev_test_repo"
-        resource_files = File.ls!(resource_dev_path)
-        Enum.each(resource_files, &File.rm_rf!(Path.join(resource_dev_path, &1)))
-        migrations_dev_path = "priv/dev_test_repo/migrations"
-        migration_files = File.ls!(migrations_dev_path)
-        Enum.each(migration_files, &File.rm!(Path.join(migrations_dev_path, &1)))
-        tenant_migrations_dev_path = "priv/dev_test_repo/tenant_migrations"
-        tenant_migration_files = File.ls!(tenant_migrations_dev_path)
-        Enum.each(tenant_migration_files, &File.rm!(Path.join(tenant_migrations_dev_path, &1)))
-        AshPostgres.DevTestRepo.query!("DROP TABLE posts")
-      end)
-    end
+  setup_all do
+    resource_dev_path = "priv/resource_snapshots/dev_test_repo"
 
+    initial_resource_files =
+      if File.exists?(resource_dev_path), do: File.ls!(resource_dev_path), else: []
+
+    migrations_dev_path = "priv/dev_test_repo/migrations"
+
+    initial_migration_files =
+      if File.exists?(migrations_dev_path), do: File.ls!(migrations_dev_path), else: []
+
+    tenant_migrations_dev_path = "priv/dev_test_repo/tenant_migrations"
+
+    initial_tenant_migration_files =
+      if File.exists?(tenant_migrations_dev_path),
+        do: File.ls!(tenant_migrations_dev_path),
+        else: []
+
+    on_exit(fn ->
+      if File.exists?(resource_dev_path) do
+        current_resource_files = File.ls!(resource_dev_path)
+        new_resource_files = current_resource_files -- initial_resource_files
+        Enum.each(new_resource_files, &File.rm_rf!(Path.join(resource_dev_path, &1)))
+      end
+
+      if File.exists?(migrations_dev_path) do
+        current_migration_files = File.ls!(migrations_dev_path)
+        new_migration_files = current_migration_files -- initial_migration_files
+        Enum.each(new_migration_files, &File.rm!(Path.join(migrations_dev_path, &1)))
+      end
+
+      if File.exists?(tenant_migrations_dev_path) do
+        current_tenant_migration_files = File.ls!(tenant_migrations_dev_path)
+
+        new_tenant_migration_files =
+          current_tenant_migration_files -- initial_tenant_migration_files
+
+        Enum.each(
+          new_tenant_migration_files,
+          &File.rm!(Path.join(tenant_migrations_dev_path, &1))
+        )
+      end
+
+      AshPostgres.DevTestRepo.query!("DROP TABLE IF EXISTS posts")
+    end)
+  end
+
+  describe "--dev option" do
     test "rolls back dev migrations before deleting" do
       defposts do
         attributes do
@@ -107,45 +140,23 @@ defmodule AshPostgres.DevMigrationsTest do
         dev: true
       )
 
-      assert [_migration] =
-               Enum.sort(
-                 Path.wildcard("priv/dev_test_repo/migrations/**/*_migrate_resources*.exs")
-               )
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      assert [_extensions, migration, _migration] =
+               Path.wildcard("priv/dev_test_repo/migrations/**/*_migrate_resources*.exs")
 
-      capture_log(fn -> migrate() end) =~ "create table posts"
-      capture_log(fn -> migrate() end) =~ "create table posts"
+      assert capture_log(fn -> migrate(migration) end) =~ "create table posts"
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "priv/resource_snapshots",
         migration_path: "priv/dev_test_repo/migrations"
       )
 
-      capture_log(fn -> migrate() end) =~ "create table posts"
+      assert capture_log(fn -> migrate(migration) end) =~ "create table posts"
     end
   end
 
   describe "--dev option tenant" do
-    setup do
-      on_exit(fn ->
-        resource_dev_path = "priv/resource_snapshots/dev_test_repo"
-        resource_files = File.ls!(resource_dev_path)
-        Enum.each(resource_files, &File.rm_rf!(Path.join(resource_dev_path, &1)))
-        migrations_dev_path = "priv/dev_test_repo/migrations"
-        migration_files = File.ls!(migrations_dev_path)
-        Enum.each(migration_files, &File.rm!(Path.join(migrations_dev_path, &1)))
-        tenant_migrations_dev_path = "priv/dev_test_repo/tenant_migrations"
-        tenant_migration_files = File.ls!(tenant_migrations_dev_path)
-        Enum.each(tenant_migration_files, &File.rm!(Path.join(tenant_migrations_dev_path, &1)))
-      end)
-    end
-
     test "rolls back dev migrations before deleting" do
       defposts do
-        postgres do
-          schema("example")
-        end
-
         attributes do
           uuid_primary_key(:id)
           attribute(:title, :string, public?: true, primary_key?: true, allow_nil?: false)
@@ -157,7 +168,6 @@ defmodule AshPostgres.DevMigrationsTest do
       end
 
       defdomain([Post])
-      capture_log(fn -> tenant_migrate() end) |> dbg()
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "priv/resource_snapshots",
@@ -166,7 +176,12 @@ defmodule AshPostgres.DevMigrationsTest do
         dev: true
       )
 
-      assert [] =
+      org =
+        AshPostgres.MultitenancyTest.DevMigrationsOrg
+        |> Ash.Changeset.for_create(:create, %{name: "test1"}, authorize?: false)
+        |> Ash.create!()
+
+      assert [_] =
                Enum.sort(
                  Path.wildcard("priv/dev_test_repo/migrations/**/*_migrate_resources*.exs")
                )
@@ -178,35 +193,38 @@ defmodule AshPostgres.DevMigrationsTest do
                )
                |> Enum.reject(&String.contains?(&1, "extensions"))
 
-      assert capture_log(fn -> tenant_migrate() end) =~ "create table posts"
-      assert capture_log(fn -> tenant_migrate() end) =~ "create table posts"
-
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "priv/resource_snapshots",
         migration_path: "priv/dev_test_repo/migrations",
         tenant_migration_path: "priv/dev_test_repo/tenant_migrations"
       )
 
-      assert capture_log(fn -> tenant_migrate() end) =~ "create table posts"
+      assert [_tenant_migration] =
+               Enum.sort(
+                 Path.wildcard("priv/dev_test_repo/tenant_migrations/**/*_migrate_resources*.exs")
+               )
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert capture_log(fn -> tenant_migrate() end) =~ "create table org_#{org.id}.posts"
     end
   end
 
-  defp migrate do
-    Mix.Tasks.AshPostgres.Migrate.run([
-      "--migrations-path",
+  defp migrate(after_file) do
+    AshPostgres.MultiTenancy.migrate_tenant(
+      nil,
+      AshPostgres.DevTestRepo,
       "priv/dev_test_repo/migrations",
-      "--repo",
-      "AshPostgres.DevTestRepo"
-    ])
+      after_file
+    )
   end
 
   defp tenant_migrate do
-    Mix.Tasks.AshPostgres.Migrate.run([
-      "--migrations-path",
-      "priv/dev_test_repo/tenant_migrations",
-      "--repo",
-      "AshPostgres.DevTestRepo",
-      "--tenants"
-    ])
+    for tenant <- AshPostgres.DevTestRepo.all_tenants() do
+      AshPostgres.MultiTenancy.migrate_tenant(
+        tenant,
+        AshPostgres.DevTestRepo,
+        "priv/dev_test_repo/tenant_migrations"
+      )
+    end
   end
 end

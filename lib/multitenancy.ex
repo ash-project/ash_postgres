@@ -3,6 +3,7 @@ defmodule AshPostgres.MultiTenancy do
 
   @dialyzer {:nowarn_function, load_migration!: 1}
 
+  # sobelow_skip ["SQL.Query"]
   def create_tenant!(tenant_name, repo) do
     validate_tenant_name!(tenant_name)
     Ecto.Adapters.SQL.query!(repo, "CREATE SCHEMA IF NOT EXISTS \"#{tenant_name}\"", [])
@@ -10,7 +11,7 @@ defmodule AshPostgres.MultiTenancy do
     migrate_tenant(tenant_name, repo)
   end
 
-  def migrate_tenant(tenant_name, repo, migrations_path \\ nil) do
+  def migrate_tenant(tenant_name, repo, migrations_path \\ nil, after_file \\ nil) do
     tenant_migrations_path =
       migrations_path ||
         repo.config()[:tenant_migrations_path] || default_tenant_migration_path(repo)
@@ -24,6 +25,17 @@ defmodule AshPostgres.MultiTenancy do
     [tenant_migrations_path, "**", "*.exs"]
     |> Path.join()
     |> Path.wildcard()
+    |> then(fn files ->
+      if after_file do
+        files
+        |> Enum.drop_while(fn file ->
+          file != after_file
+        end)
+        |> Enum.drop(1)
+      else
+        files
+      end
+    end)
     |> Enum.map(&extract_migration_info/1)
     |> Enum.filter(& &1)
     |> Enum.map(&load_migration!/1)

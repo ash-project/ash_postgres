@@ -519,18 +519,102 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  defp remove_dev_migrations(dev_migrations, tenant?, repo, opts) do
-    version = dev_migrations |> Enum.min() |> String.split("_") |> hd()
-    Mix.Task.reenable("ash_postgres.rollback")
-    Mix.Task.run("ash_postgres.rollback", ["--repo", inspect(repo), "--to", version])
+  if Mix.env() == :test do
+    defp with_repo_not_in_test(repo, fun) do
+      fun.(repo)
+    end
+  else
+    defp with_repo_not_in_test(repo, fun) do
+      Ecto.Migrator.with_repo(repo, fun)
+    end
+  end
 
-    dev_migrations
-    |> Enum.each(fn migration_name ->
-      opts
-      |> migration_path(repo, tenant?)
-      |> Path.join(migration_name)
-      |> File.rm!()
-    end)
+  defp remove_dev_migrations(dev_migrations, tenant?, repo, opts) do
+    dev_migrations =
+      Enum.map(dev_migrations, fn migration ->
+        opts
+        |> migration_path(repo, tenant?)
+        |> Path.join(migration)
+      end)
+
+    if tenant? do
+      with_repo_not_in_test(repo, fn repo ->
+        for prefix <- repo.all_tenants() do
+          dev_migrations
+          |> Enum.map(&extract_migration_info/1)
+          |> Enum.filter(& &1)
+          |> Enum.map(&load_migration!/1)
+          |> Enum.each(fn {version, mod} ->
+            Ecto.Migration.Runner.run(
+              repo,
+              [],
+              version,
+              mod,
+              :forward,
+              :down,
+              :down,
+              all: true,
+              prefix: prefix
+            )
+
+            Ecto.Migration.SchemaMigration.down(repo, repo.config(), version, prefix: prefix)
+          end)
+        end
+      end)
+    else
+      with_repo_not_in_test(repo, fn repo ->
+        dev_migrations
+        |> Enum.map(&extract_migration_info/1)
+        |> Enum.filter(& &1)
+        |> Enum.map(&load_migration!/1)
+        |> Enum.sort()
+        |> Enum.each(fn {version, mod} ->
+          Ecto.Migration.Runner.run(
+            repo,
+            [],
+            version,
+            mod,
+            :forward,
+            :down,
+            :down,
+            all: true
+          )
+
+          Ecto.Migration.SchemaMigration.down(repo, repo.config(), version, [])
+        end)
+      end)
+    end
+
+    Enum.each(dev_migrations, &File.rm!/1)
+  end
+
+  defp extract_migration_info(file) do
+    base = Path.basename(file)
+
+    case Integer.parse(Path.rootname(base)) do
+      {integer, "_" <> name} -> {integer, name, file}
+      _ -> nil
+    end
+  end
+
+  defp load_migration!({version, _, file}) when is_binary(file) do
+    loaded_modules = file |> compile_file() |> Enum.map(&elem(&1, 0))
+
+    if mod = Enum.find(loaded_modules, &migration?/1) do
+      {version, mod}
+    else
+      raise Ecto.MigrationError,
+            "file #{Path.relative_to_cwd(file)} does not define an Ecto.Migration"
+    end
+  end
+
+  defp compile_file(file) do
+    AshPostgres.MigrationCompileCache.start_link()
+    AshPostgres.MigrationCompileCache.compile_file(file)
+  end
+
+  defp migration?(mod) do
+    function_exported?(mod, :__migration__, 0)
   end
 
   def remove_dev_snapshots(snapshots, opts) do

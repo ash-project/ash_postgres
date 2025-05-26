@@ -119,6 +119,8 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
       |> AshPostgres.Mix.Helpers.delete_flag("--tenants")
       |> AshPostgres.Mix.Helpers.delete_arg("--only-tenants")
       |> AshPostgres.Mix.Helpers.delete_arg("--except-tenants")
+      |> AshPostgres.Mix.Helpers.delete_arg("--repo")
+      |> AshPostgres.Mix.Helpers.delete_arg("-r")
 
     Mix.Task.reenable("ecto.migrate")
 
@@ -128,9 +130,16 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
           for tenant <- tenants(repo, opts) do
             rest_opts = AshPostgres.Mix.Helpers.delete_arg(rest_opts, "--prefix")
 
+            repo =
+              if is_atom(repo) do
+                inspect(repo)
+              else
+                repo
+              end
+
             Mix.Task.run(
               "ecto.migrate",
-              ["-r", to_string(repo)] ++
+              ["-r", repo] ++
                 rest_opts ++
                 ["--prefix", tenant, "--migrations-path", tenant_migrations_path(opts, repo)]
             )

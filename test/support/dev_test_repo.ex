@@ -32,7 +32,7 @@ defmodule AshPostgres.DevTestRepo do
   def all_tenants do
     Code.ensure_compiled(AshPostgres.MultitenancyTest.Org)
 
-    AshPostgres.MultitenancyTest.Org
+    AshPostgres.MultitenancyTest.DevMigrationsOrg
     |> Ash.read!()
     |> Enum.map(&"org_#{&1.id}")
   end
