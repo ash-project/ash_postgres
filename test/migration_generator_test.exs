@@ -2877,10 +2877,12 @@ defmodule AshPostgres.MigrationGeneratorTest do
       # Check the second migration file
       second_migration = File.read!(Enum.at(migration_files, 1))
 
+      [up, _down] = String.split(second_migration, "def down")
+
       # Should contain the alter statement removing precision and scale
-      assert second_migration =~ ~S[modify :price, :decimal]
-      refute second_migration =~ ~S[precision:]
-      refute second_migration =~ ~S[scale:]
+      assert up =~ ~S[modify :price, :decimal]
+      refute up =~ ~S[precision:]
+      refute up =~ ~S[scale:]
     end
 
     test "works with decimal references that have precision and scale" do

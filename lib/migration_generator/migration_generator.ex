@@ -3384,29 +3384,35 @@ defmodule AshPostgres.MigrationGenerator do
         references
         |> Map.update!(:on_delete, &(&1 && references_on_delete_to_binary(&1)))
     end)
-    |> Map.update!(:type, fn type -> sanitize_type(type, attribute[:size]) end)
+    |> Map.update!(:type, fn type ->
+      sanitize_type(type, attribute[:size], attribute[:precision], attribute[:scale])
+    end)
   end
 
   defp references_on_delete_to_binary(value) when is_atom(value), do: value
   defp references_on_delete_to_binary({:nilify, columns}), do: [:nilify, columns]
 
-  defp sanitize_type({:array, type}, size) do
-    ["array", sanitize_type(type, size)]
+  defp sanitize_type({:array, type}, size, scale, precision) do
+    ["array", sanitize_type(type, size, scale, precision)]
   end
 
-  defp sanitize_type(:varchar, size) when not is_nil(size) do
+  defp sanitize_type(:varchar, size, _scale, _precision) when not is_nil(size) do
     ["varchar", size]
   end
 
-  defp sanitize_type(:binary, size) when not is_nil(size) do
+  defp sanitize_type(:binary, size, _scale, _precision) when not is_nil(size) do
     ["binary", size]
   end
 
-  defp sanitize_type(type, size) when is_atom(type) and is_integer(size) do
-    [sanitize_type(type, nil), size]
+  defp sanitize_type(:decimal, _size, scale, precision) do
+    ["decimal", scale, precision] |> Enum.reject(&is_nil/1)
   end
 
-  defp sanitize_type(type, _) do
+  defp sanitize_type(type, size, precision, decimal) when is_atom(type) and is_integer(size) do
+    [sanitize_type(type, nil, precision, decimal), size]
+  end
+
+  defp sanitize_type(type, _, _, _) do
     type
   end
 
