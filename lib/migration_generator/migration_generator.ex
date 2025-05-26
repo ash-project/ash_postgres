@@ -57,6 +57,22 @@ defmodule AshPostgres.MigrationGenerator do
     create_migrations(tenant_snapshots, opts, true, snapshots)
     Mix.shell().info("\nGenerating Migrations:")
     create_migrations(snapshots, opts, false)
+
+    if opts[:dev] do
+      migrate_unless_test(repos)
+    end
+  end
+
+  if Mix.env() == :test do
+    defp migrate_unless_test(_repos) do
+      :ok
+    end
+  else
+    defp migrate_unless_test(repos) do
+      Enum.each(repos, fn repo ->
+        Mix.Task.run("ash_postgres.migrate", ["--repo", repo])
+      end)
+    end
   end
 
   defp find_repos do
