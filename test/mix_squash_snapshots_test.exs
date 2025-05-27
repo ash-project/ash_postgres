@@ -94,7 +94,8 @@ defmodule AshPostgres.MixSquashSnapshotsTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       defposts do
@@ -113,7 +114,8 @@ defmodule AshPostgres.MixSquashSnapshotsTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       :ok
@@ -179,7 +181,8 @@ defmodule AshPostgres.MixSquashSnapshotsTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       :ok

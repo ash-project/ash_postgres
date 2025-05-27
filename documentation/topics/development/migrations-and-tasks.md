@@ -7,11 +7,10 @@ Ash comes with its own tasks, and AshPostgres exposes lower level tasks that you
 ## Basic Workflow
 
 - Make resource changes
-- Run `mix ash.codegen --dev` to generate a migration tagged as a `dev` migration. This will **run** the migrations.
-- Make some more resource changes
-- Run `mix ash.codegen add_a_combobulator` (use a good name for your feature) once you are all done,
-  to generate migrations and resource snapshots. This will **rollback** the dev migrations, and squash them into a
-  the new named migration (or sometimes migrations).
+- Run `mix ash.codegen --dev` to generate a migration tagged as a `dev` migration, which will later be squashed and does not require a name.
+- Run `mix ash.migrate` to run the migrations.
+- Make some more resource changes.
+- Once you're all done, run `mix ash.codegen add_a_combobulator`, using a good name for your changes to generate migrations and resource snapshots. This will **rollback** the dev migrations, and squash them into a the new named migration (or sometimes migrations).
 - Run `mix ash.migrate` to run those migrations
 
 The `--dev` workflow enables you to avoid having to think of a name for migrations while developing, and also enables some

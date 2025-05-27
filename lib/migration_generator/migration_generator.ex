@@ -21,6 +21,7 @@ defmodule AshPostgres.MigrationGenerator do
             check: false,
             dev: false,
             snapshots_only: false,
+            auto_name: false,
             dont_drop_columns: false
 
   def generate(domains, opts \\ []) do
@@ -227,11 +228,13 @@ defmodule AshPostgres.MigrationGenerator do
         Mix.shell().info("No extensions to install")
         :ok
       else
+        dev = if opts.dev, do: "_dev"
+
         {module, migration_name} =
           case to_install do
             [{ext_name, version, _up_fn, _down_fn}] ->
               {"install_#{ext_name}_v#{version}_#{timestamp(true)}",
-               "#{timestamp(true)}_install_#{ext_name}_v#{version}_extension"}
+               "#{timestamp(true)}_install_#{ext_name}_v#{version}_extension#{dev}"}
 
             ["ash_functions"] ->
               {"install_ash_functions_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}_#{timestamp(true)}",
@@ -239,6 +242,8 @@ defmodule AshPostgres.MigrationGenerator do
 
             _multiple ->
               migration_path = migration_path(opts, repo, false)
+
+              require_name!(opts)
 
               if opts.name do
                 count =
@@ -263,7 +268,7 @@ defmodule AshPostgres.MigrationGenerator do
                   |> Kernel.+(1)
 
                 {"#{opts.name}_extensions_#{count}",
-                 "#{timestamp(true)}_#{opts.name}_extensions_#{count}"}
+                 "#{timestamp(true)}_#{opts.name}_extensions_#{count}#{dev}"}
               else
                 count =
                   migration_path
@@ -287,7 +292,7 @@ defmodule AshPostgres.MigrationGenerator do
                   |> Kernel.+(1)
 
                 {"migrate_resources_extensions_#{count}",
-                 "#{timestamp(true)}_migrate_resources_extensions_#{count}"}
+                 "#{timestamp(true)}_migrate_resources_extensions_#{count}#{dev}"}
               end
           end
 
@@ -529,6 +534,21 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
+  defp require_name!(opts) do
+    if !opts.name && !opts.dry_run && !opts.check && !opts.snapshots_only && !opts.dev &&
+         !opts.auto_name do
+      raise """
+      Name must be provided when generating migrations, unless `--dry-run` or `--check` or `--dev` is also provided.
+
+      Please provide a name. for example:
+
+          mix ash_postgres.generate_migrations <name> ...args
+      """
+    end
+
+    :ok
+  end
+
   defp remove_dev_migrations(dev_migrations, tenant?, repo, opts) do
     dev_migrations =
       Enum.map(dev_migrations, fn migration ->
@@ -540,10 +560,17 @@ defmodule AshPostgres.MigrationGenerator do
     if tenant? do
       with_repo_not_in_test(repo, fn repo ->
         for prefix <- repo.all_tenants() do
+          {repo, query, opts} = Ecto.Migration.SchemaMigration.versions(repo, [], prefix)
+
+          versions = repo.all(query, opts)
+
           dev_migrations
           |> Enum.map(&extract_migration_info/1)
           |> Enum.filter(& &1)
           |> Enum.map(&load_migration!/1)
+          |> Enum.filter(fn {version, _} ->
+            version in versions
+          end)
           |> Enum.each(fn {version, mod} ->
             Ecto.Migration.Runner.run(
               repo,
@@ -563,11 +590,18 @@ defmodule AshPostgres.MigrationGenerator do
       end)
     else
       with_repo_not_in_test(repo, fn repo ->
+        {repo, query, opts} = Ecto.Migration.SchemaMigration.versions(repo, [], nil)
+
+        versions = repo.all(query, opts)
+
         dev_migrations
         |> Enum.map(&extract_migration_info/1)
         |> Enum.filter(& &1)
         |> Enum.map(&load_migration!/1)
         |> Enum.sort()
+        |> Enum.filter(fn {version, _} ->
+          version in versions
+        end)
         |> Enum.each(fn {version, mod} ->
           Ecto.Migration.Runner.run(
             repo,
@@ -1073,6 +1107,8 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp write_migration!({up, down}, repo, opts, tenant?, run_without_transaction?) do
     migration_path = migration_path(opts, repo, tenant?)
+
+    require_name!(opts)
 
     {migration_name, last_part} =
       if opts.name do
@@ -3335,11 +3371,7 @@ defmodule AshPostgres.MigrationGenerator do
         scale -> scale
       end
 
-    cond do
-      precision && scale -> {:decimal, precision, scale}
-      precision -> {:decimal, precision}
-      true -> :decimal
-    end
+    {:decimal, precision, scale}
   end
 
   defp migration_type(other, constraints) do
@@ -3558,7 +3590,7 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp sanitize_type(:decimal, _size, scale, precision) do
-    ["decimal", scale, precision] |> Enum.reject(&is_nil/1)
+    ["decimal", precision, scale]
   end
 
   defp sanitize_type(type, size, precision, decimal) when is_atom(type) and is_integer(size) do
@@ -3665,11 +3697,11 @@ defmodule AshPostgres.MigrationGenerator do
         {other, size} when is_atom(other) and is_integer(size) ->
           {other, size, nil, nil}
 
-        {:decimal, scale} ->
-          {:decimal, scale, nil, nil}
+        {:decimal, precision} ->
+          {:decimal, nil, nil, precision}
 
-        {:decimal, scale, precision} ->
-          {:decimal, scale, precision, nil}
+        {:decimal, precision, scale} ->
+          {:decimal, nil, precision, scale}
 
         other ->
           {other, nil, nil, nil}
@@ -3773,12 +3805,12 @@ defmodule AshPostgres.MigrationGenerator do
     {:binary, size}
   end
 
-  defp load_type(["decimal", scale]) do
-    {:decimal, scale}
+  defp load_type(["decimal", precision]) do
+    {:decimal, precision}
   end
 
-  defp load_type(["decimal", scale, precision]) do
-    {:decimal, scale, precision}
+  defp load_type(["decimal", precision, scale]) do
+    {:decimal, precision, scale}
   end
 
   defp load_type([string, size]) when is_binary(string) and is_integer(size) do

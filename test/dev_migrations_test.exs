@@ -76,7 +76,7 @@ defmodule AshPostgres.DevMigrationsTest do
     end
   end
 
-  setup_all do
+  setup do
     resource_dev_path = "priv/resource_snapshots/dev_test_repo"
 
     initial_resource_files =
@@ -137,7 +137,8 @@ defmodule AshPostgres.DevMigrationsTest do
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "priv/resource_snapshots",
         migration_path: "priv/dev_test_repo/migrations",
-        dev: true
+        dev: true,
+        auto_name: true
       )
 
       assert [_extensions, migration, _migration] =
@@ -147,7 +148,8 @@ defmodule AshPostgres.DevMigrationsTest do
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "priv/resource_snapshots",
-        migration_path: "priv/dev_test_repo/migrations"
+        migration_path: "priv/dev_test_repo/migrations",
+        auto_name: true
       )
 
       assert capture_log(fn -> migrate(migration) end) =~ "create table posts"
@@ -173,7 +175,8 @@ defmodule AshPostgres.DevMigrationsTest do
         snapshot_path: "priv/resource_snapshots",
         migration_path: "priv/dev_test_repo/migrations",
         tenant_migration_path: "priv/dev_test_repo/tenant_migrations",
-        dev: true
+        dev: true,
+        auto_name: true
       )
 
       org =
@@ -196,7 +199,8 @@ defmodule AshPostgres.DevMigrationsTest do
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "priv/resource_snapshots",
         migration_path: "priv/dev_test_repo/migrations",
-        tenant_migration_path: "priv/dev_test_repo/tenant_migrations"
+        tenant_migration_path: "priv/dev_test_repo/tenant_migrations",
+        auto_name: true
       )
 
       assert [_tenant_migration] =

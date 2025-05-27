@@ -147,7 +147,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       :ok
@@ -247,7 +248,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       :ok
@@ -326,7 +328,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
     end
 
@@ -371,7 +374,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
     end
 
@@ -414,7 +418,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
     end
 
@@ -440,7 +445,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, file2] =
@@ -493,7 +499,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       :ok
@@ -518,7 +525,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, file2] =
@@ -552,7 +560,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, _file2, file3] =
@@ -605,7 +614,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         migration_path: "test_migration_path",
         tenant_migration_path: "test_tenant_migration_path",
         quiet: false,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       defposts do
@@ -632,7 +642,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         migration_path: "test_migration_path",
         tenant_migration_path: "test_tenant_migration_path",
         quiet: false,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, file2] =
@@ -675,7 +686,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       :ok
@@ -701,7 +713,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, file2] =
@@ -731,7 +744,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, file2] =
@@ -774,7 +788,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       :ok
@@ -805,7 +820,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1] =
@@ -838,7 +854,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       :ok
@@ -864,7 +881,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, file2] =
@@ -897,7 +915,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, file2] =
@@ -930,7 +949,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, file2] =
@@ -966,7 +986,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, file2] =
@@ -993,7 +1014,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, file2] =
@@ -1019,7 +1041,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, file2] =
@@ -1048,7 +1071,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, file2] =
@@ -1083,7 +1107,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, file2] =
@@ -1156,7 +1181,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, file2] =
@@ -1189,7 +1215,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, file2] =
@@ -1232,7 +1259,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [file1, file2] =
@@ -1277,7 +1305,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         migration_path: "test_migration_path",
         quiet: true,
         concurrent_indexes: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, _file2, file3] =
@@ -1316,7 +1345,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, file2] =
@@ -1356,7 +1386,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       :ok
@@ -1394,7 +1425,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
                AshPostgres.MigrationGenerator.generate(domain,
                  snapshot_path: "test_snapshots_path",
                  migration_path: "test_migration_path",
-                 check: true
+                 check: true,
+                 auto_name: true
                )
              ) == {:shutdown, 1}
 
@@ -1437,7 +1469,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [file] =
@@ -1474,7 +1507,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [file] =
@@ -1520,7 +1554,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [file] =
@@ -1566,7 +1601,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [file] =
@@ -1617,7 +1653,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       defposts Post2 do
@@ -1646,7 +1683,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert file =
@@ -1727,7 +1765,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [file] =
@@ -1781,7 +1820,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert file =
@@ -1863,7 +1903,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [file] =
@@ -1918,7 +1959,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [file] =
@@ -1957,7 +1999,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       defposts Post2 do
@@ -1983,7 +2026,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert file =
@@ -2089,7 +2133,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [file] =
@@ -2169,7 +2214,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [file] =
@@ -2209,7 +2255,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert file =
@@ -2242,7 +2289,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert file =
@@ -2288,7 +2336,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert file =
@@ -2323,7 +2372,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       defposts do
@@ -2337,7 +2387,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert file =
@@ -2414,7 +2465,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       [domain: Domain]
@@ -2471,7 +2523,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [file1] =
@@ -2527,7 +2580,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
             snapshot_path: "test_snapshots_path",
             migration_path: "test_migration_path",
             quiet: true,
-            format: false
+            format: false,
+            auto_name: true
           )
         end)
 
@@ -2576,7 +2630,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       :ok
@@ -2614,7 +2669,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [_file1, file2] =
@@ -2679,7 +2735,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [file] =
@@ -2722,7 +2779,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       # Now update the precision and scale
@@ -2747,7 +2805,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       migration_files =
@@ -2791,7 +2850,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [file] =
@@ -2835,7 +2895,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       # Now change to arbitrary precision and scale
@@ -2865,7 +2926,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       migration_files =
@@ -2943,7 +3005,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         snapshot_path: "test_snapshots_path",
         migration_path: "test_migration_path",
         quiet: true,
-        format: false
+        format: false,
+        auto_name: true
       )
 
       assert [file] =

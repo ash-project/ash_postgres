@@ -155,10 +155,10 @@ For development iterations, use the dev workflow to avoid naming migrations prem
 
 1. Make resource changes
 2. Run `mix ash.codegen --dev` to generate and run dev migrations
-3. Continue making changes and running `mix ash.codegen --dev` as needed
-4. When your feature is complete, run `mix ash.codegen add_feature_name` to generate final named migrations (this will rollback dev migrations and squash them)
-5. Review the migrations
-6. Run `mix ash.migrate` to apply the final migrations
+3. Review the migrations and run `mix ash.migrate` to run them
+4. Continue making changes and running `mix ash.codegen --dev` as needed
+5. When your feature is complete, run `mix ash.codegen add_feature_name` to generate final named migrations (this will rollback dev migrations and squash them)
+3. Review the migrations and run `mix ash.migrate` to run them
 
 ### Traditional Migration Generation
 

@@ -113,17 +113,6 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
       |> Keyword.delete(:no_format)
       |> Keyword.put_new(:name, name)
 
-    if !opts[:name] && !opts[:dry_run] && !opts[:check] && !opts[:snapshots_only] && !opts[:dev] &&
-         !opts[:auto_name] do
-      IO.warn("""
-      Name must be provided when generating migrations, unless `--dry-run` or `--check` or `--dev` is also provided.
-
-      Please provide a name. for example:
-
-          mix ash_postgres.generate_migrations <name> #{Enum.join(args, " ")}
-      """)
-    end
-
     AshPostgres.MigrationGenerator.generate(domains, opts)
   end
 end
