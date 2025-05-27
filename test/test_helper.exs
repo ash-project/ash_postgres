@@ -20,6 +20,7 @@ exclude_tags =
 ExUnit.configure(stacktrace_depth: 100, exclude: exclude_tags)
 
 AshPostgres.TestRepo.start_link()
+AshPostgres.DevTestRepo.start_link()
 AshPostgres.TestNoSandboxRepo.start_link()
 
 format_sql_query =
@@ -49,4 +50,5 @@ format_sql_query =
   end
 
 Ecto.DevLogger.install(AshPostgres.TestRepo, before_inline_callback: format_sql_query)
+Ecto.DevLogger.install(AshPostgres.DevTestRepo, before_inline_callback: format_sql_query)
 Ecto.DevLogger.install(AshPostgres.TestNoSandboxRepo, before_inline_callback: format_sql_query)

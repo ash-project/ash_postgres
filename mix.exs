@@ -240,7 +240,7 @@ defmodule AshPostgres.MixProject do
       format: "format --migrate",
       "spark.formatter": "spark.formatter --extensions AshPostgres.DataLayer",
       "spark.cheat_sheets": "spark.cheat_sheets --extensions AshPostgres.DataLayer",
-      "test.generate_migrations": "ash_postgres.generate_migrations",
+      "test.generate_migrations": "ash_postgres.generate_migrations --auto-name",
       "test.check_migrations": "ash_postgres.generate_migrations --check",
       "test.migrate_tenants": "ash_postgres.migrate --tenants",
       "test.migrate": "ash_postgres.migrate",

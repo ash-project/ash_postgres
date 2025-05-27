@@ -61,6 +61,7 @@ defmodule Mix.Tasks.AshPostgres.Rollback do
           log_migrator_sql: :boolean,
           only_tenants: :string,
           except_tenants: :string,
+          already_started: :boolean,
           repo: :string
         ],
         aliases: [n: :step, v: :to, r: :repo]
@@ -76,25 +77,23 @@ defmodule Mix.Tasks.AshPostgres.Rollback do
       |> AshPostgres.Mix.Helpers.delete_flag("--only-tenants")
       |> AshPostgres.Mix.Helpers.delete_flag("--except-tenants")
       |> AshPostgres.Mix.Helpers.delete_arg("-r")
+      |> AshPostgres.Mix.Helpers.delete_arg("--already-started")
 
     Mix.Task.reenable("ecto.rollback")
 
     if opts[:tenants] do
       for repo <- repos do
-        Ecto.Migrator.with_repo(repo, fn repo ->
-          for tenant <- tenants(repo, opts) do
-            rest_opts = AshPostgres.Mix.Helpers.delete_arg(rest_opts, "--prefix")
+        for tenant <- tenants(repo, opts) do
+          Mix.Task.reenable("ecto.rollback")
+          rest_opts = AshPostgres.Mix.Helpers.delete_arg(rest_opts, "--prefix")
 
-            Mix.Task.run(
-              "ecto.rollback",
-              ["-r", to_string(repo)] ++
-                rest_opts ++
-                ["--prefix", tenant, "--migrations-path", tenant_migrations_path(opts, repo)]
-            )
-
-            Mix.Task.reenable("ecto.rollback")
-          end
-        end)
+          Mix.Task.run(
+            "ecto.rollback",
+            ["-r", to_string(repo)] ++
+              rest_opts ++
+              ["--prefix", tenant, "--migrations-path", tenant_migrations_path(opts, repo)]
+          )
+        end
       end
     else
       for repo <- repos do
