@@ -562,12 +562,46 @@ defmodule AshPostgres.MigrationGenerator do
         for prefix <- repo.all_tenants() do
           {repo, query, opts} = Ecto.Migration.SchemaMigration.versions(repo, [], prefix)
 
+          repo.transaction(fn ->
+            versions = repo.all(query, Keyword.put(opts, :timeout, :infinity))
+
+            dev_migrations
+            |> Enum.map(&extract_migration_info/1)
+            |> Enum.filter(& &1)
+            |> Enum.map(&load_migration!/1)
+            |> Enum.filter(fn {version, _} ->
+              version in versions
+            end)
+            |> Enum.each(fn {version, mod} ->
+              Ecto.Migration.Runner.run(
+                repo,
+                [],
+                version,
+                mod,
+                :forward,
+                :down,
+                :down,
+                all: true,
+                prefix: prefix
+              )
+
+              Ecto.Migration.SchemaMigration.down(repo, repo.config(), version, prefix: prefix)
+            end)
+          end)
+        end
+      end)
+    else
+      with_repo_not_in_test(repo, fn repo ->
+        {repo, query, opts} = Ecto.Migration.SchemaMigration.versions(repo, [], nil)
+
+        repo.transaction(fn ->
           versions = repo.all(query, opts)
 
           dev_migrations
           |> Enum.map(&extract_migration_info/1)
           |> Enum.filter(& &1)
           |> Enum.map(&load_migration!/1)
+          |> Enum.sort()
           |> Enum.filter(fn {version, _} ->
             version in versions
           end)
@@ -580,41 +614,11 @@ defmodule AshPostgres.MigrationGenerator do
               :forward,
               :down,
               :down,
-              all: true,
-              prefix: prefix
+              all: true
             )
 
-            Ecto.Migration.SchemaMigration.down(repo, repo.config(), version, prefix: prefix)
+            Ecto.Migration.SchemaMigration.down(repo, repo.config(), version, [])
           end)
-        end
-      end)
-    else
-      with_repo_not_in_test(repo, fn repo ->
-        {repo, query, opts} = Ecto.Migration.SchemaMigration.versions(repo, [], nil)
-
-        versions = repo.all(query, opts)
-
-        dev_migrations
-        |> Enum.map(&extract_migration_info/1)
-        |> Enum.filter(& &1)
-        |> Enum.map(&load_migration!/1)
-        |> Enum.sort()
-        |> Enum.filter(fn {version, _} ->
-          version in versions
-        end)
-        |> Enum.each(fn {version, mod} ->
-          Ecto.Migration.Runner.run(
-            repo,
-            [],
-            version,
-            mod,
-            :forward,
-            :down,
-            :down,
-            all: true
-          )
-
-          Ecto.Migration.SchemaMigration.down(repo, repo.config(), version, [])
         end)
       end)
     end
