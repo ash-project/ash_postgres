@@ -2,6 +2,7 @@ defmodule AshPostgres.MultiTenancy do
   @moduledoc false
 
   @dialyzer {:nowarn_function, load_migration!: 1}
+  require Logger
 
   # sobelow_skip ["SQL.Query"]
   def create_tenant!(tenant_name, repo) do
