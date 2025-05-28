@@ -27,6 +27,7 @@ defmodule AshPostgres.MultiTenancy do
     [tenant_migrations_path, "**", "*.exs"]
     |> Path.join()
     |> Path.wildcard()
+    |> Enum.sort()
     |> then(fn files ->
       if after_file do
         files
