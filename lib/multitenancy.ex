@@ -21,6 +21,7 @@ defmodule AshPostgres.MultiTenancy do
       repo.config(),
       prefix: tenant_name
     )
+    |> tap(fn v -> Logger.warning(inspect(v, label: "ensure migraitons result")) end)
 
     [tenant_migrations_path, "**", "*.exs"]
     |> Path.join()
@@ -39,6 +40,7 @@ defmodule AshPostgres.MultiTenancy do
     |> Enum.map(&extract_migration_info/1)
     |> Enum.filter(& &1)
     |> Enum.map(&load_migration!/1)
+    |> tap(fn v -> Logger.warning(inspect(v, label: "migrations")) end)
     |> Enum.each(fn {version, mod} ->
       Ecto.Migration.Runner.run(
         repo,
@@ -51,8 +53,10 @@ defmodule AshPostgres.MultiTenancy do
         all: true,
         prefix: tenant_name
       )
+      |> tap(fn v -> Logger.warning(inspect(v, label: "run result")) end)
 
       Ecto.Migration.SchemaMigration.up(repo, repo.config(), version, prefix: tenant_name)
+      |> tap(fn v -> Logger.warning(inspect(v, label: "schema run result")) end)
     end)
   end
 

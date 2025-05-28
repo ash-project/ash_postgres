@@ -220,6 +220,7 @@ defmodule AshPostgres.DevMigrationsTest do
       "priv/dev_test_repo/migrations",
       after_file
     )
+    |> tap(fn v -> Logger.warning(inspect(v, label: "result")) end)
   end
 
   defp tenant_migrate do
@@ -229,6 +230,7 @@ defmodule AshPostgres.DevMigrationsTest do
         AshPostgres.DevTestRepo,
         "priv/dev_test_repo/tenant_migrations"
       )
+      |> tap(fn v -> Logger.warning(inspect(v, label: "result")) end)
     end
   end
 end
