@@ -5,6 +5,27 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.0](https://github.com/ash-project/ash_postgres/compare/v2.5.22...v2.6.0) (2025-05-30)
+
+
+
+
+### Features:
+
+* --dev flag for codegen (#555)
+
+### Bug Fixes:
+
+* properly encode decimal scale & preicison into snapshots
+
+### Improvements:
+
+* use new `PendingCodegen` error
+
+* assume not renaming when generating dev migrations
+
+* support scale & precision in decimal types
+
 ## [v2.5.22](https://github.com/ash-project/ash_postgres/compare/v2.5.21...v2.5.22) (2025-05-22)
 
 
