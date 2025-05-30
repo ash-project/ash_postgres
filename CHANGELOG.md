@@ -5,6 +5,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.1](https://github.com/ash-project/ash_postgres/compare/v2.6.0...v2.6.1) (2025-05-30)
+
+
+
+
+### Bug Fixes:
+
+* retain repo as atom in migrator task (#560)
+
 ## [v2.6.0](https://github.com/ash-project/ash_postgres/compare/v2.5.22...v2.6.0) (2025-05-30)
 
 
