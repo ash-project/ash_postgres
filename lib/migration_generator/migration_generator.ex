@@ -2960,10 +2960,14 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp renaming?(table, removing, opts) do
-    if opts.no_shell? do
-      raise "Unimplemented: cannot determine: Are you renaming #{table}.#{removing.source}? without shell input"
+    if opts.dev do
+      if opts.no_shell? do
+        raise "Unimplemented: cannot determine: Are you renaming #{table}.#{removing.source}? without shell input"
+      else
+        yes?(opts, "Are you renaming #{table}.#{removing.source}?")
+      end
     else
-      yes?(opts, "Are you renaming #{table}.#{removing.source}?")
+      false
     end
   end
 
