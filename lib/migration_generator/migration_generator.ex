@@ -3,8 +3,6 @@ defmodule AshPostgres.MigrationGenerator do
 
   require Logger
 
-  import Mix.Generator
-
   alias AshPostgres.MigrationGenerator.{Operation, Phase}
 
   defstruct snapshot_path: nil,
@@ -52,12 +50,46 @@ defmodule AshPostgres.MigrationGenerator do
       |> Enum.concat(find_repos())
       |> Enum.uniq()
 
-    Mix.shell().info("\nExtension Migrations: ")
-    create_extension_migrations(repos, opts)
-    Mix.shell().info("\nGenerating Tenant Migrations: ")
-    create_migrations(tenant_snapshots, opts, true, snapshots)
-    Mix.shell().info("\nGenerating Migrations:")
-    create_migrations(snapshots, opts, false)
+    extension_migration_files =
+      create_extension_migrations(repos, opts)
+
+    tenant_migration_files =
+      create_migrations(tenant_snapshots, opts, true, snapshots)
+
+    migration_files =
+      create_migrations(snapshots, opts, false)
+
+    case extension_migration_files ++ tenant_migration_files ++ migration_files do
+      [] ->
+        if !opts.check || opts.dry_run do
+          Mix.shell().info(
+            "No changes detected, so no migrations or snapshots have been created."
+          )
+        end
+
+        :ok
+
+      files ->
+        cond do
+          opts.check ->
+            raise Ash.Error.Framework.PendingCodegen,
+              diff: files
+
+          opts.dry_run ->
+            Mix.shell().info(
+              files
+              |> Enum.sort_by(&elem(&1, 0))
+              |> Enum.map_join("\n\n", fn {file, contents} ->
+                "#{file}\n#{contents}"
+              end)
+            )
+
+          true ->
+            Enum.each(files, fn {file, contents} ->
+              Mix.Generator.create_file(file, contents, force?: true)
+            end)
+        end
+    end
   end
 
   defp find_repos do
@@ -225,8 +257,7 @@ defmodule AshPostgres.MigrationGenerator do
         |> Enum.map(fn {_name, extension} -> extension end)
 
       if Enum.empty?(to_install) do
-        Mix.shell().info("No extensions to install")
-        :ok
+        []
       else
         dev = if opts.dev, do: "_dev"
 
@@ -378,40 +409,13 @@ defmodule AshPostgres.MigrationGenerator do
 
         contents = format(migration_file, contents, opts)
 
-        if opts.dry_run do
-          Mix.shell().info(snapshot_contents)
-          Mix.shell().info(contents)
-
-          if opts.check do
-            Mix.shell().error("""
-            Migrations would have been generated, but the --check flag was provided.
-
-            To see what migration would have been generated, run with the `--dry-run`
-            option instead. To generate those migrations, run without either flag.
-            """)
-
-            exit({:shutdown, 1})
-          end
-        else
-          if opts.check do
-            Mix.shell().error("""
-            Migrations would have been generated, but the --check flag was provided.
-
-            To see what migration would have been generated, run with the `--dry-run`
-            option instead. To generate those migrations, run without either flag.
-            """)
-
-            exit({:shutdown, 1})
-          end
-
-          create_file(snapshot_file, snapshot_contents, force: true)
-
-          if !opts.snapshots_only do
-            create_file(migration_file, contents)
-          end
-        end
+        [
+          {snapshot_file, snapshot_contents},
+          {migration_file, contents}
+        ]
       end
     end
+    |> List.flatten()
   end
 
   defp set_ash_functions(snapshot, installed_extensions) do
@@ -429,7 +433,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp create_migrations(snapshots, opts, tenant?, non_tenant_snapshots \\ []) do
     snapshots
     |> Enum.group_by(& &1.repo)
-    |> Enum.each(fn {repo, snapshots} ->
+    |> Enum.flat_map(fn {repo, snapshots} ->
       deduped = deduplicate_snapshots(snapshots, opts, non_tenant_snapshots)
 
       snapshots_with_operations =
@@ -444,18 +448,7 @@ defmodule AshPostgres.MigrationGenerator do
       |> Enum.uniq()
       |> case do
         [] ->
-          tenant_str =
-            if tenant? do
-              "tenant "
-            else
-              ""
-            end
-
-          Mix.shell().info(
-            "No #{tenant_str}changes detected, so no migrations or snapshots have been created."
-          )
-
-          :ok
+          []
 
         operations ->
           dev_migrations = get_dev_migrations(opts, tenant?, repo)
@@ -475,21 +468,12 @@ defmodule AshPostgres.MigrationGenerator do
             end
           end
 
-          if opts.check do
-            Mix.shell().error("""
-            Migrations would have been generated, but the --check flag was provided.
-
-            To see what migration would have been generated, run with the `--dry-run`
-            option instead. To generate those migrations, run without either flag.
-            """)
-
-            exit({:shutdown, 1})
-          end
-
-          if !opts.snapshots_only do
+          if opts.snapshots_only do
+            []
+          else
             operations
             |> split_into_migrations()
-            |> Enum.each(fn operations ->
+            |> Enum.map(fn operations ->
               run_without_transaction? =
                 Enum.any?(operations, fn
                   %Operation.AddCustomIndex{index: %{concurrently: true}} ->
@@ -505,11 +489,10 @@ defmodule AshPostgres.MigrationGenerator do
               operations
               |> organize_operations
               |> build_up_and_down()
-              |> write_migration!(repo, opts, tenant?, run_without_transaction?)
+              |> migration(repo, opts, tenant?, run_without_transaction?)
             end)
           end
-
-          create_new_snapshot(snapshots, repo_name(repo), opts, tenant?)
+          |> Enum.concat(create_new_snapshot(snapshots, repo_name(repo), opts, tenant?))
       end
     end)
   end
@@ -1110,7 +1093,7 @@ defmodule AshPostgres.MigrationGenerator do
     repo |> Module.split() |> List.last() |> Macro.underscore()
   end
 
-  defp write_migration!({up, down}, repo, opts, tenant?, run_without_transaction?) do
+  defp migration({up, down}, repo, opts, tenant?, run_without_transaction?) do
     migration_path = migration_path(opts, repo, tenant?)
 
     require_name!(opts)
@@ -1185,13 +1168,7 @@ defmodule AshPostgres.MigrationGenerator do
     """
 
     try do
-      contents = format(migration_file, contents, opts)
-
-      if opts.dry_run do
-        Mix.shell().info(contents)
-      else
-        create_file(migration_file, contents)
-      end
+      {migration_file, format(migration_file, contents, opts)}
     rescue
       exception ->
         reraise(
@@ -1223,45 +1200,44 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp create_new_snapshot(snapshots, repo_name, opts, tenant?) do
-    if !opts.dry_run do
-      Enum.each(snapshots, fn snapshot ->
-        snapshot_binary = snapshot_to_binary(snapshot)
+    Enum.map(snapshots, fn snapshot ->
+      snapshot_binary = snapshot_to_binary(snapshot)
 
-        snapshot_folder =
-          if tenant? do
-            opts
-            |> snapshot_path(snapshot.repo)
-            |> Path.join(repo_name)
-            |> Path.join("tenants")
-          else
-            opts
-            |> snapshot_path(snapshot.repo)
-            |> Path.join(repo_name)
-          end
-
-        dev = if opts.dev, do: "_dev"
-
-        snapshot_file =
-          if snapshot.schema do
-            Path.join(
-              snapshot_folder,
-              "#{snapshot.schema}.#{snapshot.table}/#{timestamp()}#{dev}.json"
-            )
-          else
-            Path.join(snapshot_folder, "#{snapshot.table}/#{timestamp()}#{dev}.json")
-          end
-
-        File.mkdir_p(Path.dirname(snapshot_file))
-        create_file(snapshot_file, snapshot_binary, force: true)
-
-        old_snapshot_folder = Path.join(snapshot_folder, "#{snapshot.table}#{dev}.json")
-
-        if File.exists?(old_snapshot_folder) do
-          new_snapshot_folder = Path.join(snapshot_folder, "#{snapshot.table}/initial#{dev}.json")
-          File.rename(old_snapshot_folder, new_snapshot_folder)
+      snapshot_folder =
+        if tenant? do
+          opts
+          |> snapshot_path(snapshot.repo)
+          |> Path.join(repo_name)
+          |> Path.join("tenants")
+        else
+          opts
+          |> snapshot_path(snapshot.repo)
+          |> Path.join(repo_name)
         end
-      end)
-    end
+
+      dev = if opts.dev, do: "_dev"
+
+      snapshot_file =
+        if snapshot.schema do
+          Path.join(
+            snapshot_folder,
+            "#{snapshot.schema}.#{snapshot.table}/#{timestamp()}#{dev}.json"
+          )
+        else
+          Path.join(snapshot_folder, "#{snapshot.table}/#{timestamp()}#{dev}.json")
+        end
+
+      File.mkdir_p(Path.dirname(snapshot_file))
+
+      old_snapshot_folder = Path.join(snapshot_folder, "#{snapshot.table}#{dev}.json")
+
+      if File.exists?(old_snapshot_folder) do
+        new_snapshot_folder = Path.join(snapshot_folder, "#{snapshot.table}/initial#{dev}.json")
+        File.rename(old_snapshot_folder, new_snapshot_folder)
+      end
+
+      {snapshot_file, snapshot_binary}
+    end)
   end
 
   @doc false
@@ -2961,13 +2937,13 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp renaming?(table, removing, opts) do
     if opts.dev do
+      false
+    else
       if opts.no_shell? do
         raise "Unimplemented: cannot determine: Are you renaming #{table}.#{removing.source}? without shell input"
       else
         yes?(opts, "Are you renaming #{table}.#{removing.source}?")
       end
-    else
-      false
     end
   end
 

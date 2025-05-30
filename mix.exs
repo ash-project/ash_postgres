@@ -166,7 +166,8 @@ defmodule AshPostgres.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ash, ash_version("~> 3.4 and >= 3.4.69")},
+      # {:ash, ash_version("~> 3.4 and >= 3.4.69")},
+      {:ash, github: "ash-project/ash", override: true},
       {:ash_sql, ash_sql_version("~> 0.2 and >= 0.2.72")},
       {:igniter, "~> 0.6", optional: true},
       {:ecto_sql, "~> 3.12"},
@@ -189,24 +190,24 @@ defmodule AshPostgres.MixProject do
     ]
   end
 
-  defp ash_version(default_version) do
-    case System.get_env("ASH_VERSION") do
-      nil ->
-        default_version
+  # defp ash_version(default_version) do
+  #   case System.get_env("ASH_VERSION") do
+  #     nil ->
+  #       default_version
 
-      "local" ->
-        [path: "../ash", override: true]
+  #     "local" ->
+  #       [path: "../ash", override: true]
 
-      "main" ->
-        [git: "https://github.com/ash-project/ash.git", override: true]
+  #     "main" ->
+  #       [git: "https://github.com/ash-project/ash.git", override: true]
 
-      version when is_binary(version) ->
-        "~> #{version}"
+  #     version when is_binary(version) ->
+  #       "~> #{version}"
 
-      version ->
-        version
-    end
-  end
+  #     version ->
+  #       version
+  #   end
+  # end
 
   defp ash_sql_version(default_version) do
     case System.get_env("ASH_SQL_VERSION") do

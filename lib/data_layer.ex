@@ -568,6 +568,7 @@ defmodule AshPostgres.DataLayer do
   end
 
   def codegen(args) do
+    Mix.Task.reenable("ash_postgres.generate_migrations")
     Mix.Task.run("ash_postgres.generate_migrations", args)
   end
 
