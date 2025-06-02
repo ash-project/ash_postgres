@@ -184,6 +184,16 @@ defmodule AshPostgres.Test.Post do
       end)
     end
 
+    update :subtract_integer_from_decimal do
+      argument(:amount, :integer, allow_nil?: false)
+      change(atomic_update(:decimal, expr(decimal + -(^arg(:amount)))))
+    end
+
+    update :subtract_from_decimal do
+      argument(:amount, :decimal, allow_nil?: false)
+      change(atomic_update(:decimal, expr(decimal + -(^arg(:amount)))))
+    end
+
     update :add_to_limited_score do
       argument(:amount, :integer, allow_nil?: false)
       change(atomic_update(:limited_score, expr((limited_score || 0) + ^arg(:amount))))

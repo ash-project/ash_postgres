@@ -40,6 +40,27 @@ defmodule AshPostgres.AtomicsTest do
              |> Ash.update!()
   end
 
+  test "an atomic update on decimals works" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "foo", decimal: Decimal.new("1")})
+      |> Ash.create!()
+
+    assert %{decimal: result} =
+             post
+             |> Ash.Changeset.for_update(:subtract_integer_from_decimal, %{amount: 2})
+             |> Ash.update!()
+
+    assert Decimal.eq?(result, Decimal.new("-1"))
+
+    assert %{decimal: result} =
+             post
+             |> Ash.Changeset.for_update(:subtract_from_decimal, %{amount: Decimal.new("2")})
+             |> Ash.update!()
+
+    assert Decimal.eq?(result, Decimal.new("-3"))
+  end
+
   test "an atomic works on a constrained integer" do
     post =
       Post
