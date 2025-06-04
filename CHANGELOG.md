@@ -5,6 +5,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.3](https://github.com/ash-project/ash_postgres/compare/v2.6.2...v2.6.3) (2025-06-04)
+
+
+
+
+### Bug Fixes:
+
+* undo change for timestamptz usec, retaining precision
+
 ## [v2.6.2](https://github.com/ash-project/ash_postgres/compare/v2.6.1...v2.6.2) (2025-06-04)
 
 
