@@ -94,7 +94,7 @@ defmodule AshPostgres.DevMigrationsTest do
         do: File.ls!(tenant_migrations_dev_path),
         else: []
 
-    on_exit(fn ->
+    clean = fn ->
       if File.exists?(resource_dev_path) do
         current_resource_files = File.ls!(resource_dev_path)
         new_resource_files = current_resource_files -- initial_resource_files
@@ -120,7 +120,11 @@ defmodule AshPostgres.DevMigrationsTest do
       end
 
       AshPostgres.DevTestRepo.query!("DROP TABLE IF EXISTS posts")
-    end)
+    end
+
+    clean.()
+
+    on_exit(clean)
   end
 
   describe "--dev option" do
