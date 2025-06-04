@@ -5,6 +5,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.2](https://github.com/ash-project/ash_postgres/compare/v2.6.1...v2.6.2) (2025-06-04)
+
+
+
+
+### Bug Fixes:
+
+* don't use `:"timestamptz(6)"` in ecto storage type
+
 ## [v2.6.1](https://github.com/ash-project/ash_postgres/compare/v2.6.0...v2.6.1) (2025-05-30)
 
 
