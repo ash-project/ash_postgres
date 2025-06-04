@@ -27,10 +27,6 @@ defmodule AshPostgres.TimestamptzUsec do
 
   @impl true
   def storage_type(_constraints) do
-    :timestamptz
-  end
-
-  def migration_type(_constraints) do
     :"timestamptz(6)"
   end
 end
