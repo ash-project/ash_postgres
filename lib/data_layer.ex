@@ -1532,7 +1532,7 @@ defmodule AshPostgres.DataLayer do
               {_, results} =
                 with_savepoint(repo, query, fn ->
                   repo.update_all(
-                    query,
+                    Map.delete(query, :__ash_bindings__),
                     [],
                     repo_opts
                   )
