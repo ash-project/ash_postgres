@@ -21,14 +21,16 @@ defmodule AshPostgres.TimestamptzUsec do
   timestamps type: :timestamptz_usec
   ```
 
-      
-
   Please see `AshPostgres.Timestamptz` for details about the usecase for this type.
   """
   use Ash.Type.NewType, subtype_of: :datetime, constraints: [precision: :microsecond]
 
   @impl true
   def storage_type(_constraints) do
+    :timestamptz
+  end
+
+  def migration_type(_constraints) do
     :"timestamptz(6)"
   end
 end

@@ -11,8 +11,11 @@ defmodule AshPostgres.Type do
   @callback postgres_reference_expr(Ash.Type.t(), Ash.Type.constraints(), term) ::
               {:ok, term} | :error
 
+  @callback migration_type(Ash.Type.constraints()) :: term()
+
   @optional_callbacks value_to_postgres_default: 3,
-                      postgres_reference_expr: 3
+                      postgres_reference_expr: 3,
+                      migration_type: 1
 
   defmacro __using__(_) do
     quote do

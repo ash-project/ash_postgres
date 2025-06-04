@@ -28,10 +28,6 @@ defmodule AshPostgres.Timestamptz do
   attribute :timestamp, :timestamptz
   timestamps type: :timestamptz
   ```
-
-      
-
-
   """
   use Ash.Type.NewType, subtype_of: :datetime, constraints: [precision: :second]
 
