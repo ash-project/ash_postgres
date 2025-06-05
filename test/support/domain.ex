@@ -31,6 +31,7 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.Entity)
     resource(AshPostgres.Test.ContentVisibilityGroup)
     resource(AshPostgres.Test.TempEntity)
+    resource(AshPostgres.Test.RecordTempEntity)
     resource(AshPostgres.Test.Permalink)
     resource(AshPostgres.Test.Record)
     resource(AshPostgres.Test.PostFollower)
