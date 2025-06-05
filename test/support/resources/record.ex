@@ -14,9 +14,7 @@ defmodule AshPostgres.Test.Record do
   end
 
   relationships do
-    alias AshPostgres.Test.Entity
-
-    has_one :entity, Entity do
+    has_one :entity, AshPostgres.Test.Entity do
       public?(true)
       no_attributes?(true)
 
@@ -24,11 +22,21 @@ defmodule AshPostgres.Test.Record do
 
       filter(expr(full_name == parent(full_name)))
     end
+
+    has_one :temp_entity, AshPostgres.Test.TempEntity do
+      public?(true)
+      source_attribute(:full_name)
+      destination_attribute(:full_name)
+    end
   end
 
   postgres do
     table "records"
     repo AshPostgres.TestRepo
+  end
+
+  calculations do
+    calculate(:temp_entity_full_name, :string, expr(temp_entity.full_name))
   end
 
   actions do

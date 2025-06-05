@@ -1,6 +1,6 @@
 defmodule AshPostgres.CalculationTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Account, Author, Comedian, Comment, Post, User}
+  alias AshPostgres.Test.{Account, Author, Comedian, Comment, Post, Record, TempEntity, User}
 
   require Ash.Query
   import Ash.Expr
@@ -1015,5 +1015,19 @@ defmodule AshPostgres.CalculationTest do
 
   def fred do
     "fred"
+  end
+
+  test "calculation references use the appropriate schema" do
+    record = Record |> Ash.Changeset.for_create(:create, %{full_name: "name"}) |> Ash.create!()
+
+    TempEntity |> Ash.Changeset.for_create(:create, %{full_name: "name"}) |> Ash.create!()
+
+    full_name =
+      Record
+      |> Ash.Query.load(:temp_entity_full_name)
+      |> Ash.read_first!()
+      |> Map.get(:temp_entity_full_name)
+
+    assert full_name == "name"
   end
 end
