@@ -1018,7 +1018,7 @@ defmodule AshPostgres.CalculationTest do
   end
 
   test "calculation references use the appropriate schema" do
-    record = Record |> Ash.Changeset.for_create(:create, %{full_name: "name"}) |> Ash.create!()
+    Record |> Ash.Changeset.for_create(:create, %{full_name: "name"}) |> Ash.create!()
 
     TempEntity |> Ash.Changeset.for_create(:create, %{full_name: "name"}) |> Ash.create!()
 

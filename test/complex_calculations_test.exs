@@ -346,4 +346,31 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
     |> Ash.Query.for_read(:failing_many_reference)
     |> Ash.read!(page: [count: true])
   end
+
+  test "lazy datetime with timezone is respected in calculations" do
+    documentation_before =
+      AshPostgres.Test.ComplexCalculations.Documentation
+      |> Ash.Changeset.for_create(:create, %{
+        status: :demonstrated,
+        # 2 hours before Seoul time in UTC
+        inserted_at: ~U[2024-05-01 10:00:00Z]
+      })
+      |> Ash.create!()
+
+    documentation_after =
+      AshPostgres.Test.ComplexCalculations.Documentation
+      |> Ash.Changeset.for_create(:create, %{
+        status: :demonstrated,
+        # 2 hours after Seoul time in UTC
+        inserted_at: ~U[2024-05-01 14:00:00Z]
+      })
+      |> Ash.create!()
+
+    [doc_before, doc_after] =
+      [documentation_before, documentation_after]
+      |> Ash.load!([:is_active_with_timezone])
+
+    assert doc_before.is_active_with_timezone == false
+    assert doc_after.is_active_with_timezone == true
+  end
 end

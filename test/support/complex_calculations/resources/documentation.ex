@@ -42,6 +42,10 @@ defmodule AshPostgres.Test.ComplexCalculations.Documentation do
         end
       )
     )
+
+    calculate :is_active_with_timezone, :boolean do
+      calculation(expr(inserted_at > lazy({AshPostgres.Test.TimezoneHelper, :seoul_time, []})))
+    end
   end
 
   postgres do
@@ -53,5 +57,12 @@ defmodule AshPostgres.Test.ComplexCalculations.Documentation do
     belongs_to(:skill, AshPostgres.Test.ComplexCalculations.Skill) do
       public?(true)
     end
+  end
+end
+
+defmodule AshPostgres.Test.TimezoneHelper do
+  def seoul_time do
+    # Fixed datetime for testing - equivalent to 2024-05-01 21:00:00 in Seoul (UTC+9)
+    ~U[2024-05-01 12:00:00Z] |> DateTime.shift_zone!("Asia/Seoul")
   end
 end
