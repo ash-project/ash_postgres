@@ -28,6 +28,12 @@ defmodule AshPostgres.Test.Record do
       source_attribute(:full_name)
       destination_attribute(:full_name)
     end
+
+    many_to_many :temp_entities, AshPostgres.Test.TempEntity do
+      public?(true)
+
+      through(AshPostgres.Test.RecordTempEntity)
+    end
   end
 
   postgres do
@@ -36,7 +42,11 @@ defmodule AshPostgres.Test.Record do
   end
 
   calculations do
-    calculate(:temp_entity_full_name, :string, expr(temp_entity.full_name))
+    calculate(
+      :temp_entity_full_name,
+      :string,
+      expr(fragment("coalesce(?, '')", temp_entities.full_name))
+    )
   end
 
   actions do

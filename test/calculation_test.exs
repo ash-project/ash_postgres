@@ -1,4 +1,5 @@
 defmodule AshPostgres.CalculationTest do
+  alias AshPostgres.Test.RecordTempEntity
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.{Account, Author, Comedian, Comment, Post, Record, TempEntity, User}
 
@@ -1018,9 +1019,12 @@ defmodule AshPostgres.CalculationTest do
   end
 
   test "calculation references use the appropriate schema" do
-    Record |> Ash.Changeset.for_create(:create, %{full_name: "name"}) |> Ash.create!()
+    record = Record |> Ash.Changeset.for_create(:create, %{full_name: "name"}) |> Ash.create!()
 
-    TempEntity |> Ash.Changeset.for_create(:create, %{full_name: "name"}) |> Ash.create!()
+    temp_entity =
+      TempEntity |> Ash.Changeset.for_create(:create, %{full_name: "name"}) |> Ash.create!()
+
+    Ash.Seed.seed!(RecordTempEntity, %{record_id: record.id, temp_entity_id: temp_entity.id})
 
     full_name =
       Record
