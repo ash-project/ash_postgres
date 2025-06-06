@@ -45,7 +45,7 @@ defmodule AshPostgres.Test.Record do
     calculate(
       :temp_entity_full_name,
       :string,
-      expr(fragment("normalize(string_agg(?, '|'))", temp_entities.full_name))
+      expr(fragment("coalesce(?, '')", temp_entities.full_name))
     )
   end
 
