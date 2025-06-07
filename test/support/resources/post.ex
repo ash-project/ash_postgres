@@ -154,6 +154,12 @@ defmodule AshPostgres.Test.Post do
 
     defaults([:read, :destroy])
 
+    read :with_version_check do
+      argument(:version, :integer)
+
+      filter(expr(type(^arg(:version), :string) in ["1", "2"]))
+    end
+
     read :first_and_last_post do
       prepare(fn query, _ ->
         Ash.Query.combination_of(query, [
