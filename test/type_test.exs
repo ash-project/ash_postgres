@@ -100,4 +100,11 @@ defmodule AshPostgres.Test.TypeTest do
     assert %{x: 2.0, y: 3.0, z: 4.0} = p.db_string_point_id
     assert %{x: 2.0, y: 3.0, z: 4.0} = p.db_string_point.id
   end
+
+  test "casting integer to string works" do
+    Post |> Ash.Changeset.for_create(:create) |> Ash.create!()
+
+    post = Ash.Query.for_read(Post, :with_version_check, version: 1) |> Ash.read!()
+    refute is_nil(post)
+  end
 end
