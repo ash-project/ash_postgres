@@ -5,6 +5,25 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.4](https://github.com/ash-project/ash_postgres/compare/v2.6.3...v2.6.4) (2025-06-09)
+
+
+
+
+### Bug Fixes:
+
+* reenable migrate task
+
+* use `force: true`, not `force?: true` calling mix.generator
+
+* casting integers to string in expressions works as intended (#564)
+
+* use better wrappers around string/ci_string
+
+### Improvements:
+
+* add `c:AshPostgres.Repo.create_schemas_in_migrations?` callback
+
 ## [v2.6.3](https://github.com/ash-project/ash_postgres/compare/v2.6.2...v2.6.3) (2025-06-04)
 
 
