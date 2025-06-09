@@ -1361,14 +1361,20 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp group_into_phases(
          [
-           %Operation.CreateTable{table: table, schema: schema, multitenancy: multitenancy} | rest
+           %Operation.CreateTable{
+             table: table,
+             schema: schema,
+             multitenancy: multitenancy,
+             repo: repo
+           }
+           | rest
          ],
          nil,
          acc
        ) do
     group_into_phases(
       rest,
-      %Phase.Create{table: table, schema: schema, multitenancy: multitenancy},
+      %Phase.Create{table: table, schema: schema, multitenancy: multitenancy, repo: repo},
       acc
     )
   end
@@ -2010,6 +2016,7 @@ defmodule AshPostgres.MigrationGenerator do
       %Operation.CreateTable{
         table: snapshot.table,
         schema: snapshot.schema,
+        repo: snapshot.repo,
         multitenancy: snapshot.multitenancy,
         old_multitenancy: empty_snapshot.multitenancy
       }
