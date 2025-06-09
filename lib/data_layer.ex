@@ -419,6 +419,7 @@ defmodule AshPostgres.DataLayer do
     ]
 
   def migrate(args) do
+    Mix.Task.reenable("ash_postgres.migrate")
     Mix.Task.run("ash_postgres.migrate", args)
   end
 
