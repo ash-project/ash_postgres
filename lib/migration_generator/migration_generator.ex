@@ -3199,25 +3199,7 @@ defmodule AshPostgres.MigrationGenerator do
         end
 
       {type, size, precision, scale} =
-        case type do
-          {:varchar, size} ->
-            {:varchar, size, nil, nil}
-
-          {:binary, size} ->
-            {:binary, size, nil, nil}
-
-          {:decimal, precision, scale} ->
-            {:decimal, nil, precision, scale}
-
-          {:decimal, precision} ->
-            {:decimal, nil, precision, nil}
-
-          {other, size} when is_atom(other) and is_integer(size) ->
-            {other, size, nil, nil}
-
-          other ->
-            {other, nil, nil, nil}
-        end
+        migration_type_to_type(type)
 
       attribute
       |> Map.put(:default, default)
@@ -3245,6 +3227,32 @@ defmodule AshPostgres.MigrationGenerator do
 
       Map.put(attribute, :references, references)
     end)
+  end
+
+  defp migration_type_to_type(type) do
+    case type do
+      {:varchar, size} ->
+        {:varchar, size, nil, nil}
+
+      {:binary, size} ->
+        {:binary, size, nil, nil}
+
+      {:decimal, precision, scale} ->
+        {:decimal, nil, precision, scale}
+
+      {:decimal, precision} ->
+        {:decimal, nil, precision, nil}
+
+      {other, size} when is_atom(other) and is_integer(size) ->
+        {other, size, nil, nil}
+
+      {:array, other} ->
+        {nested, size, precision, scale} = migration_type_to_type(other)
+        {{:array, nested}, size, precision, scale}
+
+      other ->
+        {other, nil, nil, nil}
+    end
   end
 
   defp find_reference(resource, table, attribute) do
@@ -3581,22 +3589,6 @@ defmodule AshPostgres.MigrationGenerator do
     ["array", sanitize_type(type, size, scale, precision)]
   end
 
-  defp sanitize_type(:varchar, size, _scale, _precision) when not is_nil(size) do
-    ["varchar", size]
-  end
-
-  defp sanitize_type(:binary, size, _scale, _precision) when not is_nil(size) do
-    ["binary", size]
-  end
-
-  defp sanitize_type(:decimal, _size, scale, precision) do
-    ["decimal", precision, scale]
-  end
-
-  defp sanitize_type(type, size, precision, decimal) when is_tuple(type) do
-    sanitize_type(elem(type, 0), size, precision, decimal)
-  end
-
   defp sanitize_type(type, _, _, _) do
     type
   end
@@ -3686,27 +3678,6 @@ defmodule AshPostgres.MigrationGenerator do
   defp load_attribute(attribute, table) do
     type = load_type(attribute.type)
 
-    {type, size, scale, precision} =
-      case type do
-        {:varchar, size} ->
-          {:varchar, size, nil, nil}
-
-        {:binary, size} ->
-          {:binary, size, nil, nil}
-
-        {other, size} when is_atom(other) and is_integer(size) ->
-          {other, size, nil, nil}
-
-        {:decimal, precision} ->
-          {:decimal, nil, nil, precision}
-
-        {:decimal, precision, scale} ->
-          {:decimal, nil, precision, scale}
-
-        other ->
-          {other, nil, nil, nil}
-      end
-
     attribute =
       if Map.has_key?(attribute, :name) do
         Map.put(attribute, :source, maybe_to_atom(attribute.name))
@@ -3716,9 +3687,9 @@ defmodule AshPostgres.MigrationGenerator do
 
     attribute
     |> Map.put(:type, type)
-    |> Map.put(:size, size)
-    |> Map.put(:precision, precision)
-    |> Map.put(:scale, scale)
+    |> Map.put_new(:size, nil)
+    |> Map.put_new(:precision, nil)
+    |> Map.put_new(:scale, nil)
     |> Map.put_new(:default, "nil")
     |> Map.update!(:default, &(&1 || "nil"))
     |> Map.update!(:references, fn
@@ -3797,25 +3768,7 @@ defmodule AshPostgres.MigrationGenerator do
     {:array, load_type(type)}
   end
 
-  defp load_type(["varchar", size]) do
-    {:varchar, size}
-  end
-
-  defp load_type(["binary", size]) do
-    {:binary, size}
-  end
-
-  defp load_type(["decimal", precision]) do
-    {:decimal, precision}
-  end
-
-  defp load_type(["decimal", precision, scale]) do
-    {:decimal, precision, scale}
-  end
-
-  defp load_type([string, size]) when is_binary(string) and is_integer(size) do
-    {String.to_existing_atom(string), size}
-  end
+  defp load_type([type | _]), do: String.to_existing_atom(type)
 
   defp load_type(type) do
     maybe_to_atom(type)
