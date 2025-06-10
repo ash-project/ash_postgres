@@ -2511,6 +2511,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
             public?: true
           )
 
+          attribute(:decimal_list, {:array, :decimal},
+            default: [Decimal.new("123.4567890987654321987")],
+            public?: true
+          )
+
           attribute(:name, :string, default: "Fred", public?: true)
           attribute(:tag, :atom, default: :value, public?: true)
           attribute(:enabled, :boolean, default: false, public?: true)

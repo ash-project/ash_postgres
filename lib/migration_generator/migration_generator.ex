@@ -3593,8 +3593,8 @@ defmodule AshPostgres.MigrationGenerator do
     ["decimal", precision, scale]
   end
 
-  defp sanitize_type(type, size, precision, decimal) when is_atom(type) and is_integer(size) do
-    [sanitize_type(type, nil, precision, decimal), size]
+  defp sanitize_type(type, size, precision, decimal) when is_tuple(type) do
+    sanitize_type(elem(type, 0), size, precision, decimal)
   end
 
   defp sanitize_type(type, _, _, _) do
