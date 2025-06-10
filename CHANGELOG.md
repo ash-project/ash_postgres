@@ -5,6 +5,17 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.5](https://github.com/ash-project/ash_postgres/compare/v2.6.4...v2.6.5) (2025-06-10)
+
+
+
+
+### Bug Fixes:
+
+* remove spurios debug logging
+
+* properly detect nested array decimals
+
 ## [v2.6.4](https://github.com/ash-project/ash_postgres/compare/v2.6.3...v2.6.4) (2025-06-09)
 
 
