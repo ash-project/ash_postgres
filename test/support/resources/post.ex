@@ -551,7 +551,6 @@ defmodule AshPostgres.Test.Post do
         ]
       )
 
-      allow_nil?(false)
       default(fn -> {3.0, 3.0, 1.0} end)
     end
 

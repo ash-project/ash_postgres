@@ -21,6 +21,21 @@ defmodule AshPostgres.FilterTest do
     end
   end
 
+  describe "type casting" do
+    test "it does not do unnecessary type casting" do
+      {query, vars} =
+        Post
+        |> Ash.Query.filter(version == ^10)
+        |> Ash.data_layer_query!()
+        |> Map.get(:query)
+        |> then(&AshPostgres.TestRepo.to_sql(:all, &1))
+
+      assert vars == ["sponsored", 10]
+
+      assert String.contains?(query, "(p0.\"version\"::bigint = $2::bigint)")
+    end
+  end
+
   describe "ci_string argument casting" do
     test "it properly casts" do
       Post
