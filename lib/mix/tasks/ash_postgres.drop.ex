@@ -39,7 +39,7 @@ defmodule Mix.Tasks.AshPostgres.Drop do
     * `--force-drop` - force the database to be dropped even
       if it has connections to it (requires PostgreSQL 13+)
     * `--no-compile` - do not compile before dropping
-    * `--no-deps-check` - do not compile before dropping
+    * `--no-deps-check` - do not check dependencies before dropping
   """
 
   @doc false
