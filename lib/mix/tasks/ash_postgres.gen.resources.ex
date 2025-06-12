@@ -2,7 +2,7 @@ if Code.ensure_loaded?(Igniter) do
   defmodule Mix.Tasks.AshPostgres.Gen.Resources do
     use Igniter.Mix.Task
 
-    @example "mix ash_postgres.gen.resource MyApp.MyDomain"
+    @example "mix ash_postgres.gen.resources MyApp.MyDomain"
 
     @shortdoc "Generates resources based on a database schema"
 
