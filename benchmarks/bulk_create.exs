@@ -1,5 +1,7 @@
 alias AshPostgres.Test.{Domain, Post}
 
+AshPostgres.TestRepo.start_link()
+
 ten_rows =
   1..10
   |> Enum.map(fn i ->
