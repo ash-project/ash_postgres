@@ -4,7 +4,7 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
   import AshPostgres.Mix.Helpers,
     only: [migrations_path: 2, tenant_migrations_path: 2, tenants: 2]
 
-  @shortdoc "Runs the repository migrations for all repositories in the provided (or congigured) domains"
+  @shortdoc "Runs the repository migrations for all repositories in the provided (or configured) domains"
 
   @aliases [
     n: :step,
@@ -95,7 +95,7 @@ defmodule Mix.Tasks.AshPostgres.Migrate do
 
     * `--no-compile` - does not compile applications before migrating
 
-    * `--no-deps-check` - does not check depedendencies before migrating
+    * `--no-deps-check` - does not check dependencies before migrating
 
     * `--migrations-path` - the path to load the migrations from, defaults to
       `"priv/repo/migrations"`. This option may be given multiple times in which case the migrations

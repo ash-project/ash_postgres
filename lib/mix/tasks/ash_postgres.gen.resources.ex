@@ -2,7 +2,7 @@ if Code.ensure_loaded?(Igniter) do
   defmodule Mix.Tasks.AshPostgres.Gen.Resources do
     use Igniter.Mix.Task
 
-    @example "mix ash_postgres.gen.resource MyApp.MyDomain"
+    @example "mix ash_postgres.gen.resources MyApp.MyDomain"
 
     @shortdoc "Generates resources based on a database schema"
 
@@ -23,7 +23,7 @@ if Code.ensure_loaded?(Igniter) do
     - `repo`, `r` - The repo or repos to generate resources for, comma separated. Can be specified multiple times. Defaults to all repos.
     - `tables`, `t` - Defaults to `public.*`. The tables to generate resources for, comma separated. Can be specified multiple times. See the section on tables for more.
     - `skip-tables`, `s` - The tables to skip generating resources for, comma separated. Can be specified multiple times. See the section on tables for more. `schema_migrations` is always skipped.
-    - `snapshots-only` - Only generate snapshots for the generated resources, and not migraitons.
+    - `snapshots-only` - Only generate snapshots for the generated resources, and not migrations.
     - `extend`, `e` - Extension or extensions to apply to the generated resources. See `mix ash.patch.extend` for more.
     - `yes`, `y` - Answer yes (or skip) to all questions.
     - `default-actions` - Add default actions for each resource. Defaults to `true`.

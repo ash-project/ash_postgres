@@ -30,7 +30,7 @@ defmodule Mix.Tasks.AshPostgres.Rollback do
       mix ash_postgres.rollback --to 20080906120000
 
   ## Command line options
-    * `--domains` - the domains who's repos should be rolledback
+    * `--domains` - the domains whose repos should be rolled back
     * `--all` - revert all applied migrations
     * `--repo`, `-r` - the repo to rollback
     * `--step` / `-n` - revert n number of applied migrations

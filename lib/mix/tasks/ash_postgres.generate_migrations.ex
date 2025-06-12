@@ -37,7 +37,7 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
 
   Generally speaking, it is bad practice to drop columns when you deploy a change that
   would remove an attribute. The main reasons for this are backwards compatibility and rolling restarts.
-  If you deploy an attribute removal, and run migrations. Regardless of your deployment sstrategy, you
+  If you deploy an attribute removal, and run migrations. Regardless of your deployment strategy, you
   won't be able to roll back, because the data has been deleted. In a rolling restart situation, some of
   the machines/pods/whatever may still be running after the column has been deleted, causing errors. With
   this in mind, its best not to delete those columns until later, after the data has been confirmed unnecessary.

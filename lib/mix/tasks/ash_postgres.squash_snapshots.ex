@@ -28,7 +28,7 @@ defmodule Mix.Tasks.AshPostgres.SquashSnapshots do
       a remaining snapshot. `last` keeps the name of the last snapshot, `first` renames it to the previously first,
       `zero` sets name with fourteen zeros.
   * `--snapshot-path` - a custom path to stored snapshots. The default is "priv/resource_snapshots".
-  * `--quiet` - no messages will not be printed.
+  * `--quiet` - no messages will be printed.
   * `--dry-run` - no files are touched, instead prints folders that have snapshots to squash.
   * `--check` - no files are touched, instead returns an exit(1) code if there are snapshots to squash.
   """
