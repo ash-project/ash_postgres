@@ -5,6 +5,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.7](https://github.com/ash-project/ash_postgres/compare/v2.6.6...v2.6.7) (2025-06-13)
+
+
+
+
+### Bug Fixes:
+
+* double select error (#569) by Barnabas Jovanovics
+
 ## [v2.6.6](https://github.com/ash-project/ash_postgres/compare/v2.6.5...v2.6.6) (2025-06-10)
 
 
