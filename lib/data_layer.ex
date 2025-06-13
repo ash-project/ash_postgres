@@ -3423,7 +3423,7 @@ defmodule AshPostgres.DataLayer do
             )
 
           query_with_select =
-            from(sub in query,
+            from(sub in Ecto.Query.exclude(query, :select),
               join: row in ^query.__ash_bindings__.resource,
               # why doesn't `.root_binding` work the way I expect it to here?
               on: ^dynamic,
