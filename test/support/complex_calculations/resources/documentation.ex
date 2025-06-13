@@ -61,6 +61,7 @@ defmodule AshPostgres.Test.ComplexCalculations.Documentation do
 end
 
 defmodule AshPostgres.Test.TimezoneHelper do
+  @moduledoc false
   def seoul_time do
     # Fixed datetime for testing - equivalent to 2024-05-01 21:00:00 in Seoul (UTC+9)
     ~U[2024-05-01 12:00:00Z] |> DateTime.shift_zone!("Asia/Seoul")
