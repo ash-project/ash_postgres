@@ -10,6 +10,8 @@
 
 Welcome! `AshPostgres` is the PostgreSQL data layer for [Ash Framework](https://hexdocs.pm/ash).
 
+Minimum required PostgreSQL version: `13.0`
+
 ## Tutorials
 
 - [Get Started](documentation/tutorials/get-started-with-ash-postgres.md)
