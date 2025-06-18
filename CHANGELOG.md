@@ -5,6 +5,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.8](https://github.com/ash-project/ash_postgres/compare/v2.6.7...v2.6.8) (2025-06-18)
+
+
+
+
+### Bug Fixes:
+
+* ensure prefix is set even with create_schemas_in_migrations? false by Zach Daniel
+
 ## [v2.6.7](https://github.com/ash-project/ash_postgres/compare/v2.6.6...v2.6.7) (2025-06-13)
 
 
