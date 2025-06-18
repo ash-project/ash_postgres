@@ -56,7 +56,7 @@ defmodule AshPostgres.SqlImplementation do
        [],
        fragment(
          "EXCLUDED.?",
-         literal(
+         identifier(
            ^to_string(
              AshPostgres.DataLayer.get_source_for_upsert_field(
                attribute,

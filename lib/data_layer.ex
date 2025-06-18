@@ -2109,7 +2109,7 @@ defmodule AshPostgres.DataLayer do
     |> Enum.map(fn upsert_field ->
       # for safety, we check once more at the end that all values in
       # upsert_fields are names of attributes. This is because
-      # below we use `literal/1` to bring them into the query
+      # below we use `identifier/1` to bring them into the query
       if is_nil(resource.__schema__(:type, upsert_field)) do
         raise "Only attribute names can be used in upsert_fields"
       end
@@ -2122,7 +2122,7 @@ defmodule AshPostgres.DataLayer do
                [],
                fragment(
                  "COALESCE(EXCLUDED.?, ?)",
-                 literal(^to_string(get_source_for_upsert_field(upsert_field, resource))),
+                 identifier(^to_string(get_source_for_upsert_field(upsert_field, resource))),
                  ^default
                )
              )}
@@ -2136,7 +2136,7 @@ defmodule AshPostgres.DataLayer do
              [],
              fragment(
                "EXCLUDED.?",
-               literal(^to_string(get_source_for_upsert_field(upsert_field, resource)))
+               identifier(^to_string(get_source_for_upsert_field(upsert_field, resource)))
              )
            )}
       end

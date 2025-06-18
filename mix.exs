@@ -169,8 +169,8 @@ defmodule AshPostgres.MixProject do
       {:ash, ash_version("~> 3.5 and >= 3.5.13")},
       {:ash_sql, ash_sql_version("~> 0.2 and >= 0.2.72")},
       {:igniter, "~> 0.6", optional: true},
-      {:ecto_sql, "~> 3.12"},
-      {:ecto, "~> 3.12 and >= 3.12.1"},
+      {:ecto_sql, "~> 3.13"},
+      {:ecto, "~> 3.13"},
       {:jason, "~> 1.0"},
       {:postgrex, ">= 0.0.0"},
       # dev/test dependencies

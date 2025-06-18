@@ -240,7 +240,7 @@ defmodule MyApp.Employee.ManagedEmployees do
     employee_keys = Employee.__schema__(:fields)
 
     cte_name_ref =
-      from(cte in fragment("?", literal(^cte_name)), select: map(cte, ^employee_keys))
+      from(cte in fragment("?", identifier(^cte_name)), select: map(cte, ^employee_keys))
 
     recursion_query =
       query
