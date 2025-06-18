@@ -509,6 +509,7 @@ defmodule AshPostgres.Test.Post do
     attribute(:limited_score, :integer, public?: true, constraints: [min: 0, max: 100])
 
     attribute(:public, :boolean, public?: true)
+    attribute(:is_special, :boolean, public?: true, allow_nil?: false, default: true)
     attribute(:category, CiCategory, public?: true)
     attribute(:type, :atom, default: :sponsored, writable?: false, public?: false)
     attribute(:price, :integer, public?: true)

@@ -34,6 +34,39 @@ defmodule AshPostgres.FilterTest do
 
       assert String.contains?(query, "(p0.\"version\"::bigint = $2::bigint)")
     end
+
+    test "it uses coalesce to optimize the || operator for non-booleans" do
+      {query, _vars} =
+        Post
+        |> Ash.Query.filter((version || 10) == 20)
+        |> Ash.data_layer_query!()
+        |> Map.get(:query)
+        |> then(&AshPostgres.TestRepo.to_sql(:all, &1))
+
+      assert String.contains?(query, "(coalesce(p0.\"version\"::bigint, $2::bigint)")
+    end
+
+    test "it uses OR to optimize the || operator for booleans" do
+      {query, _vars} =
+        Post
+        |> Ash.Query.filter(is_special || true)
+        |> Ash.data_layer_query!()
+        |> Map.get(:query)
+        |> then(&AshPostgres.TestRepo.to_sql(:all, &1))
+
+      assert String.contains?(query, "(p0.\"is_special\"::boolean OR $2::boolean)")
+    end
+
+    test "it uses AND to optimize the && operator for booleans" do
+      {query, _vars} =
+        Post
+        |> Ash.Query.filter(is_special && public)
+        |> Ash.data_layer_query!()
+        |> Map.get(:query)
+        |> then(&AshPostgres.TestRepo.to_sql(:all, &1))
+
+      assert String.contains?(query, "(p0.\"is_special\"::boolean AND p0.\"public\"::boolean)")
+    end
   end
 
   describe "ci_string argument casting" do
