@@ -2682,8 +2682,15 @@ defmodule AshPostgres.DataLayer do
     resource
     |> Ash.Resource.Info.relationships()
     |> Enum.reduce(changeset, fn relationship, changeset ->
+      # Check if there's a custom reference name defined in the DSL
       name =
-        "#{AshPostgres.DataLayer.Info.table(resource)}_#{relationship.source_attribute}_fkey"
+        case AshPostgres.DataLayer.Info.reference(resource, relationship.name) do
+          %{name: custom_name} when not is_nil(custom_name) ->
+            custom_name
+
+          _ ->
+            "#{AshPostgres.DataLayer.Info.table(resource)}_#{relationship.source_attribute}_fkey"
+        end
 
       case repo.default_constraint_match_type(:foreign, name) do
         {:regex, regex} ->
