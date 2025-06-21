@@ -958,7 +958,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
   defp type("numeric"), do: {:ok, :decimal}
   defp type("decimal"), do: {:ok, :decimal}
   defp type("smallint"), do: {:ok, :integer}
-  defp type("smallserial"), do: {:ok, :ineger}
+  defp type("smallserial"), do: {:ok, :integer}
   defp type("serial"), do: {:ok, :integer}
   defp type("text"), do: {:ok, :string}
   defp type("time"), do: {:ok, :time}
