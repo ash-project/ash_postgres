@@ -1034,4 +1034,15 @@ defmodule AshPostgres.CalculationTest do
 
     assert full_name == "name"
   end
+
+  test "calculation with fragment and cond returning integer doesn't cause Postgrex encoding error" do
+    Post
+    |> Ash.Changeset.for_create(:create, %{title: "hello ash lovers"})
+    |> Ash.create!()
+
+    assert [%Post{}] =
+             Post
+             |> Ash.Query.sort("posts_with_matching_title.relevance_score")
+             |> Ash.read!()
+  end
 end

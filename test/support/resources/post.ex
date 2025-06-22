@@ -788,6 +788,24 @@ defmodule AshPostgres.Test.Post do
   end
 
   calculations do
+    calculate :relevance_score,
+              :integer,
+              expr(
+                cond do
+                  fragment(
+                    "ts_rank_cd(to_tsvector(?), ?, 32)::float",
+                    ^ref(:title),
+                    fragment("to_tsquery(?)", ^arg(:query))
+                  ) > 0.6 ->
+                    1
+
+                  true ->
+                    2
+                end
+              ) do
+      argument(:query, :string)
+    end
+
     calculate(:upper_thing, :string, expr(fragment("UPPER(?)", uniq_on_upper)))
 
     calculate(:upper_title, :string, expr(fragment("UPPER(?)", title)))
