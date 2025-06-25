@@ -791,16 +791,14 @@ defmodule AshPostgres.Test.Post do
     calculate :relevance_score,
               :integer,
               expr(
-                cond do
-                  fragment(
-                    "ts_rank_cd(to_tsvector(?), ?, 32)::float",
-                    ^ref(:title),
-                    fragment("to_tsquery(?)", ^arg(:query))
-                  ) > 0.6 ->
-                    1
-
-                  true ->
-                    2
+                if fragment(
+                     "ts_rank_cd(to_tsvector(?), ?, 32)::float",
+                     ^ref(:title),
+                     fragment("to_tsquery(?)", ^arg(:query))
+                   ) > 0.6 do
+                  1
+                else
+                  2
                 end
               ) do
       argument(:query, :string)
