@@ -5,6 +5,17 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.9](https://github.com/ash-project/ash_postgres/compare/v2.6.8...v2.6.9) (2025-06-25)
+
+
+
+
+### Bug Fixes:
+
+* smallserial not mapping to proper type (#574) by Marc Planelles
+
+* Fix foreign key constraint on specially named references (#572) by olivermt
+
 ## [v2.6.8](https://github.com/ash-project/ash_postgres/compare/v2.6.7...v2.6.8) (2025-06-18)
 
 
