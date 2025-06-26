@@ -2244,7 +2244,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         postgres do
           check_constraints do
-            check_constraint(:price, "price_must_be_positive", check: "price > 0")
+            check_constraint(:price, "price_must_be_positive", check: ~S["price" > 0])
           end
         end
       end
@@ -2268,7 +2268,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
                |> File.read!()
 
       assert file =~
-               ~S[create constraint(:posts, :price_must_be_positive, check: "price > 0")]
+               ~S[create constraint(:posts, :price_must_be_positive, check: "\"price\" > 0")]
 
       defposts do
         attributes do
@@ -2307,7 +2307,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
                String.split(down, "drop_if_exists constraint(:posts, :price_must_be_positive)")
 
       assert remaining =~
-               ~S[create constraint(:posts, :price_must_be_positive, check: "price > 0")]
+               ~S[create constraint(:posts, :price_must_be_positive, check: ""price" > 0")]
     end
 
     test "base filters are taken into account, negated" do
