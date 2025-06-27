@@ -1351,7 +1351,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           },
           table: table
         }) do
-      check = String.replace(check, ~S["], ~S[\"])
+      check = String.replace(check, ~r/((?:\\)*)"/, ~S[\1\"])
 
       if base_filter do
         "create constraint(:#{as_atom(table)}, :#{as_atom(name)}, #{join(["check: \"(#{check}) OR NOT (#{base_filter})\")", option(:prefix, schema)])}"
@@ -1388,7 +1388,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           schema: schema,
           table: table
         }) do
-      check = String.replace(check, ~S["], ~S[\"])
+      check = String.replace(check, ~r/((?:\\)*)"/, ~S[\1\"])
 
       if base_filter do
         "create constraint(:#{as_atom(table)}, :#{as_atom(name)}, #{join(["check: \"#{base_filter} AND #{check}\")", option(:prefix, schema)])}"

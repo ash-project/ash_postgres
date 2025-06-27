@@ -2240,11 +2240,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
         attributes do
           uuid_primary_key(:id)
           attribute(:price, :integer, public?: true)
+          attribute(:title, :string, public?: true)
         end
 
         postgres do
           check_constraints do
             check_constraint(:price, "price_must_be_positive", check: ~S["price" > 0])
+
+            check_constraint(:title, "title_must_conform_to_format",
+              check: "title ~= '(\"\\\"\\\\\")'"
+            )
           end
         end
       end
@@ -2269,6 +2274,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert file =~
                ~S[create constraint(:posts, :price_must_be_positive, check: "\"price\" > 0")]
+
+      assert file =~
+               "create constraint(:posts, :title_must_conform_to_format, check: \"title ~= '(\\\"\\\\\"\\\\\\\")'\""
 
       defposts do
         attributes do
