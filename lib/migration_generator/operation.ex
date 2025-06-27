@@ -1388,6 +1388,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           schema: schema,
           table: table
         }) do
+      check = String.replace(check, ~S["], ~S[\"])
+
       if base_filter do
         "create constraint(:#{as_atom(table)}, :#{as_atom(name)}, #{join(["check: \"#{base_filter} AND #{check}\")", option(:prefix, schema)])}"
       else

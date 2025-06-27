@@ -2307,7 +2307,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
                String.split(down, "drop_if_exists constraint(:posts, :price_must_be_positive)")
 
       assert remaining =~
-               ~S[create constraint(:posts, :price_must_be_positive, check: ""price" > 0")]
+               ~S[create constraint(:posts, :price_must_be_positive, check: "\"price\" > 0")]
     end
 
     test "base filters are taken into account, negated" do
