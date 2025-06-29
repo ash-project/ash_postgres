@@ -2240,11 +2240,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
         attributes do
           uuid_primary_key(:id)
           attribute(:price, :integer, public?: true)
+          attribute(:title, :string, public?: true)
         end
 
         postgres do
           check_constraints do
-            check_constraint(:price, "price_must_be_positive", check: "price > 0")
+            check_constraint(:price, "price_must_be_positive", check: ~S["price" > 0])
+
+            check_constraint(:title, "title_must_conform_to_format",
+              check: ~S[title ~= '("\"\\"\\\"\\\\"\\\\\")']
+            )
           end
         end
       end
@@ -2268,7 +2273,18 @@ defmodule AshPostgres.MigrationGeneratorTest do
                |> File.read!()
 
       assert file =~
-               ~S[create constraint(:posts, :price_must_be_positive, check: "price > 0")]
+               ~S'''
+               create constraint(:posts, :price_must_be_positive, check: """
+                 "price" > 0
+               """)
+               '''
+
+      assert file =~
+               ~S'''
+               create constraint(:posts, :title_must_conform_to_format, check: """
+                 title ~= '("\"\\"\\\"\\\\"\\\\\")'
+               """)
+               '''
 
       defposts do
         attributes do
@@ -2307,7 +2323,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
                String.split(down, "drop_if_exists constraint(:posts, :price_must_be_positive)")
 
       assert remaining =~
-               ~S[create constraint(:posts, :price_must_be_positive, check: "price > 0")]
+               ~S'''
+               create constraint(:posts, :price_must_be_positive, check: """
+                 "price" > 0
+               """)
+               '''
     end
 
     test "base filters are taken into account, negated" do
@@ -2349,7 +2369,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
                |> File.read!()
 
       assert file =~
-               ~S[create constraint(:posts, :price_must_be_positive, check: "(price > 0) OR NOT (price > -10)")]
+               ~S'''
+               create constraint(:posts, :price_must_be_positive, check: """
+                 (price > 0) OR NOT (price > -10)
+               """)
+               '''
     end
 
     test "when removed, the constraint is dropped before modification" do
