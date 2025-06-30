@@ -2425,6 +2425,37 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert File.read!(file) =~
                ~S[drop_if_exists constraint(:posts, :price_must_be_positive)]
     end
+
+    test "raise an error if the attribute does not exist or is nil" do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:price, :integer, public?: true)
+        end
+
+        postgres do
+          check_constraints do
+            check_constraint(:whatever, "price_must_be_positive", check: ~S["price" > 0])
+          end
+        end
+      end
+
+      defdomain([Post])
+
+      error =
+        assert_raise RuntimeError, fn ->
+          AshPostgres.MigrationGenerator.generate(Domain,
+            snapshot_path: "test_snapshots_path",
+            migration_path: "test_migration_path",
+            quiet: true,
+            format: false,
+            auto_name: true
+          )
+        end
+
+      assert error.message =~
+               "Cannot create the check constraint 'price_must_be_positive', the attribute 'whatever' does not exist in the resource 'Elixir.Post' or is nil."
+    end
   end
 
   describe "polymorphic resources" do
