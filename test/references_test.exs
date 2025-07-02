@@ -1,5 +1,5 @@
 defmodule AshPostgres.ReferencesTest do
-  use ExUnit.Case
+  use AshPostgres.RepoCase
 
   test "can't use match_type != :full when referencing an non-primary key index" do
     Code.compiler_options(ignore_module_conflict: true)
