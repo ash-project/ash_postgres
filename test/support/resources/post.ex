@@ -92,7 +92,7 @@ defmodule AshPostgres.Test.Post do
       authorize_if(relates_to_actor_via([:organization, :users]))
     end
 
-    policy action(:weird) do
+    policy action(:read_with_policy_with_parent) do
       authorize_if(
         relates_to_actor_via([:posts_with_my_organization_name_as_a_title, :organization, :users])
       )
@@ -366,7 +366,7 @@ defmodule AshPostgres.Test.Post do
       filter(expr(title == "foo"))
     end
 
-    read :weird do
+    read :read_with_policy_with_parent do
     end
 
     read :category_matches do
