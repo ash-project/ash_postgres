@@ -611,7 +611,7 @@ defmodule AshPostgres.Test.Post do
     has_many(:posts_with_my_organization_name_as_a_title, __MODULE__) do
       public?(true)
       no_attributes?(true)
-      filter(expr(fragment("? = ?", organization.name, parent(organization.name))))
+      filter(expr(fragment("? = ?", title, parent(organization.name))))
     end
 
     belongs_to :parent_post, __MODULE__ do
