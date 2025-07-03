@@ -92,6 +92,12 @@ defmodule AshPostgres.Test.Post do
       authorize_if(relates_to_actor_via([:organization, :users]))
     end
 
+    policy action(:read_with_policy_with_parent) do
+      authorize_if(
+        relates_to_actor_via([:posts_with_my_organization_name_as_a_title, :organization, :users])
+      )
+    end
+
     policy action(:allow_any) do
       authorize_if(always())
     end
@@ -360,6 +366,9 @@ defmodule AshPostgres.Test.Post do
       filter(expr(title == "foo"))
     end
 
+    read :read_with_policy_with_parent do
+    end
+
     read :category_matches do
       argument(:category, CiCategory)
       filter(expr(category == ^arg(:category)))
@@ -597,6 +606,12 @@ defmodule AshPostgres.Test.Post do
       source_attribute(:author_id)
       define_attribute?(false)
       filter(expr(^actor(:id) == id))
+    end
+
+    has_many(:posts_with_my_organization_name_as_a_title, __MODULE__) do
+      public?(true)
+      no_attributes?(true)
+      filter(expr(fragment("? = ?", title, parent(organization.name))))
     end
 
     belongs_to :parent_post, __MODULE__ do
