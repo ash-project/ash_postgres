@@ -175,6 +175,8 @@ defmodule AshPostgres.Test.Author do
 
     calculate(:has_posts, :boolean, expr(exists(posts, true == true)))
     calculate(:has_no_posts, :boolean, expr(has_posts == false))
+
+    calculate(:profile_description_calc, :string, expr(profile.description), allow_nil?: true)
   end
 
   aggregates do
