@@ -3445,6 +3445,7 @@ defmodule AshPostgres.DataLayer do
             &Map.merge(&1, %{
               already_selected: fieldset,
               subquery_upgrade?: true,
+              sort: query.__ash_bindings__[:sort],
               context: query.__ash_bindings__.context
             })
           )
