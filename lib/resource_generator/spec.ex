@@ -908,7 +908,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
            - MyApp.Types.CustomType
            - {:array, :string}
 
-        Use `skip` to skip ignore this attribute.
+        Use `skip` to ignore this attribute.
         """)
       end
 
@@ -921,13 +921,12 @@ defmodule AshPostgres.ResourceGenerator.Spec do
           ":" <> type ->
             new_type = String.to_atom(type)
             Process.put({:type_cache, attribute.type}, new_type)
-            {:ok, %{attribute | attr_type: new_type}}
+            {:ok, new_type}
 
           type ->
             try do
-              Code.eval_string(type)
               Process.put({:type_cache, attribute.type}, new_type)
-              {:ok, %{attribute | attr_type: new_type}}
+              {:ok, type}
             rescue
               _e ->
                 get_type(attribute, opts)
