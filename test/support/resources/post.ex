@@ -1006,6 +1006,8 @@ defmodule AshPostgres.Test.Post do
     calculate(:author_first_name_ref_agg_calc, :string, expr(author_first_name))
 
     calculate(:author_profile_description_from_agg, :string, expr(author_profile_description))
+
+    calculate(:latest_comment_title, :string, expr(latest_comment.title), allow_nil?: true)
   end
 
   aggregates do
