@@ -556,6 +556,7 @@ defmodule AshPostgres.MigrationGenerator do
             |> Enum.filter(& &1)
             |> Enum.map(&load_migration!/1)
             |> Enum.sort()
+            |> Enum.reverse()
             |> Enum.filter(fn {version, _} ->
               version in versions
             end)
@@ -589,6 +590,7 @@ defmodule AshPostgres.MigrationGenerator do
           |> Enum.filter(& &1)
           |> Enum.map(&load_migration!/1)
           |> Enum.sort()
+          |> Enum.reverse()
           |> Enum.filter(fn {version, _} ->
             version in versions
           end)
