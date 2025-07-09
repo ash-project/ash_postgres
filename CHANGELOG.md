@@ -5,6 +5,17 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.10](https://github.com/ash-project/ash_postgres/compare/v2.6.9...v2.6.10) (2025-07-09)
+
+
+
+
+### Bug Fixes:
+
+* properly return the type when configured by Zach Daniel
+
+* retain sort when upgrading to a subquery by Zach Daniel
+
 ## [v2.6.9](https://github.com/ash-project/ash_postgres/compare/v2.6.8...v2.6.9) (2025-06-25)
 
 
