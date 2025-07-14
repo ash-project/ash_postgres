@@ -459,10 +459,14 @@ defmodule AshPostgres.DataLayer do
             end)
             |> Enum.take(20)
             |> Enum.map(&String.trim_leading(&1, migrations_path))
+            |> Enum.map(&String.trim_leading(&1, "/"))
+
+          indexed =
+            files
             |> Enum.with_index()
             |> Enum.map(fn {file, index} -> "#{index + 1}: #{file}" end)
 
-          n =
+          to =
             Mix.shell().prompt(
               """
               How many migrations should be rolled back#{for_repo}? (default: 0)
@@ -470,7 +474,7 @@ defmodule AshPostgres.DataLayer do
               Last 20 migration names, with the input you must provide to
               rollback up to *and including* that migration:
 
-              #{Enum.join(files, "\n")}
+              #{Enum.join(indexed, "\n")}
               Rollback to:
               """
               |> String.trim_trailing()
@@ -478,19 +482,32 @@ defmodule AshPostgres.DataLayer do
             |> String.trim()
             |> case do
               "" ->
-                0
+                nil
+
+              "0" ->
+                nil
 
               n ->
                 try do
-                  String.to_integer(n)
+                  files
+                  |> Enum.at(String.to_integer(n) - 1)
                 rescue
                   _ ->
                     reraise "Required an integer value, got: #{n}", __STACKTRACE__
                 end
+                |> String.split("_", parts: 2)
+                |> Enum.at(0)
+                |> String.to_integer()
             end
 
-          Mix.Task.run("ash_postgres.rollback", args ++ ["-r", inspect(repo), "-n", to_string(n)])
-          Mix.Task.reenable("ash_postgres.rollback")
+          if to do
+            Mix.Task.run(
+              "ash_postgres.rollback",
+              args ++ ["-r", inspect(repo), "--to", to_string(to)]
+            )
+
+            Mix.Task.reenable("ash_postgres.rollback")
+          end
 
           tenant_files =
             tenant_migrations_path
@@ -520,10 +537,14 @@ defmodule AshPostgres.DataLayer do
                 end)
                 |> Enum.take(20)
                 |> Enum.map(&String.trim_leading(&1, tenant_migrations_path))
+                |> Enum.map(&String.trim_leading(&1, "/"))
+
+              indexed =
+                tenant_files
                 |> Enum.with_index()
                 |> Enum.map(fn {file, index} -> "#{index + 1}: #{file}" end)
 
-              n =
+              to =
                 Mix.shell().prompt(
                   """
 
@@ -536,7 +557,7 @@ defmodule AshPostgres.DataLayer do
                   Last 20 migration names, with the input you must provide to
                   rollback up to *and including* that migration:
 
-                  #{Enum.join(tenant_files, "\n")}
+                  #{Enum.join(indexed, "\n")}
 
                   Rollback to:
                   """
@@ -545,23 +566,32 @@ defmodule AshPostgres.DataLayer do
                 |> String.trim()
                 |> case do
                   "" ->
-                    0
+                    nil
+
+                  "0" ->
+                    nil
 
                   n ->
                     try do
-                      String.to_integer(n)
+                      tenant_files
+                      |> Enum.at(String.to_integer(n) - 1)
                     rescue
                       _ ->
                         reraise "Required an integer value, got: #{n}", __STACKTRACE__
                     end
+                    |> String.split("_", parts: 2)
+                    |> Enum.at(0)
+                    |> String.to_integer()
                 end
 
-              Mix.Task.run(
-                "ash_postgres.rollback",
-                args ++ ["--tenants", "-r", inspect(repo), "-n", to_string(n)]
-              )
+              if to do
+                Mix.Task.run(
+                  "ash_postgres.rollback",
+                  args ++ ["--tenants", "-r", inspect(repo), "--to", to]
+                )
 
-              Mix.Task.reenable("ash_postgres.rollback")
+                Mix.Task.reenable("ash_postgres.rollback")
+              end
             end
           end
         end)
