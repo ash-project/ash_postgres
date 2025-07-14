@@ -424,7 +424,15 @@ defmodule AshPostgres.DataLayer do
   end
 
   def rollback(args) do
-    repos = AshPostgres.Mix.Helpers.repos!([], args)
+    {opts, _, _} =
+      OptionParser.parse(args,
+        switches: [
+          repo: :string
+        ],
+        aliases: [r: :repo]
+      )
+
+    repos = AshPostgres.Mix.Helpers.repos!(opts, args)
 
     show_for_repo? = Enum.count_until(repos, 2) == 2
 
