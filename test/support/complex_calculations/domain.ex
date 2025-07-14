@@ -9,6 +9,8 @@ defmodule AshPostgres.Test.ComplexCalculations.Domain do
     resource(AshPostgres.Test.ComplexCalculations.Channel)
     resource(AshPostgres.Test.ComplexCalculations.DMChannel)
     resource(AshPostgres.Test.ComplexCalculations.ChannelMember)
+    resource(AshPostgres.Test.Support.ComplexCalculations.Folder)
+    resource(AshPostgres.Test.Support.ComplexCalculations.FolderItem)
   end
 
   authorization do
