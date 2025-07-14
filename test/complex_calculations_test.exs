@@ -375,13 +375,13 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
   end
 
   test "gnarly parent bug with some weird ltree setup" do
-    folder_a =
+    _folder_a =
       Ash.Seed.seed!(
         AshPostgres.Test.Support.ComplexCalculations.Folder,
         %{some_integer_setting: 1, level: "a"}
       )
 
-    folder_b =
+    _folder_b =
       Ash.Seed.seed!(
         AshPostgres.Test.Support.ComplexCalculations.Folder,
         %{some_integer_setting: nil, level: "a.b"}
