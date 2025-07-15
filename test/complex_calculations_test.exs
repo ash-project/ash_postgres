@@ -373,4 +373,34 @@ defmodule AshPostgres.Test.ComplexCalculationsTest do
     assert doc_before.is_active_with_timezone == false
     assert doc_after.is_active_with_timezone == true
   end
+
+  test "gnarly parent bug with some weird ltree setup" do
+    _folder_a =
+      Ash.Seed.seed!(
+        AshPostgres.Test.Support.ComplexCalculations.Folder,
+        %{some_integer_setting: 1, level: "a"}
+      )
+
+    _folder_b =
+      Ash.Seed.seed!(
+        AshPostgres.Test.Support.ComplexCalculations.Folder,
+        %{some_integer_setting: nil, level: "a.b"}
+      )
+
+    folder_c =
+      Ash.Seed.seed!(
+        AshPostgres.Test.Support.ComplexCalculations.Folder,
+        %{some_integer_setting: nil, level: "a.b.c"}
+      )
+
+    folder_c_item =
+      Ash.Seed.seed!(
+        AshPostgres.Test.Support.ComplexCalculations.FolderItem,
+        %{name: "Item in C", level: 1, folder_id: folder_c.id}
+      )
+
+    # reproduction: this raises Unknown Error
+    # * ** (Postgrex.Error) ERROR 42846 (cannot_coerce) cannot cast type bigint to ltree
+    assert Ash.calculate!(folder_c_item, :folder_setting) == 1
+  end
 end
