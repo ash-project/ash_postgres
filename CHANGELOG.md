@@ -5,6 +5,21 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.11](https://github.com/ash-project/ash_postgres/compare/v2.6.10...v2.6.11) (2025-07-17)
+
+
+
+
+### Bug Fixes:
+
+* clean args and properly scope rollback task by Zach Daniel
+
+* Reverse migrations order when reverting dev migrations (#590) by Kenneth Kostrešević
+
+### Improvements:
+
+* make rollbacks safer by using `--to` instead of `-n` by Zach Daniel
+
 ## [v2.6.10](https://github.com/ash-project/ash_postgres/compare/v2.6.9...v2.6.10) (2025-07-09)
 
 
