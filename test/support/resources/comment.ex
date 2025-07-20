@@ -33,6 +33,10 @@ defmodule AshPostgres.Test.Comment do
 
       change(manage_relationship(:rating, :ratings, on_missing: :ignore, on_match: :create))
     end
+
+    read :with_modify_query do
+      modify_query({AshPostgres.Test.Comment.ModifyQuery, :modify, []})
+    end
   end
 
   attributes do
@@ -102,5 +106,16 @@ defmodule AshPostgres.Test.Comment do
       relationship_context: %{data_layer: %{table: "comment_ratings"}},
       filter: expr(parent(post.score) == score)
     )
+  end
+end
+
+defmodule AshPostgres.Test.Comment.ModifyQuery do
+  @moduledoc """
+  Raises when modifying query so we can assert
+  this code path is called.
+  """
+
+  def modify(_ash_query, _ecto_query) do
+    raise "modifying query!"
   end
 end
