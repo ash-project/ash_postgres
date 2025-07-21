@@ -1367,7 +1367,8 @@ defmodule AshPostgres.MigrationGenerator do
              table: table,
              schema: schema,
              multitenancy: multitenancy,
-             repo: repo
+             repo: repo,
+             partitioning: partitioning
            }
            | rest
          ],
@@ -1376,7 +1377,12 @@ defmodule AshPostgres.MigrationGenerator do
        ) do
     group_into_phases(
       rest,
-      %Phase.Create{table: table, schema: schema, multitenancy: multitenancy, repo: repo},
+      %Phase.Create{
+        table: table,
+        schema: schema,
+        multitenancy: multitenancy, repo: repo,
+        partitioning: partitioning
+      },
       acc
     )
   end
@@ -2020,7 +2026,8 @@ defmodule AshPostgres.MigrationGenerator do
         schema: snapshot.schema,
         repo: snapshot.repo,
         multitenancy: snapshot.multitenancy,
-        old_multitenancy: empty_snapshot.multitenancy
+        old_multitenancy: empty_snapshot.multitenancy,
+        partitioning: snapshot.partitioning
       }
       | acc
     ])
@@ -3080,7 +3087,8 @@ defmodule AshPostgres.MigrationGenerator do
       repo: AshPostgres.DataLayer.Info.repo(resource, :mutate),
       multitenancy: multitenancy(resource),
       base_filter: AshPostgres.DataLayer.Info.base_filter_sql(resource),
-      has_create_action: has_create_action?(resource)
+      has_create_action: has_create_action?(resource),
+      partitioning: partitioning(resource)
     }
 
     hash =
@@ -3153,6 +3161,20 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.map(fn custom_statement ->
       Map.take(custom_statement, AshPostgres.Statement.fields())
     end)
+  end
+
+  defp partitioning(resource) do
+    method = AshPostgres.DataLayer.Info.partitioning_method(resource)
+    attribute = AshPostgres.DataLayer.Info.partitioning_attribute(resource)
+
+    if not is_nil(method) and not is_nil(attribute) do
+      %{
+        method: method,
+        attribute: attribute
+      }
+    else
+      nil
+    end
   end
 
   defp multitenancy(resource) do

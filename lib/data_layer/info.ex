@@ -222,4 +222,14 @@ defmodule AshPostgres.DataLayer.Info do
   def manage_tenant_update?(resource) do
     Extension.get_opt(resource, [:postgres, :manage_tenant], :update?, false)
   end
+
+  @doc "Partitioning method"
+  def partitioning_method(resource) do
+    Extension.get_opt(resource, [:postgres, :partitioning], :method, nil)
+  end
+
+  @doc "Partitioning attribute"
+  def partitioning_attribute(resource) do
+    Extension.get_opt(resource, [:postgres, :partitioning], :attribute, nil)
+  end
 end
