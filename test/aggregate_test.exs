@@ -1667,4 +1667,15 @@ defmodule AshSql.AggregateTest do
     Ash.Query.filter_input(AshPostgres.Test.StandupClub, filter)
     |> Ash.read!(load: [:punchline_count])
   end
+
+  @tag :regression
+  test "aggregates with modify_query raise an appropriate error" do
+    assert_raise Ash.Error.Unknown, ~r/does not currently support aggregates/, fn ->
+      Post
+      |> Ash.Query.load([
+        :count_comments_with_modify_query
+      ])
+      |> Ash.read_one!()
+    end
+  end
 end

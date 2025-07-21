@@ -1164,6 +1164,10 @@ defmodule AshPostgres.Test.Post do
     end
 
     first(:author_profile_description, :author, :description)
+
+    count :count_comments_with_modify_query, :comments do
+      read_action(:with_modify_query)
+    end
   end
 end
 
