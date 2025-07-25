@@ -111,6 +111,79 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "empty resources" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+    end
+
+    test "empty resource does not generate migration files" do
+      defresource EmptyPost, "empty_posts" do
+        resource do
+          require_primary_key?(false)
+        end
+
+        actions do
+          defaults([:read, :create])
+        end
+      end
+
+      defdomain([EmptyPost])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: false,
+        format: false,
+        auto_name: true
+      )
+
+      migration_files =
+        Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert migration_files == []
+
+      snapshot_files =
+        Path.wildcard("test_snapshots_path/**/*.json")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert snapshot_files == []
+    end
+
+    test "resource with only primary key generates migration" do
+      defresource PostWithId, "posts_with_id" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defdomain([PostWithId])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: false,
+        format: false,
+        auto_name: true
+      )
+
+      migration_files =
+        Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert length(migration_files) == 1
+
+      snapshot_files =
+        Path.wildcard("test_snapshots_path/**/*.json")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert length(snapshot_files) == 1
+    end
+  end
+
   describe "creating initial snapshots" do
     setup do
       on_exit(fn ->
