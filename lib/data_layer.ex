@@ -3140,6 +3140,14 @@ defmodule AshPostgres.DataLayer do
       )
       |> pkey_filter(changeset.data)
       |> then(fn query ->
+        if changeset.tenant do
+          set_tenant(resource, query, changeset.tenant)
+          |> elem(1)
+        else
+          query
+        end
+      end)
+      |> then(fn query ->
         Map.put(
           query,
           :__ash_bindings__,
