@@ -5,6 +5,19 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.12](https://github.com/ash-project/ash_postgres/compare/v2.6.11...v2.6.12) (2025-07-25)
+
+
+
+
+### Bug Fixes:
+
+* ensure tenant is set on query for updates by Zach Daniel
+
+### Improvements:
+
+* do not create snapshots for resources that have no attributes  #571 (#599) by horberlan
+
 ## [v2.6.11](https://github.com/ash-project/ash_postgres/compare/v2.6.10...v2.6.11) (2025-07-17)
 
 
