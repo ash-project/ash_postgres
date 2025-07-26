@@ -2037,9 +2037,12 @@ defmodule AshPostgres.MigrationGenerator do
         | acc
       ])
     else
-      unless opts.quiet do
-        Logger.info("Skipping migration for empty resource: #{snapshot.table} (no attributes, identities, indexes, statements, or constraints)")
+      if !opts.quiet do
+        Logger.info(
+          "Skipping migration for empty resource: #{snapshot.table} (no attributes, identities, indexes, statements, or constraints)"
+        )
       end
+
       acc
     end
   end
