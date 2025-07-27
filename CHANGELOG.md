@@ -5,6 +5,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.13](https://github.com/ash-project/ash_postgres/compare/v2.6.12...v2.6.13) (2025-07-27)
+
+
+
+
+### Bug Fixes:
+
+* ensure tenant prefix is set only for resources with context multitenancy (#600) by Emad Shaaban
+
 ## [v2.6.12](https://github.com/ash-project/ash_postgres/compare/v2.6.11...v2.6.12) (2025-07-25)
 
 
