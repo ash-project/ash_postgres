@@ -130,7 +130,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def index_keys(keys, all_tenants?, multitenancy) do
       if multitenancy.strategy == :attribute and not all_tenants? do
-        [multitenancy.attribute | keys]
+        Enum.uniq([multitenancy.attribute | keys])
       else
         keys
       end

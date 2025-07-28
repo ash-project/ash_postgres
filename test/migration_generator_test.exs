@@ -2793,6 +2793,68 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "multitenancy identity with tenant attribute" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+    end
+
+    test "identity including tenant attribute does not duplicate columns in index" do
+      defresource Channel, "channels" do
+        postgres do
+          table "channels"
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:project_id)
+        end
+
+        identities do
+          identity(:unique_type_per_project, [:project_id, :type])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:project_id, :uuid, allow_nil?: false, public?: true)
+          attribute(:type, :string, allow_nil?: false, public?: true)
+          attribute(:name, :string, public?: true)
+        end
+      end
+
+      defdomain([Channel])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      file_content = File.read!(file)
+
+      # The index should only have project_id and type, not project_id twice
+      assert file_content =~
+               ~S{create unique_index(:channels, [:project_id, :type], name: "channels_unique_type_per_project_index")}
+
+      # Make sure it doesn't have duplicate columns
+      refute file_content =~
+               ~S{create unique_index(:channels, [:project_id, :project_id, :type]}
+    end
+  end
+
   describe "decimal precision and scale" do
     setup do
       on_exit(fn ->
