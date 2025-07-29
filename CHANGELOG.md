@@ -5,6 +5,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.14](https://github.com/ash-project/ash_postgres/compare/v2.6.13...v2.6.14) (2025-07-29)
+
+
+
+
+### Bug Fixes:
+
+* deduplicate identity keys by Zach Daniel
+
 ## [v2.6.13](https://github.com/ash-project/ash_postgres/compare/v2.6.12...v2.6.13) (2025-07-27)
 
 
