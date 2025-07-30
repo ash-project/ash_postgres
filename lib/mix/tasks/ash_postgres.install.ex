@@ -341,9 +341,8 @@ if Code.ensure_loaded?(Igniter) do
           Ecto.Adapters.SQL.Sandbox
         )
         |> Igniter.Project.Config.configure_new("test.exs", otp_app, [repo, :pool_size], 10)
-        |> Igniter.Project.Config.configure_new("test.exs", :ash, [:disable_async?], true)
-        |> Igniter.Project.Config.configure_new("test.exs", :logger, [:level], :warning)
       end
+      |> Igniter.Project.Config.configure_new("test.exs", :ash, [:disable_async?], true)
     end
 
     defp setup_data_case(igniter) do
