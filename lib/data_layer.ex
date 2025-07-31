@@ -721,6 +721,7 @@ defmodule AshPostgres.DataLayer do
       when type in [:count, :sum, :first, :list, :avg, :max, :min, :exists, :custom],
       do: true
 
+  def can?(_, {:aggregate, :unrelated}), do: true
   def can?(_, :aggregate_filter), do: true
   def can?(_, :aggregate_sort), do: true
   def can?(_, :calculate), do: true
