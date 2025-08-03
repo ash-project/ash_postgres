@@ -825,8 +825,41 @@ defmodule AshPostgres.MigrationGeneratorTest do
                Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
                |> Enum.reject(&String.contains?(&1, "extensions"))
 
-      assert File.read!(file2) =~ ~S[rename table(:posts, prefix: "example"), :title, to: :name]
-      assert File.read!(file2) =~ ~S[modify :title, :text, null: true, default: nil]
+      contents = File.read!(file2)
+
+      [up_side, down_side] = String.split(contents, "def down", parts: 2)
+
+      up_side_parts =
+        String.split(up_side, "\n", trim: true)
+        |> Enum.map(&String.trim/1)
+
+      up_rename_index =
+        Enum.find_index(up_side_parts, fn x ->
+          x == ~S[rename table(:posts, prefix: "example"), :title, to: :name]
+        end)
+
+      up_modify_index =
+        Enum.find_index(up_side_parts, fn x ->
+          x == ~S[modify :name, :text, null: false, default: "fred"]
+        end)
+
+      assert up_rename_index < up_modify_index
+
+      down_side_parts =
+        String.split(down_side, "\n", trim: true)
+        |> Enum.map(&String.trim/1)
+
+      down_modify_index =
+        Enum.find_index(down_side_parts, fn x ->
+          x == ~S[modify :name, :text, null: true, default: nil]
+        end)
+
+      down_rename_index =
+        Enum.find_index(down_side_parts, fn x ->
+          x == ~S[rename table(:posts, prefix: "example"), :name, to: :title]
+        end)
+
+      assert down_modify_index < down_rename_index
     end
   end
 
