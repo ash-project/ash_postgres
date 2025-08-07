@@ -5,6 +5,17 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.15](https://github.com/ash-project/ash_postgres/compare/v2.6.14...v2.6.15) (2025-08-07)
+
+
+
+
+### Bug Fixes:
+
+* Use new attribute source in down migration (#604) by Anatolij Werle
+
+* always set disable_async, and remove log level config by Zach Daniel
+
 ## [v2.6.14](https://github.com/ash-project/ash_postgres/compare/v2.6.13...v2.6.14) (2025-07-29)
 
 
