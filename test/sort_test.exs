@@ -267,4 +267,34 @@ defmodule AshPostgres.SortTest do
                |> Ash.Query.sort({Ash.Sort.expr_sort(views.time, :datetime), :desc}, title: :asc)
              )
   end
+
+  test "has_one relationships can sort by attribute" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "test post"})
+      |> Ash.create!()
+
+    _comment1 =
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "first comment", likes: 5})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+    comment2 =
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "second comment", likes: 15})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+    _comment3 =
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "third comment", likes: 10})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+    most_liked_comment = Ash.load!(post, :most_liked_comment).most_liked_comment
+
+    assert most_liked_comment.id == comment2.id
+    assert most_liked_comment.likes == 15
+  end
 end

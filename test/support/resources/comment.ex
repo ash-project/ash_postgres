@@ -69,6 +69,8 @@ defmodule AshPostgres.Test.Comment do
          "hello"
        end)}
     end)
+
+    calculate(:double_likes, :integer, expr((likes || 0) * 2))
   end
 
   relationships do
