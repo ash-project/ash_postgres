@@ -1045,4 +1045,35 @@ defmodule AshPostgres.CalculationTest do
              |> Ash.Query.sort("posts_with_matching_title.relevance_score")
              |> Ash.read!()
   end
+
+  test "calculation relationships can be used to sort" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "test post"})
+      |> Ash.create!()
+
+    _comment1 =
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "first comment", likes: 5})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+    comment2 =
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "second comment", likes: 8})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+    _comment3 =
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "third comment"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+    most_popular_comment = Ash.load!(post, :most_popular_comment).most_popular_comment
+    most_popular_comment = Ash.load!(most_popular_comment, :double_likes)
+
+    assert most_popular_comment.id == comment2.id
+    assert most_popular_comment.double_likes == 16
+  end
 end
