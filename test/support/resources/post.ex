@@ -673,6 +673,18 @@ defmodule AshPostgres.Test.Post do
       public?(true)
     end
 
+    has_one :most_liked_comment, AshPostgres.Test.Comment do
+      sort(likes: :desc)
+      from_many?(true)
+      public?(true)
+    end
+
+    has_one :most_popular_comment, AshPostgres.Test.Comment do
+      sort(double_likes: :desc)
+      from_many?(true)
+      public?(true)
+    end
+
     has_many :comments_matching_post_title, AshPostgres.Test.Comment do
       public?(true)
       filter(expr(title == parent_expr(title)))
