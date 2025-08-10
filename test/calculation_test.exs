@@ -1,7 +1,19 @@
 defmodule AshPostgres.CalculationTest do
   alias AshPostgres.Test.RecordTempEntity
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Account, Author, Comedian, Comment, Post, Record, TempEntity, User}
+
+  alias AshPostgres.Test.{
+    Account,
+    Author,
+    Comedian,
+    Comment,
+    Post,
+    PostTag,
+    Record,
+    Tag,
+    TempEntity,
+    User
+  }
 
   require Ash.Query
   import Ash.Expr
@@ -1044,5 +1056,24 @@ defmodule AshPostgres.CalculationTest do
              Post
              |> Ash.Query.sort("posts_with_matching_title.relevance_score")
              |> Ash.read!()
+  end
+
+  test "sorting with filtered relationship by calculated field" do
+    tag = Ash.Changeset.for_create(Tag, :create) |> Ash.create!()
+    scores = [0, 3, 111, 22, 9, 4, 2, 33, 10]
+
+    scores
+    |> Enum.each(fn score ->
+      post =
+        Ash.Changeset.for_create(Post, :create, %{score: score})
+        |> Ash.create!()
+
+      Ash.Changeset.for_create(PostTag, :create, post_id: post.id, tag_id: tag.id)
+      |> Ash.create!()
+    end)
+
+    post_with_highest_score = Ash.load!(tag, :post_with_highest_score).post_with_highest_score
+    highest_score = hd(Enum.sort(scores, :desc))
+    assert post_with_highest_score.score == highest_score
   end
 end

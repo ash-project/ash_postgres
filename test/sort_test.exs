@@ -1,7 +1,7 @@
 defmodule AshPostgres.SortTest do
   @moduledoc false
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Comment, Post, PostLink, PostView}
+  alias AshPostgres.Test.{Comment, Post, PostLink, PostTag, PostView, Tag}
 
   require Ash.Query
   require Ash.Sort
@@ -266,5 +266,27 @@ defmodule AshPostgres.SortTest do
                # and nothing currently prevents you from doing it, so we keep the test for now.
                |> Ash.Query.sort({Ash.Sort.expr_sort(views.time, :datetime), :desc}, title: :asc)
              )
+  end
+
+  test "sorting with filtered relationship" do
+    tag = Ash.Changeset.for_create(Tag, :create) |> Ash.create!()
+    dates = [~D[2025-01-03], ~D[2025-01-05], ~D[2025-01-01], ~D[2025-01-10], ~D[2025-01-02]]
+
+    dates
+    |> Enum.each(fn date ->
+      {:ok, datetime} = DateTime.new(date, ~T[00:00:00])
+
+      post =
+        Ash.Changeset.for_create(Post, :create, %{created_at: datetime})
+        |> Ash.create!()
+
+      Ash.Changeset.for_create(PostTag, :create, post_id: post.id, tag_id: tag.id)
+      |> Ash.create!()
+    end)
+
+    latest_post = Ash.load!(tag, :latest_post).latest_post
+    expected_date = hd(Enum.sort(dates, :desc))
+
+    assert DateTime.to_date(latest_post.created_at) == expected_date
   end
 end
