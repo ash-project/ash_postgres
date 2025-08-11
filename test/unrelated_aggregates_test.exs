@@ -5,268 +5,7 @@ defmodule AshPostgres.Test.UnrelatedAggregatesTest do
   require Ash.Query
   import Ash.Expr
 
-  defmodule Profile do
-    @moduledoc false
-    use Ash.Resource,
-      domain: AshPostgres.Test.Domain,
-      data_layer: AshPostgres.DataLayer,
-      authorizers: [Ash.Policy.Authorizer]
-
-    postgres do
-      table("unrelated_profiles")
-      repo(AshPostgres.TestRepo)
-    end
-
-    attributes do
-      uuid_primary_key(:id)
-      attribute(:name, :string, public?: true)
-      attribute(:age, :integer, public?: true)
-      attribute(:bio, :string, public?: true)
-      attribute(:active, :boolean, default: true, public?: true)
-      attribute(:owner_id, :uuid, public?: true)
-    end
-
-    actions do
-      defaults([:read, :destroy, create: :*, update: :*])
-    end
-
-    policies do
-      # Allow unrestricted access for most tests, but we'll create a SecureProfile for auth tests
-      policy action_type([:create, :update, :destroy]) do
-        authorize_if(always())
-      end
-
-      policy action_type(:read) do
-        authorize_if(always())
-      end
-    end
-  end
-
-  defmodule SecureProfile do
-    @moduledoc false
-    use Ash.Resource,
-      domain: AshPostgres.Test.Domain,
-      data_layer: AshPostgres.DataLayer,
-      authorizers: [Ash.Policy.Authorizer]
-
-    postgres do
-      table("unrelated_secure_profiles")
-      repo(AshPostgres.TestRepo)
-    end
-
-    attributes do
-      uuid_primary_key(:id)
-      attribute(:name, :string, public?: true)
-      attribute(:age, :integer, public?: true)
-      attribute(:active, :boolean, default: true, public?: true)
-      attribute(:owner_id, :uuid, public?: true)
-      attribute(:department, :string, public?: true)
-    end
-
-    actions do
-      defaults([:read, :destroy, create: :*, update: :*])
-    end
-
-    policies do
-      # Allow creation/updates for testing setup
-      policy action_type([:create, :update, :destroy]) do
-        authorize_if(always())
-      end
-
-      # Only allow users to see their own profiles, or admins to see all
-      policy action_type(:read) do
-        authorize_if(actor_attribute_equals(:role, :admin))
-        authorize_if(expr(owner_id == ^actor(:id)))
-      end
-    end
-  end
-
-  defmodule Report do
-    @moduledoc false
-    use Ash.Resource,
-      domain: AshPostgres.Test.Domain,
-      data_layer: AshPostgres.DataLayer
-
-    postgres do
-      table("unrelated_reports")
-      repo(AshPostgres.TestRepo)
-    end
-
-    attributes do
-      uuid_primary_key(:id)
-      attribute(:title, :string, public?: true)
-      attribute(:author_name, :string, public?: true)
-      attribute(:score, :integer, public?: true)
-
-      attribute(:inserted_at, :utc_datetime,
-        public?: true,
-        default: &DateTime.utc_now/0,
-        allow_nil?: false
-      )
-    end
-
-    actions do
-      defaults([:read, :destroy, update: :*])
-
-      create :create do
-        primary?(true)
-        accept([:title, :author_name, :score, :inserted_at])
-      end
-    end
-  end
-
-  defmodule User do
-    @moduledoc false
-    use Ash.Resource,
-      domain: AshPostgres.Test.Domain,
-      data_layer: AshPostgres.DataLayer
-
-    postgres do
-      table("unrelated_users")
-      repo(AshPostgres.TestRepo)
-    end
-
-    attributes do
-      uuid_primary_key(:id)
-      attribute(:name, :string, public?: true)
-      attribute(:age, :integer, public?: true)
-      attribute(:email, :string, public?: true)
-      attribute(:role, :atom, public?: true, default: :user)
-    end
-
-    # Test basic unrelated aggregates
-    aggregates do
-      # Count of profiles with matching name
-      count :matching_name_profiles_count, Profile do
-        filter(expr(name == parent(name)))
-        public?(true)
-      end
-
-      # Count of all active profiles (no parent filter)
-      count :total_active_profiles, Profile do
-        filter(expr(active == true))
-        public?(true)
-      end
-
-      # First report with matching author name
-      first :latest_authored_report, Report, :title do
-        filter(expr(author_name == parent(name)))
-        sort(inserted_at: :desc)
-        public?(true)
-      end
-
-      # Sum of report scores for matching author
-      sum :total_report_score, Report, :score do
-        filter(expr(author_name == parent(name)))
-        public?(true)
-      end
-
-      # Exists check for profiles with same name
-      exists :has_matching_name_profile, Profile do
-        filter(expr(name == parent(name)))
-        public?(true)
-      end
-
-      # List of all profile names with same name (should be just one usually)
-      list :matching_profile_names, Profile, :name do
-        filter(expr(name == parent(name)))
-        public?(true)
-      end
-
-      # Max age of profiles with same name
-      max :max_age_same_name, Profile, :age do
-        filter(expr(name == parent(name)))
-        public?(true)
-      end
-
-      # Min age of profiles with same name
-      min :min_age_same_name, Profile, :age do
-        filter(expr(name == parent(name)))
-        public?(true)
-      end
-
-      # Average age of profiles with same name
-      avg :avg_age_same_name, Profile, :age do
-        filter(expr(name == parent(name)))
-        public?(true)
-      end
-
-      # Secure aggregate - should respect authorization policies
-      count :secure_profile_count, SecureProfile do
-        filter(expr(name == parent(name)))
-        public?(true)
-      end
-    end
-
-    # Test unrelated aggregates in calculations
-    calculations do
-      calculate :matching_profiles_summary,
-                :string,
-                expr("Found " <> type(matching_name_profiles_count, :string) <> " profiles") do
-        public?(true)
-      end
-
-      calculate :inline_profile_count,
-                :integer,
-                expr(count(Profile, filter: expr(name == parent(name)))) do
-        public?(true)
-      end
-
-      calculate :inline_latest_report_title,
-                :string,
-                expr(
-                  first(Report,
-                    field: :title,
-                    query: [
-                      filter: expr(author_name == parent(name)),
-                      sort: [inserted_at: :desc]
-                    ]
-                  )
-                ) do
-        public?(true)
-      end
-
-      calculate :inline_total_score,
-                :integer,
-                expr(
-                  sum(Report,
-                    field: :score,
-                    query: [
-                      filter: expr(author_name == parent(name))
-                    ]
-                  )
-                ) do
-        public?(true)
-      end
-
-      calculate :complex_calculation,
-                :map,
-                expr(%{
-                  profile_count: count(Profile, filter: expr(name == parent(name))),
-                  latest_report:
-                    first(Report,
-                      field: :title,
-                      query: [
-                        filter: expr(author_name == parent(name)),
-                        sort: [inserted_at: :desc]
-                      ]
-                    ),
-                  total_score:
-                    sum(Report,
-                      field: :score,
-                      query: [
-                        filter: expr(author_name == parent(name))
-                      ]
-                    )
-                }) do
-        public?(true)
-      end
-    end
-
-    actions do
-      defaults([:read, :destroy, create: :*, update: :*])
-    end
-  end
+  alias AshPostgres.Test.UnrelatedAggregatesTest.{Profile, Report, SecureProfile, User}
 
   describe "basic unrelated aggregate definitions" do
     test "aggregates are properly defined with related?: false" do
@@ -509,7 +248,7 @@ defmodule AshPostgres.Test.UnrelatedAggregatesTest do
   describe "data layer capability checking" do
     test "Postgres data layer should support unrelated aggregates" do
       # This will fail until we implement the capability
-      assert AshPostgres.DataLayer.can?(:aggregate, :unrelated) == true
+      assert AshPostgres.DataLayer.can?(nil, {:aggregate, :unrelated}) == true
     end
 
     test "error when data layer doesn't support unrelated aggregates" do
@@ -588,86 +327,64 @@ defmodule AshPostgres.Test.UnrelatedAggregatesTest do
     end
 
     test "unrelated aggregates respect target resource authorization policies" do
-      # Create users with different roles
-      {:ok, admin_user} =
-        Ash.create(User, %{name: "Admin", email: "admin@test.com", role: :admin})
+      admin_user = Ash.create!(User, %{name: "Admin", email: "admin@test.com", role: :admin})
+      regular_user1 = Ash.create!(User, %{name: "User1", email: "user1@test.com", role: :user})
+      regular_user2 = Ash.create!(User, %{name: "User1", email: "user2@test.com", role: :user})
 
-      {:ok, regular_user1} =
-        Ash.create(User, %{name: "User1", email: "user1@test.com", role: :user})
+      Ash.create!(SecureProfile, %{
+        name: "User1",
+        age: 25,
+        active: true,
+        owner_id: regular_user1.id,
+        department: "Engineering"
+      })
 
-      # Same name as user1
-      {:ok, regular_user2} =
-        Ash.create(User, %{name: "User1", email: "user2@test.com", role: :user})
+      Ash.create!(SecureProfile, %{
+        name: "User1",
+        age: 30,
+        active: true,
+        owner_id: regular_user2.id,
+        department: "Marketing"
+      })
 
-      # Create secure profiles with different owners
-      {:ok, _profile1} =
-        Ash.create(SecureProfile, %{
-          name: "User1",
-          age: 25,
-          active: true,
-          owner_id: regular_user1.id,
-          department: "Engineering"
-        })
+      Ash.create!(SecureProfile, %{
+        name: "Admin",
+        age: 35,
+        active: true,
+        owner_id: admin_user.id,
+        department: "Management"
+      })
 
-      {:ok, _profile2} =
-        Ash.create(SecureProfile, %{
-          name: "User1",
-          age: 30,
-          active: true,
-          owner_id: regular_user2.id,
-          department: "Marketing"
-        })
-
-      {:ok, _profile3} =
-        Ash.create(SecureProfile, %{
-          name: "Admin",
-          age: 35,
-          active: true,
-          owner_id: admin_user.id,
-          department: "Management"
-        })
-
-      # Regular user1 should only see their own profile in the aggregate
       user1_result =
         User
         |> Ash.Query.filter(id == ^regular_user1.id)
         |> Ash.Query.load(:secure_profile_count)
         |> Ash.read_one!(actor: regular_user1, authorize?: true)
 
-      # Verify that user1 only sees their own profile in the aggregate
-      # This is the critical security test - aggregates must respect authorization
-      # Only sees their own profile
       assert user1_result.secure_profile_count == 1
 
-      # Regular user2 should only see their own profile in the aggregate
       user2_result =
         User
         |> Ash.Query.filter(id == ^regular_user2.id)
         |> Ash.Query.load(:secure_profile_count)
         |> Ash.read_one!(actor: regular_user2, authorize?: true)
 
-      # Only sees their own profile
       assert user2_result.secure_profile_count == 1
 
-      # Admin should see all profiles with matching name (both User1 profiles)
       admin_as_user1 =
         User
-        # Get User1's data but as admin
         |> Ash.Query.filter(id == ^regular_user1.id)
         |> Ash.Query.load(:secure_profile_count)
         |> Ash.read_one!(actor: admin_user, authorize?: true)
 
-      # Admin sees both User1 profiles
       assert admin_as_user1.secure_profile_count == 2
 
-      # Admin should see their own profile when looking at themselves
       admin_result =
         User
         |> Ash.Query.filter(id == ^admin_user.id)
         |> Ash.Query.load(:secure_profile_count)
         |> Ash.read_one!(actor: admin_user, authorize?: true)
 
-      # Admin sees their own profile
       assert admin_result.secure_profile_count == 1
     end
   end
