@@ -777,6 +777,12 @@ defmodule AshPostgres.Test.Post do
       sort: [Ash.Sort.expr_sort(parent(post_followers.order), :integer)]
     )
 
+    many_to_many :tags, AshPostgres.Test.Tag do
+      public?(true)
+      through(AshPostgres.Test.PostTag)
+      sort(importance: :desc)
+    end
+
     has_many(:views, AshPostgres.Test.PostView) do
       public?(true)
     end

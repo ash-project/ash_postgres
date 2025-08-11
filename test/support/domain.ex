@@ -42,6 +42,8 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.CSV)
     resource(AshPostgres.Test.StandupClub)
     resource(AshPostgres.Test.Punchline)
+    resource(AshPostgres.Test.Tag)
+    resource(AshPostgres.Test.PostTag)
   end
 
   authorization do
