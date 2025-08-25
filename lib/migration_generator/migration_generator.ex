@@ -460,8 +460,8 @@ defmodule AshPostgres.MigrationGenerator do
 
               You have migrations remaining that were generated with the --dev flag.
 
-              Run `mix ash.codegen <name>` to remove the dev migraitons and replace them
-              with production ready migrations.
+              Run `mix ash.codegen <name>` to remove the dev migrations and replace them
+              with production-ready migrations.
               """)
 
               exit({:shutdown, 1})
