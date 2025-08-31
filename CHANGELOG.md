@@ -5,6 +5,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.17](https://github.com/ash-project/ash_postgres/compare/v2.6.16...v2.6.17) (2025-08-31)
+
+
+
+
+### Bug Fixes:
+
+* resolve a typo in pending dev migration error message (#608) by Sheharyar Naseer
+
 ## [v2.6.16](https://github.com/ash-project/ash_postgres/compare/v2.6.15...v2.6.16) (2025-08-21)
 
 
