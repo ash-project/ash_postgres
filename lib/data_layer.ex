@@ -722,6 +722,7 @@ defmodule AshPostgres.DataLayer do
       do: true
 
   def can?(_, {:aggregate, :unrelated}), do: true
+  def can?(_, {:exists, :unrelated}), do: true
   def can?(_, :aggregate_filter), do: true
   def can?(_, :aggregate_sort), do: true
   def can?(_, :calculate), do: true

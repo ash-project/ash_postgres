@@ -503,5 +503,22 @@ defmodule AshPostgres.Test.UnrelatedAggregatesTest do
 
       assert loaded_user.aggregates.bio_mentions_name == 2
     end
+
+    test "unrelated exists expressions work with parent() reference" do
+      {:ok, user1} = Ash.create(User, %{name: "ExistsTest", email: "exists@example.com"})
+      {:ok, user2} = Ash.create(User, %{name: "NoMatch", email: "nomatch@example.com"})
+
+      {:ok, _profile} = Ash.create(Profile, %{name: "ExistsTest", age: 25, active: true})
+
+      # Check if any profile exists with the same name using unrelated exists
+      users_with_matching_profiles =
+        User
+        |> Ash.Query.filter(exists(Profile, name == parent(name)))
+        |> Ash.read!()
+
+      user_ids = Enum.map(users_with_matching_profiles, & &1.id)
+      assert user1.id in user_ids
+      refute user2.id in user_ids
+    end
   end
 end
