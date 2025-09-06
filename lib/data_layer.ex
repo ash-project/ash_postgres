@@ -1185,7 +1185,7 @@ defmodule AshPostgres.DataLayer do
         if query.__ash_bindings__[:__order__?] do
           {:ok,
            from(source in data_layer_query,
-             inner_lateral_join: destination in ^subquery,
+             inner_lateral_join: destination in subquery(get_subquery(subquery)),
              on: true,
              order_by: destination.__order__,
              select: merge(destination, %{__lateral_join_source__: map(source, ^source_pkey)}),
@@ -1194,7 +1194,7 @@ defmodule AshPostgres.DataLayer do
         else
           {:ok,
            from(source in data_layer_query,
-             inner_lateral_join: destination in ^subquery,
+             inner_lateral_join: destination in subquery(get_subquery(subquery)),
              on: true,
              select: merge(destination, %{__lateral_join_source__: map(source, ^source_pkey)}),
              distinct: true
@@ -1286,7 +1286,7 @@ defmodule AshPostgres.DataLayer do
               {:ok,
                from(source in data_layer_query,
                  where: field(source, ^source_attribute) in ^source_values,
-                 inner_lateral_join: destination in ^subquery,
+                 inner_lateral_join: destination in subquery(get_subquery(subquery)),
                  on: true,
                  select: destination,
                  select_merge: %{__lateral_join_source__: map(source, ^source_pkey)},
@@ -1321,7 +1321,7 @@ defmodule AshPostgres.DataLayer do
               {:ok,
                from(source in data_layer_query,
                  where: field(source, ^source_attribute) in ^source_values,
-                 inner_lateral_join: destination in ^subquery,
+                 inner_lateral_join: destination in subquery(get_subquery(subquery)),
                  on: true,
                  select: destination,
                  select_merge: %{__lateral_join_source__: map(source, ^source_pkey)},
@@ -1433,6 +1433,9 @@ defmodule AshPostgres.DataLayer do
 
     Ash.Query.do_filter(query, expr)
   end
+
+  defp get_subquery(%Ecto.Query{} = query), do: query
+  defp get_subquery(%Ecto.SubQuery{query: query}), do: query
 
   @doc false
   def set_subquery_prefix(data_layer_query, source_query, resource) do

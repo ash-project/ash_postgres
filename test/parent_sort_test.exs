@@ -11,10 +11,9 @@ defmodule AshPostgres.Test.ParentSortTest do
       |> Ash.Changeset.for_create(:create, %{name: "test_org"})
       |> Ash.create!()
 
-    user =
-      User
-      |> Ash.Changeset.for_create(:create, %{organization_id: organization.id, name: "foo bar"})
-      |> Ash.create!()
+    User
+    |> Ash.Changeset.for_create(:create, %{organization_id: organization.id, name: "foo bar"})
+    |> Ash.create!()
 
     Post
     |> Ash.Changeset.for_create(:create, %{organization_id: organization.id})
@@ -24,9 +23,9 @@ defmodule AshPostgres.Test.ParentSortTest do
     |> Ash.Changeset.for_create(:create, %{organization_id: organization.id, title: "test_org"})
     |> Ash.create!()
 
-    assert {:ok, _} =
-             Post
-             |> Ash.Query.load(:recommendations)
-             |> Ash.read(authorize?: false)
+    # just asserting it doesn't errror
+    Post
+    |> Ash.Query.load(:recommendations)
+    |> Ash.read!(authorize?: false)
   end
 end

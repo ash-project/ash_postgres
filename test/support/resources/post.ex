@@ -617,7 +617,7 @@ defmodule AshPostgres.Test.Post do
     has_many(:recommendations, __MODULE__) do
       public?(true)
       no_attributes?(true)
-      sort([calc(fragment("abs(extract epoch from ?))", parent(datetime) - datetime))])
+      sort([calc(parent(datetime) > now())])
     end
 
     belongs_to :parent_post, __MODULE__ do
