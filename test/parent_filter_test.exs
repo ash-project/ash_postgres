@@ -1,7 +1,7 @@
 defmodule AshPostgres.Test.ParentFilterTest do
   use AshPostgres.RepoCase, async: false
 
-  alias AshPostgres.Test.{Organization, Post, User}
+  alias AshPostgres.Test.{Organization, Post, User, Comment}
 
   require Ash.Query
 
@@ -41,6 +41,33 @@ defmodule AshPostgres.Test.ParentFilterTest do
              Post
              |> Ash.Query.filter(
                organization.posts.posts_with_my_organization_name_as_a_title.title == "tuna"
+             )
+             |> Ash.read(authorize?: false)
+  end
+
+  test "something else" do
+    organization =
+      Organization
+      |> Ash.Changeset.for_create(:create, %{name: "test_org"})
+      |> Ash.create!()
+
+    post_in_my_org =
+      Post
+      |> Ash.Changeset.for_create(:create, %{organization_id: organization.id, title: "test_org"})
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "test_org"})
+    |> Ash.Changeset.manage_relationship(:post, post_in_my_org, type: :append_and_remove)
+    |> Ash.create!()
+
+    assert {:ok, _} =
+             Post
+             |> Ash.Query.for_read(:read)
+             |> Ash.Query.filter(
+               organizations_with_posts_that_have_the_post_title_somewhere_in_their_comments.name in [
+                 ^organization.name
+               ]
              )
              |> Ash.read(authorize?: false)
   end
