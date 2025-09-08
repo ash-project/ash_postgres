@@ -1,10 +1,11 @@
 defmodule AshPostgres.SortTest do
   @moduledoc false
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Comment, Post, PostLink, PostTag, PostView, Tag}
+  alias AshPostgres.Test.{Chat, Comment, Message, Post, PostLink, PostTag, PostView, Tag}
 
   require Ash.Query
   require Ash.Sort
+  import Ash.Expr
 
   test "multi-column sorts work" do
     Post
@@ -288,5 +289,56 @@ defmodule AshPostgres.SortTest do
     expected_date = hd(Enum.sort(dates, :desc))
 
     assert DateTime.to_date(latest_post.created_at) == expected_date
+  end
+
+  describe "sorting by multiple has_one relationships" do
+    test "sorting by single calculated field through has_one relationship works" do
+      chat = Ash.create!(Chat, %{name: "Test Chat"})
+
+      # Create some messages
+      Ash.create!(Message, %{chat_id: chat.id, content: "First", sent_at: ~U[2025-01-01 10:00:00Z]})
+      Ash.create!(Message, %{chat_id: chat.id, content: "Second", sent_at: ~U[2025-01-02 10:00:00Z], read_at: ~U[2025-01-02 11:00:00Z]})
+      Ash.create!(Message, %{chat_id: chat.id, content: "Third", sent_at: ~U[2025-01-03 10:00:00Z]})
+
+      # This should work - sorting by single has_one relationship calculation
+      result =
+        Chat
+        |> Ash.Query.sort([{Ash.Sort.expr_sort(expr(last_unread_message.sent_at)), :desc}])
+        |> Ash.read!()
+
+      assert [%Chat{}] = result
+    end
+
+    test "sorting by different single calculated field through has_one relationship works" do
+      chat = Ash.create!(Chat, %{name: "Test Chat"})
+
+      # Create some messages
+      Ash.create!(Message, %{chat_id: chat.id, content: "First", sent_at: ~U[2025-01-01 10:00:00Z]})
+      Ash.create!(Message, %{chat_id: chat.id, content: "Second", sent_at: ~U[2025-01-02 10:00:00Z], read_at: ~U[2025-01-02 11:00:00Z]})
+
+      # This should work - sorting by different single has_one relationship calculation
+      result =
+        Chat
+        |> Ash.Query.sort([{Ash.Sort.expr_sort(expr(last_message.read_at)), :desc}])
+        |> Ash.read!()
+
+      assert [%Chat{}] = result
+    end
+
+    test "sorting by multiple calculated fields through different has_one relationships fails" do
+      chat = Ash.create!(Chat, %{name: "Test Chat"})
+
+      # Create some messages
+      Ash.create!(Message, %{chat_id: chat.id, content: "First", sent_at: ~U[2025-01-01 10:00:00Z]})
+      Ash.create!(Message, %{chat_id: chat.id, content: "Second", sent_at: ~U[2025-01-02 10:00:00Z], read_at: ~U[2025-01-02 11:00:00Z]})
+      Ash.create!(Message, %{chat_id: chat.id, content: "Third", sent_at: ~U[2025-01-03 10:00:00Z]})
+
+      Chat
+      |> Ash.Query.sort([
+        {Ash.Sort.expr_sort(expr(last_unread_message.sent_at)), :desc},
+        {Ash.Sort.expr_sort(expr(last_message.read_at)), :desc}
+      ])
+      |> Ash.read!()
+    end
   end
 end

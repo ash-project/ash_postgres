@@ -1,7 +1,7 @@
 defmodule AshPostgres.DistinctTest do
   @moduledoc false
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.Post
+  alias AshPostgres.Test.{Customer, Post, Product, Order}
 
   require Ash.Query
 
@@ -176,5 +176,31 @@ defmodule AshPostgres.DistinctTest do
       |> Ash.read!()
 
     assert [_, _] = results
+  end
+
+  test "distinct breaks with prepare build(sort: [:id]) - original issue reproduction" do
+
+    customer =
+      Customer
+      |> Ash.Changeset.for_create(:create, %{name: "Test Customer"})
+      |> Ash.create!()
+
+    product =
+      Product
+      |> Ash.Changeset.for_create(:create, %{name: "Test Product"})
+      |> Ash.create!()
+
+    Order
+    |> Ash.Changeset.for_create(:create, %{customer_id: customer.id, product_id: product.id})
+    |> Ash.create!()
+
+    Order
+    |> Ash.Changeset.for_create(:create, %{customer_id: customer.id, product_id: product.id})
+    |> Ash.create!()
+
+    customer_with_products = Ash.load!(customer, :purchased_products)
+    purchased_products = customer_with_products.purchased_products
+
+    assert length(purchased_products) == 1, "Expected 1 unique product, got #{length(purchased_products)} products. This indicates the distinct + sort preparation bug."
   end
 end
