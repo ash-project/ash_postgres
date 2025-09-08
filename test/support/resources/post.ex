@@ -614,6 +614,14 @@ defmodule AshPostgres.Test.Post do
       filter(expr(fragment("? = ?", title, parent(organization.name))))
     end
 
+    has_many(
+      :organizations_with_posts_that_have_the_post_title_somewhere_in_their_comments,
+      AshPostgres.Test.Organization
+    ) do
+      no_attributes?(true)
+      filter(expr(fragment("POSITION(? IN ?) > 0", posts.title, parent(concated_comment_titles))))
+    end
+
     has_many(:recommendations, __MODULE__) do
       public?(true)
       no_attributes?(true)
@@ -1020,6 +1028,8 @@ defmodule AshPostgres.Test.Post do
     calculate(:author_profile_description_from_agg, :string, expr(author_profile_description))
 
     calculate(:latest_comment_title, :string, expr(latest_comment.title), allow_nil?: true)
+
+    calculate(:concated_comment_titles, :string, expr(fragment("concat(?)", comment_titles)))
   end
 
   aggregates do
