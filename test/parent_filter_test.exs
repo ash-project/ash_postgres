@@ -45,7 +45,7 @@ defmodule AshPostgres.Test.ParentFilterTest do
              |> Ash.read(authorize?: false)
   end
 
-  test "something else" do
+  test "aggregates from related filters are properly added to the query" do
     organization =
       Organization
       |> Ash.Changeset.for_create(:create, %{name: "test_org"})
