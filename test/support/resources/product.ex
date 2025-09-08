@@ -17,7 +17,7 @@ defmodule AshPostgres.Test.Product do
   # This preparation reproduces the bug described in:
   # https://github.com/ash-project/ash_sql/issues/172#issuecomment-3264660128
   preparations do
-    prepare build(sort: [:id])
+    prepare(build(sort: [:id]))
   end
 
   attributes do

@@ -1,7 +1,7 @@
 defmodule AshPostgres.Test.ParentFilterTest do
   use AshPostgres.RepoCase, async: false
 
-  alias AshPostgres.Test.{Organization, Post, User, Comment}
+  alias AshPostgres.Test.{Comment, Organization, Post, User}
 
   require Ash.Query
 

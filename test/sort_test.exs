@@ -296,9 +296,24 @@ defmodule AshPostgres.SortTest do
       chat = Ash.create!(Chat, %{name: "Test Chat"})
 
       # Create some messages
-      Ash.create!(Message, %{chat_id: chat.id, content: "First", sent_at: ~U[2025-01-01 10:00:00Z]})
-      Ash.create!(Message, %{chat_id: chat.id, content: "Second", sent_at: ~U[2025-01-02 10:00:00Z], read_at: ~U[2025-01-02 11:00:00Z]})
-      Ash.create!(Message, %{chat_id: chat.id, content: "Third", sent_at: ~U[2025-01-03 10:00:00Z]})
+      Ash.create!(Message, %{
+        chat_id: chat.id,
+        content: "First",
+        sent_at: ~U[2025-01-01 10:00:00Z]
+      })
+
+      Ash.create!(Message, %{
+        chat_id: chat.id,
+        content: "Second",
+        sent_at: ~U[2025-01-02 10:00:00Z],
+        read_at: ~U[2025-01-02 11:00:00Z]
+      })
+
+      Ash.create!(Message, %{
+        chat_id: chat.id,
+        content: "Third",
+        sent_at: ~U[2025-01-03 10:00:00Z]
+      })
 
       # This should work - sorting by single has_one relationship calculation
       result =
@@ -313,8 +328,18 @@ defmodule AshPostgres.SortTest do
       chat = Ash.create!(Chat, %{name: "Test Chat"})
 
       # Create some messages
-      Ash.create!(Message, %{chat_id: chat.id, content: "First", sent_at: ~U[2025-01-01 10:00:00Z]})
-      Ash.create!(Message, %{chat_id: chat.id, content: "Second", sent_at: ~U[2025-01-02 10:00:00Z], read_at: ~U[2025-01-02 11:00:00Z]})
+      Ash.create!(Message, %{
+        chat_id: chat.id,
+        content: "First",
+        sent_at: ~U[2025-01-01 10:00:00Z]
+      })
+
+      Ash.create!(Message, %{
+        chat_id: chat.id,
+        content: "Second",
+        sent_at: ~U[2025-01-02 10:00:00Z],
+        read_at: ~U[2025-01-02 11:00:00Z]
+      })
 
       # This should work - sorting by different single has_one relationship calculation
       result =
@@ -329,9 +354,24 @@ defmodule AshPostgres.SortTest do
       chat = Ash.create!(Chat, %{name: "Test Chat"})
 
       # Create some messages
-      Ash.create!(Message, %{chat_id: chat.id, content: "First", sent_at: ~U[2025-01-01 10:00:00Z]})
-      Ash.create!(Message, %{chat_id: chat.id, content: "Second", sent_at: ~U[2025-01-02 10:00:00Z], read_at: ~U[2025-01-02 11:00:00Z]})
-      Ash.create!(Message, %{chat_id: chat.id, content: "Third", sent_at: ~U[2025-01-03 10:00:00Z]})
+      Ash.create!(Message, %{
+        chat_id: chat.id,
+        content: "First",
+        sent_at: ~U[2025-01-01 10:00:00Z]
+      })
+
+      Ash.create!(Message, %{
+        chat_id: chat.id,
+        content: "Second",
+        sent_at: ~U[2025-01-02 10:00:00Z],
+        read_at: ~U[2025-01-02 11:00:00Z]
+      })
+
+      Ash.create!(Message, %{
+        chat_id: chat.id,
+        content: "Third",
+        sent_at: ~U[2025-01-03 10:00:00Z]
+      })
 
       Chat
       |> Ash.Query.sort([
