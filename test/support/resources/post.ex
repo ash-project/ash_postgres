@@ -488,6 +488,20 @@ defmodule AshPostgres.Test.Post do
       pagination(keyset?: true, default_limit: 25)
       filter(expr(count_nils(latest_comment.linked_comment_post_ids) == 0))
     end
+
+    read :read_by_comment_author do
+      argument(:author_id, :uuid, allow_nil?: false)
+
+      filter(expr(comments.author_id == ^arg(:author_id)))
+
+      prepare(
+        build(
+          load: [
+            datetime_of_first_comment_by_author: %{author_id: arg(:author_id)}
+          ]
+        )
+      )
+    end
   end
 
   identities do
@@ -1030,6 +1044,20 @@ defmodule AshPostgres.Test.Post do
     calculate(:latest_comment_title, :string, expr(latest_comment.title), allow_nil?: true)
 
     calculate(:concated_comment_titles, :string, expr(fragment("concat(?)", comment_titles)))
+
+    calculate :datetime_of_first_comment_by_author,
+              :utc_datetime_usec,
+              expr(
+                first(comments,
+                  field: :created_at,
+                  query: [
+                    filter: author_id == ^arg(:author_id)
+                  ]
+                )
+              ) do
+      public?(true)
+      argument(:author_id, :uuid, allow_nil?: false)
+    end
   end
 
   aggregates do
