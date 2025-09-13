@@ -42,4 +42,50 @@ defmodule AshPostgres.StorageTypesTest do
 
     assert author.bios == [%{"a" => 1}]
   end
+
+  test "`in` operator works on get_path results" do
+    %{id: id} =
+      Author
+      |> Ash.Changeset.for_create(
+        :create,
+        %{
+          first_name: "Test",
+          last_name: "User",
+          settings: %{
+            "dues_reminders" => ["email", "sms"],
+            "newsletter" => ["email"],
+            "optional_field" => nil
+          }
+        }
+      )
+      |> Ash.create!()
+
+    assert [%Author{id: ^id}] =
+             Author
+             |> Ash.Query.filter("email" in settings["dues_reminders"])
+             |> Ash.read!()
+  end
+
+  test "`is_nil` operator works on get_path results" do
+    %{id: id} =
+      Author
+      |> Ash.Changeset.for_create(
+        :create,
+        %{
+          first_name: "Test",
+          last_name: "User",
+          settings: %{
+            "dues_reminders" => ["email", "sms"],
+            "newsletter" => ["email"],
+            "optional_field" => nil
+          }
+        }
+      )
+      |> Ash.create!()
+
+    assert [%Author{id: ^id}] =
+             Author
+             |> Ash.Query.filter(is_nil(settings["optional_field"]))
+             |> Ash.read!()
+  end
 end
