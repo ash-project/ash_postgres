@@ -30,7 +30,6 @@ if Code.ensure_loaded?(Igniter) do
     - `public` - Mark all attributes and relationships as `public? true`. Defaults to `true`.
     - `no-migrations` - Do not generate snapshots & migrations for the resources. Defaults to `false`.
     - `skip-unknown` - Skip any attributes with types that we don't have a corresponding Elixir type for, and relationships that we can't assume the name of.
-    - `public` - Mark all attributes and relationships as `public? true`. Defaults to `true`.
 
     ## Tables
 
