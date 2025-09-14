@@ -66,6 +66,7 @@ defmodule AshPostgres.StorageTypesTest do
              |> Ash.read!()
   end
 
+  @tag capture_log: false
   test "`is_nil` operator works on get_path results" do
     %{id: id} =
       Author
@@ -85,7 +86,7 @@ defmodule AshPostgres.StorageTypesTest do
 
     assert [%Author{id: ^id}] =
              Author
-             |> Ash.Query.filter(is_nil(settings["optional_field"]))
+             |> Ash.Query.filter(is_nil(settings["dues_reminders"]))
              |> Ash.read!()
   end
 end

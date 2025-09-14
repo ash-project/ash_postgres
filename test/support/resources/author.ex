@@ -30,7 +30,7 @@ defmodule AshPostgres.Test.Author do
     attribute(:bio, AshPostgres.Test.Bio, public?: true)
     attribute(:bios, {:array, :map}, public?: true)
     attribute(:badges, {:array, :atom}, public?: true)
-    attribute(:settings, :map, public?: true)
+    attribute(:settings, AshPostgres.Test.Settings, public?: true)
   end
 
   actions do
