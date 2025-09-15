@@ -781,7 +781,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
         end
 
       Owl.IO.input(label: label, optional: true)
-      |> String.trim()
+      |> Kernel.||("")
       # common typo
       |> String.trim_leading(":")
       |> case do
