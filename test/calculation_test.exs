@@ -1076,4 +1076,45 @@ defmodule AshPostgres.CalculationTest do
     highest_score = hd(Enum.sort(scores, :desc))
     assert post_with_highest_score.score == highest_score
   end
+
+  test "an expression calculation can use an aggregate" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "my post"})
+      |> Ash.create!()
+
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{
+        first_name: "ashley"
+      })
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "first comment"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    first_comment_by_author =
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "first comment by Ashley"})
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+    post =
+      Post
+      |> Ash.Query.for_read(:read_by_comment_author, %{
+        author_id: author.id
+      })
+      |> Ash.Query.sort_input([
+        {"datetime_of_first_comment_by_author", {%{author_id: author.id}, :desc}}
+      ])
+      |> Ash.read_one!()
+
+    assert DateTime.compare(
+             post.datetime_of_first_comment_by_author,
+             first_comment_by_author.created_at
+           )
+  end
 end
