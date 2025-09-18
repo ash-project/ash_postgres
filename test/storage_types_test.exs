@@ -86,7 +86,7 @@ defmodule AshPostgres.StorageTypesTest do
 
     assert [%Author{id: ^id}] =
              Author
-             |> Ash.Query.filter(is_nil(settings["dues_reminders"]))
+             |> Ash.Query.filter(not is_nil(settings["dues_reminders"]))
              |> Ash.read!()
   end
 end
