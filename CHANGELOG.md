@@ -5,6 +5,19 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.18](https://github.com/ash-project/ash_postgres/compare/v2.6.17...v2.6.18) (2025-09-19)
+
+
+
+
+### Bug Fixes:
+
+* Handle optional/empty input in relationship name guesser (#616) by Trond A Ekseth
+
+* properly handle sorts w/ parent refs on lateral joins by Zach Daniel
+
+* annotate unrelated exists expressions as supported by Zach Daniel
+
 ## [v2.6.17](https://github.com/ash-project/ash_postgres/compare/v2.6.16...v2.6.17) (2025-08-31)
 
 
