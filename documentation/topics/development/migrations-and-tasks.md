@@ -19,9 +19,9 @@ dev migrations and run them.
 
 For more information on generating migrations, run `mix help ash_postgres.generate_migrations` (the underlying task that is called by `mix ash.migrate`)
 
-> ### list_tenants/0 {: .info}
+> ### all_tenants/0 {: .info}
 >
-> If you have are using schema-based multitenancy, you will also need to define a `list_tenants/0` function in your repo module. See `AshPostgres.Repo` for more.
+> If you have are using schema-based multitenancy, you will also need to define a `all_tenants/0` function in your repo module. See `AshPostgres.Repo` for more.
 
 ### Regenerating Migrations
 
