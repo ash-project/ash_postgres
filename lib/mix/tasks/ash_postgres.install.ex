@@ -39,6 +39,8 @@ if Code.ensure_loaded?(Igniter) do
       igniter =
         if Igniter.Project.Deps.has_dep?(igniter, :ash) do
           igniter
+        else
+          igniter
           |> Igniter.Project.Deps.add_dep({:ash, "~> 3.0"}, yes: opts[:yes])
           |> then(fn
             %{assigns: %{test_mode?: true}} = igniter ->
@@ -52,8 +54,6 @@ if Code.ensure_loaded?(Igniter) do
               )
           end)
           |> Igniter.compose_task("ash.install", argv)
-        else
-          igniter
         end
 
       igniter
