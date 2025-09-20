@@ -5,6 +5,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.19](https://github.com/ash-project/ash_postgres/compare/v2.6.18...v2.6.19) (2025-09-20)
+
+
+
+
+### Bug Fixes:
+
+* fix conditional on installing ash in installer by Zach Daniel
+
 ## [v2.6.18](https://github.com/ash-project/ash_postgres/compare/v2.6.17...v2.6.18) (2025-09-19)
 
 
