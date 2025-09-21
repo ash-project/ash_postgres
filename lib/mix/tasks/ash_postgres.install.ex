@@ -22,7 +22,6 @@ if Code.ensure_loaded?(Igniter) do
 
     @impl true
     def igniter(igniter) do
-      argv = igniter.args.argv
       opts = igniter.args.options
 
       repo =
@@ -35,26 +34,6 @@ if Code.ensure_loaded?(Igniter) do
         end
 
       otp_app = Igniter.Project.Application.app_name(igniter)
-
-      igniter =
-        if Igniter.Project.Deps.has_dep?(igniter, :ash) do
-          igniter
-        else
-          igniter
-          |> Igniter.Project.Deps.add_dep({:ash, "~> 3.0"}, yes: opts[:yes])
-          |> then(fn
-            %{assigns: %{test_mode?: true}} = igniter ->
-              igniter
-
-            igniter ->
-              Igniter.apply_and_fetch_dependencies(igniter,
-                error_on_abort?: true,
-                yes: opts[:yes],
-                yes_to_deps: true
-              )
-          end)
-          |> Igniter.compose_task("ash.install", argv)
-        end
 
       igniter
       |> Igniter.Project.Formatter.import_dep(:ash_postgres)
