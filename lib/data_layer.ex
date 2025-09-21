@@ -3561,7 +3561,7 @@ defmodule AshPostgres.DataLayer do
           repo
 
         _ ->
-          AshPostgres.DataLayer.Info.repo(resource, :read)
+          AshPostgres.DataLayer.Info.repo(resource, :mutate)
       end
 
     func = fn ->
