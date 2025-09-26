@@ -3489,7 +3489,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   @uuid_functions [&Ash.UUID.generate/0, &Ecto.UUID.generate/0]
 
-  defp default(%{name: name, default: default}, resource, _repo) when is_function(default) do
+  defp default(%{name: name, default: default, type: type}, resource, _repo) when is_function(default) do
     configured_default(resource, name) ||
       cond do
         default in @uuid_functions ->
@@ -3497,6 +3497,9 @@ defmodule AshPostgres.MigrationGenerator do
 
         default == (&Ash.UUIDv7.generate/0) ->
           ~S[fragment("uuid_generate_v7()")]
+
+        default == (&DateTime.utc_now/0) && type == AshPostgres.Timestamptz ->
+          ~S[fragment("now()")]
 
         default == (&DateTime.utc_now/0) ->
           ~S[fragment("(now() AT TIME ZONE 'utc')")]
