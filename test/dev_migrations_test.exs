@@ -145,10 +145,10 @@ defmodule AshPostgres.DevMigrationsTest do
         auto_name: true
       )
 
-      assert [_extensions, migration, _migration] =
+      assert [_extensions1, _migration1, extensions2, _new_migration] =
                Path.wildcard("priv/dev_test_repo/migrations/**/*_migrate_resources*.exs")
 
-      assert capture_log(fn -> migrate(migration) end) =~ "create table posts"
+      assert capture_log(fn -> migrate(extensions2) end) =~ "create table posts"
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "priv/resource_snapshots",
@@ -156,7 +156,7 @@ defmodule AshPostgres.DevMigrationsTest do
         auto_name: true
       )
 
-      assert capture_log(fn -> migrate(migration) end) =~ "create table posts"
+      assert capture_log(fn -> migrate(extensions2) end) =~ "create table posts"
     end
   end
 

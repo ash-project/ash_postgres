@@ -1,5 +1,5 @@
 defmodule AshPostgres.MigrationGenerator.AshFunctions do
-  @latest_version 5
+  @latest_version 6
 
   def latest_version, do: @latest_version
 
@@ -72,6 +72,8 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
 
     #{ash_raise_error()}
 
+    #{ash_raise_error_immutable()}
+
     #{uuid_generate_v7()}
     """
   end
@@ -95,6 +97,8 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     \"\"\")
 
     #{ash_raise_error()}
+
+    #{ash_raise_error_immutable()}
 
     #{uuid_generate_v7()}
 
@@ -130,6 +134,8 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     """
     #{ash_raise_error()}
 
+    #{ash_raise_error_immutable()}
+
     #{uuid_generate_v7()}
     """
   end
@@ -137,6 +143,8 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
   def install(2) do
     """
     #{ash_raise_error()}
+
+    #{ash_raise_error_immutable()}
 
     #{uuid_generate_v7()}
     """
@@ -146,6 +154,7 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     """
     execute("ALTER FUNCTION ash_raise_error(jsonb) STABLE;")
     execute("ALTER FUNCTION ash_raise_error(jsonb, ANYCOMPATIBLE) STABLE")
+    #{ash_raise_error_immutable()}
     #{uuid_generate_v7()}
     """
   end
@@ -154,7 +163,14 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     """
     execute("ALTER FUNCTION ash_raise_error(jsonb) STABLE;")
     execute("ALTER FUNCTION ash_raise_error(jsonb, ANYCOMPATIBLE) STABLE")
+    #{ash_raise_error_immutable()}
     #{uuid_generate_v7()}
+    """
+  end
+
+  def install(5) do
+    """
+    #{ash_raise_error_immutable()}
     """
   end
 
@@ -162,31 +178,36 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     """
     execute("ALTER FUNCTION ash_raise_error(jsonb) VOLATILE;")
     execute("ALTER FUNCTION ash_raise_error(jsonb, ANYCOMPATIBLE) VOLATILE")
+    execute("DROP FUNCTION IF EXISTS ash_raise_error_immutable(jsonb, ANYCOMPATIBLE), ash_raise_error_immutable(jsonb, ANYELEMENT, ANYCOMPATIBLE)")
     """
   end
 
+  def drop(5) do
+    "execute(\"DROP FUNCTION IF EXISTS ash_raise_error_immutable(jsonb, ANYCOMPATIBLE), ash_raise_error_immutable(jsonb, ANYELEMENT, ANYCOMPATIBLE)\")"
+  end
+
   def drop(3) do
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid)\")"
+    "execute(\"DROP FUNCTION IF EXISTS ash_raise_error_immutable(jsonb, ANYCOMPATIBLE), ash_raise_error_immutable(jsonb, ANYELEMENT, ANYCOMPATIBLE), uuid_generate_v7(), timestamp_from_uuid_v7(uuid)\")"
   end
 
   def drop(2) do
     """
     #{ash_raise_error()}
 
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid)\")"
+    "execute(\"DROP FUNCTION IF EXISTS ash_raise_error_immutable(jsonb, ANYCOMPATIBLE), ash_raise_error_immutable(jsonb, ANYELEMENT, ANYCOMPATIBLE), uuid_generate_v7(), timestamp_from_uuid_v7(uuid)\")"
     """
   end
 
   def drop(1) do
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE)\")"
+    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_raise_error_immutable(jsonb, ANYCOMPATIBLE), ash_raise_error_immutable(jsonb, ANYELEMENT, ANYCOMPATIBLE)\")"
   end
 
   def drop(0) do
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_trim_whitespace(text[])\")"
+    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_raise_error_immutable(jsonb, ANYCOMPATIBLE), ash_raise_error_immutable(jsonb, ANYELEMENT, ANYCOMPATIBLE), ash_trim_whitespace(text[])\")"
   end
 
   def drop(nil) do
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_elixir_and(BOOLEAN, ANYCOMPATIBLE), ash_elixir_and(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(BOOLEAN, ANYCOMPATIBLE), ash_trim_whitespace(text[])\")"
+    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_raise_error_immutable(jsonb, ANYCOMPATIBLE), ash_raise_error_immutable(jsonb, ANYELEMENT, ANYCOMPATIBLE), ash_elixir_and(BOOLEAN, ANYCOMPATIBLE), ash_elixir_and(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(BOOLEAN, ANYCOMPATIBLE), ash_trim_whitespace(text[])\")"
   end
 
   defp ash_raise_error do
@@ -218,6 +239,42 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     END;
     $$ LANGUAGE plpgsql
     STABLE
+    SET search_path = '';
+    \"\"\")
+    """
+  end
+
+  defp ash_raise_error_immutable do
+    prefix = "ash_error: "
+
+    """
+    execute(\"\"\"
+    CREATE OR REPLACE FUNCTION ash_raise_error_immutable(json_data jsonb, token ANYCOMPATIBLE)
+    RETURNS BOOLEAN AS $$
+    BEGIN
+        -- Raise an error with the provided JSON data.
+        -- The JSON object is converted to text for inclusion in the error message.
+        -- 'token' is intentionally ignored; its presence makes the call non-constant at the call site.
+        RAISE EXCEPTION '#{prefix}%', json_data::text;
+        RETURN NULL;
+    END;
+    $$ LANGUAGE plpgsql
+    IMMUTABLE
+    SET search_path = '';
+    \"\"\")
+
+    execute(\"\"\"
+    CREATE OR REPLACE FUNCTION ash_raise_error_immutable(json_data jsonb, type_signal ANYELEMENT, token ANYCOMPATIBLE)
+    RETURNS ANYELEMENT AS $$
+    BEGIN
+        -- Raise an error with the provided JSON data.
+        -- The JSON object is converted to text for inclusion in the error message.
+        -- 'token' is intentionally ignored; its presence makes the call non-constant at the call site.
+        RAISE EXCEPTION '#{prefix}%', json_data::text;
+        RETURN NULL;
+    END;
+    $$ LANGUAGE plpgsql
+    IMMUTABLE
     SET search_path = '';
     \"\"\")
     """
