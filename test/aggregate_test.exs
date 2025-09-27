@@ -1,5 +1,6 @@
 defmodule AshSql.AggregateTest do
   use AshPostgres.RepoCase, async: false
+  import ExUnit.CaptureIO
   alias AshPostgres.Test.{Author, Comment, Organization, Post, Rating, User}
 
   require Ash.Query
@@ -970,37 +971,41 @@ defmodule AshSql.AggregateTest do
   end
 
   test "can't define multidimensional array aggregate types" do
-    assert_raise Spark.Error.DslError, ~r/Aggregate not supported/, fn ->
-      defmodule Foo do
-        @moduledoc false
-        use Ash.Resource,
-          domain: nil,
-          data_layer: AshPostgres.DataLayer
+    # This used to raise an error, but now should only emit a warning and allow the module to compile
+    {_, io} =
+      with_io(:stderr, fn ->
+        defmodule Foo do
+          @moduledoc false
+          use Ash.Resource,
+            domain: nil,
+            data_layer: AshPostgres.DataLayer
 
-        postgres do
-          table("profile")
-          repo(AshPostgres.TestRepo)
-        end
+          postgres do
+            table("profile")
+            repo(AshPostgres.TestRepo)
+          end
 
-        attributes do
-          uuid_primary_key(:id, writable?: true)
-        end
+          attributes do
+            uuid_primary_key(:id, writable?: true)
+          end
 
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
+          actions do
+            defaults([:create, :read, :update, :destroy])
+          end
 
-        relationships do
-          belongs_to(:author, AshPostgres.Test.Author) do
-            public?(true)
+          relationships do
+            belongs_to(:author, AshPostgres.Test.Author) do
+              public?(true)
+            end
+          end
+
+          aggregates do
+            first(:author_badges, :author, :badges)
           end
         end
+      end)
 
-        aggregates do
-          first(:author_badges, :author, :badges)
-        end
-      end
-    end
+    assert io =~ "Aggregate not supported"
   end
 
   test "related aggregates can be filtered on" do
