@@ -9,6 +9,7 @@ defmodule AshPostgres.Reference do
     :match_type,
     :deferrable,
     :index?,
+    :__spark_metadata__,
     ignore?: false
   ]
 
