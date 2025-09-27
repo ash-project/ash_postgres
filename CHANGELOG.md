@@ -5,6 +5,21 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.20](https://github.com/ash-project/ash_postgres/compare/v2.6.19...v2.6.20) (2025-09-27)
+
+
+
+
+### Bug Fixes:
+
+* use `:mutate` repo for on_transaction_begin callback by Zach Daniel
+
+### Improvements:
+
+* location in spark errors and migration generator fixes by Zach Daniel
+
+* use default constraint of 'now()' for AshPostgres.Timestamptz (#621) by siassaj
+
 ## [v2.6.19](https://github.com/ash-project/ash_postgres/compare/v2.6.18...v2.6.19) (2025-09-20)
 
 
