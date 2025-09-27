@@ -3580,6 +3580,7 @@ defmodule AshPostgres.MigrationGenerator do
           end)
 
         %{index | fields: fields}
+        |> Map.delete(:__spark_metadata__)
       end)
     end)
     |> Map.update!(:identities, fn identities ->
@@ -3591,6 +3592,7 @@ defmodule AshPostgres.MigrationGenerator do
           end)
 
         %{identity | keys: keys}
+        |> Map.delete(:__spark_metadata__)
       end)
     end)
     |> to_ordered_object()
@@ -3610,6 +3612,7 @@ defmodule AshPostgres.MigrationGenerator do
     |> Map.update!(:type, fn type ->
       sanitize_type(type, attribute[:size], attribute[:precision], attribute[:scale])
     end)
+    |> Map.delete(:__spark_metadata__)
   end
 
   defp references_on_delete_to_binary(value) when is_atom(value), do: value
