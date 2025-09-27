@@ -23,7 +23,8 @@ defmodule AshPostgres.Verifiers.PreventAttributeMultitenancyAndNonFullMatchType 
 
             The reference #{inspect(resource)}.#{reference.relationship} can't have `match_type: :#{reference.match_type}` because it's referencing another multitenant resource with attribute strategy using a non-primary key index, which requires using `match_type: :full`.
             """,
-            path: [:postgres, :references, reference.relationship]
+            path: [:postgres, :references, reference.relationship],
+            location: Spark.Dsl.Transformer.get_section_anno(dsl, [:postgres, :references])
         else
           :ok
         end

@@ -5,11 +5,10 @@ defmodule AshPostgres.Statement do
     :name,
     :up,
     :down,
-    :code?,
-    :__spark_metadata__
+    :code?
   ]
 
-  defstruct @fields
+  defstruct @fields ++ [:__spark_metadata__]
 
   def fields, do: @fields
 

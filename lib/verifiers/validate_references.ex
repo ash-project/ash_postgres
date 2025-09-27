@@ -12,7 +12,8 @@ defmodule AshPostgres.Verifiers.ValidateReferences do
           path: [:postgres, :references, reference.relationship],
           module: Verifier.get_persisted(dsl, :module),
           message:
-            "Found reference configuration for relationship `#{reference.relationship}`, but no such relationship exists"
+            "Found reference configuration for relationship `#{reference.relationship}`, but no such relationship exists",
+          location: Spark.Dsl.Transformer.get_section_anno(dsl, [:postgres, :references])
       end
     end)
 

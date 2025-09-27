@@ -3044,6 +3044,7 @@ defmodule AshPostgres.MigrationGenerator do
               identity_index_names[identity.name] ||
                 "#{relationship.context[:data_layer][:table]}_#{identity.name}_index"
             )
+            |> Map.delete(:__spark_metadata__)
           end)
         end)
         |> Map.update!(:attributes, fn attributes ->
@@ -3057,7 +3058,9 @@ defmodule AshPostgres.MigrationGenerator do
               source_attribute =
                 Ash.Resource.Info.attribute(relationship.source, relationship.source_attribute)
 
-              Map.put(attribute, :references, %{
+              attribute
+              |> Map.delete(:__spark_metadata__)
+              |> Map.put(:references, %{
                 destination_attribute: source_attribute.source,
                 destination_attribute_default:
                   default(
@@ -3489,7 +3492,8 @@ defmodule AshPostgres.MigrationGenerator do
 
   @uuid_functions [&Ash.UUID.generate/0, &Ecto.UUID.generate/0]
 
-  defp default(%{name: name, default: default, type: type}, resource, _repo) when is_function(default) do
+  defp default(%{name: name, default: default, type: type}, resource, _repo)
+       when is_function(default) do
     configured_default(resource, name) ||
       cond do
         default in @uuid_functions ->

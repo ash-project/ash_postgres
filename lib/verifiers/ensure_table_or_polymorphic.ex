@@ -24,7 +24,8 @@ defmodule AshPostgres.Verifiers.EnsureTableOrPolymorphic do
         end
         ```
         """,
-        path: [:postgres, :table]
+        path: [:postgres, :table],
+        location: Spark.Dsl.Transformer.get_section_anno(dsl, [:postgres])
     end
   end
 end

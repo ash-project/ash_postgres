@@ -14,7 +14,8 @@ defmodule AshPostgres.Verifiers.ValidateIdentityIndexNames do
           module: Verifier.get_persisted(dsl, :module),
           message: """
           Identity #{identity} has a name that is too long. Names must be 63 characters or less.
-          """
+          """,
+          location: Spark.Dsl.Transformer.get_opt_anno(dsl, [:postgres, :identity_index_names], identity)
       end
     end)
 
@@ -36,7 +37,8 @@ defmodule AshPostgres.Verifiers.ValidateIdentityIndexNames do
             Multiple identities would result in the same index name: #{name}
 
             Identities: #{inspect(Enum.map(identities, & &1.name))}
-            """
+            """,
+            location: Spark.Dsl.Transformer.get_section_anno(dsl, [:postgres, :identity_index_names])
 
         {name, [identity]} ->
           if String.length(name) > 63 do
@@ -51,7 +53,8 @@ defmodule AshPostgres.Verifiers.ValidateIdentityIndexNames do
               postgres do
                 identity_index_names #{identity.name}: "a_shorter_name"
               end
-              """
+              """,
+              location: Spark.Dsl.Entity.anno(identity)
           end
       end)
     end

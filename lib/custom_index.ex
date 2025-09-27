@@ -13,11 +13,10 @@ defmodule AshPostgres.CustomIndex do
     :include,
     :nulls_distinct,
     :message,
-    :all_tenants?,
-    :__spark_metadata__
+    :all_tenants?
   ]
 
-  defstruct @fields
+  defstruct @fields ++ [:__spark_metadata__]
 
   def fields, do: @fields
 
