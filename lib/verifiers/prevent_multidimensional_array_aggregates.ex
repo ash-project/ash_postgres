@@ -36,7 +36,8 @@ defmodule AshPostgres.Verifiers.PreventMultidimensionalArrayAggregates do
             Postgres does not support multidimensional arrays with differing lengths internally. In the future we may be able to remove this restriction
             for the `:first` type aggregate, but likely never for `:list`. In the meantime, you will have to use a custom calculation to get this data.
             """,
-            location: Ash.Resource.Info.aggregate(resource, aggregate.name) |> Spark.Dsl.Entity.anno()
+            location:
+              Ash.Resource.Info.aggregate(resource, aggregate.name) |> Spark.Dsl.Entity.anno()
 
         _ ->
           :ok
