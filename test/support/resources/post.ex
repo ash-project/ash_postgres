@@ -1218,10 +1218,6 @@ defmodule AshPostgres.Test.Post do
     count :count_comments_with_modify_query, :comments do
       read_action(:with_modify_query)
     end
-
-    count :comments_in_my_org, :comments do
-      filter(expr(post.organization_id == ^actor(:organization_id)))
-    end
   end
 end
 

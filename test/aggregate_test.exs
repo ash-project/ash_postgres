@@ -1685,7 +1685,7 @@ defmodule AshSql.AggregateTest do
   end
 
   @tag :regression
-  test "aggregates with authorization policies using relates_to_actor_via with existing resources" do
+  test "count is accurate" do
     org =
       AshPostgres.Test.Organization
       |> Ash.Changeset.for_create(:create, %{name: "Test Org"})
@@ -1725,9 +1725,9 @@ defmodule AshSql.AggregateTest do
     loaded_post =
       AshPostgres.Test.Post
       |> Ash.Query.filter(id == ^post.id)
-      |> Ash.Query.load(:comments_in_my_org)
+      |> Ash.Query.load(:count_of_comments)
       |> Ash.read_one!(actor: user)
 
-    assert loaded_post.comments_in_my_org == 1
+    assert loaded_post.count_of_comments == 1
   end
 end
