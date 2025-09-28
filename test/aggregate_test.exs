@@ -1683,4 +1683,51 @@ defmodule AshSql.AggregateTest do
       |> Ash.read_one!()
     end
   end
+
+  @tag :regression
+  test "aggregates with authorization policies using relates_to_actor_via with existing resources" do
+    org =
+      AshPostgres.Test.Organization
+      |> Ash.Changeset.for_create(:create, %{name: "Test Org"})
+      |> Ash.create!()
+
+    user =
+      AshPostgres.Test.User
+      |> Ash.Changeset.for_create(:create, %{name: "test_user", organization_id: org.id})
+      |> Ash.create!()
+
+    AshPostgres.Test.User
+    |> Ash.Changeset.for_create(:create, %{name: "another_user", organization_id: org.id})
+    |> Ash.create!()
+
+    author =
+      AshPostgres.Test.Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "Test", last_name: "Author"})
+      |> Ash.create!()
+
+    post =
+      AshPostgres.Test.Post
+      |> Ash.Changeset.for_create(:create, %{
+        title: "Test Post",
+        organization_id: org.id,
+        author_id: author.id
+      })
+      |> Ash.create!()
+
+    AshPostgres.Test.Comment
+    |> Ash.Changeset.for_create(:create, %{
+      title: "First comment",
+      post_id: post.id,
+      author_id: author.id
+    })
+    |> Ash.create!()
+
+    loaded_post =
+      AshPostgres.Test.Post
+      |> Ash.Query.filter(id == ^post.id)
+      |> Ash.Query.load(:comments_in_my_org)
+      |> Ash.read_one!(actor: user)
+
+    assert loaded_post.comments_in_my_org == 1
+  end
 end
