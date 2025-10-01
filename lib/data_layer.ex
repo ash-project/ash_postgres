@@ -2035,6 +2035,66 @@ defmodule AshPostgres.DataLayer do
           repo.insert_all(source, ecto_changesets, opts)
         end)
 
+      result =
+        if options[:return_skipped_upsert?] do
+          identity = options[:identity]
+          [changeset | _] = changesets
+
+          results =
+            result
+            |> elem(1)
+            |> List.wrap()
+            |> Enum.reduce(%{}, fn r, acc ->
+              Map.put(acc, Map.take(r, identity.keys), r)
+            end)
+
+          ash_query =
+            resource
+            |> Ash.Query.do_filter(
+              or:
+                changesets
+                |> Enum.filter(fn changeset ->
+                  not Map.has_key?(results, Map.take(changeset.attributes, identity.keys))
+                end)
+                |> Enum.map(fn changeset ->
+                  changeset.attributes
+                  |> Map.take(identity.keys)
+                  |> Keyword.new()
+                end)
+            )
+            |> then(fn
+              query when is_nil(identity) or is_nil(identity.where) -> query
+              query -> Ash.Query.do_filter(query, identity.where)
+            end)
+            |> Ash.Query.set_tenant(changeset.tenant)
+
+          skipped_upserts =
+            with {:ok, ecto_query} <- Ash.Query.data_layer_query(ash_query),
+                 {:ok, results} <- run_query(ecto_query, resource) do
+              results
+              |> Enum.map(fn result ->
+                Ash.Resource.put_metadata(result, :upsert_skipped, true)
+              end)
+              |> Enum.reduce(%{}, fn r, acc ->
+                Map.put(acc, Map.take(r, identity.keys), r)
+              end)
+            end
+
+          results =
+            changesets
+            |> Enum.map(fn changeset ->
+              identity =
+                changeset.attributes
+                |> Map.take(identity.keys)
+
+              Map.get(results, identity, Map.get(skipped_upserts, identity))
+            end)
+
+          {length(results), results}
+        else
+          result
+        end
+
       case result do
         {_, nil} ->
           :ok
@@ -2045,6 +2105,7 @@ defmodule AshPostgres.DataLayer do
 
             {:ok, results}
           else
+            # TODO: what if there are less results than changesets because of upsert conditions?
             {:ok,
              Stream.zip_with(results, changesets, fn result, changeset ->
                if !opts[:upsert?] do
