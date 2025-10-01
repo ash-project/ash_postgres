@@ -113,6 +113,13 @@ defmodule AshPostgres.Repo do
   @doc "Disable expression errors for this repo"
   @callback disable_expr_error?() :: boolean
 
+  @doc """
+  Opt-in to using immutable versions of the expression error functions.
+
+  Requires the `AshPostgres.Extensions.ImmutableRaiseError` extension.
+  """
+  @callback immutable_expr_error?() :: boolean
+
   defmacro __using__(opts) do
     quote bind_quoted: [opts: opts] do
       if Keyword.get(opts, :define_ecto_repo?, true) do
@@ -145,6 +152,7 @@ defmodule AshPostgres.Repo do
       def drop?, do: true
       def disable_atomic_actions?, do: false
       def disable_expr_error?, do: false
+      def immutable_expr_error?, do: false
 
       # default to false in 4.0
       def prefer_transaction?, do: true
@@ -315,7 +323,8 @@ defmodule AshPostgres.Repo do
                      create?: 0,
                      drop?: 0,
                      disable_atomic_actions?: 0,
-                     disable_expr_error?: 0
+                     disable_expr_error?: 0,
+                     immutable_expr_error?: 0
 
       # We do this switch because `!@warn_on_missing_ash_functions` in the function body triggers
       # a dialyzer error

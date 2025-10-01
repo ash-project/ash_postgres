@@ -334,4 +334,12 @@ defmodule AshPostgres.SqlImplementation do
 
     {types, new_returns || returns}
   end
+
+  # Conditionally apply @impl to keep compatibility across ash_sql versions
+  if {:immutable_errors?, 1} in AshSql.Implementation.behaviour_info(:callbacks) do
+    @impl true
+    def immutable_errors?(repo) do
+      repo.immutable_expr_error?()
+    end
+  end
 end
