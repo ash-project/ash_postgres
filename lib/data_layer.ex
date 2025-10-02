@@ -2036,17 +2036,18 @@ defmodule AshPostgres.DataLayer do
           repo.insert_all(source, ecto_changesets, opts)
         end)
 
-      identity = options[:identity]
+      identity = options[:identity] 
+      keys = Map.get(identity || %{}, :keys) || Ash.Resource.Info.primary_key(resource)
 
       results_by_identity =
         result
         |> elem(1)
         |> List.wrap()
         |> Enum.reduce(%{}, fn r, acc ->
-          Map.put(acc, Map.take(r, identity.keys), r)
+          Map.put(acc, Map.take(r, keys), r)
         end)
 
-      if options[:return_skipped_upsert?] do
+      if options[:return_skipped_upsert?] && !opts[:single] do
         [changeset | _] = changesets
 
         ash_query =
@@ -2057,7 +2058,7 @@ defmodule AshPostgres.DataLayer do
               |> Enum.filter(fn changeset ->
                 not Map.has_key?(
                   results_by_identity,
-                  Map.take(changeset.attributes, identity.keys)
+                  Map.take(changeset.attributes, keys)
                 )
               end)
               |> Enum.map(fn changeset ->
@@ -2080,7 +2081,7 @@ defmodule AshPostgres.DataLayer do
               Ash.Resource.put_metadata(result, :upsert_skipped, true)
             end)
             |> Enum.reduce(%{}, fn r, acc ->
-              Map.put(acc, Map.take(r, identity.keys), r)
+              Map.put(acc, Map.take(r, keys), r)
             end)
           end
 
@@ -2089,7 +2090,7 @@ defmodule AshPostgres.DataLayer do
           |> Enum.map(fn changeset ->
             identity =
               changeset.attributes
-              |> Map.take(identity.keys)
+              |> Map.take(keys)
 
             Map.get(results_by_identity, identity, Map.get(skipped_upserts, identity))
           end)
@@ -2115,7 +2116,7 @@ defmodule AshPostgres.DataLayer do
               |> Enum.map(fn changeset ->
                 identity =
                   changeset.attributes
-                  |> Map.take(identity.keys)
+                  |> Map.take(keys)
 
                 result_for_changeset = Map.get(results_by_identity, identity)
 
