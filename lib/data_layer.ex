@@ -2047,6 +2047,8 @@ defmodule AshPostgres.DataLayer do
           Map.put(acc, Map.take(r, keys), r)
         end)
 
+      # if it's single the return_skipped_upsert? is handled at the
+      # call site https://github.com/ash-project/ash_postgres/blob/0b21d4a99cc3f6d8676947e291ac9b9d57ad6e2e/lib/data_layer.ex#L3046-L3046
       if options[:return_skipped_upsert?] && !opts[:single] do
         [changeset | _] = changesets
 
