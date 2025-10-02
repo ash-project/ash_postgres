@@ -2046,60 +2046,59 @@ defmodule AshPostgres.DataLayer do
           Map.put(acc, Map.take(r, identity.keys), r)
         end)
 
-      result =
-        if options[:return_skipped_upsert?] do
-          [changeset | _] = changesets
+      if options[:return_skipped_upsert?] do
+        [changeset | _] = changesets
 
-          ash_query =
-            resource
-            |> Ash.Query.do_filter(
-              or:
-                changesets
-                |> Enum.filter(fn changeset ->
-                  not Map.has_key?(
-                    results_by_identity,
-                    Map.take(changeset.attributes, identity.keys)
-                  )
-                end)
-                |> Enum.map(fn changeset ->
-                  changeset.attributes
-                  |> Map.take(identity.keys)
-                  |> Keyword.new()
-                end)
-            )
-            |> then(fn
-              query when is_nil(identity) or is_nil(identity.where) -> query
-              query -> Ash.Query.do_filter(query, identity.where)
-            end)
-            |> Ash.Query.set_tenant(changeset.tenant)
-
-          skipped_upserts =
-            with {:ok, ecto_query} <- Ash.Query.data_layer_query(ash_query),
-                 {:ok, results} <- run_query(ecto_query, resource) do
-              results
-              |> Enum.map(fn result ->
-                Ash.Resource.put_metadata(result, :upsert_skipped, true)
+        ash_query =
+          resource
+          |> Ash.Query.do_filter(
+            or:
+              changesets
+              |> Enum.filter(fn changeset ->
+                not Map.has_key?(
+                  results_by_identity,
+                  Map.take(changeset.attributes, identity.keys)
+                )
               end)
-              |> Enum.reduce(%{}, fn r, acc ->
-                Map.put(acc, Map.take(r, identity.keys), r)
-              end)
-            end
-
-          results =
-            changesets
-            |> Enum.map(fn changeset ->
-              identity =
+              |> Enum.map(fn changeset ->
                 changeset.attributes
                 |> Map.take(identity.keys)
+                |> Keyword.new()
+              end)
+          )
+          |> then(fn
+            query when is_nil(identity) or is_nil(identity.where) -> query
+            query -> Ash.Query.do_filter(query, identity.where)
+          end)
+          |> Ash.Query.set_tenant(changeset.tenant)
 
-              Map.get(results_by_identity, identity, Map.get(skipped_upserts, identity))
+        skipped_upserts =
+          with {:ok, ecto_query} <- Ash.Query.data_layer_query(ash_query),
+               {:ok, results} <- run_query(ecto_query, resource) do
+            results
+            |> Enum.map(fn result ->
+              Ash.Resource.put_metadata(result, :upsert_skipped, true)
             end)
-            |> Enum.filter(& &1)
+            |> Enum.reduce(%{}, fn r, acc ->
+              Map.put(acc, Map.take(r, identity.keys), r)
+            end)
+          end
 
-          {length(results), results}
-        else
-          result
-        end
+        results =
+          changesets
+          |> Enum.map(fn changeset ->
+            identity =
+              changeset.attributes
+              |> Map.take(identity.keys)
+
+            Map.get(results_by_identity, identity, Map.get(skipped_upserts, identity))
+          end)
+          |> Enum.filter(& &1)
+
+        {length(results), results}
+      else
+        result
+      end
 
       case result do
         {_, nil} ->
