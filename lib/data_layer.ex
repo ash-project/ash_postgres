@@ -662,6 +662,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :combine), do: true
   def can?(_, {:combine, _}), do: true
   def can?(_, :bulk_create), do: true
+  def can?(_, :bulk_upsert_return_skipped), do: true
 
   def can?(_, :action_select), do: true
 
