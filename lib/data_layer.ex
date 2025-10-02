@@ -2036,7 +2036,7 @@ defmodule AshPostgres.DataLayer do
           repo.insert_all(source, ecto_changesets, opts)
         end)
 
-      identity = options[:identity] 
+      identity = options[:identity]
       keys = Map.get(identity || %{}, :keys) || Ash.Resource.Info.primary_key(resource)
 
       results_by_identity =
@@ -2049,7 +2049,7 @@ defmodule AshPostgres.DataLayer do
 
       # if it's single the return_skipped_upsert? is handled at the
       # call site https://github.com/ash-project/ash_postgres/blob/0b21d4a99cc3f6d8676947e291ac9b9d57ad6e2e/lib/data_layer.ex#L3046-L3046
-      if options[:return_skipped_upsert?] && !opts[:single] do
+      if options[:return_skipped_upsert?] && !opts[:single?] do
         [changeset | _] = changesets
 
         ash_query =
