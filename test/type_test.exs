@@ -1,6 +1,7 @@
 defmodule AshPostgres.Test.TypeTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.Post
+  alias AshPostgres.Test.RSVP
 
   require Ash.Query
 
@@ -106,5 +107,13 @@ defmodule AshPostgres.Test.TypeTest do
 
     post = Ash.Query.for_read(Post, :with_version_check, version: 1) |> Ash.read!()
     refute is_nil(post)
+  end
+
+  test "array expressions work with custom types that map atoms to integers" do
+    rsvp = RSVP |> Ash.Changeset.for_create(:create, %{response: :accepted}) |> Ash.create!()
+
+    updated = rsvp |> Ash.Changeset.for_update(:clear_response, %{}) |> Ash.update!()
+
+    assert updated.response == :awaiting
   end
 end

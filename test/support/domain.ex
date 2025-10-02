@@ -53,6 +53,7 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.Order)
     resource(AshPostgres.Test.Chat)
     resource(AshPostgres.Test.Message)
+    resource(AshPostgres.Test.RSVP)
   end
 
   authorization do
