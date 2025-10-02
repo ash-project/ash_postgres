@@ -2036,18 +2036,19 @@ defmodule AshPostgres.DataLayer do
           repo.insert_all(source, ecto_changesets, opts)
         end)
 
+      identity = options[:identity]
+
+      results_by_identity =
+        result
+        |> elem(1)
+        |> List.wrap()
+        |> Enum.reduce(%{}, fn r, acc ->
+          Map.put(acc, Map.take(r, identity.keys), r)
+        end)
+
       result =
         if options[:return_skipped_upsert?] do
-          identity = options[:identity]
           [changeset | _] = changesets
-
-          results =
-            result
-            |> elem(1)
-            |> List.wrap()
-            |> Enum.reduce(%{}, fn r, acc ->
-              Map.put(acc, Map.take(r, identity.keys), r)
-            end)
 
           ash_query =
             resource
@@ -2055,7 +2056,10 @@ defmodule AshPostgres.DataLayer do
               or:
                 changesets
                 |> Enum.filter(fn changeset ->
-                  not Map.has_key?(results, Map.take(changeset.attributes, identity.keys))
+                  not Map.has_key?(
+                    results_by_identity,
+                    Map.take(changeset.attributes, identity.keys)
+                  )
                 end)
                 |> Enum.map(fn changeset ->
                   changeset.attributes
@@ -2088,8 +2092,9 @@ defmodule AshPostgres.DataLayer do
                 changeset.attributes
                 |> Map.take(identity.keys)
 
-              Map.get(results, identity, Map.get(skipped_upserts, identity))
+              Map.get(results_by_identity, identity, Map.get(skipped_upserts, identity))
             end)
+            |> Enum.filter(& &1)
 
           {length(results), results}
         else
@@ -2106,26 +2111,37 @@ defmodule AshPostgres.DataLayer do
 
             {:ok, results}
           else
-            # TODO: what if there are less results than changesets because of upsert conditions?
-            {:ok,
-             Stream.zip_with(results, changesets, fn result, changeset ->
-               if !opts[:upsert?] do
-                 maybe_create_tenant!(resource, result)
-               end
+            results =
+              changesets
+              |> Enum.map(fn changeset ->
+                identity =
+                  changeset.attributes
+                  |> Map.take(identity.keys)
 
-               case get_bulk_operation_metadata(changeset) do
-                 {index, metadata_key} ->
-                   Ash.Resource.put_metadata(result, metadata_key, index)
+                result_for_changeset = Map.get(results_by_identity, identity)
 
-                 nil ->
-                   # Compatibility fallback
-                   Ash.Resource.put_metadata(
-                     result,
-                     :bulk_create_index,
-                     changeset.context[:bulk_create][:index]
-                   )
-               end
-             end)}
+                if result_for_changeset do
+                  if !opts[:upsert?] do
+                    maybe_create_tenant!(resource, result_for_changeset)
+                  end
+
+                  case get_bulk_operation_metadata(changeset) do
+                    {index, metadata_key} ->
+                      Ash.Resource.put_metadata(result, metadata_key, index)
+
+                    nil ->
+                      # Compatibility fallback
+                      Ash.Resource.put_metadata(
+                        result,
+                        :bulk_create_index,
+                        changeset.context[:bulk_create][:index]
+                      )
+                  end
+                end
+              end)
+              |> Enum.filter(& &1)
+
+            {:ok, results}
           end
       end
     rescue
