@@ -224,17 +224,14 @@ defmodule AshPostgres.BulkCreateTest do
                {:ok, no_conflict}
              ] = results
 
-      # "fredfoo" was skipped because price matches (10 == 10)
       assert skipped.title == "fredfoo"
       assert skipped.price == 10
       assert Ash.Resource.get_metadata(skipped, :upsert_skipped) == true
 
-      # "georgefoo" was updated because price differs (20 -> 20_000)
       assert updated.title == "georgefoo"
       assert updated.price == 20_000
       refute Ash.Resource.get_metadata(updated, :upsert_skipped)
 
-      # "herbert" had no conflict (doesn't match identity)
       assert no_conflict.title == "herbert"
       assert no_conflict.price == 30
       refute Ash.Resource.get_metadata(no_conflict, :upsert_skipped)
