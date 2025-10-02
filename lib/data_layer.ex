@@ -658,6 +658,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :combine), do: true
   def can?(_, {:combine, _}), do: true
   def can?(_, :bulk_create), do: true
+  def can?(_, :bulk_upsert_return_skipped), do: true
 
   def can?(_, :action_select), do: true
 
@@ -2029,6 +2030,74 @@ defmodule AshPostgres.DataLayer do
           repo.insert_all(source, ecto_changesets, opts)
         end)
 
+      identity = options[:identity]
+      keys = Map.get(identity || %{}, :keys) || Ash.Resource.Info.primary_key(resource)
+
+      # if it's single the return_skipped_upsert? is handled at the
+      # call site https://github.com/ash-project/ash_postgres/blob/0b21d4a99cc3f6d8676947e291ac9b9d57ad6e2e/lib/data_layer.ex#L3046-L3046
+      result =
+        if options[:return_skipped_upsert?] && !opts[:single?] do
+          [changeset | _] = changesets
+
+          results_by_identity =
+            result
+            |> elem(1)
+            |> List.wrap()
+            |> Enum.into(%{}, fn r ->
+              {Map.take(r, keys), r}
+            end)
+
+          ash_query =
+            resource
+            |> Ash.Query.do_filter(
+              or:
+                changesets
+                |> Enum.filter(fn changeset ->
+                  not Map.has_key?(
+                    results_by_identity,
+                    Map.take(changeset.attributes, keys)
+                  )
+                end)
+                |> Enum.map(fn changeset ->
+                  changeset.attributes
+                  |> Map.take(keys)
+                  |> Keyword.new()
+                end)
+            )
+            |> then(fn
+              query when is_nil(identity) or is_nil(identity.where) -> query
+              query -> Ash.Query.do_filter(query, identity.where)
+            end)
+            |> Ash.Query.set_tenant(changeset.tenant)
+
+          skipped_upserts =
+            with {:ok, ecto_query} <- Ash.Query.data_layer_query(ash_query),
+                 {:ok, results} <- run_query(ecto_query, resource) do
+              results
+              |> Enum.map(fn result ->
+                Ash.Resource.put_metadata(result, :upsert_skipped, true)
+              end)
+              |> Enum.reduce(%{}, fn r, acc ->
+                Map.put(acc, Map.take(r, keys), r)
+              end)
+            end
+
+          results =
+            changesets
+            |> Enum.map(fn changeset ->
+              identity =
+                changeset.attributes
+                |> Map.take(keys)
+
+              Map.get(results_by_identity, identity, Map.get(skipped_upserts, identity))
+            end)
+            |> Enum.filter(& &1)
+
+          {length(results), results}
+        else
+          result
+        end
+
       case result do
         {_, nil} ->
           :ok
@@ -2039,18 +2108,36 @@ defmodule AshPostgres.DataLayer do
 
             {:ok, results}
           else
-            {:ok,
-             Stream.zip_with(results, changesets, fn result, changeset ->
-               if !opts[:upsert?] do
-                 maybe_create_tenant!(resource, result)
-               end
+            results_by_identity =
+              results
+              |> Enum.into(%{}, fn r ->
+                {Map.take(r, keys), r}
+              end)
 
-               Ash.Resource.put_metadata(
-                 result,
-                 :bulk_create_index,
-                 changeset.context.bulk_create.index
-               )
-             end)}
+            results =
+              changesets
+              |> Enum.map(fn changeset ->
+                identity =
+                  changeset.attributes
+                  |> Map.take(keys)
+
+                result_for_changeset = Map.get(results_by_identity, identity)
+
+                if result_for_changeset do
+                  if !opts[:upsert?] do
+                    maybe_create_tenant!(resource, result_for_changeset)
+                  end
+
+                  Ash.Resource.put_metadata(
+                    result_for_changeset,
+                    :bulk_create_index,
+                    changeset.context.bulk_create.index
+                  )
+                end
+              end)
+              |> Enum.filter(& &1)
+
+            {:ok, results}
           end
       end
     rescue
