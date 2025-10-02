@@ -176,7 +176,6 @@ defmodule AshPostgres.BulkCreateTest do
                end)
     end
 
-    @tag :focus
     test "bulk upsert returns skipped records with return_skipped_upsert?" do
       assert [
                {:ok, %{title: "fredfoo", uniq_if_contains_foo: "1foo", price: 10}},
