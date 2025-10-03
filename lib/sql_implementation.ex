@@ -334,4 +334,9 @@ defmodule AshPostgres.SqlImplementation do
 
     {types, new_returns || returns}
   end
+
+  @impl true
+  def immutable_errors?(repo) do
+    repo.immutable_expr_error?()
+  end
 end

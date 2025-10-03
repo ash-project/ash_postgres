@@ -168,7 +168,9 @@ defmodule AshPostgres.MixProject do
     [
       {:ash, ash_version("~> 3.5 and >= 3.5.35")},
       {:spark, "~> 2.3 and >= 2.3.4"},
-      {:ash_sql, ash_sql_version("~> 0.2 and >= 0.2.90")},
+      # TODO: bump to next ash_sql release
+      # {:ash_sql, ash_sql_version("~> 0.2 and >= 0.2.90")},
+      {:ash_sql, git: "https://github.com/ash-project/ash_sql.git"},
       {:igniter, "~> 0.6 and >= 0.6.14", optional: true},
       {:ecto_sql, "~> 3.13"},
       {:ecto, "~> 3.13"},
