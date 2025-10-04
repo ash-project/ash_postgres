@@ -6,10 +6,10 @@ defmodule AshPostgres.Test.MultitenancyTest do
   alias AshPostgres.MultitenancyTest.{
     CompositeKeyPost,
     NamedOrg,
+    NonMultitenantPostMultitenantLink,
     Org,
     Post,
-    User,
-    NonMultitenantPostMultitenantLink
+    User
   }
 
   alias AshPostgres.Test.Post, as: GlobalPost
