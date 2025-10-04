@@ -2,7 +2,16 @@ defmodule AshPostgres.Test.MultitenancyTest do
   use AshPostgres.RepoCase, async: false
 
   require Ash.Query
-  alias AshPostgres.MultitenancyTest.{CompositeKeyPost, NamedOrg, Org, Post, User, NonMultitenantPostMultitenantLink}
+
+  alias AshPostgres.MultitenancyTest.{
+    CompositeKeyPost,
+    NamedOrg,
+    Org,
+    Post,
+    User,
+    NonMultitenantPostMultitenantLink
+  }
+
   alias AshPostgres.Test.Post, as: GlobalPost
 
   setup do
@@ -227,22 +236,26 @@ defmodule AshPostgres.Test.MultitenancyTest do
   end
 
   test "loading non multitenant resource across a many_to_many works", %{org1: org1} do
-    post = Post
+    post =
+      Post
       |> Ash.Changeset.for_create(:create, %{name: "foo"})
       |> Ash.Changeset.set_tenant(org1)
       |> Ash.create!()
 
-    GlobalPost
+    global_post =
+      GlobalPost
       |> Ash.Changeset.for_create(:create, %{title: "fred"})
       |> Ash.create!()
 
     NonMultitenantPostMultitenantLink
-      |> Ash.Changeset.for_create(:create, %{source_id: post.id, dest_id: global_post.id}, tenant: org1)
-      |> Ash.create!()
+    |> Ash.Changeset.for_create(:create, %{source_id: post.id, dest_id: global_post.id},
+      tenant: org1
+    )
+    |> Ash.create!()
 
-    post |> Ash.load!([:linked_non_multitenant_posts_through_multitenant_link], tenant: org1) |> IO.inspect()
+    post
+    |> Ash.load!([:linked_non_multitenant_posts_through_multitenant_link], tenant: org1)
   end
-
 
   test "manage_relationship from context multitenant resource to attribute multitenant resource doesn't raise an error" do
     org = Org |> Ash.Changeset.new() |> Ash.create!()

@@ -29,7 +29,7 @@ defmodule AshPostgres.MultitenancyTest.NonMultitenantPostMultitenantLink do
   end
 
   attributes do
-    uuid_primary_key :id
+    uuid_primary_key(:id)
 
     attribute :state, :atom do
       public?(true)
@@ -40,13 +40,13 @@ defmodule AshPostgres.MultitenancyTest.NonMultitenantPostMultitenantLink do
 
   relationships do
     belongs_to :source, AshPostgres.MultitenancyTest.Post do
-      public? true
-      allow_nil? false
+      public?(true)
+      allow_nil?(false)
     end
 
     belongs_to :dest, AshPostgres.Test.Post do
-      public? true
-      allow_nil? false
+      public?(true)
+      allow_nil?(false)
     end
   end
 end

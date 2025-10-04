@@ -1247,7 +1247,9 @@ defmodule AshPostgres.DataLayer do
             through_query = Ecto.Query.exclude(through_query, :select)
 
             through_query =
-              if through_query.joins && through_query.joins != [] do
+              if (through_query.joins && through_query.joins != []) ||
+                   (Ash.Resource.Info.multitenancy_strategy(relationship.through) == :context &&
+                      source_query.tenant) do
                 subquery(
                   set_subquery_prefix(
                     through_query,
@@ -1256,7 +1258,7 @@ defmodule AshPostgres.DataLayer do
                   )
                 )
               else
-                through_query
+                set_subquery_prefix(through_query, source_query, relationship.through)
               end
 
             if query.__ash_bindings__[:__order__?] do

@@ -59,8 +59,9 @@ defmodule AshPostgres.MultitenancyTest.Post do
 
     # has_many(:non_multitenant_post_links, AshPostgres.MultitenancyTest.NonMultitenantPostLink)
 
-    has_many :non_multitenant_post_multitenant_links, AshPostgres.MultitenancyTest.NonMultitenantPostMultitenantLink do
-      destination_attribute :source_id
+    has_many :non_multitenant_post_multitenant_links,
+             AshPostgres.MultitenancyTest.NonMultitenantPostMultitenantLink do
+      destination_attribute(:source_id)
     end
 
     many_to_many :linked_non_multitenant_posts, AshPostgres.Test.Post do
