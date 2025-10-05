@@ -77,9 +77,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
     )
     """)
 
-    AshPostgres.TestRepo.query!(
-      "CREATE INDEX warehouses_name_idx ON inventory.warehouses(name)"
-    )
+    AshPostgres.TestRepo.query!("CREATE INDEX warehouses_name_idx ON inventory.warehouses(name)")
 
     AshPostgres.TestRepo.query!("""
     CREATE TABLE inventory.products (
