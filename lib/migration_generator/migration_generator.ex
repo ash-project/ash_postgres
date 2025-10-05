@@ -649,14 +649,19 @@ defmodule AshPostgres.MigrationGenerator do
       folder = get_snapshot_folder(snapshot, opts)
       snapshot_path = get_snapshot_path(snapshot, folder)
 
-      snapshot_path
-      |> File.ls!()
-      |> Enum.filter(&String.contains?(&1, "_dev.json"))
-      |> Enum.each(fn snapshot_name ->
+      # Guard against missing directories - can happen for new resources or when
+      # get_snapshot_path's fallback logic returns a non-existent path for
+      # resources in non-public schemas
+      if File.dir?(snapshot_path) do
         snapshot_path
-        |> Path.join(snapshot_name)
-        |> File.rm!()
-      end)
+        |> File.ls!()
+        |> Enum.filter(&String.contains?(&1, "_dev.json"))
+        |> Enum.each(fn snapshot_name ->
+          snapshot_path
+          |> Path.join(snapshot_name)
+          |> File.rm!()
+        end)
+      end
     end)
   end
 
