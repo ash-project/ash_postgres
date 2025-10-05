@@ -122,7 +122,13 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     result
   end
 
+  defp qualified_table_name(%{schema: schema, table_name: table_name}) do
+    "#{schema}.#{table_name}"
+  end
+
   defp add_foreign_keys(spec) do
+    qualified_table = qualified_table_name(spec)
+
     %Postgrex.Result{rows: fkey_rows} =
       spec.repo.query!(
         """
@@ -178,7 +184,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
                 constraints.update_rule,
                 constraints.delete_rule
         """,
-        [spec.table_name, spec.schema],
+        [qualified_table, spec.schema],
         log: false
       )
 
@@ -218,6 +224,8 @@ defmodule AshPostgres.ResourceGenerator.Spec do
   end
 
   defp add_check_constraints(spec) do
+    qualified_table = qualified_table_name(spec)
+
     %Postgrex.Result{rows: check_constraint_rows} =
       spec.repo.query!(
         """
@@ -230,7 +238,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
             contype = 'c'
             AND conrelid::regclass::text = $1
         """,
-        [spec.table_name],
+        [qualified_table],
         log: false
       )
 
@@ -278,7 +286,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
           LEFT JOIN
               pg_constraint c ON c.conindid = ix.indexrelid AND c.contype = 'p'
           JOIN
-              pg_indexes idx ON idx.indexname = i.relname AND idx.schemaname = 'public' -- Adjust schema name if necessary
+              pg_indexes idx ON idx.indexname = i.relname AND idx.schemaname = $2
           JOIN information_schema.tables ta
               ON ta.table_name = t.relname
           WHERE
@@ -312,7 +320,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
           LEFT JOIN
               pg_constraint c ON c.conindid = ix.indexrelid AND c.contype = 'p'
           JOIN
-              pg_indexes idx ON idx.indexname = i.relname AND idx.schemaname = 'public' -- Adjust schema name if necessary
+              pg_indexes idx ON idx.indexname = i.relname AND idx.schemaname = $2
           JOIN information_schema.tables ta
               ON ta.table_name = t.relname
           WHERE

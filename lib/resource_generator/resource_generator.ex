@@ -115,6 +115,7 @@ if Code.ensure_loaded?(Igniter) do
         postgres do
           table #{inspect(table_spec.table_name)}
           repo #{inspect(table_spec.repo)}
+          #{schema_option(table_spec)}
           #{no_migrate_flag}
           #{references(table_spec, opts[:no_migrations])}
           #{custom_indexes(table_spec, opts[:no_migrations])}
@@ -143,6 +144,12 @@ if Code.ensure_loaded?(Igniter) do
         end
       end)
     end
+
+    defp schema_option(%{schema: schema}) when schema != "public" do
+      "schema #{inspect(schema)}"
+    end
+
+    defp schema_option(_), do: ""
 
     defp default_actions(opts) do
       cond do
