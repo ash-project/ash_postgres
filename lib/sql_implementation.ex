@@ -201,6 +201,31 @@ defmodule AshPostgres.SqlImplementation do
   end
 
   def expr(
+        query,
+        %Ash.Query.Function.Error{} = value,
+        bindings,
+        embedded?,
+        acc,
+        type
+      ) do
+    resource = query.__ash_bindings__.resource
+    repo = AshSql.dynamic_repo(resource, AshPostgres.SqlImplementation, query)
+
+    if repo.immutable_expr_error?() do
+      AshPostgres.Extensions.ImmutableRaiseError.immutable_error_expr(
+        query,
+        value,
+        bindings,
+        embedded?,
+        acc,
+        type
+      )
+    else
+      :error
+    end
+  end
+
+  def expr(
         _query,
         _expr,
         _bindings,
@@ -333,10 +358,5 @@ defmodule AshPostgres.SqlImplementation do
     {types, new_returns} = Ash.Expr.determine_types(mod, args, returns)
 
     {types, new_returns || returns}
-  end
-
-  @impl true
-  def immutable_errors?(repo) do
-    repo.immutable_expr_error?()
   end
 end
