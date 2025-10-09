@@ -2,6 +2,7 @@ defmodule AshPostgres.BulkCreateTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.{Post, Record}
 
+  require Ash.Query
   import Ash.Expr
 
   describe "bulk creates" do
@@ -353,6 +354,152 @@ defmodule AshPostgres.BulkCreateTest do
                Post
                |> Ash.Query.sort(:title)
                |> Ash.read!()
+    end
+  end
+
+  describe "nested bulk operations" do
+    test "supports bulk_create in after_action callbacks" do
+      result =
+        Ash.bulk_create!(
+          [%{title: "trigger_nested"}],
+          Post,
+          :create_with_nested_bulk_create,
+          return_records?: true,
+          authorize?: false
+        )
+
+      # Assert the bulk result contains the expected data
+      assert %Ash.BulkResult{records: [original_post]} = result
+      assert original_post.title == "trigger_nested"
+
+      # Verify all posts that should exist after the nested operation
+      all_posts =
+        Post
+        |> Ash.Query.sort(:title)
+        |> Ash.read!()
+
+      # Should have: 1 original + 2 nested = 3 total posts
+      assert length(all_posts) == 3
+
+      # Verify we have the expected posts with correct titles
+      post_titles = Enum.map(all_posts, & &1.title) |> Enum.sort()
+      assert post_titles == ["nested_post_1", "nested_post_2", "trigger_nested"]
+
+      # Verify the specific nested posts were created by the after_action callback
+      nested_posts =
+        Post
+        |> Ash.Query.filter(expr(title in ["nested_post_1", "nested_post_2"]))
+        |> Ash.Query.sort(:title)
+        |> Ash.read!()
+
+      assert length(nested_posts) == 2
+      assert [%{title: "nested_post_1"}, %{title: "nested_post_2"}] = nested_posts
+
+      # Verify that each nested post has proper metadata
+      Enum.each(nested_posts, fn post ->
+        assert is_binary(post.id)
+        assert post.title in ["nested_post_1", "nested_post_2"]
+      end)
+    end
+
+    test "supports bulk_update in after_action callbacks" do
+      # Create the original post - the after_action callback will create and update additional posts
+      result =
+        Ash.bulk_create!(
+          [%{title: "trigger_nested_update"}],
+          Post,
+          :create_with_nested_bulk_update,
+          return_records?: true,
+          authorize?: false
+        )
+
+      # Assert the bulk result contains the expected data
+      assert %Ash.BulkResult{records: [original_post]} = result
+      assert original_post.title == "trigger_nested_update"
+
+      # Verify all posts that should exist after the nested operations
+      # The after_action callback should have created 2 posts and updated them
+      all_posts =
+        Post
+        |> Ash.Query.sort(:title)
+        |> Ash.read!()
+
+      # Should have: 1 original + 2 created and updated = 3 total posts
+      assert length(all_posts) == 3
+
+      # Verify the original post still exists
+      original_posts =
+        Post
+        |> Ash.Query.filter(expr(title == "trigger_nested_update"))
+        |> Ash.read!()
+
+      assert length(original_posts) == 1
+      assert hd(original_posts).title == "trigger_nested_update"
+
+      # Verify the nested posts were created and then updated by the after_action callback
+      updated_posts =
+        Post
+        |> Ash.Query.filter(expr(title == "updated_via_nested_bulk"))
+        |> Ash.read!()
+
+      assert length(updated_posts) == 2
+
+      # Verify that the updated posts have proper metadata and were actually updated
+      Enum.each(updated_posts, fn post ->
+        assert is_binary(post.id)
+        assert post.title == "updated_via_nested_bulk"
+      end)
+
+      # Verify no posts remain with the intermediate titles (they should have been updated)
+      intermediate_posts =
+        Post
+        |> Ash.Query.filter(expr(title in ["post_to_update_1", "post_to_update_2"]))
+        |> Ash.read!()
+
+      assert intermediate_posts == [],
+             "Posts should have been updated, not left with intermediate titles"
+    end
+
+    test "nested bulk operations handle metadata indexing correctly" do
+      # Create multiple posts in the parent bulk operation to test indexing
+      # Each parent post's after_action callback will create nested posts
+      result =
+        Ash.bulk_create!(
+          [
+            %{title: "trigger_nested"},
+            %{title: "trigger_nested_2"}
+          ],
+          Post,
+          :create_with_nested_bulk_create,
+          return_records?: true,
+          authorize?: false
+        )
+
+      # Assert both parent posts were created
+      assert %Ash.BulkResult{records: parent_posts} = result
+      assert length(parent_posts) == 2
+
+      parent_titles = Enum.map(parent_posts, & &1.title) |> Enum.sort()
+      assert parent_titles == ["trigger_nested", "trigger_nested_2"]
+
+      # Verify total posts: 2 parent + (2 nested per parent from after_action) = 6 total
+      all_posts = Post |> Ash.Query.sort(:title) |> Ash.read!()
+      assert length(all_posts) == 6
+
+      # Count posts by type
+      nested_posts =
+        Post
+        |> Ash.Query.filter(expr(title in ["nested_post_1", "nested_post_2"]))
+        |> Ash.read!()
+
+      # Should have 4 nested posts (2 for each parent operation via after_action callbacks)
+      assert length(nested_posts) == 4
+
+      # Verify each nested post has proper structure
+      Enum.each(nested_posts, fn post ->
+        assert is_binary(post.id)
+        assert post.title in ["nested_post_1", "nested_post_2"]
+      end)
     end
   end
 end

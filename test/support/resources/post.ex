@@ -432,6 +432,56 @@ defmodule AshPostgres.Test.Post do
       upsert_fields([:price])
     end
 
+    create :create_with_nested_bulk_create do
+      change(
+        after_action(fn changeset, result, context ->
+          Ash.bulk_create!(
+            [%{title: "nested_post_1"}, %{title: "nested_post_2"}],
+            __MODULE__,
+            :create,
+            authorize?: false,
+            tenant: changeset.tenant,
+            return_records?: true
+          )
+
+          {:ok, result}
+        end)
+      )
+    end
+
+    create :create_with_nested_bulk_update do
+      change(
+        after_action(fn changeset, result, context ->
+          created_posts =
+            Ash.bulk_create!(
+              [%{title: "post_to_update_1"}, %{title: "post_to_update_2"}],
+              __MODULE__,
+              :create,
+              authorize?: false,
+              tenant: changeset.tenant,
+              return_records?: true
+            )
+
+          post_ids = Enum.map(created_posts.records, & &1.id)
+
+          Ash.bulk_update!(
+            __MODULE__,
+            :set_title,
+            %{title: "updated_via_nested_bulk"},
+            filter: [id: [in: post_ids]],
+            authorize?: false,
+            tenant: changeset.tenant
+          )
+
+          {:ok, result}
+        end)
+      )
+    end
+
+    update :set_title do
+      accept([:title])
+    end
+
     update :set_title_from_author do
       change(atomic_update(:title, expr(author.first_name)))
     end
