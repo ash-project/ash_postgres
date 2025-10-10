@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.MultitenancyTest.NonMultitenantPostLink do
   @moduledoc false
   use Ash.Resource,

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.Test.CompositeTypeTest do
   use AshPostgres.RepoCase
   alias AshPostgres.Test.Post

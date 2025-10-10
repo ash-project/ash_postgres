@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.MigrationGeneratorTest do
   use AshPostgres.RepoCase, async: false
   @moduletag :migration

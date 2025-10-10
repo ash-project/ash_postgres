@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.Test.PrimaryKeyTest do
   @moduledoc false
   use AshPostgres.RepoCase, async: false

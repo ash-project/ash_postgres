@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.CustomIndex do
   @moduledoc "Represents a custom index on the table backing a resource"
   @fields [

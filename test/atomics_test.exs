@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.AtomicsTest do
   alias AshPostgres.Test.Author
   alias AshPostgres.Test.Comment

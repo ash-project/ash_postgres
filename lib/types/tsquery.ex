@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.Tsquery do
   @moduledoc """
   A thin wrapper around `:string` for working with tsquery types in calculations.

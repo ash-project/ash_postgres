@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2020 Zach Daniel
+
+SPDX-License-Identifier: MIT
+-->
+
 # References
 
 To configure the behavior of generated foreign keys on a resource, we use the `references` section, within the `postgres` configuration block.

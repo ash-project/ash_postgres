@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.MixProject do
   use Mix.Project
 
@@ -54,13 +58,20 @@ defmodule AshPostgres.MixProject do
 
   defp package do
     [
-      name: :ash_postgres,
+      maintainers: [
+        "Zach Daniel <zach@zachdaniel.dev>"
+      ],
       licenses: ["MIT"],
       files: ~w(lib .formatter.exs mix.exs README* LICENSE*
       CHANGELOG* documentation usage-rules.md),
       links: %{
-        Changelog: "https://hexdocs.pm/ash_postgres/changelog.html",
-        GitHub: "https://github.com/ash-project/ash_postgres"
+        "GitHub" => "https://github.com/ash-project/ash_postgres",
+        "Changelog" => "https://github.com/ash-project/ash_postgres/blob/main/CHANGELOG.md",
+        "Discord" => "https://discord.gg/HTHRaaVPUc",
+        "Website" => "https://ash-hq.org",
+        "Forum" => "https://elixirforum.com/c/elixir-framework-forums/ash-framework-forum",
+        "REUSE Compliance" =>
+          "https://api.reuse.software/info/github.com/ash-project/ash_postgres"
       }
     ]
   end

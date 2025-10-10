@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.Repo do
   @moduledoc """
   Resources that use `AshPostgres.DataLayer` use a `Repo` to access the database.

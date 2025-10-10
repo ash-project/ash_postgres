@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 alias AshPostgres.Test.{Domain, Post}
 
 AshPostgres.TestRepo.start_link()

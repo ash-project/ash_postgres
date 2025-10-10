@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.EmptyAtomicNonBulkActionsPolicyBypassTest do
   @moduledoc """
   This is test verifies the fix for the following CVE:

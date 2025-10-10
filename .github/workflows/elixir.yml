@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 name: CI
 on:
   push:
@@ -19,6 +23,6 @@ jobs:
       publish-docs: ${{ matrix.postgres-version == '16' }}
       release: ${{ matrix.postgres-version == '16' }}
       igniter-upgrade: ${{matrix.postgres-version == '16'}}
-
+      reuse: true
     secrets:
       hex_api_key: ${{ secrets.HEX_API_KEY }}

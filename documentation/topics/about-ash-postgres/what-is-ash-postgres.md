@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2020 Zach Daniel
+
+SPDX-License-Identifier: MIT
+-->
+
 # What is AshPostgres?
 
 AshPostgres is the PostgreSQL `Ash.DataLayer` for [Ash Framework](https://hexdocs.pm/ash). This is the most fully-featured Ash data layer, and unless you need a specific characteristic or feature of another data layer, you should use `AshPostgres`.

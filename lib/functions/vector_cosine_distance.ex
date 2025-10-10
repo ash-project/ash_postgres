@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.Functions.VectorCosineDistance do
   @moduledoc """
   Maps to the vector cosine distance operator. Requires `vector` extension to be installed.

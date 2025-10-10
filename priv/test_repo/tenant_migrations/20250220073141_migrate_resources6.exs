@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.TestRepo.TenantMigrations.MigrateResources6 do
   @moduledoc """
   Updates resources based on their most recent snapshots.

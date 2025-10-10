@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2020 Zach Daniel
+
+SPDX-License-Identifier: MIT
+-->
+
 # Using Multiple Repos
 
 When scaling PostgreSQL you may want to setup _read_ replicas to improve

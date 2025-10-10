@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2020 Zach Daniel
+
+SPDX-License-Identifier: MIT
+-->
+
 # Upgrading to 2.0
 
 There are only three breaking changes in this release, one of them is very significant, the other two are minor.

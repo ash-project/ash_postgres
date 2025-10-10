@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.Test.Subquery.Through do
   @moduledoc false
   alias AshPostgres.Test.Subquery.Child
