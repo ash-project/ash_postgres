@@ -5,6 +5,27 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.21](https://github.com/ash-project/ash_postgres/compare/v2.6.20...v2.6.21) (2025-10-10)
+
+
+
+
+### Bug Fixes:
+
+* simplify bulk operation metadata handling by Zach Daniel
+
+* update ash_postgresql to handle the new bulk_create response in Ash v3.5.44 (#632) by Daniel Gollings
+
+* Support non-public PostgreSQL schemas in resource generator (#631) by Elliot Bowes
+
+* guard against missing snapshot directories in migration generator by Elliot Bowes
+
+* ensure that tenant is properly used in many-to-many joins by Zach Daniel
+
+### Improvements:
+
+* Add immutable version of `ash_raise_error` function to support extensions like Citus (#620) by Steve Brambilla
+
 ## [v2.6.20](https://github.com/ash-project/ash_postgres/compare/v2.6.19...v2.6.20) (2025-09-27)
 
 
