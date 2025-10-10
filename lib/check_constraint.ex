@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.CheckConstraint do
   @moduledoc "Represents a configured check constraint on the table backing a resource"
 

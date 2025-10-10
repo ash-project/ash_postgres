@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.EctoCompatibilityTest do
   use AshPostgres.RepoCase, async: false
   require Ash.Query

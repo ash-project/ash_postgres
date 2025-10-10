@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgresTest do
   use AshPostgres.RepoCase, async: false
   import ExUnit.CaptureLog

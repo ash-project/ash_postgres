@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.Functions.VectorL2Distance do
   @moduledoc """
   Maps to the vector l2 distance operator. Requires `vector` extension to be installed.

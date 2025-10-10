@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.Statement do
   @moduledoc "Represents a custom statement to be run in generated migrations"
 

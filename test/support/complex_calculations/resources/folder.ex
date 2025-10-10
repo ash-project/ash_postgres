@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.Test.Support.ComplexCalculations.Folder do
   @moduledoc """
   A tree structure using the ltree type.

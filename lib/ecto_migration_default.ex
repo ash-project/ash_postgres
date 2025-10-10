@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defprotocol EctoMigrationDefault do
   @moduledoc """
   Allows configuring how values are translated to default values in migrations.

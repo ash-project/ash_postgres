@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2020 Zach Daniel
+
+SPDX-License-Identifier: MIT
+-->
+
 # Manual Relationships
 
 See [Manual Relationships](https://hexdocs.pm/ash/relationships.html#manual-relationships) for an idea of manual relationships in general.

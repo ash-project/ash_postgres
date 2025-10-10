@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2020 Zach Daniel
+
+SPDX-License-Identifier: MIT
+-->
+
 # Security Policy
 
 This is a copy of the security policy in the core Ash repo. That is the authoritative source.

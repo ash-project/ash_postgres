@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.Extensions.Vector do
   @moduledoc """
   An extension that adds support for the `vector` type.

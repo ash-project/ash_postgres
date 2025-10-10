@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.ResourceGenerator.SensitiveData do
   @moduledoc false
   # I got this from ChatGPT, but this is a best effort transformation

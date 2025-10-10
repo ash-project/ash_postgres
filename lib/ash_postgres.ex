@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres do
   @moduledoc """
   The AshPostgres extension gives you tools to map a resource to a postgres database table.

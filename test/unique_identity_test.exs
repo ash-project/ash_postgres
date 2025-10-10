@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2020 Zach Daniel
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.Test.UniqueIdentityTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.Organization
