@@ -2136,12 +2136,12 @@ defmodule AshPostgres.DataLayer do
 
                   case get_bulk_operation_metadata(changeset) do
                     {index, metadata_key} ->
-                      Ash.Resource.put_metadata(result, metadata_key, index)
+                      Ash.Resource.put_metadata(result_for_changeset, metadata_key, index)
 
                     nil ->
                       # Compatibility fallback
                       Ash.Resource.put_metadata(
-                        result,
+                        result_for_changeset,
                         :bulk_create_index,
                         changeset.context[:bulk_create][:index]
                       )
