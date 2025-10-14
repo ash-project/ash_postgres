@@ -11,6 +11,19 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.22](https://github.com/ash-project/ash_postgres/compare/v2.6.21...v2.6.22) (2025-10-14)
+
+
+
+
+### Bug Fixes:
+
+* return skipped upserts in bulk_create (#626) by Barnabas Jovanovics
+
+### Improvements:
+
+* leverage new aggregate loading optimization by Zach Daniel
+
 ## [v2.6.21](https://github.com/ash-project/ash_postgres/compare/v2.6.20...v2.6.21) (2025-10-10)
 
 
