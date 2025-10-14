@@ -176,6 +176,67 @@ defmodule AshPostgres.BulkCreateTest do
                end)
     end
 
+    test "bulk upsert returns skipped records with return_skipped_upsert?" do
+      assert [
+               {:ok, %{title: "fredfoo", uniq_if_contains_foo: "1foo", price: 10}},
+               {:ok, %{title: "georgefoo", uniq_if_contains_foo: "2foo", price: 20}},
+               {:ok, %{title: "herbert", uniq_if_contains_foo: "3", price: 30}}
+             ] =
+               Ash.bulk_create!(
+                 [
+                   %{title: "fredfoo", uniq_if_contains_foo: "1foo", price: 10},
+                   %{title: "georgefoo", uniq_if_contains_foo: "2foo", price: 20},
+                   %{title: "herbert", uniq_if_contains_foo: "3", price: 30}
+                 ],
+                 Post,
+                 :create,
+                 return_stream?: true,
+                 return_records?: true
+               )
+               |> Enum.sort_by(fn {:ok, result} -> result.title end)
+
+      results =
+        Ash.bulk_create!(
+          [
+            %{title: "fredfoo", uniq_if_contains_foo: "1foo", price: 10},
+            %{title: "georgefoo", uniq_if_contains_foo: "2foo", price: 20_000},
+            %{title: "herbert", uniq_if_contains_foo: "3", price: 30}
+          ],
+          Post,
+          :upsert_with_no_filter,
+          return_stream?: true,
+          upsert_condition: expr(price != upsert_conflict(:price)),
+          return_errors?: true,
+          return_records?: true,
+          return_skipped_upsert?: true
+        )
+        |> Enum.sort_by(fn
+          {:ok, result} ->
+            result.title
+
+          _ ->
+            nil
+        end)
+
+      assert [
+               {:ok, skipped},
+               {:ok, updated},
+               {:ok, no_conflict}
+             ] = results
+
+      assert skipped.title == "fredfoo"
+      assert skipped.price == 10
+      assert Ash.Resource.get_metadata(skipped, :upsert_skipped) == true
+
+      assert updated.title == "georgefoo"
+      assert updated.price == 20_000
+      refute Ash.Resource.get_metadata(updated, :upsert_skipped)
+
+      assert no_conflict.title == "herbert"
+      assert no_conflict.price == 30
+      refute Ash.Resource.get_metadata(no_conflict, :upsert_skipped)
+    end
+
     # confirmed that this doesn't work because it can't. An upsert must map to a potentially successful insert.
     # leaving this test here for posterity
     # test "bulk creates can upsert with id" do
