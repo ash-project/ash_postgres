@@ -3619,14 +3619,11 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def add_aggregates(query, aggregates, resource) do
-    AshSql.Aggregate.add_aggregates(
-      query,
-      aggregates,
-      resource,
-      true,
-      query.__ash_bindings__.root_binding
-    )
+  def add_aggregates(query, aggregates, _resource) do
+    {:ok,
+     Map.update!(query, :__ash_bindings__, fn bindings ->
+       Map.put(bindings, :load_aggregates, aggregates)
+     end)}
   end
 
   @impl true

@@ -1734,4 +1734,130 @@ defmodule AshSql.AggregateTest do
 
     assert loaded_post.count_of_comments == 1
   end
+
+  test "aggregate with sort and limit is accurate" do
+    # Setup: Create an author with multiple posts
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "John", last_name: "Doe"})
+      |> Ash.create!()
+
+    # Create posts with different titles to test sorting
+    post1 =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "A First Post"})
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+      |> Ash.create!()
+
+    post2 =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "Z Last Post"})
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+      |> Ash.create!()
+
+    post3 =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "M Middle Post"})
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+      |> Ash.create!()
+
+    # Add comments to posts
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "Comment 1"})
+    |> Ash.Changeset.manage_relationship(:post, post1, type: :append_and_remove)
+    |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "Comment 2"})
+    |> Ash.Changeset.manage_relationship(:post, post1, type: :append_and_remove)
+    |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "Comment 3"})
+    |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
+    |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "Comment 4"})
+    |> Ash.Changeset.manage_relationship(:post, post3, type: :append_and_remove)
+    |> Ash.create!()
+
+    # Query with aggregate, sort, and limit
+    # This should ideally use a subquery to apply sort/limit before loading the aggregate
+    results =
+      Post
+      |> Ash.Query.load(:count_of_comments)
+      |> Ash.Query.sort(:title)
+      |> Ash.Query.limit(2)
+      |> Ash.read!()
+
+    # Verify we got the right posts (sorted by title, limited to 2)
+    assert length(results) == 2
+    assert Enum.at(results, 0).title == "A First Post"
+    assert Enum.at(results, 1).title == "M Middle Post"
+
+    # Verify the aggregates are correct
+    assert Enum.at(results, 0).count_of_comments == 2
+    assert Enum.at(results, 1).count_of_comments == 1
+  end
+
+  test "aggregate with sort by aggregate value and limit is accurate" do
+    # This tests sorting by the aggregate itself, not by another field
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "Jane", last_name: "Smith"})
+      |> Ash.create!()
+
+    # Create posts with different numbers of comments
+    post1 =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "Post with 3 comments"})
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+      |> Ash.create!()
+
+    post2 =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "Post with 1 comment"})
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+      |> Ash.create!()
+
+    post3 =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "Post with 2 comments"})
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+      |> Ash.create!()
+
+    # Add varying numbers of comments
+    for _i <- 1..3 do
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "Comment on post 1"})
+      |> Ash.Changeset.manage_relationship(:post, post1, type: :append_and_remove)
+      |> Ash.create!()
+    end
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "Comment on post 2"})
+    |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
+    |> Ash.create!()
+
+    for _i <- 1..2 do
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "Comment on post 3"})
+      |> Ash.Changeset.manage_relationship(:post, post3, type: :append_and_remove)
+      |> Ash.create!()
+    end
+
+    # Query sorting by the aggregate value itself
+    results =
+      Post
+      |> Ash.Query.load(:count_of_comments)
+      |> Ash.Query.sort(count_of_comments: :desc)
+      |> Ash.Query.limit(2)
+      |> Ash.read!()
+
+    # Should get the posts with most comments first
+    assert length(results) == 2
+    assert Enum.at(results, 0).count_of_comments == 3
+    assert Enum.at(results, 1).count_of_comments == 2
+  end
 end
