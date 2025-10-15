@@ -890,6 +890,9 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
+  def combination_acc(query), do: AshSql.Query.combination_acc(query)
+
+  @impl true
   def run_aggregate_query(original_query, aggregates, resource) do
     AshSql.AggregateQuery.run_aggregate_query(
       original_query,
