@@ -3227,7 +3227,7 @@ defmodule AshPostgres.MigrationGenerator do
           migration_type(attribute.type, attribute.constraints)
 
       type =
-        if :erlang.function_exported(repo, :override_migration_type, 1) do
+        if function_exported?(repo, :override_migration_type, 1) do
           repo.override_migration_type(type)
         else
           type

@@ -311,11 +311,7 @@ defmodule AshPostgres.SqlImplementation do
   def parameterized_type(type, constraints) do
     if Ash.Type.ash_type?(type) do
       cast_in_query? =
-        if function_exported?(Ash.Type, :cast_in_query?, 2) do
-          Ash.Type.cast_in_query?(type, constraints)
-        else
-          Ash.Type.cast_in_query?(type)
-        end
+        Ash.Type.cast_in_query?(type, constraints)
 
       if cast_in_query? do
         type = Ash.Type.ecto_type(type)
