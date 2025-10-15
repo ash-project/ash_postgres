@@ -11,6 +11,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.23](https://github.com/ash-project/ash_postgres/compare/v2.6.22...v2.6.23) (2025-10-15)
+
+
+
+
+### Improvements:
+
+* implement combination_acc/1 by Zach Daniel
+
 ## [v2.6.22](https://github.com/ash-project/ash_postgres/compare/v2.6.21...v2.6.22) (2025-10-14)
 
 
