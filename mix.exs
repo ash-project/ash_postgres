@@ -179,7 +179,7 @@ defmodule AshPostgres.MixProject do
     [
       {:ash, ash_version("~> 3.7")},
       {:spark, "~> 2.3 and >= 2.3.4"},
-      {:ash_sql, ash_sql_version("~> 0.3 and >= 0.3.6")},
+      {:ash_sql, ash_sql_version("~> 0.3 and >= 0.3.7")},
       {:igniter, "~> 0.6 and >= 0.6.29", optional: true},
       {:ecto_sql, "~> 3.13"},
       {:ecto, "~> 3.13"},
