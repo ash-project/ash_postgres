@@ -4,7 +4,7 @@
 
 defmodule AshPostgres.BulkCreateTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Post, Record}
+  alias AshPostgres.Test.{IntegerPost, Post, Record}
 
   require Ash.Query
   import Ash.Expr
@@ -355,6 +355,18 @@ defmodule AshPostgres.BulkCreateTest do
                |> Ash.Query.sort(:title)
                |> Ash.Query.load(:ratings)
                |> Ash.read!()
+    end
+
+    test "bulk creates with integer primary key return records" do
+      %Ash.BulkResult{records: records} =
+        Ash.bulk_create!(
+          [%{title: "first"}, %{title: "second"}, %{title: "third"}],
+          IntegerPost,
+          :create,
+          return_records?: true
+        )
+
+      assert length(records) == 3
     end
   end
 

@@ -2124,34 +2124,57 @@ defmodule AshPostgres.DataLayer do
               end)
 
             results =
-              changesets
-              |> Enum.map(fn changeset ->
-                identity =
-                  changeset.attributes
-                  |> Map.take(keys)
+              if opts[:upsert?] do
+                changesets
+                |> Enum.map(fn changeset ->
+                  identity =
+                    changeset.attributes
+                    |> Map.take(keys)
 
-                result_for_changeset = Map.get(results_by_identity, identity)
+                  result_for_changeset = Map.get(results_by_identity, identity)
 
-                if result_for_changeset do
+                  if result_for_changeset do
+                    if !opts[:upsert?] do
+                      maybe_create_tenant!(resource, result_for_changeset)
+                    end
+
+                    case get_bulk_operation_metadata(changeset) do
+                      {index, metadata_key} ->
+                        Ash.Resource.put_metadata(result_for_changeset, metadata_key, index)
+
+                      nil ->
+                        # Compatibility fallback
+                        Ash.Resource.put_metadata(
+                          result_for_changeset,
+                          :bulk_create_index,
+                          changeset.context[:bulk_create][:index]
+                        )
+                    end
+                  end
+                end)
+                |> Enum.filter(& &1)
+              else
+                results
+                |> Enum.zip(changesets)
+                |> Enum.map(fn {result, changeset} ->
                   if !opts[:upsert?] do
-                    maybe_create_tenant!(resource, result_for_changeset)
+                    maybe_create_tenant!(resource, result)
                   end
 
                   case get_bulk_operation_metadata(changeset) do
                     {index, metadata_key} ->
-                      Ash.Resource.put_metadata(result_for_changeset, metadata_key, index)
+                      Ash.Resource.put_metadata(result, metadata_key, index)
 
                     nil ->
                       # Compatibility fallback
                       Ash.Resource.put_metadata(
-                        result_for_changeset,
+                        result,
                         :bulk_create_index,
                         changeset.context[:bulk_create][:index]
                       )
                   end
-                end
-              end)
-              |> Enum.filter(& &1)
+                end)
+              end
 
             {:ok, results}
           end
