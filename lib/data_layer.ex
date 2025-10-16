@@ -2123,32 +2123,8 @@ defmodule AshPostgres.DataLayer do
                 {Map.take(r, keys), r}
               end)
 
-            cant_map_results_to_changesets =
-              any_generated_keys_missing?(keys, resource, changesets)
-
             results =
-              if cant_map_results_to_changesets do
-                results
-                |> Enum.zip(changesets)
-                |> Enum.map(fn {result, changeset} ->
-                  if !opts[:upsert?] do
-                    maybe_create_tenant!(resource, result)
-                  end
-
-                  case get_bulk_operation_metadata(changeset) do
-                    {index, metadata_key} ->
-                      Ash.Resource.put_metadata(result, metadata_key, index)
-
-                    nil ->
-                      # Compatibility fallback
-                      Ash.Resource.put_metadata(
-                        result,
-                        :bulk_create_index,
-                        changeset.context[:bulk_create][:index]
-                      )
-                  end
-                end)
-              else
+              if opts[:upsert?] do
                 changesets
                 |> Enum.map(fn changeset ->
                   identity =
@@ -2176,9 +2152,28 @@ defmodule AshPostgres.DataLayer do
                     end
                   end
                 end)
-                |> Enum.concat(results)
                 |> Enum.filter(& &1)
-                |> Enum.uniq_by(&Map.take(&1, keys))
+              else
+                results
+                |> Enum.zip(changesets)
+                |> Enum.map(fn {result, changeset} ->
+                  if !opts[:upsert?] do
+                    maybe_create_tenant!(resource, result)
+                  end
+
+                  case get_bulk_operation_metadata(changeset) do
+                    {index, metadata_key} ->
+                      Ash.Resource.put_metadata(result, metadata_key, index)
+
+                    nil ->
+                      # Compatibility fallback
+                      Ash.Resource.put_metadata(
+                        result,
+                        :bulk_create_index,
+                        changeset.context[:bulk_create][:index]
+                      )
+                  end
+                end)
               end
 
             {:ok, results}
@@ -3763,16 +3758,6 @@ defmodule AshPostgres.DataLayer do
     else
       resource
     end
-  end
-
-  # checks if any of the attributes in the list of keys are generated and missing from any of the changesets
-  # if so, we can't match the created record to the changeset by the identity and just need to zip the return
-  # values with the changesets
-  defp any_generated_keys_missing?(keys, resource, changesets) do
-    Enum.any?(keys, fn key ->
-      Ash.Resource.Info.attribute(resource, key).generated? &&
-        Enum.any?(changesets, fn changeset -> is_nil(changeset.attributes[key]) end)
-    end)
   end
 
   defp get_bulk_operation_metadata(changeset) do
