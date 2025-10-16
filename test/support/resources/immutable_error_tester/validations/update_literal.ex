@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs.contributors>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.Test.ImmutableErrorTester.Validations.UpdateLiteral do
   @moduledoc false
   use Ash.Resource.Validation
