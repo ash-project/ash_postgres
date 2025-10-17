@@ -58,6 +58,7 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.Chat)
     resource(AshPostgres.Test.Message)
     resource(AshPostgres.Test.RSVP)
+    resource(AshPostgres.Test.ImmutableErrorTester)
   end
 
   authorization do

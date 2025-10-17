@@ -16,7 +16,15 @@ defmodule AshPostgres.TestRepo do
   def prefer_transaction_for_atomic_updates?, do: false
 
   def installed_extensions do
-    ["ash-functions", "uuid-ossp", "pg_trgm", "citext", AshPostgres.TestCustomExtension, "ltree"] --
+    [
+      "ash-functions",
+      "uuid-ossp",
+      "pg_trgm",
+      "citext",
+      AshPostgres.TestCustomExtension,
+      AshPostgres.Extensions.ImmutableRaiseError,
+      "ltree"
+    ] --
       Application.get_env(:ash_postgres, :no_extensions, [])
   end
 
@@ -39,5 +47,9 @@ defmodule AshPostgres.TestRepo do
     AshPostgres.MultitenancyTest.Org
     |> Ash.read!()
     |> Enum.map(&"org_#{&1.id}")
+  end
+
+  def immutable_expr_error? do
+    Application.get_env(:ash_postgres, :test_repo_use_immutable_errors?, false)
   end
 end

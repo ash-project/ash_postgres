@@ -6,6 +6,7 @@
     "pg_trgm",
     "citext",
     "demo-functions_v1",
+    "immutable_raise_error_v2",
     "ltree"
   ]
 }
