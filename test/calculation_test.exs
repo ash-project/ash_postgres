@@ -1121,4 +1121,25 @@ defmodule AshPostgres.CalculationTest do
              first_comment_by_author.created_at
            )
   end
+
+  test "nested calculation with parent() in exists works" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "John", last_name: "Doe"})
+      |> Ash.create!()
+
+    _post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "test", author_id: author.id})
+      |> Ash.create!()
+
+    result =
+      Post
+      |> Ash.Query.load(:author_has_post_with_title_matching_their_first_name)
+      |> Ash.read!()
+      |> List.first()
+
+    # Should be false since post title doesn't match author first name
+    refute result.author_has_post_with_title_matching_their_first_name
+  end
 end

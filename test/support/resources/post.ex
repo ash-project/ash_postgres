@@ -924,6 +924,12 @@ defmodule AshPostgres.Test.Post do
       )
     )
 
+    calculate(
+      :author_has_post_with_title_matching_their_first_name,
+      :boolean,
+      expr(author.has_post_with_title_matching_first_name)
+    )
+
     calculate(:has_author, :boolean, expr(exists(author, true == true)))
 
     calculate(:has_comments, :boolean, expr(exists(comments, true == true)))
