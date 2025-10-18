@@ -93,4 +93,86 @@ defmodule AshPostgres.StorageTypesTest do
              |> Ash.Query.filter(not is_nil(settings["dues_reminders"]))
              |> Ash.read!()
   end
+
+  test "can bulk update {:array, CustomTypedStruct} stored as jsonb" do
+    %{id: id} =
+      Author
+      |> Ash.Changeset.for_create(
+        :create,
+        %{
+          first_name: "Test",
+          last_name: "User",
+          identities: [%{provider: "github", uid: "123"}, %{provider: "google", uid: "456"}]
+        }
+      )
+      |> Ash.create!()
+
+    %BulkResult{records: [author]} =
+      Author
+      |> Ash.Query.filter(id == ^id)
+      |> Ash.bulk_update(:update, %{identities: [%{provider: "gitlab", uid: "789"}]},
+        return_errors?: true,
+        notify?: true,
+        strategy: [:atomic, :stream, :atomic_batches],
+        allow_stream_with: :full_read,
+        return_records?: true
+      )
+
+    assert length(author.identities) == 1
+    assert %{provider: "gitlab", uid: "789"} = hd(author.identities)
+
+    %BulkResult{records: [author]} =
+      Author
+      |> Ash.Query.filter(id == ^id)
+      |> Ash.bulk_update(:update, %{identities: []},
+        return_errors?: true,
+        notify?: true,
+        strategy: [:atomic, :stream, :atomic_batches],
+        allow_stream_with: :full_read,
+        return_records?: true
+      )
+
+    assert author.identities == []
+  end
+
+  test "can bulk update {:array, CustomTypedStruct} stored as {:array, :map}" do
+    %{id: id} =
+      Author
+      |> Ash.Changeset.for_create(
+        :create,
+        %{
+          first_name: "Test",
+          last_name: "User",
+          preferences: [%{key: "theme", value: "dark"}, %{key: "lang", value: "en"}]
+        }
+      )
+      |> Ash.create!()
+
+    %BulkResult{records: [author]} =
+      Author
+      |> Ash.Query.filter(id == ^id)
+      |> Ash.bulk_update(:update, %{preferences: [%{key: "theme", value: "light"}]},
+        return_errors?: true,
+        notify?: true,
+        strategy: [:atomic, :stream, :atomic_batches],
+        allow_stream_with: :full_read,
+        return_records?: true
+      )
+
+    assert length(author.preferences) == 1
+    assert %{key: "theme", value: "light"} = hd(author.preferences)
+
+    %BulkResult{records: [author]} =
+      Author
+      |> Ash.Query.filter(id == ^id)
+      |> Ash.bulk_update(:update, %{preferences: []},
+        return_errors?: true,
+        notify?: true,
+        strategy: [:atomic, :stream, :atomic_batches],
+        allow_stream_with: :full_read,
+        return_records?: true
+      )
+
+    assert author.preferences == []
+  end
 end
