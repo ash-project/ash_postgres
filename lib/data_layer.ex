@@ -2138,18 +2138,12 @@ defmodule AshPostgres.DataLayer do
                       maybe_create_tenant!(resource, result_for_changeset)
                     end
 
-                    case get_bulk_operation_metadata(changeset) do
-                      {index, metadata_key} ->
-                        Ash.Resource.put_metadata(result_for_changeset, metadata_key, index)
-
-                      nil ->
-                        # Compatibility fallback
-                        Ash.Resource.put_metadata(
-                          result_for_changeset,
-                          :bulk_create_index,
-                          changeset.context[:bulk_create][:index]
-                        )
-                    end
+                    # Compatibility fallback
+                    Ash.Resource.put_metadata(
+                      result_for_changeset,
+                      :bulk_create_index,
+                      changeset.context[:bulk_create][:index]
+                    )
                   end
                 end)
                 |> Enum.filter(& &1)
@@ -2161,18 +2155,12 @@ defmodule AshPostgres.DataLayer do
                     maybe_create_tenant!(resource, result)
                   end
 
-                  case get_bulk_operation_metadata(changeset) do
-                    {index, metadata_key} ->
-                      Ash.Resource.put_metadata(result, metadata_key, index)
-
-                    nil ->
-                      # Compatibility fallback
-                      Ash.Resource.put_metadata(
-                        result,
-                        :bulk_create_index,
-                        changeset.context[:bulk_create][:index]
-                      )
-                  end
+                  # Compatibility fallback
+                  Ash.Resource.put_metadata(
+                    result,
+                    :bulk_create_index,
+                    changeset.context[:bulk_create][:index]
+                  )
                 end)
               end
 
@@ -3758,21 +3746,5 @@ defmodule AshPostgres.DataLayer do
     else
       resource
     end
-  end
-
-  defp get_bulk_operation_metadata(changeset) do
-    changeset.context
-    |> Enum.find_value(fn
-      # New format: {{:bulk_create, ref}, value} -> {index, metadata_key}
-      {{:bulk_create, ref}, value} ->
-        {value.index, {:bulk_create_index, ref}}
-
-      # Fallback for old format: {:bulk_create, value} -> {index, metadata_key}
-      {:bulk_create, value} when is_map(value) ->
-        {value.index, :bulk_create_index}
-
-      _ ->
-        nil
-    end)
   end
 end
