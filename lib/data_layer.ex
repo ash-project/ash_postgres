@@ -453,72 +453,74 @@ defmodule AshPostgres.DataLayer do
           migrations_path = AshPostgres.Mix.Helpers.migrations_path([], repo)
           tenant_migrations_path = AshPostgres.Mix.Helpers.tenant_migrations_path([], repo)
 
-          current_migrations =
-            Ecto.Query.from(row in "schema_migrations",
-              select: row.version
-            )
-            |> repo.all()
-            |> Enum.map(&to_string/1)
+          if "--tenants" not in args do
+            current_migrations =
+              Ecto.Query.from(row in "schema_migrations",
+                select: row.version
+              )
+              |> repo.all()
+              |> Enum.map(&to_string/1)
 
-          files =
-            migrations_path
-            |> Path.join("**/*.exs")
-            |> Path.wildcard()
-            |> Enum.sort()
-            |> Enum.reverse()
-            |> Enum.filter(fn file ->
-              Enum.any?(current_migrations, &String.starts_with?(Path.basename(file), &1))
-            end)
-            |> Enum.take(20)
-            |> Enum.map(&String.trim_leading(&1, migrations_path))
-            |> Enum.map(&String.trim_leading(&1, "/"))
+            files =
+              migrations_path
+              |> Path.join("**/*.exs")
+              |> Path.wildcard()
+              |> Enum.sort()
+              |> Enum.reverse()
+              |> Enum.filter(fn file ->
+                Enum.any?(current_migrations, &String.starts_with?(Path.basename(file), &1))
+              end)
+              |> Enum.take(20)
+              |> Enum.map(&String.trim_leading(&1, migrations_path))
+              |> Enum.map(&String.trim_leading(&1, "/"))
 
-          indexed =
-            files
-            |> Enum.with_index()
-            |> Enum.map(fn {file, index} -> "#{index + 1}: #{file}" end)
+            indexed =
+              files
+              |> Enum.with_index()
+              |> Enum.map(fn {file, index} -> "#{index + 1}: #{file}" end)
 
-          to =
-            Mix.shell().prompt(
-              """
-              How many migrations should be rolled back#{for_repo}? (default: 0)
+            to =
+              Mix.shell().prompt(
+                """
+                How many migrations should be rolled back#{for_repo}? (default: 0)
 
-              Last 20 migration names, with the input you must provide to
-              rollback up to *and including* that migration:
+                Last 20 migration names, with the input you must provide to
+                rollback up to *and including* that migration:
 
-              #{Enum.join(indexed, "\n")}
-              Rollback to:
-              """
-              |> String.trim_trailing()
-            )
-            |> String.trim()
-            |> case do
-              "" ->
-                nil
+                #{Enum.join(indexed, "\n")}
+                Rollback to:
+                """
+                |> String.trim_trailing()
+              )
+              |> String.trim()
+              |> case do
+                "" ->
+                  nil
 
-              "0" ->
-                nil
+                "0" ->
+                  nil
 
-              n ->
-                try do
-                  files
-                  |> Enum.at(String.to_integer(n) - 1)
-                rescue
-                  _ ->
-                    reraise "Required an integer value, got: #{n}", __STACKTRACE__
-                end
-                |> String.split("_", parts: 2)
-                |> Enum.at(0)
-                |> String.to_integer()
+                n ->
+                  try do
+                    files
+                    |> Enum.at(String.to_integer(n) - 1)
+                  rescue
+                    _ ->
+                      reraise "Required an integer value, got: #{n}", __STACKTRACE__
+                  end
+                  |> String.split("_", parts: 2)
+                  |> Enum.at(0)
+                  |> String.to_integer()
+              end
+
+            if to do
+              Mix.Task.run(
+                "ash_postgres.rollback",
+                args ++ ["-r", inspect(repo), "--to", to_string(to)]
+              )
+
+              Mix.Task.reenable("ash_postgres.rollback")
             end
-
-          if to do
-            Mix.Task.run(
-              "ash_postgres.rollback",
-              args ++ ["-r", inspect(repo), "--to", to_string(to)]
-            )
-
-            Mix.Task.reenable("ash_postgres.rollback")
           end
 
           tenant_files =
@@ -599,7 +601,7 @@ defmodule AshPostgres.DataLayer do
               if to do
                 Mix.Task.run(
                   "ash_postgres.rollback",
-                  args ++ ["--tenants", "-r", inspect(repo), "--to", to]
+                  args ++ ["--tenants", "-r", inspect(repo), "--to", to_string(to)]
                 )
 
                 Mix.Task.reenable("ash_postgres.rollback")

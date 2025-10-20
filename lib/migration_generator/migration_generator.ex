@@ -514,16 +514,6 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  if Mix.env() == :test do
-    defp with_repo_not_in_test(repo, fun) do
-      fun.(repo)
-    end
-  else
-    defp with_repo_not_in_test(repo, fun) do
-      Ecto.Migrator.with_repo(repo, fun)
-    end
-  end
-
   defp require_name!(opts) do
     if !opts.name && !opts.dry_run && !opts.check && !opts.snapshots_only && !opts.dev &&
          !opts.auto_name do
@@ -548,7 +538,7 @@ defmodule AshPostgres.MigrationGenerator do
       end)
 
     if tenant? do
-      with_repo_not_in_test(repo, fn repo ->
+      Ecto.Migrator.with_repo(repo, fn repo ->
         for prefix <- repo.all_tenants() do
           {repo, query, opts} = Ecto.Migration.SchemaMigration.versions(repo, [], prefix)
 
@@ -583,7 +573,7 @@ defmodule AshPostgres.MigrationGenerator do
         end
       end)
     else
-      with_repo_not_in_test(repo, fn repo ->
+      Ecto.Migrator.with_repo(repo, fn repo ->
         {repo, query, opts} = Ecto.Migration.SchemaMigration.versions(repo, [], nil)
 
         repo.transaction(fn ->
