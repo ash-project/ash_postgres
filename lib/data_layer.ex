@@ -36,7 +36,7 @@ defmodule AshPostgres.DataLayer do
       update?: [
         type: :boolean,
         default: true,
-        doc: "Whether or not to automatically update the tenant name if the record is udpated"
+        doc: "Whether or not to automatically update the tenant name if the record is updated"
       ]
     ]
   }
