@@ -11,6 +11,21 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.24](https://github.com/ash-project/ash_postgres/compare/v2.6.23...v2.6.24) (2025-10-30)
+
+
+
+
+### Bug Fixes:
+
+* handle results that can't be mapped to the changeset in bulk_create (#638) by Barnabas Jovanovics
+
+* handle results that can't be mapped to the changeset in bulk_create by Barnabas Jovanovics
+
+### Improvements:
+
+* remove unused bulk operation metadata function & update ash by Zach Daniel
+
 ## [v2.6.23](https://github.com/ash-project/ash_postgres/compare/v2.6.22...v2.6.23) (2025-10-15)
 
 
