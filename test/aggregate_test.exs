@@ -5,7 +5,7 @@
 defmodule AshSql.AggregateTest do
   use AshPostgres.RepoCase, async: false
   import ExUnit.CaptureIO
-  alias AshPostgres.Test.{Author, Comment, Organization, Post, Rating, User}
+  alias AshPostgres.Test.{Author, Chat, Comment, Organization, Post, Rating, User}
 
   require Ash.Query
   import Ash.Expr
@@ -1859,5 +1859,64 @@ defmodule AshSql.AggregateTest do
     assert length(results) == 2
     assert Enum.at(results, 0).count_of_comments == 3
     assert Enum.at(results, 1).count_of_comments == 2
+  end
+
+  describe "aggregate with parent filter and limited select" do
+    test "FAILS when combining select() + limit() with aggregate using parent() in filter" do
+      # BUG: When using select() + limit() with an aggregate that uses parent()
+      # in its filter, the query generation creates a subquery that's missing the parent
+      # fields, causing a SQL error.
+      #
+      # This bug was found in ash_graphql where GraphQL list queries with pagination
+      # would fail when loading aggregates that use parent() in filters.
+      #
+      # The bug requires BOTH conditions:
+      # 1. select() limits which fields are included (e.g., only :id)
+      # 2. limit() causes a subquery to be generated
+      # 3. An aggregate filter references parent() fields that aren't in select()
+      #
+      # Without BOTH select() and limit(), the query works fine (see tests below).
+      #
+      # Current error:
+      # ERROR 42703 (undefined_column) column s0.last_read_message_id does not exist
+      #
+      # Generated query:
+      # SELECT s0."id", coalesce(s1."unread_message_count"::bigint, ...)
+      # FROM (SELECT sc0."id" AS "id" FROM "chats" AS sc0 LIMIT 10) AS s0
+      # LEFT OUTER JOIN LATERAL (
+      #   SELECT ... FROM "messages" WHERE ... s0."last_read_message_id" ...  # <- field not in subquery!
+      # ) AS s1 ON TRUE
+      #
+      # Expected fix: Ash should automatically include parent() referenced fields
+      # (like last_read_message_id) in the subquery even if not explicitly selected.
+
+      Chat
+      |> Ash.Query.select(:id)
+      |> Ash.Query.load(:unread_message_count)
+      |> Ash.Query.limit(10)
+      |> Ash.read!()
+    end
+
+    test "works WITHOUT select() - limit alone doesn't cause the bug" do
+      Chat
+      |> Ash.Query.load(:unread_message_count)
+      |> Ash.Query.limit(10)
+      |> Ash.read!()
+    end
+
+    test "works WITHOUT limit() - select alone doesn't cause the bug" do
+      Chat
+      |> Ash.Query.select(:id)
+      |> Ash.Query.load(:unread_message_count)
+      |> Ash.read!()
+    end
+
+    test "works when selecting the parent() referenced field explicitly (workaround)" do
+      Chat
+      |> Ash.Query.select([:id, :last_read_message_id])
+      |> Ash.Query.load(:unread_message_count)
+      |> Ash.Query.limit(10)
+      |> Ash.read!()
+    end
   end
 end
