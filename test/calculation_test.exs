@@ -1142,4 +1142,103 @@ defmodule AshPostgres.CalculationTest do
     # Should be false since post title doesn't match author first name
     refute result.author_has_post_with_title_matching_their_first_name
   end
+
+  test "nested calculation with parent() and arguments in exists works" do
+    user_id = Ash.UUID.generate()
+
+    # Create a food category
+    category =
+      AshPostgres.Test.FoodCategory
+      |> Ash.Changeset.for_create(:create, %{name: "Dairy"})
+      |> Ash.create!()
+
+    # Create a food item in that category
+    food_item =
+      AshPostgres.Test.FoodItem
+      |> Ash.Changeset.for_create(:create, %{
+        name: "Cheese",
+        food_category_id: category.id
+      })
+      |> Ash.create!()
+
+    # Create a meal
+    meal =
+      AshPostgres.Test.Meal
+      |> Ash.Changeset.for_create(:create, %{name: "Breakfast"})
+      |> Ash.create!()
+
+    # Create a meal item with that food item
+    AshPostgres.Test.MealItem
+    |> Ash.Changeset.for_create(:create, %{meal_id: meal.id, food_item_id: food_item.id})
+    |> Ash.create!()
+
+    # User has not excluded any categories, so meal should be allowed
+    result =
+      AshPostgres.Test.Meal
+      |> Ash.Query.load(allowed_for_user: %{user_id: user_id})
+      |> Ash.read_one!()
+
+    assert result.allowed_for_user == true
+
+    # Now exclude the category for the user
+    AshPostgres.Test.UserExcludedCategory
+    |> Ash.Changeset.for_create(:create, %{
+      user_id: user_id,
+      food_category_id: category.id
+    })
+    |> Ash.create!()
+
+    # Now the meal should not be allowed for the user (because it contains an excluded food)
+    result =
+      AshPostgres.Test.Meal
+      |> Ash.Query.load(allowed_for_user: %{user_id: user_id})
+      |> Ash.read_one!()
+
+    refute result.allowed_for_user
+  end
+
+  test "can filter on nested calculation with parent() and arguments in exists" do
+    user_id = Ash.UUID.generate()
+
+    # Create a food category
+    category =
+      AshPostgres.Test.FoodCategory
+      |> Ash.Changeset.for_create(:create, %{name: "Dairy"})
+      |> Ash.create!()
+
+    # Create a food item in that category
+    food_item =
+      AshPostgres.Test.FoodItem
+      |> Ash.Changeset.for_create(:create, %{
+        name: "Cheese",
+        food_category_id: category.id
+      })
+      |> Ash.create!()
+
+    # Create a meal
+    meal =
+      AshPostgres.Test.Meal
+      |> Ash.Changeset.for_create(:create, %{name: "Breakfast"})
+      |> Ash.create!()
+
+    # Create a meal item with that food item
+    AshPostgres.Test.MealItem
+    |> Ash.Changeset.for_create(:create, %{meal_id: meal.id, food_item_id: food_item.id})
+    |> Ash.create!()
+
+    # Exclude the category for the user
+    AshPostgres.Test.UserExcludedCategory
+    |> Ash.Changeset.for_create(:create, %{
+      user_id: user_id,
+      food_category_id: category.id
+    })
+    |> Ash.create!()
+
+    # Filter MealItems by the calculation - this should trigger the parent() binding issue
+    query =
+      AshPostgres.Test.MealItem
+      |> Ash.Query.filter(allowed_for_user(user_id: ^user_id))
+
+    assert [] == Ash.read!(query)
+  end
 end

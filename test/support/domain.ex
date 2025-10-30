@@ -59,6 +59,11 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.Message)
     resource(AshPostgres.Test.RSVP)
     resource(AshPostgres.Test.ImmutableErrorTester)
+    resource(AshPostgres.Test.FoodCategory)
+    resource(AshPostgres.Test.UserExcludedCategory)
+    resource(AshPostgres.Test.FoodItem)
+    resource(AshPostgres.Test.Meal)
+    resource(AshPostgres.Test.MealItem)
   end
 
   authorization do
