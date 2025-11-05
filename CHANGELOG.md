@@ -11,6 +11,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.25](https://github.com/ash-project/ash_postgres/compare/v2.6.24...v2.6.25) (2025-11-05)
+
+
+
+
+### Bug Fixes:
+
+* add failing test for exists expansnion inside of calculations by Zach Daniel
+
 ## [v2.6.24](https://github.com/ash-project/ash_postgres/compare/v2.6.23...v2.6.24) (2025-10-30)
 
 
