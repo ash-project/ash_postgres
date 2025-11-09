@@ -14,33 +14,33 @@ defmodule AshPostgres.Test.MealItem do
   end
 
   actions do
-    default_accept :*
-    defaults [:read, :destroy, create: :*, update: :*]
+    default_accept(:*)
+    defaults([:read, :destroy, create: :*, update: :*])
   end
 
   attributes do
-    uuid_primary_key :id
+    uuid_primary_key(:id)
 
     attribute :meal_id, :uuid do
-      public? true
-      allow_nil? false
+      public?(true)
+      allow_nil?(false)
     end
 
     attribute :food_item_id, :uuid do
-      public? true
-      allow_nil? false
+      public?(true)
+      allow_nil?(false)
     end
   end
 
   relationships do
     belongs_to :meal, AshPostgres.Test.Meal do
-      public? true
-      allow_nil? false
+      public?(true)
+      allow_nil?(false)
     end
 
     belongs_to :food_item, AshPostgres.Test.FoodItem do
-      public? true
-      allow_nil? false
+      public?(true)
+      allow_nil?(false)
     end
   end
 
@@ -48,10 +48,10 @@ defmodule AshPostgres.Test.MealItem do
     calculate :allowed_for_user,
               :boolean,
               expr(food_item.allowed_for_user(user_id: ^arg(:user_id))) do
-      public? true
+      public?(true)
 
       argument :user_id, :uuid do
-        allow_nil? false
+        allow_nil?(false)
       end
     end
   end

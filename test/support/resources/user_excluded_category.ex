@@ -14,28 +14,28 @@ defmodule AshPostgres.Test.UserExcludedCategory do
   end
 
   actions do
-    default_accept :*
-    defaults [:read, :destroy, create: :*, update: :*]
+    default_accept(:*)
+    defaults([:read, :destroy, create: :*, update: :*])
   end
 
   attributes do
-    uuid_primary_key :id
+    uuid_primary_key(:id)
 
     attribute :user_id, :uuid do
-      public? true
-      allow_nil? false
+      public?(true)
+      allow_nil?(false)
     end
 
     attribute :food_category_id, :uuid do
-      public? true
-      allow_nil? false
+      public?(true)
+      allow_nil?(false)
     end
   end
 
   relationships do
     belongs_to :food_category, AshPostgres.Test.FoodCategory do
-      public? true
-      allow_nil? false
+      public?(true)
+      allow_nil?(false)
     end
   end
 end

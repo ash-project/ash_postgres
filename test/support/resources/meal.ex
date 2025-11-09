@@ -14,22 +14,22 @@ defmodule AshPostgres.Test.Meal do
   end
 
   actions do
-    default_accept :*
-    defaults [:read, :destroy, create: :*, update: :*]
+    default_accept(:*)
+    defaults([:read, :destroy, create: :*, update: :*])
   end
 
   attributes do
-    uuid_primary_key :id
+    uuid_primary_key(:id)
 
     attribute :name, :string do
-      public? true
-      allow_nil? false
+      public?(true)
+      allow_nil?(false)
     end
   end
 
   relationships do
     has_many :meal_items, AshPostgres.Test.MealItem do
-      public? true
+      public?(true)
     end
   end
 
@@ -40,10 +40,10 @@ defmodule AshPostgres.Test.Meal do
                 count(meal_items) ==
                   count(meal_items, query: [filter: allowed_for_user(user_id: ^arg(:user_id))])
               ) do
-      public? true
+      public?(true)
 
       argument :user_id, :uuid do
-        allow_nil? false
+        allow_nil?(false)
       end
     end
   end

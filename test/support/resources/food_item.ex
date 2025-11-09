@@ -14,29 +14,29 @@ defmodule AshPostgres.Test.FoodItem do
   end
 
   actions do
-    default_accept :*
-    defaults [:read, :destroy, create: :*, update: :*]
+    default_accept(:*)
+    defaults([:read, :destroy, create: :*, update: :*])
   end
 
   attributes do
-    uuid_primary_key :id
+    uuid_primary_key(:id)
 
     attribute :name, :string do
-      public? true
-      allow_nil? false
+      public?(true)
+      allow_nil?(false)
     end
 
     attribute :food_category_id, :uuid do
-      public? true
-      allow_nil? false
+      public?(true)
+      allow_nil?(false)
     end
   end
 
   relationships do
     belongs_to :category, AshPostgres.Test.FoodCategory do
-      source_attribute :food_category_id
-      public? true
-      allow_nil? false
+      source_attribute(:food_category_id)
+      public?(true)
+      allow_nil?(false)
     end
   end
 
@@ -50,10 +50,10 @@ defmodule AshPostgres.Test.FoodItem do
                     food_category_id == parent(food_category_id)
                 )
               ) do
-      public? true
+      public?(true)
 
       argument :user_id, :uuid do
-        allow_nil? false
+        allow_nil?(false)
       end
     end
   end

@@ -14,16 +14,16 @@ defmodule AshPostgres.Test.FoodCategory do
   end
 
   actions do
-    default_accept :*
-    defaults [:read, :destroy, create: :*, update: :*]
+    default_accept(:*)
+    defaults([:read, :destroy, create: :*, update: :*])
   end
 
   attributes do
-    uuid_primary_key :id
+    uuid_primary_key(:id)
 
     attribute :name, :string do
-      public? true
-      allow_nil? false
+      public?(true)
+      allow_nil?(false)
     end
   end
 end
