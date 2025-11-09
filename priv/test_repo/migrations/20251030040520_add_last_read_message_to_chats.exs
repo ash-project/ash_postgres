@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs.contributors>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.TestRepo.Migrations.AddLastReadMessageToChats do
   @moduledoc """
   Updates resources based on their most recent snapshots.

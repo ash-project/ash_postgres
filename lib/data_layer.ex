@@ -2143,8 +2143,8 @@ defmodule AshPostgres.DataLayer do
                     # Compatibility fallback
                     Ash.Resource.put_metadata(
                       result_for_changeset,
-                      :bulk_create_index,
-                      changeset.context[:bulk_create][:index]
+                      :bulk_action_ref,
+                      changeset.context[:bulk_create][:ref]
                     )
                   end
                 end)
@@ -2160,8 +2160,8 @@ defmodule AshPostgres.DataLayer do
                   # Compatibility fallback
                   Ash.Resource.put_metadata(
                     result,
-                    :bulk_create_index,
-                    changeset.context[:bulk_create][:index]
+                    :bulk_action_ref,
+                    changeset.context[:bulk_create][:ref]
                   )
                 end)
               end
