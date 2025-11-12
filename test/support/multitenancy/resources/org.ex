@@ -66,6 +66,38 @@ defmodule AshPostgres.MultitenancyTest.Org do
   aggregates do
     count(:total_users_posts, [:users, :posts])
     count(:total_posts, :posts)
+
+    # Bypass aggregates for posts relationship
+    count :posts_count_all_tenants, :posts do
+      public?(true)
+      multitenancy :bypass
+    end
+
+    count :posts_count_current_tenant, :posts do
+      public?(true)
+    end
+
+    list :post_names_all_tenants, :posts, :name do
+      public?(true)
+      multitenancy :bypass
+    end
+
+    list :post_names_current_tenant, :posts, :name do
+      public?(true)
+    end
+
+    count :users_count, :users do
+      public?(true)
+    end
+
+    list :user_names, :users, :name do
+      public?(true)
+    end
+
+    exists :has_posts_all_tenants, :posts do
+      public?(true)
+      multitenancy :bypass
+    end
   end
 
   relationships do

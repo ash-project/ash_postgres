@@ -15,6 +15,8 @@ defmodule AshPostgres.TestRepo.TenantMigrations.MigrateResources1 do
     create table(:multitenant_posts, primary_key: false, prefix: prefix()) do
       add :id, :uuid, null: false, default: fragment("uuid_generate_v4()"), primary_key: true
       add :name, :text
+      add :score, :integer
+      add :rating, :decimal
 
       add :org_id,
           references(:multitenant_orgs,

@@ -23,6 +23,8 @@ defmodule AshPostgres.MultitenancyTest.Post do
   attributes do
     uuid_primary_key(:id, writable?: true)
     attribute(:name, :string, public?: true)
+    attribute(:score, :integer, public?: true)
+    attribute(:rating, :decimal, public?: true)
   end
 
   actions do
@@ -85,5 +87,29 @@ defmodule AshPostgres.MultitenancyTest.Post do
 
   calculations do
     calculate(:last_word, :string, expr(fragment("split_part(?, ' ', -1)", name)))
+  end
+
+  aggregates do
+    # COUNT Aggregates WITH bypass for context multitenancy
+    count :total_linked_posts_all_tenants, :linked_posts do
+      public?(true)
+      multitenancy :bypass
+    end
+
+    # COUNT Aggregates WITHOUT bypass for context multitenancy
+    count :total_linked_posts_current_tenant, :linked_posts do
+      public?(true)
+    end
+
+    # EXISTS Aggregate WITH bypass
+    exists :has_linked_posts_all_tenants, :linked_posts do
+      public?(true)
+      multitenancy :bypass
+    end
+
+    # EXISTS Aggregate WITHOUT bypass
+    exists :has_linked_posts_current_tenant, :linked_posts do
+      public?(true)
+    end
   end
 end
