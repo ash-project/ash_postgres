@@ -56,6 +56,28 @@ defmodule Helpdesk.Repo do
 end
 ```
 
+If your project already defines its own `Ecto.Repo` (for example, to integrate with third-party libraries such as AppSignal), you can prevent `AshPostgres.Repo` from automatically defining one by setting the `define_ecto_repo?: false` option:
+
+```elixir
+# in lib/helpdesk/repo.ex
+
+defmodule Helpdesk.Repo do
+  use Appsignal.Ecto.Repo,
+    otp_app: :helpdesk,
+    adapter: Ecto.Adapters.Postgres
+
+  use AshPostgres.Repo,
+    define_ecto_repo?: false
+
+  def installed_extensions do
+    ["ash-functions"]
+  end
+end
+```
+
+This lets you keep full control over your existing `Ecto.Repo` definition while still enabling AshPostgres features.
+
+
 Next we will need to create configuration files for various environments. Run the following to create the configuration files we need.
 
 ```bash
