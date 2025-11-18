@@ -1919,4 +1919,69 @@ defmodule AshSql.AggregateTest do
       |> Ash.read!()
     end
   end
+
+  describe "page with count and aggregates with relationship-based calculations" do
+    test "loads relationship-based calculations correctly when using page(count: true) with aggregates" do
+      # This test reproduces the bug from https://github.com/ash-project/ash_sql/issues/191
+      # When using page(count: true) with both an aggregate and a calculation that depends on
+      # a relationship, the calculation fails to load (remains #Ash.NotLoaded)
+
+      # Create test data
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{
+          first_name: "John",
+          last_name: "Doe"
+        })
+        |> Ash.create!()
+
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{
+          title: "Test Post"
+        })
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "Test Comment"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      # Test without page(count: true) - should work
+      result_without_page_count =
+        Post
+        |> Ash.Query.filter(id == ^post.id)
+        |> Ash.Query.load([
+          # aggregate
+          :count_of_comments,
+          # calculation that depends on author relationship
+          :author_first_name_calc
+        ])
+        |> Ash.read_one!()
+
+      assert result_without_page_count.count_of_comments == 1
+      assert result_without_page_count.author_first_name_calc == "John"
+
+      Logger.configure(level: :debug)
+      # Test with page(count: true) - this triggers the bug
+      %{results: [result_with_page_count | _]} =
+        Post
+        |> Ash.Query.filter(id == ^post.id)
+        |> Ash.Query.load([
+          # aggregate
+          :count_of_comments,
+          # calculation that depends on author relationship
+          :author_first_name_calc
+        ])
+        |> Ash.Query.page(limit: 50, offset: 0, count: true)
+        |> Ash.read!()
+
+      # Both should be loaded correctly
+      assert result_with_page_count.count_of_comments == 1
+      # This assertion should fail if the bug is present
+      assert result_with_page_count.author_first_name_calc == "John",
+             "Calculation was not loaded when using page(count: true) with aggregates"
+    end
+  end
 end
