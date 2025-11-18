@@ -33,4 +33,3 @@ defmodule AshPostgres.Verifiers.ValidateCheckConstraints do
     :ok
   end
 end
-
