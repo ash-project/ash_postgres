@@ -60,6 +60,10 @@ defmodule AshPostgres.Test.Comment do
     list :linked_comment_post_ids, [:linked_comments, :post], :id do
       uniq?(true)
     end
+
+    first :latest_rating_score, :ratings, :score do
+      sort(score: :desc)
+    end
   end
 
   calculations do
@@ -73,6 +77,8 @@ defmodule AshPostgres.Test.Comment do
          "hello"
        end)}
     end)
+
+    calculate(:has_rating, :boolean, expr(not is_nil(latest_rating_score)))
   end
 
   relationships do

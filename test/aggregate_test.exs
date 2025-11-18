@@ -1920,6 +1920,39 @@ defmodule AshSql.AggregateTest do
     end
   end
 
+  test "multiple aggregates filtering on nested first aggregate" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "test"})
+      |> Ash.create!()
+
+    comment =
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "comment"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+    Rating
+    |> Ash.Changeset.for_create(:create, %{score: 10, resource_id: comment.id})
+    |> Ash.Changeset.set_context(%{data_layer: %{table: "comment_ratings"}})
+    |> Ash.create!()
+
+    # ERROR 42803 (grouping_error) aggregate functions are not allowed in FILTER
+    #
+    # Multiple Post aggregates filter on Comment.latest_rating_score (a first aggregate)
+    # AshPostgres includes ss1.latest_rating_score in SELECT but not in GROUP BY
+    #  error: column "ss1.latest_rating_score" must appear in the GROUP BY clause
+    #
+    # This regression was introduced by ash_sql bb458d56
+    assert {:ok, _} =
+             Post
+             |> Ash.Query.load([
+               :count_of_comments_with_ratings,
+               :count_of_comments_with_high_ratings
+             ])
+             |> Ash.read()
+  end
+
   describe "page with count and aggregates with relationship-based calculations" do
     test "loads relationship-based calculations correctly when using page(count: true) with aggregates" do
       # This test reproduces the bug from https://github.com/ash-project/ash_sql/issues/191

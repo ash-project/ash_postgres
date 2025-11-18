@@ -1278,6 +1278,14 @@ defmodule AshPostgres.Test.Post do
     count :count_comments_with_modify_query, :comments do
       read_action(:with_modify_query)
     end
+
+    count :count_of_comments_with_ratings, :comments do
+      filter(expr(has_rating == true))
+    end
+
+    count :count_of_comments_with_high_ratings, :comments do
+      filter(expr(latest_rating_score > 5))
+    end
   end
 end
 
