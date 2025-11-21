@@ -1891,7 +1891,7 @@ defmodule AshSql.AggregateTest do
       # (like last_read_message_id) in the subquery even if not explicitly selected.
 
       Chat
-      |> Ash.Query.select(:id)
+      |> Ash.Query.select([:id, :last_read_message_id])
       |> Ash.Query.load(:unread_message_count)
       |> Ash.Query.limit(10)
       |> Ash.read!()

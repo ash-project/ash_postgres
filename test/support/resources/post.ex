@@ -619,6 +619,7 @@ defmodule AshPostgres.Test.Post do
     attribute(:uniq_custom_two, :string, public?: true)
     attribute(:uniq_on_upper, :string, public?: true)
     attribute(:uniq_if_contains_foo, :string, public?: true)
+    attribute(:base_reading_time, :integer, public?: true)
 
     attribute :model, :tuple do
       constraints(
@@ -950,6 +951,34 @@ defmodule AshPostgres.Test.Post do
     calculate(:score_with_score, :string, expr(score <> score))
     calculate(:foo_bar_from_stuff, :string, expr(stuff[:foo][:bar]))
 
+    calculate(:comment_metric, :integer, expr(fragment("(? * 100)", count_of_comments)))
+
+    calculate(
+      :complex_comment_metric,
+      :integer,
+      expr(
+        fragment(
+          "COALESCE(?, 0) + COALESCE(?, 1) * COALESCE(?, 0)",
+          sum_of_comment_likes_test,
+          count_of_comments,
+          max_comment_likes
+        )
+      )
+    )
+
+    calculate(
+      :multi_agg_calc,
+      :integer,
+      expr(
+        fragment(
+          "(? * ?) + ?",
+          count_of_comments,
+          count_of_high_like_comments,
+          sum_of_comment_likes_test
+        )
+      )
+    )
+
     calculate(
       :has_follower_named_fred,
       :boolean,
@@ -1118,6 +1147,21 @@ defmodule AshPostgres.Test.Post do
       public?(true)
       argument(:author_id, :uuid, allow_nil?: false)
     end
+
+    calculate :estimated_reading_time,
+              :integer,
+              expr(
+                fragment(
+                  "COALESCE(?, ?, ?) + COALESCE(?, 0)",
+                  total_edited_time,
+                  total_planned_time,
+                  base_reading_time,
+                  total_comment_time
+                )
+              ) do
+      public?(true)
+      load([:total_edited_time, :total_planned_time, :total_comment_time, :base_reading_time])
+    end
   end
 
   aggregates do
@@ -1195,6 +1239,25 @@ defmodule AshPostgres.Test.Post do
     list :uniq_comment_titles, :comments, :title do
       uniq?(true)
       sort(title: :asc_nils_last)
+    end
+
+    sum :total_edited_time, :comments, :edited_duration do
+      filter(expr(version == :edited))
+      public?(true)
+    end
+
+    sum :total_planned_time, :comments, :planned_duration do
+      filter(expr(version == :planned))
+      public?(true)
+    end
+
+    sum :total_comment_time, :comments, :reading_time do
+      public?(true)
+    end
+
+    count :published_comments, :comments do
+      filter(expr(status == :published))
+      public?(true)
     end
 
     count :count_comment_titles, :comments do
@@ -1277,6 +1340,13 @@ defmodule AshPostgres.Test.Post do
 
     count :count_comments_with_modify_query, :comments do
       read_action(:with_modify_query)
+    end
+
+    sum(:sum_of_comment_likes_test, :comments, :likes)
+    max(:max_comment_likes, :comments, :likes)
+
+    count :count_of_high_like_comments, :comments do
+      filter(expr(likes > 10))
     end
 
     count :count_of_comments_with_ratings, :comments do
