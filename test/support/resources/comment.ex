@@ -48,6 +48,16 @@ defmodule AshPostgres.Test.Comment do
     attribute(:title, :string, public?: true)
     attribute(:likes, :integer, public?: true)
     attribute(:arbitrary_timestamp, :utc_datetime_usec, public?: true)
+    attribute(:edited_duration, :integer, public?: true)
+    attribute(:planned_duration, :integer, public?: true)
+    attribute(:reading_time, :integer, public?: true)
+    attribute(:version, :atom, constraints: [one_of: [:edited, :planned]], public?: true)
+
+    attribute(:status, :atom,
+      constraints: [one_of: [:published, :draft, :pending]],
+      public?: true
+    )
+
     create_timestamp(:created_at, writable?: true, public?: true)
   end
 

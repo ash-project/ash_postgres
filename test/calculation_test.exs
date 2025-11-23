@@ -111,6 +111,33 @@ defmodule AshPostgres.CalculationTest do
     |> Ash.read!()
   end
 
+  test "runtime loading calculation with fragment referencing aggregate works correctly" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "test post"})
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "comment1", likes: 5})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "comment2", likes: 15})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    result =
+      Post
+      |> Ash.Query.load([:comment_metric, :complex_comment_metric, :multi_agg_calc])
+      |> Ash.read!()
+
+    assert [post] = result
+    assert is_integer(post.comment_metric)
+    assert is_integer(post.complex_comment_metric)
+    assert is_integer(post.multi_agg_calc)
+  end
+
   test "expression calculations don't load when `reuse_values?` is true" do
     post =
       Post
@@ -1240,5 +1267,201 @@ defmodule AshPostgres.CalculationTest do
       |> Ash.Query.filter(allowed_for_user(user_id: ^user_id))
 
     assert [] == Ash.read!(query)
+  end
+
+  test "expression calculation referencing aggregates loaded via code_interface with load option" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "test post"})
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "comment1", likes: 5})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "comment2", likes: 15})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    result = Post.get_by_id!(post.id, load: [:comment_metric])
+
+    assert result.comment_metric == 200
+  end
+
+  test "complex SQL fragment calculation with multiple aggregates" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{
+        title: "test post",
+        base_reading_time: 500
+      })
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{
+      title: "comment1",
+      edited_duration: 100,
+      planned_duration: 80,
+      reading_time: 30,
+      version: :edited
+    })
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{
+      title: "comment2",
+      edited_duration: 0,
+      planned_duration: 120,
+      reading_time: 45,
+      version: :planned
+    })
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    result = Post.get_by_id!(post.id, load: [:estimated_reading_time])
+
+    assert result.estimated_reading_time == 175
+  end
+
+  test "calculation with missing aggregate dependencies" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{
+        title: "test post",
+        base_reading_time: 500
+      })
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{
+      title: "modified comment",
+      edited_duration: 100,
+      planned_duration: 0,
+      reading_time: 30,
+      version: :edited
+    })
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{
+      title: "planned comment",
+      edited_duration: 0,
+      planned_duration: 80,
+      reading_time: 20,
+      version: :planned
+    })
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    result = Post.get_by_id!(post.id, load: [:estimated_reading_time])
+
+    refute match?(%Ash.NotLoaded{}, result.estimated_reading_time),
+           "Expected calculated value, got: #{inspect(result.estimated_reading_time)}"
+  end
+
+  test "calculation with filtered aggregates and keyset pagination" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{
+        title: "test post",
+        base_reading_time: 500
+      })
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{
+      title: "completed comment",
+      edited_duration: 100,
+      reading_time: 30,
+      version: :edited,
+      status: :published
+    })
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{
+      title: "pending comment",
+      planned_duration: 80,
+      reading_time: 20,
+      version: :planned,
+      status: :pending
+    })
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    result_both = Post.get_by_id!(post.id, load: [:published_comments, :estimated_reading_time])
+
+    assert result_both.estimated_reading_time == 150,
+           "Should calculate correctly with both loaded"
+
+    assert result_both.published_comments == 1, "Should count correctly with both loaded"
+  end
+
+  test "calculation with keyset pagination works correctly (previously returned NotLoaded)" do
+    _posts =
+      Enum.map(1..5, fn i ->
+        post =
+          Post
+          |> Ash.Changeset.for_create(:create, %{
+            title: "test post #{i}",
+            base_reading_time: 100 * i
+          })
+          |> Ash.create!()
+
+        Comment
+        |> Ash.Changeset.for_create(:create, %{
+          title: "comment#{i}",
+          edited_duration: 50 * i,
+          planned_duration: 40 * i,
+          reading_time: 10 * i,
+          version: :edited,
+          status: :published
+        })
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Ash.create!()
+
+        post
+      end)
+
+    first_page =
+      Post
+      |> Ash.Query.load([:published_comments, :estimated_reading_time])
+      |> Ash.read!(action: :read_with_related_list_agg_filter, page: [limit: 2, count: true])
+
+    Enum.each(first_page.results, fn post ->
+      refute match?(%Ash.NotLoaded{}, post.estimated_reading_time),
+             "First page post #{post.id} should have loaded estimated_reading_time, got: #{inspect(post.estimated_reading_time)}"
+    end)
+
+    if first_page.more? do
+      second_page =
+        Post
+        |> Ash.Query.load([:published_comments, :estimated_reading_time])
+        |> Ash.read!(
+          action: :read_with_related_list_agg_filter,
+          page: [
+            limit: 2,
+            after: first_page.results |> List.last() |> Map.get(:__metadata__) |> Map.get(:keyset)
+          ]
+        )
+
+      assert length(second_page.results) > 0, "Second page should have results"
+
+      Enum.each(second_page.results, fn post ->
+        refute match?(%Ash.NotLoaded{}, post.estimated_reading_time),
+               "estimated_reading_time should be calculated, not NotLoaded"
+
+        refute match?(%Ash.NotLoaded{}, post.published_comments),
+               "published_comments should be calculated, not NotLoaded"
+
+        assert post.estimated_reading_time > 0, "estimated_reading_time should be positive"
+        assert post.published_comments == 1, "Each post has exactly 1 completed comment"
+      end)
+    end
   end
 end
