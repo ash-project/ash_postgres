@@ -3456,6 +3456,7 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def select(query, select, _resource) do
     query = maybe_subquery_upgrade(query, {:select, select})
+    query = put_in(query.__ash_bindings__[:select], select)
 
     if query.__ash_bindings__.context[:data_layer][:combination_query?] ||
          query.__ash_bindings__.context[:data_layer][:combination_of_queries?] do
@@ -3616,6 +3617,8 @@ defmodule AshPostgres.DataLayer do
             :__ash_bindings__,
             &Map.merge(&1, %{
               already_selected: fieldset,
+              select: query.__ash_bindings__[:select],
+              select_calculations: query.__ash_bindings__[:select_calculations],
               subquery_upgrade?: true,
               sort: query.__ash_bindings__[:sort],
               context: query.__ash_bindings__.context
