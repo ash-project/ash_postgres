@@ -11,6 +11,19 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.26](https://github.com/ash-project/ash_postgres/compare/v2.6.25...v2.6.26) (2025-11-23)
+
+
+
+
+### Improvements:
+
+* add generator to tsvector type (#655) by Jesse Williams
+
+* verify check constraint attributes at compile time by Zach Daniel
+
+* update deps for bug fixes by Zach Daniel
+
 ## [v2.6.25](https://github.com/ash-project/ash_postgres/compare/v2.6.24...v2.6.25) (2025-11-05)
 
 
