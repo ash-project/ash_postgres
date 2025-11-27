@@ -64,6 +64,8 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.FoodItem)
     resource(AshPostgres.Test.Meal)
     resource(AshPostgres.Test.MealItem)
+    resource(AshPostgres.Test.Container)
+    resource(AshPostgres.Test.Item)
   end
 
   authorization do

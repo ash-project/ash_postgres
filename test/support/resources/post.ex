@@ -1023,9 +1023,7 @@ defmodule AshPostgres.Test.Post do
       })
     )
 
-    calculate(:c_times_p, :integer, expr(count_of_comments * count_of_linked_posts),
-      load: [:count_of_comments, :count_of_linked_posts]
-    )
+    calculate(:c_times_p, :integer, expr(count_of_comments * count_of_linked_posts))
 
     calculate(
       :literal_map_in_expr,
@@ -1160,7 +1158,6 @@ defmodule AshPostgres.Test.Post do
                 )
               ) do
       public?(true)
-      load([:total_edited_time, :total_planned_time, :total_comment_time, :base_reading_time])
     end
   end
 
