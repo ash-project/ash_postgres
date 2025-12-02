@@ -101,6 +101,64 @@ defmodule AshSql.AggregateTest do
     assert read_post.count_of_comments == 1
   end
 
+  test "loading optimizable first aggregate with relationship filter does not cause binding errors" do
+    org =
+      Organization
+      |> Ash.Changeset.for_create(:create, %{name: "The Org"})
+      |> Ash.create!()
+
+    user =
+      User
+      |> Ash.Changeset.for_create(:create, %{})
+      |> Ash.Changeset.manage_relationship(:organization, org, type: :append_and_remove)
+      |> Ash.create!()
+
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "John", last_name: "Doe"})
+      |> Ash.create!()
+
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "Test Post"})
+      |> Ash.Changeset.manage_relationship(:organization, org, type: :append_and_remove)
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+      |> Ash.create!()
+
+    comment =
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "Test Comment"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+    Rating
+    |> Ash.Changeset.for_create(:create, %{score: 5, resource_id: comment.id})
+    |> Ash.Changeset.set_context(%{data_layer: %{table: "comment_ratings"}})
+    |> Ash.create!()
+
+    # Key test scenario (matches heretask bug):
+    # 1. Filter through :author adds a binding for the :author relationship
+    # 2. Policy joins through has_many which adds DISTINCT
+    # 3. limit(1) also triggers subquery wrapping condition
+    # 4. Loading :count_of_comment_ratings (non-optimizable, through [:comments, :ratings])
+    #    triggers wrap_in_subquery_for_aggregates
+    # 5. Loading :author_first_name (optimizable first through belongs_to :author)
+    #    after wrapping, code tries to reuse the :author binding from before wrapping
+    # 6. BUG: binding exists in __ash_bindings__ but points to inner subquery
+    # 7. Error: "could not find named binding `as(N)`"
+    loaded_post =
+      Post
+      |> Ash.Query.filter(id == ^post.id and author.first_name == "John")
+      |> Ash.Query.limit(1)
+      |> Ash.Query.load([:author_first_name, :count_of_comment_ratings])
+      |> Ash.read!(actor: user)
+      |> hd()
+
+    assert loaded_post.id == post.id
+    assert loaded_post.author_first_name == "John"
+    assert loaded_post.count_of_comment_ratings == 1
+  end
+
   test "nested filters on aggregates works" do
     org =
       Organization
