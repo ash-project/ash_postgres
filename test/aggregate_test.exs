@@ -8,6 +8,7 @@ defmodule AshSql.AggregateTest do
   alias AshPostgres.Test.{Author, Chat, Comment, Organization, Post, Rating, User}
 
   require Ash.Query
+  require Ash.Sort
   import Ash.Expr
 
   test "nested sum aggregates" do
@@ -1918,6 +1919,81 @@ defmodule AshSql.AggregateTest do
       |> Ash.Query.limit(10)
       |> Ash.read!()
     end
+  end
+
+  test "aggregate with parent() ref in relationship filter and sorting on relationship field" do
+    chat_1 =
+      Chat
+      |> Ash.Changeset.for_create(:create, %{name: "Test Chat"})
+      |> Ash.create!()
+
+    chat_1_message_1 =
+      AshPostgres.Test.Message
+      |> Ash.Changeset.for_create(:create, %{
+        chat_id: chat_1.id,
+        content: "First message",
+        sent_at: DateTime.add(DateTime.utc_now(), -3600, :second)
+      })
+      |> Ash.create!()
+
+    _chat_1_message_2 =
+      AshPostgres.Test.Message
+      |> Ash.Changeset.for_create(:create, %{
+        chat_id: chat_1.id,
+        content: "Second message",
+        sent_at: DateTime.add(DateTime.utc_now(), -1800, :second)
+      })
+      |> Ash.create!()
+
+    # Update chat to set last_read_message to the first message
+    # This means message_2 should be "unread"
+    _chat =
+      chat_1
+      |> Ash.Changeset.for_update(:update, %{last_read_message_id: chat_1_message_1.id})
+      |> Ash.update!()
+
+    # Create a second chat to force multiple records and trigger DISTINCT ON
+    chat_2 =
+      Chat
+      |> Ash.Changeset.for_create(:create, %{name: "Test Chat 2"})
+      |> Ash.create!()
+
+    chat_2_message_1 =
+      AshPostgres.Test.Message
+      |> Ash.Changeset.for_create(:create, %{
+        chat_id: chat_2.id,
+        content: "Chat 2 - Message 1",
+        sent_at: DateTime.add(DateTime.utc_now(), -100, :second)
+      })
+      |> Ash.create!()
+
+    AshPostgres.Test.Message
+    |> Ash.Changeset.for_create(:create, %{
+      chat_id: chat_2.id,
+      content: "Chat 2 - Message 2",
+      sent_at: DateTime.utc_now()
+    })
+    |> Ash.create!()
+
+    chat_2
+    |> Ash.Changeset.for_update(:update, %{last_read_message_id: chat_2_message_1.id})
+    |> Ash.update!()
+
+    # This query should work but fails without the fix:
+    # - select() excludes last_read_message_id from the query
+    # - Sorting by last_message.sent_at (has_one from_many?) causes DISTINCT ON + subquery wrapping
+    # - Loading unread_messages_count_alt (aggregate on relationship with parent() in filter)
+    #   uses a lateral join that references parent(last_read_message_id)
+    # - The wrapped subquery doesn't include last_read_message_id, so the lateral join fails
+    result =
+      Chat
+      |> Ash.Query.filter(id in [^chat_1.id, ^chat_2.id])
+      |> Ash.Query.select([:id, :name])
+      |> Ash.Query.load(:unread_messages_count_alt)
+      |> Ash.Query.sort([{Ash.Sort.expr_sort(expr(last_message.sent_at)), :asc}])
+      |> Ash.read!()
+
+    assert length(result) == 2
   end
 
   test "multiple aggregates filtering on nested first aggregate" do
