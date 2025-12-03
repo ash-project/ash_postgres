@@ -136,7 +136,6 @@ defmodule AshSql.AggregateTest do
     |> Ash.Changeset.set_context(%{data_layer: %{table: "comment_ratings"}})
     |> Ash.create!()
 
-    # Key test scenario (matches heretask bug):
     # 1. Filter through :author adds a binding for the :author relationship
     # 2. Policy joins through has_many which adds DISTINCT
     # 3. limit(1) also triggers subquery wrapping condition
@@ -144,8 +143,6 @@ defmodule AshSql.AggregateTest do
     #    triggers wrap_in_subquery_for_aggregates
     # 5. Loading :author_first_name (optimizable first through belongs_to :author)
     #    after wrapping, code tries to reuse the :author binding from before wrapping
-    # 6. BUG: binding exists in __ash_bindings__ but points to inner subquery
-    # 7. Error: "could not find named binding `as(N)`"
     loaded_post =
       Post
       |> Ash.Query.filter(id == ^post.id and author.first_name == "John")
