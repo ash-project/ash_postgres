@@ -237,6 +237,34 @@ defmodule AshPostgres.BulkCreateTest do
       refute Ash.Resource.get_metadata(no_conflict, :upsert_skipped)
     end
 
+    test "bulk upsert with return_skipped_upsert? when all records are not skipped" do
+      %Ash.BulkResult{records: records, errors: errors} =
+        Ash.bulk_create!(
+          [
+            %{title: "fredfoo", uniq_if_contains_foo: "1foo", price: 100},
+            %{title: "georgefoo", uniq_if_contains_foo: "2foo", price: 200}
+          ],
+          Post,
+          :upsert_with_no_filter,
+          upsert_condition: expr(price != upsert_conflict(:price)),
+          return_errors?: true,
+          return_records?: true,
+          return_skipped_upsert?: true
+        )
+
+      assert errors == []
+
+      assert [row1, row2] = records
+
+      assert row1.title == "fredfoo"
+      assert row1.price == 100
+      refute Ash.Resource.get_metadata(row1, :upsert_skipped)
+
+      assert row2.title == "georgefoo"
+      assert row2.price == 200
+      refute Ash.Resource.get_metadata(row2, :upsert_skipped)
+    end
+
     # confirmed that this doesn't work because it can't. An upsert must map to a potentially successful insert.
     # leaving this test here for posterity
     # test "bulk creates can upsert with id" do
