@@ -1979,12 +1979,12 @@ defmodule AshSql.AggregateTest do
     |> Ash.Changeset.for_update(:update, %{last_read_message_id: chat_2_message_1.id})
     |> Ash.update!()
 
-    # This query should work but fails without the fix:
+    # This query exercises the following conditions:
     # - select() excludes last_read_message_id from the query
     # - Sorting by last_message.sent_at (has_one from_many?) causes DISTINCT ON + subquery wrapping
     # - Loading unread_messages_count_alt (aggregate on relationship with parent() in filter)
     #   uses a lateral join that references parent(last_read_message_id)
-    # - The wrapped subquery doesn't include last_read_message_id, so the lateral join fails
+    # - The wrapped subquery must include last_read_message_id for the lateral join to work
     result =
       Chat
       |> Ash.Query.filter(id in [^chat_1.id, ^chat_2.id])
