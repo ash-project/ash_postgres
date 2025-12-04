@@ -1976,6 +1976,35 @@ defmodule AshSql.AggregateTest do
     end
   end
 
+  test "load aggregate with select and sort on from_many relationship" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "John", last_name: "Doe"})
+      |> Ash.create!()
+
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "Test Post"})
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "Test Comment"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    results =
+      Post
+      |> Ash.Query.filter(id == ^post.id)
+      |> Ash.Query.select([:id, :title])
+      |> Ash.Query.sort([{Ash.Sort.expr_sort(expr(latest_comment.created_at)), :desc}])
+      |> Ash.Query.load(:author_first_name)
+      |> Ash.read!()
+
+    assert Enum.count(results) == 1
+    assert List.first(results).author_first_name == "John"
+  end
+
   test "aggregate with parent() ref in relationship filter and sorting on relationship field" do
     chat_1 =
       Chat
