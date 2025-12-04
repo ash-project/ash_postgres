@@ -23,6 +23,14 @@ defmodule AshPostgres.Test.Chat do
     attribute(:name, :string, public?: true)
   end
 
+  calculations do
+    calculate(
+      :last_unread_message_formatted_fn,
+      :string,
+      expr(last_unread_message.formatted_content_fn)
+    )
+  end
+
   relationships do
     belongs_to :last_read_message, AshPostgres.Test.Message do
       allow_nil?(true)

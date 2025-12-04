@@ -1603,4 +1603,48 @@ defmodule AshPostgres.CalculationTest do
     assert loaded3.active_item_name == nil
     assert loaded3.all_item_name == nil
   end
+
+  test "expr(has_one.function_based_calculation) in batch with nil relationships" do
+    alias AshPostgres.Test.{Chat, Message}
+
+    chat1 = Ash.Seed.seed!(Chat, %{name: "Chat 1"})
+
+    chat2 = Ash.Seed.seed!(Chat, %{name: "Chat 2"})
+
+    Ash.Seed.seed!(Message, %{
+      chat_id: chat2.id,
+      content: "Unread message",
+      read_at: nil
+    })
+
+    chat3 = Ash.Seed.seed!(Chat, %{name: "Chat 3"})
+
+    Ash.Seed.seed!(Message, %{
+      chat_id: chat3.id,
+      content: "Read message",
+      read_at: DateTime.utc_now()
+    })
+
+    single =
+      Chat
+      |> Ash.Query.filter(id == ^chat2.id)
+      |> Ash.Query.load([:last_unread_message_formatted_fn])
+      |> Ash.read!()
+      |> hd()
+
+    assert single.last_unread_message_formatted_fn == "FnMessage: Unread message"
+
+    chats =
+      Chat
+      |> Ash.Query.filter(id in [^chat1.id, ^chat2.id, ^chat3.id])
+      |> Ash.Query.sort(:name)
+      |> Ash.Query.load([:last_unread_message_formatted_fn])
+      |> Ash.read!()
+
+    [loaded1, loaded2, loaded3] = chats
+
+    assert loaded1.last_unread_message_formatted_fn == nil
+    assert loaded2.last_unread_message_formatted_fn == "FnMessage: Unread message"
+    assert loaded3.last_unread_message_formatted_fn == nil
+  end
 end
