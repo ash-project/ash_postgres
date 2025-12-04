@@ -579,4 +579,21 @@ defmodule AshPostgres.BulkCreateTest do
       end)
     end
   end
+
+  describe "bulk_create with sorted?: true" do
+    test "works without error" do
+      # This test reproduces https://github.com/ash-project/ash/issues/2452
+      # generate_many uses sorted?: true which requires bulk_create_index metadata
+      results =
+        Ash.bulk_create!(
+          [%{title: "post_1"}, %{title: "post_2"}, %{title: "post_3"}],
+          Post,
+          :create,
+          return_records?: true,
+          sorted?: true
+        )
+
+      assert length(results.records) == 3
+    end
+  end
 end
