@@ -1647,4 +1647,26 @@ defmodule AshPostgres.CalculationTest do
     assert loaded2.last_unread_message_formatted_fn == "FnMessage: Unread message"
     assert loaded3.last_unread_message_formatted_fn == nil
   end
+
+  test "can correctly compare timestamptz, regardless of database timezone" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{
+        title: "match",
+        price: 10_024,
+        datetime: DateTime.utc_now()
+      })
+      |> Ash.create!()
+
+    assert {:ok, %Postgrex.Result{}} =
+             Ecto.Adapters.SQL.query(
+               AshPostgres.TestRepo,
+               """
+               set timezone = 'Europe/Copenhagen';
+               """
+             )
+
+    assert Ash.calculate!(post, :past_datetime1?)
+    assert Ash.calculate!(post, :past_datetime2?)
+  end
 end
