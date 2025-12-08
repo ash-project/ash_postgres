@@ -1159,6 +1159,9 @@ defmodule AshPostgres.Test.Post do
               ) do
       public?(true)
     end
+
+    calculate(:past_datetime1?, :boolean, expr(now() > datetime))
+    calculate(:past_datetime2?, :boolean, expr(datetime <= now()))
   end
 
   aggregates do
