@@ -769,12 +769,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
         migration_path: "test_migration_path",
         tenant_migration_path: "test_tenant_migration_path",
         quiet: false,
-<<<<<<< HEAD
         format: false,
         auto_name: true
-=======
-        format: false
->>>>>>> 37dd6436 (Fix primary key generation for multitenancy)
       )
 
       assert [_file1, file2] =
@@ -1584,7 +1580,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
       [domain: Domain]
     end
 
-<<<<<<< HEAD
     test "raises an error on pending codegen", %{domain: domain} do
       assert_raise Ash.Error.Framework.PendingCodegen, fn ->
         AshPostgres.MigrationGenerator.generate(domain,
@@ -1594,16 +1589,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
           auto_name: true
         )
       end
-=======
-    test "returns code(1) if snapshots and resources don't fit", %{domain: domain} do
-      assert catch_exit(
-               AshPostgres.MigrationGenerator.generate(domain,
-                 snapshot_path: "test_snapshots_path",
-                 migration_path: "test_migration_path",
-                 check: true
-               )
-             ) == {:shutdown, 1}
->>>>>>> 37dd6436 (Fix primary key generation for multitenancy)
 
       refute File.exists?(Path.wildcard("test_migration_path2/**/*_migrate_resources*.exs"))
       refute File.exists?(Path.wildcard("test_snapshots_path2/test_repo/posts/*.json"))
