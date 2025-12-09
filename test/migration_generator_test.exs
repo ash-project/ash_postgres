@@ -378,6 +378,56 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "creating initial snapshots for resources with partitioning" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+
+      defposts do
+        postgres do
+          partitioning do
+            method(:list)
+            attribute(:title)
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: false,
+        format: false
+      )
+
+      :ok
+    end
+
+    test "the migration sets up resources correctly" do
+      # the snapshot exists and contains valid json
+      assert File.read!(Path.wildcard("test_snapshots_path/test_repo/posts/*.json"))
+             |> Jason.decode!(keys: :atoms!)
+
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      file_contents = File.read!(file)
+
+      # the migration creates the table with options specifing how to partition the table
+      assert file_contents =~
+               ~S{create table(:posts, primary_key: false, options: "PARTITION BY LIST (title)") do}
+    end
+  end
+
   describe "custom_indexes with `concurrently: true`" do
     setup do
       on_exit(fn ->

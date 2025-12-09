@@ -27,7 +27,7 @@ defmodule AshPostgres.MultitenancyTest.CompositeKeyPost do
     integer_primary_key(:id)
     attribute(:title, :string, public?: true, allow_nil?: false, primary_key?: true)
   end
-
+  
   relationships do
     belongs_to(:org, AshPostgres.MultitenancyTest.Org) do
       public?(true)
