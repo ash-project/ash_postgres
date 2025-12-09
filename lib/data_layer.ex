@@ -256,6 +256,31 @@ defmodule AshPostgres.DataLayer do
     ]
   }
 
+  @partitioning %Spark.Dsl.Section{
+    name: :partitioning,
+    describe: """
+    A section for configuring the initial partitioning of the table
+    """,
+    examples: [
+      """
+      partitioning do
+        method :list
+        attribute :post
+      end
+      """
+    ],
+    schema: [
+      method: [
+        type: {:one_of, [:range, :list, :hash]},
+        doc: "Specifying what partitioning method to use"
+      ],
+      attribute: [
+        type: :atom,
+        doc: "The attribute to partition on"
+      ]
+    ]
+  }
+
   @postgres %Spark.Dsl.Section{
     name: :postgres,
     describe: """
@@ -266,7 +291,8 @@ defmodule AshPostgres.DataLayer do
       @custom_statements,
       @manage_tenant,
       @references,
-      @check_constraints
+      @check_constraints,
+      @partitioning
     ],
     modules: [
       :repo
