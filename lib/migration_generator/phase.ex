@@ -7,7 +7,15 @@ defmodule AshPostgres.MigrationGenerator.Phase do
 
   defmodule Create do
     @moduledoc false
-    defstruct [:table, :schema, :multitenancy, partitioning: nil, :repo, operations: [], commented?: false]
+    defstruct [
+      :table,
+      :schema,
+      :multitenancy,
+      :repo,
+      partitioning: nil,
+      operations: [],
+      commented?: false
+    ]
 
     import AshPostgres.MigrationGenerator.Operation.Helper, only: [as_atom: 1]
 
@@ -39,7 +47,7 @@ defmodule AshPostgres.MigrationGenerator.Phase do
           else
             ""
           end
-          
+
         arguments = arguments([prefix(schema), options(partitioning: partitioning)])
 
         pre_create <>
