@@ -12,6 +12,7 @@ spark_locals_without_parens = [
   code?: 1,
   concurrently: 1,
   create?: 1,
+  create_table_options: 1,
   deferrable: 1,
   down: 1,
   error_fields: 1,

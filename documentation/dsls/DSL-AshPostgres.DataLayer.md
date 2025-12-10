@@ -56,6 +56,7 @@ end
 | [`table`](#postgres-table){: #postgres-table } | `String.t` |  | The table to store and read the resource from. If this is changed, the migration generator will not remove the old table. |
 | [`schema`](#postgres-schema){: #postgres-schema } | `String.t` |  | The schema that the table is located in. Schema-based multitenancy will supercede this option. If this is changed, the migration generator will not remove the old schema. |
 | [`polymorphic?`](#postgres-polymorphic?){: #postgres-polymorphic? } | `boolean` | `false` | Declares this resource as polymorphic. See the [polymorphic resources guide](/documentation/topics/resources/polymorphic-resources.md) for more. |
+| [`create_table_options`](#postgres-create_table_options){: #postgres-create_table_options } | `String.t` |  | Options passed to ecto's table/2 in the create migration. See the [Ecto.Migration.table/2](https://hexdocs.pm/ecto_sql/Ecto.Migration.html#table/2) documentation for more information. |
 
 
 ### postgres.custom_indexes

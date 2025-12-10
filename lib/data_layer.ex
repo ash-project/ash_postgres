@@ -400,6 +400,12 @@ defmodule AshPostgres.DataLayer do
         doc: """
         Declares this resource as polymorphic. See the [polymorphic resources guide](/documentation/topics/resources/polymorphic-resources.md) for more.
         """
+      ],
+      create_table_options: [
+        type: :string,
+        doc: """
+        Options passed to ecto's table/2 in the create migration. See the [Ecto.Migration.table/2](https://hexdocs.pm/ecto_sql/Ecto.Migration.html#table/2) documentation for more information.
+        """
       ]
     ]
   }
