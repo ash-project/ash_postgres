@@ -149,7 +149,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule CreateTable do
     @moduledoc false
-    defstruct [:table, :schema, :multitenancy, :old_multitenancy, :repo]
+    defstruct [:table, :schema, :multitenancy, :old_multitenancy, :repo, :create_table_options]
   end
 
   defmodule AddAttribute do

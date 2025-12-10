@@ -226,4 +226,9 @@ defmodule AshPostgres.DataLayer.Info do
   def manage_tenant_update?(resource) do
     Extension.get_opt(resource, [:postgres, :manage_tenant], :update?, false)
   end
+
+  @doc "String passed to table/2 in the create table migration for a given resource"
+  def create_table_options(resource) do
+    Extension.get_opt(resource, [:postgres], :create_table_options, nil)
+  end
 end

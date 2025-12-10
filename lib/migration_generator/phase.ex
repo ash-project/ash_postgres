@@ -7,7 +7,15 @@ defmodule AshPostgres.MigrationGenerator.Phase do
 
   defmodule Create do
     @moduledoc false
-    defstruct [:table, :schema, :multitenancy, :repo, operations: [], commented?: false]
+    defstruct [
+      :table,
+      :schema,
+      :multitenancy,
+      :repo,
+      :create_table_options,
+      operations: [],
+      commented?: false
+    ]
 
     import AshPostgres.MigrationGenerator.Operation.Helper, only: [as_atom: 1]
 
@@ -16,10 +24,18 @@ defmodule AshPostgres.MigrationGenerator.Phase do
           table: table,
           operations: operations,
           multitenancy: multitenancy,
-          repo: repo
+          repo: repo,
+          create_table_options: create_table_options
         }) do
+      table_options_str =
+        if create_table_options do
+          ", options: #{inspect(create_table_options)}"
+        else
+          ""
+        end
+
       if multitenancy.strategy == :context do
-        "create table(:#{as_atom(table)}, primary_key: false, prefix: prefix()) do\n" <>
+        "create table(:#{as_atom(table)}, primary_key: false, prefix: prefix()#{table_options_str}) do\n" <>
           Enum.map_join(operations, "\n", fn operation -> operation.__struct__.up(operation) end) <>
           "\nend"
       else
@@ -38,7 +54,7 @@ defmodule AshPostgres.MigrationGenerator.Phase do
           end
 
         pre_create <>
-          "create table(:#{as_atom(table)}, primary_key: false#{opts}) do\n" <>
+          "create table(:#{as_atom(table)}, primary_key: false#{opts}#{table_options_str}) do\n" <>
           Enum.map_join(operations, "\n", fn operation -> operation.__struct__.up(operation) end) <>
           "\nend"
       end

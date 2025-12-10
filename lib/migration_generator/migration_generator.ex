@@ -1366,7 +1366,8 @@ defmodule AshPostgres.MigrationGenerator do
              table: table,
              schema: schema,
              multitenancy: multitenancy,
-             repo: repo
+             repo: repo,
+             create_table_options: create_table_options
            }
            | rest
          ],
@@ -1375,7 +1376,13 @@ defmodule AshPostgres.MigrationGenerator do
        ) do
     group_into_phases(
       rest,
-      %Phase.Create{table: table, schema: schema, multitenancy: multitenancy, repo: repo},
+      %Phase.Create{
+        table: table,
+        schema: schema,
+        multitenancy: multitenancy,
+        repo: repo,
+        create_table_options: create_table_options
+      },
       acc
     )
   end
@@ -2031,7 +2038,8 @@ defmodule AshPostgres.MigrationGenerator do
           schema: snapshot.schema,
           repo: snapshot.repo,
           multitenancy: snapshot.multitenancy,
-          old_multitenancy: empty_snapshot.multitenancy
+          old_multitenancy: empty_snapshot.multitenancy,
+          create_table_options: snapshot.create_table_options
         }
         | acc
       ])
@@ -3103,7 +3111,8 @@ defmodule AshPostgres.MigrationGenerator do
       repo: AshPostgres.DataLayer.Info.repo(resource, :mutate),
       multitenancy: multitenancy(resource),
       base_filter: AshPostgres.DataLayer.Info.base_filter_sql(resource),
-      has_create_action: has_create_action?(resource)
+      has_create_action: has_create_action?(resource),
+      create_table_options: AshPostgres.DataLayer.Info.create_table_options(resource)
     }
 
     hash =

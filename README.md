@@ -42,6 +42,7 @@ Minimum required PostgreSQL version: `13.0`
 
 - [Expressions](documentation/topics/advanced/expressions.md)
 - [Manual Relationships](documentation/topics/advanced/manual-relationships.md)
+- [Partitioned Tables](documentation/topics/advanced/partitioned-tables.md)
 - [Schema Based Multitenancy](documentation/topics/advanced/schema-based-multitenancy.md)
 - [Read Replicas](documentation/topics/advanced/using-multiple-repos.md)
 
