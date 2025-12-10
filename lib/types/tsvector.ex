@@ -64,4 +64,9 @@ defmodule AshPostgres.Tsvector do
   def cast_stored(_, _) do
     :error
   end
+
+  @impl true
+  def generator(_constraints) do
+    StreamData.constant([])
+  end
 end

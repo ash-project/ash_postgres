@@ -5,9 +5,10 @@
 defmodule AshSql.AggregateTest do
   use AshPostgres.RepoCase, async: false
   import ExUnit.CaptureIO
-  alias AshPostgres.Test.{Author, Comment, Organization, Post, Rating, User}
+  alias AshPostgres.Test.{Author, Chat, Comment, Organization, Post, Rating, User}
 
   require Ash.Query
+  require Ash.Sort
   import Ash.Expr
 
   test "nested sum aggregates" do
@@ -99,6 +100,61 @@ defmodule AshSql.AggregateTest do
       |> Ash.load!(:count_of_comments, actor: user)
 
     assert read_post.count_of_comments == 1
+  end
+
+  test "loading optimizable first aggregate with relationship filter does not cause binding errors" do
+    org =
+      Organization
+      |> Ash.Changeset.for_create(:create, %{name: "The Org"})
+      |> Ash.create!()
+
+    user =
+      User
+      |> Ash.Changeset.for_create(:create, %{})
+      |> Ash.Changeset.manage_relationship(:organization, org, type: :append_and_remove)
+      |> Ash.create!()
+
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "John", last_name: "Doe"})
+      |> Ash.create!()
+
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "Test Post"})
+      |> Ash.Changeset.manage_relationship(:organization, org, type: :append_and_remove)
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+      |> Ash.create!()
+
+    comment =
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "Test Comment"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+    Rating
+    |> Ash.Changeset.for_create(:create, %{score: 5, resource_id: comment.id})
+    |> Ash.Changeset.set_context(%{data_layer: %{table: "comment_ratings"}})
+    |> Ash.create!()
+
+    # 1. Filter through :author adds a binding for the :author relationship
+    # 2. Policy joins through has_many which adds DISTINCT
+    # 3. limit(1) also triggers subquery wrapping condition
+    # 4. Loading :count_of_comment_ratings (non-optimizable, through [:comments, :ratings])
+    #    triggers wrap_in_subquery_for_aggregates
+    # 5. Loading :author_first_name (optimizable first through belongs_to :author)
+    #    after wrapping, code tries to reuse the :author binding from before wrapping
+    loaded_post =
+      Post
+      |> Ash.Query.filter(id == ^post.id and author.first_name == "John")
+      |> Ash.Query.limit(1)
+      |> Ash.Query.load([:author_first_name, :count_of_comment_ratings])
+      |> Ash.read!(actor: user)
+      |> hd()
+
+    assert loaded_post.id == post.id
+    assert loaded_post.author_first_name == "John"
+    assert loaded_post.count_of_comment_ratings == 1
   end
 
   test "nested filters on aggregates works" do
@@ -1859,5 +1915,266 @@ defmodule AshSql.AggregateTest do
     assert length(results) == 2
     assert Enum.at(results, 0).count_of_comments == 3
     assert Enum.at(results, 1).count_of_comments == 2
+  end
+
+  describe "aggregate with parent filter and limited select" do
+    test "FAILS when combining select() + limit() with aggregate using parent() in filter" do
+      # BUG: When using select() + limit() with an aggregate that uses parent()
+      # in its filter, the query generation creates a subquery that's missing the parent
+      # fields, causing a SQL error.
+      #
+      # This bug was found in ash_graphql where GraphQL list queries with pagination
+      # would fail when loading aggregates that use parent() in filters.
+      #
+      # The bug requires BOTH conditions:
+      # 1. select() limits which fields are included (e.g., only :id)
+      # 2. limit() causes a subquery to be generated
+      # 3. An aggregate filter references parent() fields that aren't in select()
+      #
+      # Without BOTH select() and limit(), the query works fine (see tests below).
+      #
+      # Current error:
+      # ERROR 42703 (undefined_column) column s0.last_read_message_id does not exist
+      #
+      # Generated query:
+      # SELECT s0."id", coalesce(s1."unread_message_count"::bigint, ...)
+      # FROM (SELECT sc0."id" AS "id" FROM "chats" AS sc0 LIMIT 10) AS s0
+      # LEFT OUTER JOIN LATERAL (
+      #   SELECT ... FROM "messages" WHERE ... s0."last_read_message_id" ...  # <- field not in subquery!
+      # ) AS s1 ON TRUE
+      #
+      # Expected fix: Ash should automatically include parent() referenced fields
+      # (like last_read_message_id) in the subquery even if not explicitly selected.
+
+      Chat
+      |> Ash.Query.select([:id, :last_read_message_id])
+      |> Ash.Query.load(:unread_message_count)
+      |> Ash.Query.limit(10)
+      |> Ash.read!()
+    end
+
+    test "works WITHOUT select() - limit alone doesn't cause the bug" do
+      Chat
+      |> Ash.Query.load(:unread_message_count)
+      |> Ash.Query.limit(10)
+      |> Ash.read!()
+    end
+
+    test "works WITHOUT limit() - select alone doesn't cause the bug" do
+      Chat
+      |> Ash.Query.select(:id)
+      |> Ash.Query.load(:unread_message_count)
+      |> Ash.read!()
+    end
+
+    test "works when selecting the parent() referenced field explicitly (workaround)" do
+      Chat
+      |> Ash.Query.select([:id, :last_read_message_id])
+      |> Ash.Query.load(:unread_message_count)
+      |> Ash.Query.limit(10)
+      |> Ash.read!()
+    end
+  end
+
+  test "load aggregate with select and sort on from_many relationship" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "John", last_name: "Doe"})
+      |> Ash.create!()
+
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "Test Post"})
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "Test Comment"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    results =
+      Post
+      |> Ash.Query.filter(id == ^post.id)
+      |> Ash.Query.select([:id, :title])
+      |> Ash.Query.sort([{Ash.Sort.expr_sort(expr(latest_comment.created_at)), :desc}])
+      |> Ash.Query.load(:author_first_name)
+      |> Ash.read!()
+
+    assert Enum.count(results) == 1
+    assert List.first(results).author_first_name == "John"
+  end
+
+  test "aggregate with parent() ref in relationship filter and sorting on relationship field" do
+    chat_1 =
+      Chat
+      |> Ash.Changeset.for_create(:create, %{name: "Test Chat"})
+      |> Ash.create!()
+
+    chat_1_message_1 =
+      AshPostgres.Test.Message
+      |> Ash.Changeset.for_create(:create, %{
+        chat_id: chat_1.id,
+        content: "First message",
+        sent_at: DateTime.add(DateTime.utc_now(), -3600, :second)
+      })
+      |> Ash.create!()
+
+    _chat_1_message_2 =
+      AshPostgres.Test.Message
+      |> Ash.Changeset.for_create(:create, %{
+        chat_id: chat_1.id,
+        content: "Second message",
+        sent_at: DateTime.add(DateTime.utc_now(), -1800, :second)
+      })
+      |> Ash.create!()
+
+    # Update chat to set last_read_message to the first message
+    # This means message_2 should be "unread"
+    _chat =
+      chat_1
+      |> Ash.Changeset.for_update(:update, %{last_read_message_id: chat_1_message_1.id})
+      |> Ash.update!()
+
+    # Create a second chat to force multiple records and trigger DISTINCT ON
+    chat_2 =
+      Chat
+      |> Ash.Changeset.for_create(:create, %{name: "Test Chat 2"})
+      |> Ash.create!()
+
+    chat_2_message_1 =
+      AshPostgres.Test.Message
+      |> Ash.Changeset.for_create(:create, %{
+        chat_id: chat_2.id,
+        content: "Chat 2 - Message 1",
+        sent_at: DateTime.add(DateTime.utc_now(), -100, :second)
+      })
+      |> Ash.create!()
+
+    AshPostgres.Test.Message
+    |> Ash.Changeset.for_create(:create, %{
+      chat_id: chat_2.id,
+      content: "Chat 2 - Message 2",
+      sent_at: DateTime.utc_now()
+    })
+    |> Ash.create!()
+
+    chat_2
+    |> Ash.Changeset.for_update(:update, %{last_read_message_id: chat_2_message_1.id})
+    |> Ash.update!()
+
+    # This query exercises the following conditions:
+    # - select() excludes last_read_message_id from the query
+    # - Sorting by last_message.sent_at (has_one from_many?) causes DISTINCT ON + subquery wrapping
+    # - Loading unread_messages_count_alt (aggregate on relationship with parent() in filter)
+    #   uses a lateral join that references parent(last_read_message_id)
+    # - The wrapped subquery must include last_read_message_id for the lateral join to work
+    result =
+      Chat
+      |> Ash.Query.filter(id in [^chat_1.id, ^chat_2.id])
+      |> Ash.Query.select([:id, :name])
+      |> Ash.Query.load(:unread_messages_count_alt)
+      |> Ash.Query.sort([{Ash.Sort.expr_sort(expr(last_message.sent_at)), :asc}])
+      |> Ash.read!()
+
+    assert length(result) == 2
+  end
+
+  test "multiple aggregates filtering on nested first aggregate" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "test"})
+      |> Ash.create!()
+
+    comment =
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "comment"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+    Rating
+    |> Ash.Changeset.for_create(:create, %{score: 10, resource_id: comment.id})
+    |> Ash.Changeset.set_context(%{data_layer: %{table: "comment_ratings"}})
+    |> Ash.create!()
+
+    # ERROR 42803 (grouping_error) aggregate functions are not allowed in FILTER
+    #
+    # Multiple Post aggregates filter on Comment.latest_rating_score (a first aggregate)
+    # AshPostgres includes ss1.latest_rating_score in SELECT but not in GROUP BY
+    #  error: column "ss1.latest_rating_score" must appear in the GROUP BY clause
+    #
+    # This regression was introduced by ash_sql bb458d56
+    assert {:ok, _} =
+             Post
+             |> Ash.Query.load([
+               :count_of_comments_with_ratings,
+               :count_of_comments_with_high_ratings
+             ])
+             |> Ash.read()
+  end
+
+  describe "page with count and aggregates with relationship-based calculations" do
+    test "loads relationship-based calculations correctly when using page(count: true) with aggregates" do
+      # This test reproduces the bug from https://github.com/ash-project/ash_sql/issues/191
+      # When using page(count: true) with both an aggregate and a calculation that depends on
+      # a relationship, the calculation fails to load (remains #Ash.NotLoaded)
+
+      # Create test data
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{
+          first_name: "John",
+          last_name: "Doe"
+        })
+        |> Ash.create!()
+
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{
+          title: "Test Post"
+        })
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "Test Comment"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      # Test without page(count: true) - should work
+      result_without_page_count =
+        Post
+        |> Ash.Query.filter(id == ^post.id)
+        |> Ash.Query.load([
+          # aggregate
+          :count_of_comments,
+          # calculation that depends on author relationship
+          :author_first_name_calc
+        ])
+        |> Ash.read_one!()
+
+      assert result_without_page_count.count_of_comments == 1
+      assert result_without_page_count.author_first_name_calc == "John"
+
+      Logger.configure(level: :debug)
+      # Test with page(count: true) - this triggers the bug
+      %{results: [result_with_page_count | _]} =
+        Post
+        |> Ash.Query.filter(id == ^post.id)
+        |> Ash.Query.load([
+          # aggregate
+          :count_of_comments,
+          # calculation that depends on author relationship
+          :author_first_name_calc
+        ])
+        |> Ash.Query.page(limit: 50, offset: 0, count: true)
+        |> Ash.read!()
+
+      # Both should be loaded correctly
+      assert result_with_page_count.count_of_comments == 1
+      # This assertion should fail if the bug is present
+      assert result_with_page_count.author_first_name_calc == "John",
+             "Calculation was not loaded when using page(count: true) with aggregates"
+    end
   end
 end

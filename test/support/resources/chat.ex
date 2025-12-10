@@ -23,7 +23,21 @@ defmodule AshPostgres.Test.Chat do
     attribute(:name, :string, public?: true)
   end
 
+  calculations do
+    calculate(
+      :last_unread_message_formatted_fn,
+      :string,
+      expr(last_unread_message.formatted_content_fn)
+    )
+  end
+
   relationships do
+    belongs_to :last_read_message, AshPostgres.Test.Message do
+      allow_nil?(true)
+      public?(true)
+      attribute_writable?(true)
+    end
+
     has_many :messages, AshPostgres.Test.Message do
       public?(true)
     end
@@ -39,6 +53,23 @@ defmodule AshPostgres.Test.Chat do
       from_many?(true)
       filter(expr(is_nil(read_at)))
       sort(sent_at: :desc)
+    end
+
+    has_many :unread_messages, AshPostgres.Test.Message do
+      public?(true)
+      no_attributes?(true)
+      filter(expr(is_nil(parent(last_read_message_id)) or id > parent(last_read_message_id)))
+    end
+  end
+
+  aggregates do
+    count :unread_message_count, :messages do
+      public?(true)
+      filter(expr(is_nil(parent(last_read_message_id)) or id > parent(last_read_message_id)))
+    end
+
+    count :unread_messages_count_alt, :unread_messages do
+      public?(true)
     end
   end
 end

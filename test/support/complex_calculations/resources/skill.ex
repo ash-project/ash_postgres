@@ -60,7 +60,6 @@ defmodule AshPostgres.Test.ComplexCalculations.Skill do
         )
       )
 
-      load([:count_of_demonstrated_documentations])
       public?(true)
     end
   end

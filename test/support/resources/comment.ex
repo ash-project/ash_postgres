@@ -48,6 +48,16 @@ defmodule AshPostgres.Test.Comment do
     attribute(:title, :string, public?: true)
     attribute(:likes, :integer, public?: true)
     attribute(:arbitrary_timestamp, :utc_datetime_usec, public?: true)
+    attribute(:edited_duration, :integer, public?: true)
+    attribute(:planned_duration, :integer, public?: true)
+    attribute(:reading_time, :integer, public?: true)
+    attribute(:version, :atom, constraints: [one_of: [:edited, :planned]], public?: true)
+
+    attribute(:status, :atom,
+      constraints: [one_of: [:published, :draft, :pending]],
+      public?: true
+    )
+
     create_timestamp(:created_at, writable?: true, public?: true)
   end
 
@@ -59,6 +69,10 @@ defmodule AshPostgres.Test.Comment do
 
     list :linked_comment_post_ids, [:linked_comments, :post], :id do
       uniq?(true)
+    end
+
+    first :latest_rating_score, :ratings, :score do
+      sort(score: :desc)
     end
   end
 
@@ -73,6 +87,8 @@ defmodule AshPostgres.Test.Comment do
          "hello"
        end)}
     end)
+
+    calculate(:has_rating, :boolean, expr(not is_nil(latest_rating_score)))
   end
 
   relationships do

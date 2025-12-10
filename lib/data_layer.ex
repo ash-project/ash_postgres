@@ -417,6 +417,7 @@ defmodule AshPostgres.DataLayer do
     verifiers: [
       AshPostgres.Verifiers.PreventMultidimensionalArrayAggregates,
       AshPostgres.Verifiers.ValidateReferences,
+      AshPostgres.Verifiers.ValidateCheckConstraints,
       AshPostgres.Verifiers.PreventAttributeMultitenancyAndNonFullMatchType,
       AshPostgres.Verifiers.EnsureTableOrPolymorphic,
       AshPostgres.Verifiers.ValidateIdentityIndexNames
@@ -2058,39 +2059,46 @@ defmodule AshPostgres.DataLayer do
               {Map.take(r, keys), r}
             end)
 
-          ash_query =
-            resource
-            |> Ash.Query.do_filter(
-              or:
-                changesets
-                |> Enum.filter(fn changeset ->
-                  not Map.has_key?(
-                    results_by_identity,
-                    Map.take(changeset.attributes, keys)
-                  )
-                end)
-                |> Enum.map(fn changeset ->
-                  changeset.attributes
-                  |> Map.take(keys)
-                  |> Keyword.new()
-                end)
-            )
-            |> then(fn
-              query when is_nil(identity) or is_nil(identity.where) -> query
-              query -> Ash.Query.do_filter(query, identity.where)
+          skipped_filter =
+            changesets
+            |> Enum.filter(fn changeset ->
+              not Map.has_key?(
+                results_by_identity,
+                Map.take(changeset.attributes, keys)
+              )
             end)
-            |> Ash.Query.set_tenant(changeset.tenant)
+            |> Enum.map(fn changeset ->
+              changeset.attributes
+              |> Map.take(keys)
+              |> Keyword.new()
+            end)
 
           skipped_upserts =
-            with {:ok, ecto_query} <- Ash.Query.data_layer_query(ash_query),
-                 {:ok, results} <- run_query(ecto_query, resource) do
-              results
-              |> Enum.map(fn result ->
-                Ash.Resource.put_metadata(result, :upsert_skipped, true)
-              end)
-              |> Enum.reduce(%{}, fn r, acc ->
-                Map.put(acc, Map.take(r, keys), r)
-              end)
+            case skipped_filter do
+              [] ->
+                # No skipped records to query for
+                %{}
+
+              skipped_filter ->
+                ash_query =
+                  resource
+                  |> Ash.Query.do_filter(or: skipped_filter)
+                  |> then(fn
+                    query when is_nil(identity) or is_nil(identity.where) -> query
+                    query -> Ash.Query.do_filter(query, identity.where)
+                  end)
+                  |> Ash.Query.set_tenant(changeset.tenant)
+
+                with {:ok, ecto_query} <- Ash.Query.data_layer_query(ash_query),
+                     {:ok, results} <- run_query(ecto_query, resource) do
+                  results
+                  |> Enum.map(fn result ->
+                    Ash.Resource.put_metadata(result, :upsert_skipped, true)
+                  end)
+                  |> Enum.reduce(%{}, fn r, acc ->
+                    Map.put(acc, Map.take(r, keys), r)
+                  end)
+                end
             end
 
           results =
@@ -2143,8 +2151,8 @@ defmodule AshPostgres.DataLayer do
                     # Compatibility fallback
                     Ash.Resource.put_metadata(
                       result_for_changeset,
-                      :bulk_create_index,
-                      changeset.context[:bulk_create][:index]
+                      :bulk_action_ref,
+                      changeset.context[:bulk_create][:ref]
                     )
                   end
                 end)
@@ -2160,8 +2168,8 @@ defmodule AshPostgres.DataLayer do
                   # Compatibility fallback
                   Ash.Resource.put_metadata(
                     result,
-                    :bulk_create_index,
-                    changeset.context[:bulk_create][:index]
+                    :bulk_action_ref,
+                    changeset.context[:bulk_create][:ref]
                   )
                 end)
               end
@@ -3455,6 +3463,7 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def select(query, select, _resource) do
     query = maybe_subquery_upgrade(query, {:select, select})
+    query = put_in(query.__ash_bindings__[:select], select)
 
     if query.__ash_bindings__.context[:data_layer][:combination_query?] ||
          query.__ash_bindings__.context[:data_layer][:combination_of_queries?] do
@@ -3615,6 +3624,8 @@ defmodule AshPostgres.DataLayer do
             :__ash_bindings__,
             &Map.merge(&1, %{
               already_selected: fieldset,
+              select: query.__ash_bindings__[:select],
+              select_calculations: query.__ash_bindings__[:select_calculations],
               subquery_upgrade?: true,
               sort: query.__ash_bindings__[:sort],
               context: query.__ash_bindings__.context

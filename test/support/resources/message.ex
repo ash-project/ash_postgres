@@ -25,6 +25,16 @@ defmodule AshPostgres.Test.Message do
     attribute(:read_at, :utc_datetime, public?: true)
   end
 
+  calculations do
+    calculate :formatted_content_fn, :string do
+      load([:content])
+
+      calculation(fn records, _context ->
+        Enum.map(records, &"FnMessage: #{&1.content}")
+      end)
+    end
+  end
+
   relationships do
     belongs_to :chat, AshPostgres.Test.Chat do
       public?(true)

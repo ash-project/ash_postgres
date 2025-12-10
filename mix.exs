@@ -9,7 +9,7 @@ defmodule AshPostgres.MixProject do
   The PostgreSQL data layer for Ash Framework
   """
 
-  @version "2.6.23"
+  @version "2.6.26"
 
   def project do
     [
@@ -177,9 +177,9 @@ defmodule AshPostgres.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ash, ash_version("~> 3.7 and >= 3.7.5")},
+      {:ash, ash_version("~> 3.10")},
       {:spark, "~> 2.3 and >= 2.3.4"},
-      {:ash_sql, ash_sql_version("~> 0.3 and >= 0.3.7")},
+      {:ash_sql, ash_sql_version("~> 0.3 and >= 0.3.14")},
       {:igniter, "~> 0.6 and >= 0.6.29", optional: true},
       {:ecto_sql, "~> 3.13"},
       {:ecto, "~> 3.13"},
@@ -197,7 +197,8 @@ defmodule AshPostgres.MixProject do
       {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:mix_audit, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:dialyxir, ">= 0.0.0", only: [:dev, :test], runtime: false},
-      {:sobelow, ">= 0.0.0", only: [:dev, :test], runtime: false}
+      {:sobelow, ">= 0.0.0", only: [:dev, :test], runtime: false},
+      {:mix_test_interactive, "~> 5.0", only: [:dev, :test]}
     ]
   end
 

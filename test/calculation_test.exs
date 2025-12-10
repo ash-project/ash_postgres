@@ -11,6 +11,8 @@ defmodule AshPostgres.CalculationTest do
     Author,
     Comedian,
     Comment,
+    Container,
+    Item,
     Post,
     PostTag,
     Record,
@@ -109,6 +111,33 @@ defmodule AshPostgres.CalculationTest do
     |> Ash.Query.load_calculation_as(:category_label, {:some, :other_thing})
     |> Ash.Query.sort(:title)
     |> Ash.read!()
+  end
+
+  test "runtime loading calculation with fragment referencing aggregate works correctly" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "test post"})
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "comment1", likes: 5})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "comment2", likes: 15})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    result =
+      Post
+      |> Ash.Query.load([:comment_metric, :complex_comment_metric, :multi_agg_calc])
+      |> Ash.read!()
+
+    assert [post] = result
+    assert is_integer(post.comment_metric)
+    assert is_integer(post.complex_comment_metric)
+    assert is_integer(post.multi_agg_calc)
   end
 
   test "expression calculations don't load when `reuse_values?` is true" do
@@ -1141,5 +1170,481 @@ defmodule AshPostgres.CalculationTest do
 
     # Should be false since post title doesn't match author first name
     refute result.author_has_post_with_title_matching_their_first_name
+  end
+
+  test "nested calculation with parent() and arguments in exists works" do
+    user_id = Ash.UUID.generate()
+
+    # Create a food category
+    category =
+      AshPostgres.Test.FoodCategory
+      |> Ash.Changeset.for_create(:create, %{name: "Dairy"})
+      |> Ash.create!()
+
+    # Create a food item in that category
+    food_item =
+      AshPostgres.Test.FoodItem
+      |> Ash.Changeset.for_create(:create, %{
+        name: "Cheese",
+        food_category_id: category.id
+      })
+      |> Ash.create!()
+
+    # Create a meal
+    meal =
+      AshPostgres.Test.Meal
+      |> Ash.Changeset.for_create(:create, %{name: "Breakfast"})
+      |> Ash.create!()
+
+    # Create a meal item with that food item
+    AshPostgres.Test.MealItem
+    |> Ash.Changeset.for_create(:create, %{meal_id: meal.id, food_item_id: food_item.id})
+    |> Ash.create!()
+
+    # User has not excluded any categories, so meal should be allowed
+    result =
+      AshPostgres.Test.Meal
+      |> Ash.Query.load(allowed_for_user: %{user_id: user_id})
+      |> Ash.read_one!()
+
+    assert result.allowed_for_user == true
+
+    # Now exclude the category for the user
+    AshPostgres.Test.UserExcludedCategory
+    |> Ash.Changeset.for_create(:create, %{
+      user_id: user_id,
+      food_category_id: category.id
+    })
+    |> Ash.create!()
+
+    # Now the meal should not be allowed for the user (because it contains an excluded food)
+    result =
+      AshPostgres.Test.Meal
+      |> Ash.Query.load(allowed_for_user: %{user_id: user_id})
+      |> Ash.read_one!()
+
+    refute result.allowed_for_user
+  end
+
+  test "can filter on nested calculation with parent() and arguments in exists" do
+    user_id = Ash.UUID.generate()
+
+    # Create a food category
+    category =
+      AshPostgres.Test.FoodCategory
+      |> Ash.Changeset.for_create(:create, %{name: "Dairy"})
+      |> Ash.create!()
+
+    # Create a food item in that category
+    food_item =
+      AshPostgres.Test.FoodItem
+      |> Ash.Changeset.for_create(:create, %{
+        name: "Cheese",
+        food_category_id: category.id
+      })
+      |> Ash.create!()
+
+    # Create a meal
+    meal =
+      AshPostgres.Test.Meal
+      |> Ash.Changeset.for_create(:create, %{name: "Breakfast"})
+      |> Ash.create!()
+
+    # Create a meal item with that food item
+    AshPostgres.Test.MealItem
+    |> Ash.Changeset.for_create(:create, %{meal_id: meal.id, food_item_id: food_item.id})
+    |> Ash.create!()
+
+    # Exclude the category for the user
+    AshPostgres.Test.UserExcludedCategory
+    |> Ash.Changeset.for_create(:create, %{
+      user_id: user_id,
+      food_category_id: category.id
+    })
+    |> Ash.create!()
+
+    # Filter MealItems by the calculation - this should trigger the parent() binding issue
+    query =
+      AshPostgres.Test.MealItem
+      |> Ash.Query.filter(allowed_for_user(user_id: ^user_id))
+
+    assert [] == Ash.read!(query)
+  end
+
+  test "expression calculation referencing aggregates loaded via code_interface with load option" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "test post"})
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "comment1", likes: 5})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "comment2", likes: 15})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    result = Post.get_by_id!(post.id, load: [:comment_metric])
+
+    assert result.comment_metric == 200
+  end
+
+  test "complex SQL fragment calculation with multiple aggregates" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{
+        title: "test post",
+        base_reading_time: 500
+      })
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{
+      title: "comment1",
+      edited_duration: 100,
+      planned_duration: 80,
+      reading_time: 30,
+      version: :edited
+    })
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{
+      title: "comment2",
+      edited_duration: 0,
+      planned_duration: 120,
+      reading_time: 45,
+      version: :planned
+    })
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    result = Post.get_by_id!(post.id, load: [:estimated_reading_time])
+
+    assert result.estimated_reading_time == 175
+  end
+
+  test "calculation with missing aggregate dependencies" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{
+        title: "test post",
+        base_reading_time: 500
+      })
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{
+      title: "modified comment",
+      edited_duration: 100,
+      planned_duration: 0,
+      reading_time: 30,
+      version: :edited
+    })
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{
+      title: "planned comment",
+      edited_duration: 0,
+      planned_duration: 80,
+      reading_time: 20,
+      version: :planned
+    })
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    result = Post.get_by_id!(post.id, load: [:estimated_reading_time])
+
+    refute match?(%Ash.NotLoaded{}, result.estimated_reading_time),
+           "Expected calculated value, got: #{inspect(result.estimated_reading_time)}"
+  end
+
+  test "calculation with filtered aggregates and keyset pagination" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{
+        title: "test post",
+        base_reading_time: 500
+      })
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{
+      title: "completed comment",
+      edited_duration: 100,
+      reading_time: 30,
+      version: :edited,
+      status: :published
+    })
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{
+      title: "pending comment",
+      planned_duration: 80,
+      reading_time: 20,
+      version: :planned,
+      status: :pending
+    })
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    result_both = Post.get_by_id!(post.id, load: [:published_comments, :estimated_reading_time])
+
+    assert result_both.estimated_reading_time == 150,
+           "Should calculate correctly with both loaded"
+
+    assert result_both.published_comments == 1, "Should count correctly with both loaded"
+  end
+
+  test "calculation with keyset pagination works correctly (previously returned NotLoaded)" do
+    _posts =
+      Enum.map(1..5, fn i ->
+        post =
+          Post
+          |> Ash.Changeset.for_create(:create, %{
+            title: "test post #{i}",
+            base_reading_time: 100 * i
+          })
+          |> Ash.create!()
+
+        Comment
+        |> Ash.Changeset.for_create(:create, %{
+          title: "comment#{i}",
+          edited_duration: 50 * i,
+          planned_duration: 40 * i,
+          reading_time: 10 * i,
+          version: :edited,
+          status: :published
+        })
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Ash.create!()
+
+        post
+      end)
+
+    first_page =
+      Post
+      |> Ash.Query.load([:published_comments, :estimated_reading_time])
+      |> Ash.read!(action: :read_with_related_list_agg_filter, page: [limit: 2, count: true])
+
+    Enum.each(first_page.results, fn post ->
+      refute match?(%Ash.NotLoaded{}, post.estimated_reading_time),
+             "First page post #{post.id} should have loaded estimated_reading_time, got: #{inspect(post.estimated_reading_time)}"
+    end)
+
+    if first_page.more? do
+      second_page =
+        Post
+        |> Ash.Query.load([:published_comments, :estimated_reading_time])
+        |> Ash.read!(
+          action: :read_with_related_list_agg_filter,
+          page: [
+            limit: 2,
+            after: first_page.results |> List.last() |> Map.get(:__metadata__) |> Map.get(:keyset)
+          ]
+        )
+
+      assert length(second_page.results) > 0, "Second page should have results"
+
+      Enum.each(second_page.results, fn post ->
+        refute match?(%Ash.NotLoaded{}, post.estimated_reading_time),
+               "estimated_reading_time should be calculated, not NotLoaded"
+
+        refute match?(%Ash.NotLoaded{}, post.published_comments),
+               "published_comments should be calculated, not NotLoaded"
+
+        assert post.estimated_reading_time > 0, "estimated_reading_time should be positive"
+        assert post.published_comments == 1, "Each post has exactly 1 completed comment"
+      end)
+    end
+  end
+
+  describe "multiple relationships to the same resource with different filters don't affect calculations" do
+    test "calculations use correct read actions from their respective relationships" do
+      container = Ash.Seed.seed!(Container, %{})
+
+      item_active =
+        Ash.Seed.seed!(Item, %{
+          container_id: container.id,
+          name: "Active Item",
+          active: true
+        })
+
+      _item_inactive =
+        Ash.Seed.seed!(Item, %{
+          container_id: container.id,
+          name: "Inactive Item",
+          active: false
+        })
+
+      loaded_container = Ash.load!(container, [:item_all])
+      assert item_active.id == loaded_container.item_all.id
+
+      loaded_container = Ash.load!(container, [:item_active])
+      assert item_active.id == loaded_container.item_active.id
+
+      loaded_container = Ash.load!(container, [:active_item_name, :all_item_name])
+
+      assert loaded_container.active_item_name == "Active Item"
+
+      assert loaded_container.all_item_name == "Active Item"
+    end
+  end
+
+  test "calculations use correct read actions from their respective relationships" do
+    container = Ash.Seed.seed!(Container, %{})
+
+    item =
+      Ash.Seed.seed!(Item, %{
+        container_id: container.id,
+        name: "Inactive Item",
+        active: false
+      })
+
+    loaded_container = Ash.load!(container, [:item_all])
+    assert item.id == loaded_container.item_all.id
+
+    loaded_container = Ash.load!(container, [:item_active])
+    assert nil == loaded_container.item_active
+
+    loaded_container = Ash.load!(container, [:active_item_name, :all_item_name])
+
+    assert loaded_container.active_item_name == nil
+
+    assert loaded_container.all_item_name == "Inactive Item"
+  end
+
+  test "loading calculations one at a time works" do
+    container = Ash.Seed.seed!(Container, %{})
+
+    item =
+      Ash.Seed.seed!(Item, %{
+        container_id: container.id,
+        name: "Inactive Item",
+        active: false
+      })
+
+    loaded_container = Ash.load!(container, [:item_all])
+    assert item.id == loaded_container.item_all.id
+
+    loaded_container = Ash.load!(container, [:item_active])
+    assert nil == loaded_container.item_active
+
+    loaded_container = Ash.load!(container, [:active_item_name])
+    assert loaded_container.active_item_name == nil
+
+    loaded_container = Ash.load!(container, [:all_item_name])
+    assert loaded_container.all_item_name == "Inactive Item"
+  end
+
+  test "with active item, both calculations return values" do
+    container = Ash.Seed.seed!(Container, %{})
+
+    item =
+      Ash.Seed.seed!(Item, %{
+        container_id: container.id,
+        name: "Active Item",
+        active: true
+      })
+
+    loaded_container = Ash.load!(container, [:item_all])
+    assert item.id == loaded_container.item_all.id
+
+    loaded_container = Ash.load!(container, [:item_active])
+    assert item.id == loaded_container.item_active.id
+
+    loaded_container = Ash.load!(container, [:active_item_name, :all_item_name])
+
+    assert loaded_container.active_item_name == "Active Item"
+    assert loaded_container.all_item_name == "Active Item"
+  end
+
+  test "multiple containers with mixed active/inactive items" do
+    container1 = Ash.Seed.seed!(Container, %{})
+
+    Ash.Seed.seed!(Item, %{
+      container_id: container1.id,
+      name: "Inactive Item 1",
+      active: false
+    })
+
+    container2 = Ash.Seed.seed!(Container, %{})
+
+    Ash.Seed.seed!(Item, %{
+      container_id: container2.id,
+      name: "Active Item 2",
+      active: true
+    })
+
+    _container3 = Ash.Seed.seed!(Container, %{})
+
+    containers =
+      Container
+      |> Ash.Query.sort(:id)
+      |> Ash.Query.load([:active_item_name, :all_item_name])
+      |> Ash.read!()
+
+    [loaded1, loaded2, loaded3] = containers
+
+    assert loaded1.active_item_name == nil
+    assert loaded1.all_item_name == "Inactive Item 1"
+
+    assert loaded2.active_item_name == "Active Item 2"
+    assert loaded2.all_item_name == "Active Item 2"
+
+    assert loaded3.active_item_name == nil
+    assert loaded3.all_item_name == nil
+  end
+
+  test "expr(has_one.function_based_calculation) in batch with nil relationships" do
+    alias AshPostgres.Test.{Chat, Message}
+
+    chat1 = Ash.Seed.seed!(Chat, %{name: "Chat 1"})
+
+    chat2 = Ash.Seed.seed!(Chat, %{name: "Chat 2"})
+
+    Ash.Seed.seed!(Message, %{
+      chat_id: chat2.id,
+      content: "Unread message",
+      read_at: nil
+    })
+
+    chat3 = Ash.Seed.seed!(Chat, %{name: "Chat 3"})
+
+    Ash.Seed.seed!(Message, %{
+      chat_id: chat3.id,
+      content: "Read message",
+      read_at: DateTime.utc_now()
+    })
+
+    single =
+      Chat
+      |> Ash.Query.filter(id == ^chat2.id)
+      |> Ash.Query.load([:last_unread_message_formatted_fn])
+      |> Ash.read!()
+      |> hd()
+
+    assert single.last_unread_message_formatted_fn == "FnMessage: Unread message"
+
+    chats =
+      Chat
+      |> Ash.Query.filter(id in [^chat1.id, ^chat2.id, ^chat3.id])
+      |> Ash.Query.sort(:name)
+      |> Ash.Query.load([:last_unread_message_formatted_fn])
+      |> Ash.read!()
+
+    [loaded1, loaded2, loaded3] = chats
+
+    assert loaded1.last_unread_message_formatted_fn == nil
+    assert loaded2.last_unread_message_formatted_fn == "FnMessage: Unread message"
+    assert loaded3.last_unread_message_formatted_fn == nil
   end
 end

@@ -27,8 +27,7 @@ defmodule AshPostgres.Test.Account do
     calculate(
       :active,
       :boolean,
-      expr(is_active && user_is_active),
-      load: [:user_is_active]
+      expr(is_active && user_is_active)
     )
   end
 
