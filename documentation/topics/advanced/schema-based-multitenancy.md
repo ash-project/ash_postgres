@@ -6,6 +6,22 @@ SPDX-License-Identifier: MIT
 
 # Schema Based Multitenancy
 
+```elixir
+defmodule MyApp.Project do
+  use Ash.Resource, data_layer: AshPostgres.DataLayer
+
+  multitenancy do
+    strategy :context
+  end
+
+  ...
+
+  relationships do
+    belongs_to :organization, MyApp.Organization
+  end
+end
+```
+
 Multitenancy in AshPostgres is implemented via postgres schemas. For more information on schemas, see postgres' [schema documentation](https://www.postgresql.org/docs/current/ddl-schemas.html)
 
 Implementing multitenancy via schema's involves tracking "tenant migrations" separately from migrations for your public schema. You can see what this looks like by simply creating a multitenant resource, and using the migration generator `mix ash.codegen`. It will put schema specific migrations in `priv/repo/tenant_migrations`. When you generate migrations, you'll want to be sure to audit migrations in both directories. Additionally, when you deploy, you'll want to run your migrations, as well as running them with the migrations path `priv/repo/tenant_migrations`.
