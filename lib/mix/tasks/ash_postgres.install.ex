@@ -326,6 +326,25 @@ if Code.ensure_loaded?(Igniter) do
         |> Igniter.Project.Config.configure_new("test.exs", otp_app, [repo, :pool_size], 10)
       end
       |> Igniter.Project.Config.configure_new("test.exs", :ash, [:disable_async?], true)
+      |> configure_known_types()
+    end
+
+    defp configure_known_types(igniter) do
+      Igniter.Project.Config.configure(
+        igniter,
+        "config.exs",
+        :ash,
+        [:known_types],
+        [AshPostgres.Timestamptz, AshPostgres.TimestamptzUsec],
+        updater: fn zipper ->
+          with {:ok, zipper} <-
+                 Igniter.Code.List.prepend_new_to_list(zipper, AshPostgres.Timestamptz),
+               {:ok, zipper} <-
+                 Igniter.Code.List.prepend_new_to_list(zipper, AshPostgres.TimestamptzUsec) do
+            {:ok, zipper}
+          end
+        end
+      )
     end
 
     defp setup_data_case(igniter) do

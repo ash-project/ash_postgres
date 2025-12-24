@@ -33,4 +33,51 @@ defmodule AshPostgres.TimestamptzUsec do
   def storage_type(_constraints) do
     :"timestamptz(6)"
   end
+
+  @impl true
+  def operator_overloads do
+    other_types = [
+      Ash.Type.UtcDatetimeUsec,
+      Ash.Type.UtcDatetime,
+      Ash.Type.DateTime
+    ]
+
+    # When THIS type is on the left, cast both to this type for consistent comparison
+    left_overloads =
+      for other <- other_types, into: %{} do
+        {[__MODULE__, other], {[__MODULE__, __MODULE__], Ash.Type.Boolean}}
+      end
+
+    # When THIS type is on the right, cast both to this type for consistent comparison
+    right_overloads =
+      for other <- other_types, into: %{} do
+        {[other, __MODULE__], {[__MODULE__, __MODULE__], Ash.Type.Boolean}}
+      end
+
+    # Same type comparison
+    same_type_overload = %{
+      [__MODULE__, __MODULE__] => Ash.Type.Boolean
+    }
+
+    # Cross-type comparisons with Timestamptz - use higher precision (this type)
+    cross_type_overloads = %{
+      [__MODULE__, AshPostgres.Timestamptz] =>
+        {[__MODULE__, __MODULE__], Ash.Type.Boolean},
+      [AshPostgres.Timestamptz, __MODULE__] =>
+        {[__MODULE__, __MODULE__], Ash.Type.Boolean}
+    }
+
+    comparison_overloads =
+      same_type_overload
+      |> Map.merge(left_overloads)
+      |> Map.merge(right_overloads)
+      |> Map.merge(cross_type_overloads)
+
+    %{
+      :< => comparison_overloads,
+      :<= => comparison_overloads,
+      :> => comparison_overloads,
+      :>= => comparison_overloads
+    }
+  end
 end

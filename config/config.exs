@@ -35,6 +35,8 @@ if Mix.env() == :test do
 
   config :ash, :custom_expressions, [AshPostgres.Expressions.TrigramWordSimilarity]
 
+  config :ash, :known_types, [AshPostgres.Timestamptz, AshPostgres.TimestamptzUsec]
+
   config :ash_postgres, AshPostgres.TestRepo,
     username: "postgres",
     database: "ash_postgres_test",
