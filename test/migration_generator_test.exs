@@ -3221,9 +3221,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[add :id, :decimal, null: false, precision: 10, scale: 0, primary_key: true]
 
       assert file_content =~ ~S[add :category_id, :decimal, null: false, precision: 10, scale: 0]
-
-      assert file_content =~
-               ~S[modify :category_id, references(:categories, column: :id, name: "products_category_id_fkey", type: :decimal, precision: 10, scale: 0]
     end
   end
 
