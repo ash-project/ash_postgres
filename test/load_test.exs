@@ -1027,4 +1027,143 @@ defmodule AshPostgres.Test.LoadTest do
       assert %{} == author.aggregates
     end
   end
+
+  describe "many_to_many with join_relationship limit" do
+    test "many_to_many inherits limit from join_relationship" do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "test post"})
+        |> Ash.create!()
+
+      for order <- [3, 2, 4, 1, 5] do
+        user =
+          User
+          |> Ash.Changeset.for_create(:create, %{name: "User #{order}"})
+          |> Ash.create!()
+
+        PostFollower
+        |> Ash.Changeset.for_create(:create, %{
+          order: order,
+          post_id: post.id,
+          follower_id: user.id
+        })
+        |> Ash.create!()
+
+        user
+      end
+
+      # The has_many relationship - three records with the correct sort/limit
+      post_with_join = Ash.load!(post, :top_three_post_followers)
+      assert length(post_with_join.top_three_post_followers) == 3
+
+      orders = Enum.map(post_with_join.top_three_post_followers, & &1.order)
+      assert orders == [1, 2, 3]
+
+      # The many-to-many relationship - should use the same sort/limit
+      post_with_top = Ash.load!(post, :top_three_followers)
+      assert length(post_with_top.top_three_followers) == 3
+
+      top_user_names = post_with_top.top_three_followers |> Enum.map(& &1.name) |> Enum.sort()
+      assert top_user_names == ["User 1", "User 2", "User 3"]
+    end
+
+    test "many_to_many inherits filter, sort, and limit from join_relationship" do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "test post"})
+        |> Ash.create!()
+
+      for order <- [1, 2, 3, 4, 5] do
+        user =
+          User
+          |> Ash.Changeset.for_create(:create, %{name: "User #{order}"})
+          |> Ash.create!()
+
+        PostFollower
+        |> Ash.Changeset.for_create(:create, %{
+          order: order,
+          post_id: post.id,
+          follower_id: user.id
+        })
+        |> Ash.create!()
+
+        user
+      end
+
+      # The has_many relationship - taking the first two with order > 1
+      post_with_join = Ash.load!(post, :filtered_top_post_followers)
+      assert length(post_with_join.filtered_top_post_followers) == 2
+
+      orders = Enum.map(post_with_join.filtered_top_post_followers, & &1.order)
+      assert orders == [2, 3]
+
+      # The many-to-many - should apply the same limit/filter as the has_many
+      post_with_top = Ash.load!(post, :filtered_top_followers)
+      assert length(post_with_top.filtered_top_followers) == 2
+
+      top_user_names = post_with_top.filtered_top_followers |> Enum.map(& &1.name) |> Enum.sort()
+      assert top_user_names == ["User 2", "User 3"]
+    end
+
+    test "many_to_many limit is applied per-parent, not globally" do
+      # Create two posts
+      post1 =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "post 1"})
+        |> Ash.create!()
+
+      post2 =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "post 2"})
+        |> Ash.create!()
+
+      # Create users
+      users =
+        for i <- 1..6 do
+          User
+          |> Ash.Changeset.for_create(:create, %{name: "User #{i}"})
+          |> Ash.create!()
+        end
+
+      # Post 1 gets users 1-4 with orders 1-4
+      for {user, order} <- Enum.zip(Enum.take(users, 4), 1..4) do
+        PostFollower
+        |> Ash.Changeset.for_create(:create, %{
+          order: order,
+          post_id: post1.id,
+          follower_id: user.id
+        })
+        |> Ash.create!()
+      end
+
+      # Post 2 gets users 5-6 with orders 1-2
+      for {user, order} <- Enum.zip(Enum.drop(users, 4), 1..2) do
+        PostFollower
+        |> Ash.Changeset.for_create(:create, %{
+          order: order,
+          post_id: post2.id,
+          follower_id: user.id
+        })
+        |> Ash.create!()
+      end
+
+      # Load both posts with top_three_followers
+      # Without per-parent limit, post1's 4 followers would consume the global limit
+      # leaving post2 with fewer or none
+      [loaded_post1, loaded_post2] =
+        Post
+        |> Ash.Query.filter(id in [^post1.id, ^post2.id])
+        |> Ash.Query.sort(:title)
+        |> Ash.Query.load(:top_three_followers)
+        |> Ash.read!()
+
+      assert length(loaded_post1.top_three_followers) == 3
+      post1_names = loaded_post1.top_three_followers |> Enum.map(& &1.name) |> Enum.sort()
+      assert post1_names == ["User 1", "User 2", "User 3"]
+
+      assert length(loaded_post2.top_three_followers) == 2
+      post2_names = loaded_post2.top_three_followers |> Enum.map(& &1.name) |> Enum.sort()
+      assert post2_names == ["User 5", "User 6"]
+    end
+  end
 end

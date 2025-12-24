@@ -851,6 +851,31 @@ defmodule AshPostgres.Test.Post do
 
     has_many(:post_followers, AshPostgres.Test.PostFollower)
 
+    # For testing join_relationship limit inheritance
+    has_many :top_three_post_followers, AshPostgres.Test.PostFollower do
+      sort(order: :asc)
+      limit(3)
+    end
+
+    many_to_many(:top_three_followers, AshPostgres.Test.User,
+      join_relationship: :top_three_post_followers,
+      source_attribute_on_join_resource: :post_id,
+      destination_attribute_on_join_resource: :follower_id
+    )
+
+    # For testing join_relationship with filter+sort+limit inheritance
+    has_many :filtered_top_post_followers, AshPostgres.Test.PostFollower do
+      filter(expr(order > 1))
+      sort(order: :asc)
+      limit(2)
+    end
+
+    many_to_many(:filtered_top_followers, AshPostgres.Test.User,
+      join_relationship: :filtered_top_post_followers,
+      source_attribute_on_join_resource: :post_id,
+      destination_attribute_on_join_resource: :follower_id
+    )
+
     many_to_many(:sorted_followers, AshPostgres.Test.User,
       public?: true,
       through: AshPostgres.Test.PostFollower,
