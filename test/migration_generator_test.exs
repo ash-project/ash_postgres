@@ -3226,4 +3226,87 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[modify :category_id, references(:categories, column: :id, name: "products_category_id_fkey", type: :decimal, precision: 10, scale: 0]
     end
   end
+
+  describe "create_table_options" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+        File.rm_rf!("test_tenant_migration_path")
+      end)
+    end
+
+    test "includes create_table_options in regular table migration" do
+      defposts do
+        postgres do
+          table "posts"
+          create_table_options("PARTITION BY RANGE (id)")
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          create_timestamp(:inserted_at)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      file_contents = File.read!(file)
+
+      assert file_contents =~
+               ~S[create table(:posts, primary_key: false, options: "PARTITION BY RANGE (id)") do]
+    end
+
+    test "includes create_table_options in context-based multitenancy migration" do
+      defposts do
+        postgres do
+          table "posts"
+          create_table_options("PARTITION BY RANGE (id)")
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:user_id, :integer, public?: true)
+        end
+
+        multitenancy do
+          strategy(:context)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        tenant_migration_path: "test_tenant_migration_path",
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [file] =
+               Path.wildcard("test_tenant_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      file_contents = File.read!(file)
+
+      assert file_contents =~
+               ~S[create table(:posts, primary_key: false, prefix: prefix(), options: "PARTITION BY RANGE (id)") do]
+    end
+  end
 end

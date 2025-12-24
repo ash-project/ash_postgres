@@ -107,9 +107,10 @@ defmodule AshPostgres.MixProject do
         "documentation/topics/development/testing.md",
         "documentation/topics/development/upgrading-to-2.0.md",
         "documentation/topics/advanced/expressions.md",
+        "documentation/topics/advanced/manual-relationships.md",
+        "documentation/topics/advanced/partitioned-tables.md",
         "documentation/topics/advanced/schema-based-multitenancy.md",
         "documentation/topics/advanced/using-multiple-repos.md",
-        "documentation/topics/advanced/manual-relationships.md",
         {"documentation/dsls/DSL-AshPostgres.DataLayer.md",
          search_data: Spark.Docs.search_data_for(AshPostgres.DataLayer)},
         "CHANGELOG.md"
