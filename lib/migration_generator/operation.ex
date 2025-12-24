@@ -717,11 +717,6 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           destination_schema
         end
 
-      size =
-        if attribute[:size] do
-          "size: #{attribute[:size]}"
-        end
-
       join([
         "references(:#{as_atom(table)}, column: #{inspect(destination_attribute)}",
         with_match,
