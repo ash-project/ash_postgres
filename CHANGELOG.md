@@ -11,6 +11,21 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.27](https://github.com/ash-project/ash_postgres/compare/v2.6.26...v2.6.27) (2025-12-24)
+
+
+
+
+### Bug Fixes:
+
+* don't set `size`, `precision`, or `scale` for references by Zach Daniel
+
+* apply join_relationship sort/limit in many_to_many lateral joins (#666) by sevenseacat
+
+* add overrides for timestamptz types, config them on installation by Zach Daniel
+
+* do not build query filter with or: [] when all records are successfully inserted, for return_skipped_upsert?: true (#659) by Dohan Kim
+
 ## [v2.6.26](https://github.com/ash-project/ash_postgres/compare/v2.6.25...v2.6.26) (2025-11-23)
 
 
