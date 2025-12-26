@@ -61,10 +61,8 @@ defmodule AshPostgres.TimestamptzUsec do
 
     # Cross-type comparisons with Timestamptz - use higher precision (this type)
     cross_type_overloads = %{
-      [__MODULE__, AshPostgres.Timestamptz] =>
-        {[__MODULE__, __MODULE__], Ash.Type.Boolean},
-      [AshPostgres.Timestamptz, __MODULE__] =>
-        {[__MODULE__, __MODULE__], Ash.Type.Boolean}
+      [__MODULE__, AshPostgres.Timestamptz] => {[__MODULE__, __MODULE__], Ash.Type.Boolean},
+      [AshPostgres.Timestamptz, __MODULE__] => {[__MODULE__, __MODULE__], Ash.Type.Boolean}
     }
 
     comparison_overloads =
