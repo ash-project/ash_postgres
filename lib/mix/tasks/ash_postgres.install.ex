@@ -338,10 +338,8 @@ if Code.ensure_loaded?(Igniter) do
         [AshPostgres.Timestamptz, AshPostgres.TimestamptzUsec],
         updater: fn zipper ->
           with {:ok, zipper} <-
-                 Igniter.Code.List.prepend_new_to_list(zipper, AshPostgres.Timestamptz),
-               {:ok, zipper} <-
-                 Igniter.Code.List.prepend_new_to_list(zipper, AshPostgres.TimestamptzUsec) do
-            {:ok, zipper}
+                 Igniter.Code.List.prepend_new_to_list(zipper, AshPostgres.Timestamptz) do
+            Igniter.Code.List.prepend_new_to_list(zipper, AshPostgres.TimestamptzUsec)
           end
         end
       )
