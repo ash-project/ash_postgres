@@ -1151,6 +1151,43 @@ defmodule AshPostgres.FilterTest do
            |> length == 1
   end
 
+  test "using exists with has_many with limit" do
+    comment =
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "test"})
+      |> Ash.create!()
+
+    for score <- 1..5 do
+      Ash.Changeset.for_create(AshPostgres.Test.Rating, :create, %{
+        score: score,
+        resource_id: comment.id
+      })
+      |> Ash.create!(context: %{data_layer: %{table: "comment_ratings"}})
+    end
+
+    # The top_ratings relationship has limit: 2 and sort: [score: :desc]
+    # So it should only include ratings with scores 5 and 4
+    assert Comment
+           |> Ash.Query.filter(exists(top_ratings, score == 5))
+           |> Ash.read!()
+           |> length() == 1
+
+    assert Comment
+           |> Ash.Query.filter(exists(top_ratings, score == 4))
+           |> Ash.read!()
+           |> length() == 1
+
+    assert Comment
+           |> Ash.Query.filter(exists(top_ratings, score == 3))
+           |> Ash.read!()
+           |> length() == 0
+
+    assert Comment
+           |> Ash.Query.filter(exists(top_ratings, score == 1))
+           |> Ash.read!()
+           |> length() == 0
+  end
+
   test "using `(is_nil(relationship) and other_relation_filter)` will trigger left join" do
     organization =
       Organization

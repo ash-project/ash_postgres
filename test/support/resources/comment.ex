@@ -113,6 +113,13 @@ defmodule AshPostgres.Test.Comment do
       relationship_context: %{data_layer: %{table: "comment_ratings"}}
     )
 
+    has_many :top_ratings, AshPostgres.Test.Rating do
+      destination_attribute(:resource_id)
+      relationship_context(%{data_layer: %{table: "comment_ratings"}})
+      sort(score: :desc)
+      limit(2)
+    end
+
     has_many(:popular_ratings, AshPostgres.Test.Rating,
       public?: true,
       destination_attribute: :resource_id,
