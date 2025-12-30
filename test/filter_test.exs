@@ -917,6 +917,53 @@ defmodule AshPostgres.FilterTest do
     end
   end
 
+  describe "is_distinct_from/2 and is_not_distinct_from/2" do
+    setup do
+      nil_post = Post |> Ash.Changeset.for_create(:create, %{category: nil}) |> Ash.create!()
+      tech_post = Post |> Ash.Changeset.for_create(:create, %{category: "tech"}) |> Ash.create!()
+      %{nil_post: nil_post, tech_post: tech_post}
+    end
+
+    test "column compared to nil", %{nil_post: nil_post, tech_post: tech_post} do
+      assert [result] = Post |> Ash.Query.filter(is_distinct_from(category, nil)) |> Ash.read!()
+      assert result.id == tech_post.id
+
+      assert [result] =
+               Post |> Ash.Query.filter(is_not_distinct_from(category, nil)) |> Ash.read!()
+
+      assert result.id == nil_post.id
+    end
+
+    test "column compared to value", %{nil_post: nil_post, tech_post: tech_post} do
+      assert [result] =
+               Post |> Ash.Query.filter(is_distinct_from(category, "tech")) |> Ash.read!()
+
+      assert result.id == nil_post.id
+
+      assert [result] =
+               Post |> Ash.Query.filter(is_not_distinct_from(category, "tech")) |> Ash.read!()
+
+      assert result.id == tech_post.id
+    end
+
+    test "literal comparisons" do
+      assert [] = Post |> Ash.Query.filter(is_distinct_from("tech", "tech")) |> Ash.read!()
+      assert [] = Post |> Ash.Query.filter(is_distinct_from(nil, nil)) |> Ash.read!()
+      assert [] = Post |> Ash.Query.filter(is_not_distinct_from("tech", "news")) |> Ash.read!()
+
+      all_posts = Post |> Ash.read!()
+
+      assert length(Post |> Ash.Query.filter(is_distinct_from("tech", "news")) |> Ash.read!()) ==
+               length(all_posts)
+
+      assert length(Post |> Ash.Query.filter(is_not_distinct_from("tech", "tech")) |> Ash.read!()) ==
+               length(all_posts)
+
+      assert length(Post |> Ash.Query.filter(is_not_distinct_from(nil, nil)) |> Ash.read!()) ==
+               length(all_posts)
+    end
+  end
+
   describe "like and ilike" do
     test "like builds and matches" do
       Post
