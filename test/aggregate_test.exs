@@ -738,6 +738,31 @@ defmodule AshSql.AggregateTest do
 
       assert Enum.sort(user.years_visited) == ["1955", "1985", "1985", "2015"]
     end
+
+    test "reproduction of a bug where joins involving an aggregate use the wrong id on a join condition" do
+      tag =
+        AshPostgres.Test.Tag
+        |> Ash.Changeset.for_create(:create, %{title: "Hello There"})
+        |> Ash.create!()
+
+      post =
+        AshPostgres.Test.Post
+        |> Ash.Changeset.for_create(:create, %{title: "A Post"})
+        |> Ash.create!()
+
+      comment =
+        AshPostgres.Test.Comment
+        |> Ash.Changeset.for_create(:create, %{title: "Hello There"})
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Ash.create!()
+
+      _post_tag =
+        AshPostgres.Test.PostTag
+        |> Ash.Changeset.for_create(:create, %{post_id: post.id, tag_id: tag.id})
+        |> Ash.create!()
+
+      assert Ash.calculate!(tag, :has_post_with_comment_with_same_title) == true
+    end
   end
 
   describe "first" do
