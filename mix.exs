@@ -21,18 +21,7 @@ defmodule AshPostgres.MixProject do
       description: @description,
       elixirc_paths: elixirc_paths(Mix.env()),
       consolidate_protocols: Mix.env() == :prod,
-      preferred_cli_env: [
-        coveralls: :test,
-        "coveralls.github": :test,
-        "test.create": :test,
-        "test.migrate": :test,
-        "test.rollback": :test,
-        "test.migrate_tenants": :test,
-        "test.check_migrations": :test,
-        "test.drop": :test,
-        "test.generate_migrations": :test,
-        "test.reset": :test
-      ],
+      cli: cli(),
       dialyzer: [
         plt_add_apps: [:ecto, :ash, :mix]
       ],
@@ -51,6 +40,23 @@ defmodule AshPostgres.MixProject do
         mod: {AshPostgres.TestApp, []}
       ]
     end
+  end
+
+  defp cli do
+    [
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.github": :test,
+        "test.create": :test,
+        "test.migrate": :test,
+        "test.rollback": :test,
+        "test.migrate_tenants": :test,
+        "test.check_migrations": :test,
+        "test.drop": :test,
+        "test.generate_migrations": :test,
+        "test.reset": :test
+      ]
+    ]
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
