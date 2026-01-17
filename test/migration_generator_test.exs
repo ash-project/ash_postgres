@@ -286,6 +286,59 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "creating initial snapshots with native uuidv7 on PG 18" do
+    setup do
+      prev_pg_version_env = System.fetch_env("PG_VERSION")
+      System.put_env("PG_VERSION", "18")
+
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+
+        case prev_pg_version_env do
+          # there was a previous env var set, restore it
+          {:ok, value} -> System.put_env("PG_VERSION", value)
+          # there was nothing set, delete what we set
+          :error -> System.delete_env("PG_VERSION")
+        end
+      end)
+
+      defposts do
+        attributes do
+          uuid_v7_primary_key(:id)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      :ok
+    end
+
+    test "the migration uses the native uuidv7 function" do
+      # the snapshot exists and contains valid json
+      assert File.read!(Path.wildcard("test_snapshots_path/test_repo/posts/*.json"))
+             |> Jason.decode!(keys: :atoms!)
+
+      assert [file] =
+               Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      file_contents = File.read!(file)
+
+      # the migration adds the id using the native uuidv7 function
+      assert file_contents =~
+               ~S[add :id, :uuid, null: false, default: fragment("uuidv7()"), primary_key: true]
+    end
+  end
+
   describe "creating initial snapshots for resources with a schema" do
     setup do
       on_exit(fn ->
