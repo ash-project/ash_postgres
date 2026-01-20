@@ -336,7 +336,8 @@ defmodule AshPostgres.Repo do
                      drop?: 0,
                      disable_atomic_actions?: 0,
                      disable_expr_error?: 0,
-                     immutable_expr_error?: 0
+                     immutable_expr_error?: 0,
+                     use_builtin_uuidv7_function?: 0
 
       # We do this switch because `!@warn_on_missing_ash_functions` in the function body triggers
       # a dialyzer error
