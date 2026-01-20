@@ -3502,17 +3502,12 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp default(%{name: name, default: default, type: type}, resource, repo)
        when is_function(default) do
-    native_uuidv7_available =
-      repo
-      |> apply(:min_pg_version, [])
-      |> pg_uuidv7_available?()
-
     configured_default(resource, name) ||
       cond do
         default in @uuid_functions ->
           ~S[fragment("gen_random_uuid()")]
 
-        default == (&Ash.UUIDv7.generate/0) and native_uuidv7_available ->
+        default == (&Ash.UUIDv7.generate/0) and repo.use_builtin_uuidv7_function?() ->
           ~S[fragment("uuidv7()")]
 
         default == (&Ash.UUIDv7.generate/0) ->
@@ -3559,8 +3554,6 @@ defmodule AshPostgres.MigrationGenerator do
         default
     end
   end
-
-  defp pg_uuidv7_available?(%Version{major: major}), do: major >= 18
 
   defp migration_default(type, constraints, value) do
     type =

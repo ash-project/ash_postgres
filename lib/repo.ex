@@ -106,6 +106,8 @@ defmodule AshPostgres.Repo do
 
   @doc "Allows overriding a given migration type for *all* fields, for example if you wanted to always use :timestamptz for :utc_datetime fields"
   @callback override_migration_type(atom) :: atom
+  @doc "Whether or not to use the built-in `uuidv7` function (as opposed to the Ash `uuid_generate_v7` function) for `UUIDv7` fields."
+  @callback use_builtin_uuidv7_function? :: boolean
   @doc "Should the repo should be created by `mix ash_postgres.create`?"
   @callback create?() :: boolean
   @doc "Should the repo should be dropped by `mix ash_postgres.drop`?"
@@ -152,6 +154,12 @@ defmodule AshPostgres.Repo do
       def create_schemas_in_migrations?, do: true
       def default_prefix, do: "public"
       def override_migration_type(type), do: type
+
+      def use_builtin_uuidv7_function? do
+        %Version{major: major} = min_pg_version()
+        major >= 18
+      end
+
       def create?, do: true
       def drop?, do: true
       def disable_atomic_actions?, do: false
