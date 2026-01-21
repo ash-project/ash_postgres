@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2020 Zach Daniel
+
+SPDX-License-Identifier: MIT
+-->
+
 # Using Postgres 18
 
 Postgres 18 adds built-in functions for working with version 7 (time-ordered) UUIDs.
