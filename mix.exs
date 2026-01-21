@@ -112,6 +112,7 @@ defmodule AshPostgres.MixProject do
         "documentation/topics/development/migrations-and-tasks.md",
         "documentation/topics/development/testing.md",
         "documentation/topics/development/upgrading-to-2.0.md",
+        "documentation/topics/development/upgrading-to-postgres-18.md",
         "documentation/topics/advanced/expressions.md",
         "documentation/topics/advanced/manual-relationships.md",
         "documentation/topics/advanced/partitioned-tables.md",
