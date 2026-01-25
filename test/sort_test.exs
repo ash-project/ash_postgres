@@ -295,6 +295,67 @@ defmodule AshPostgres.SortTest do
     assert DateTime.to_date(latest_post.created_at) == expected_date
   end
 
+  describe "keyset pagination with aggregates and relationship sort" do
+    test "keyset pagination with loaded aggregate and relationship sort works" do
+      author1 =
+        AshPostgres.Test.Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "Zara"})
+        |> Ash.create!()
+
+      author2 =
+        AshPostgres.Test.Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "Alice"})
+        |> Ash.create!()
+
+      post1 =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "Post by Zara", score: 1})
+        |> Ash.Changeset.manage_relationship(:author, author1, type: :append_and_remove)
+        |> Ash.create!()
+
+      post2 =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "Post by Alice", score: 2})
+        |> Ash.Changeset.manage_relationship(:author, author2, type: :append_and_remove)
+        |> Ash.create!()
+
+      # Add comments to create aggregate data
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "Comment 1"})
+      |> Ash.Changeset.manage_relationship(:post, post1, type: :append_and_remove)
+      |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "Comment 2"})
+      |> Ash.Changeset.manage_relationship(:post, post1, type: :append_and_remove)
+      |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "Comment 3"})
+      |> Ash.Changeset.manage_relationship(:post, post2, type: :append_and_remove)
+      |> Ash.create!()
+
+      # This combination causes Ecto.SubQueryError:
+      # - Keyset pagination (creates subquery)
+      # - Loaded aggregate (count_of_comments)
+      # - Relationship sort (author.first_name becomes __calc__0)
+      result =
+        Post
+        |> Ash.Query.for_read(:keyset)
+        |> Ash.Query.load(:count_of_comments)
+        |> Ash.Query.sort([{Ash.Sort.expr_sort(author.first_name), :asc}])
+        |> Ash.Query.page(limit: 10)
+        |> Ash.read!()
+
+      # Should be sorted by author first name: Alice, then Zara
+      assert %Ash.Page.Keyset{results: [first, second]} = result
+      assert first.title == "Post by Alice"
+      assert first.count_of_comments == 1
+      assert second.title == "Post by Zara"
+      assert second.count_of_comments == 2
+    end
+  end
+
   describe "sorting by multiple has_one relationships" do
     test "sorting by single calculated field through has_one relationship works" do
       chat = Ash.create!(Chat, %{name: "Test Chat"})
