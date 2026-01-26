@@ -4,6 +4,8 @@
 
 import Config
 
+config :ash, :bulk_actions_default_to_errors?, true
+
 if Mix.env() == :dev do
   config :git_ops,
     mix_project: AshPostgres.MixProject,
@@ -28,6 +30,7 @@ if Mix.env() == :test do
 
   config :ash, :validate_domain_resource_inclusion?, false
   config :ash, :validate_domain_config_inclusion?, false
+  config :ash, :disable_async?, true
 
   config :ash, :policies, show_policy_breakdowns?: true
 
