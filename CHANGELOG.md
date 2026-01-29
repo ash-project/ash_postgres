@@ -11,6 +11,23 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.28](https://github.com/ash-project/ash_postgres/compare/v2.6.27...v2.6.28) (2026-01-29)
+
+
+
+
+### Bug Fixes:
+
+* properly wrap through queries with subqueries in wheres by Zach Daniel
+
+### Improvements:
+
+* Update AshFunctions, remove timestamp_from_uuid_v7 (#676) by Matt Savoia
+
+* Update MigrationGenerator to use uuidv7 when available (#674) by Matt Savoia
+
+* add create_table_options for partitioned tables and more (#664) by Robert Graff
+
 ## [v2.6.27](https://github.com/ash-project/ash_postgres/compare/v2.6.26...v2.6.27) (2025-12-24)
 
 
