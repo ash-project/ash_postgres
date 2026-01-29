@@ -760,7 +760,8 @@ defmodule AshSql.AggregateTest do
         |> Ash.Changeset.for_create(:create, %{post_id: post.id, tag_id: tag.id})
         |> Ash.create!()
 
-      assert Ash.calculate!(tag, :has_post_with_comment_with_same_title, authorize?: false) == true
+      assert Ash.calculate!(tag, :has_post_with_comment_with_same_title, authorize?: false) ==
+               true
     end
   end
 

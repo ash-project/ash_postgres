@@ -621,11 +621,13 @@ defmodule AshPostgres.MigrationGenerator do
   defp load_migration!({version, _, file}) when is_binary(file) do
     loaded_modules = file |> compile_file() |> Enum.map(&elem(&1, 0))
 
-    if mod = Enum.find(loaded_modules, &migration?/1) do
-      {version, mod}
-    else
-      raise Ecto.MigrationError,
-            "file #{Path.relative_to_cwd(file)} does not define an Ecto.Migration"
+    case Enum.find(loaded_modules, &migration?/1) do
+      nil ->
+        raise Ecto.MigrationError,
+              "file #{Path.relative_to_cwd(file)} does not define an Ecto.Migration"
+
+      mod ->
+        {version, mod}
     end
   end
 
@@ -1073,22 +1075,22 @@ defmodule AshPostgres.MigrationGenerator do
     config = repo.config()
 
     if tenant? do
-      if path = opts.tenant_migration_path || config[:tenant_migrations_path] do
-        path
-      else
-        priv =
-          AshPostgres.Mix.Helpers.source_repo_priv(repo)
+      case opts.tenant_migration_path || config[:tenant_migrations_path] do
+        nil ->
+          priv = AshPostgres.Mix.Helpers.source_repo_priv(repo)
+          Path.join(priv, "tenant_migrations")
 
-        Path.join(priv, "tenant_migrations")
+        path ->
+          path
       end
     else
-      if path = opts.migration_path || config[:migrations_path] do
-        path
-      else
-        priv =
-          AshPostgres.Mix.Helpers.source_repo_priv(repo)
+      case opts.migration_path || config[:migrations_path] do
+        nil ->
+          priv = AshPostgres.Mix.Helpers.source_repo_priv(repo)
+          Path.join(priv, "migrations")
 
-        Path.join(priv, "migrations")
+        path ->
+          path
       end
     end
   end

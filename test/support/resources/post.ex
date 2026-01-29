@@ -29,12 +29,14 @@ defmodule HasNoComments do
           expr(exists(comments, true))
 
         :list ->
+          # credo:disable-for-next-line Credo.Check.Warning.ExpensiveEmptyEnumCheck
           expr(length(list(comments, field: :id)) > 0)
 
         :count ->
           expr(count(comments) > 0)
 
         :combined ->
+          # credo:disable-for-lines:4 Credo.Check.Warning.ExpensiveEmptyEnumCheck
           expr(
             exists(comments, true) and
               length(list(comments, field: :id)) > 0 and

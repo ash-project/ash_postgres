@@ -597,6 +597,7 @@ defmodule AshPostgres.FilterTest do
 
       author1_id = author1.id
 
+      # credo:disable-for-lines:4 Credo.Check.Warning.ExpensiveEmptyEnumCheck
       assert [%{id: ^author1_id}] =
                Author
                |> Ash.Query.filter(length(badges) > 0)
@@ -616,6 +617,7 @@ defmodule AshPostgres.FilterTest do
 
       author1_id = author1.id
 
+      # credo:disable-for-lines:4 Credo.Check.Warning.ExpensiveEmptyEnumCheck
       assert [%{id: ^author1_id}] =
                Author
                |> Ash.Query.filter(length(badges || []) > 0)
@@ -632,6 +634,7 @@ defmodule AshPostgres.FilterTest do
 
       explicit_list = [:foo]
 
+      # credo:disable-for-lines:4 Credo.Check.Warning.ExpensiveEmptyEnumCheck
       assert [%{id: ^author1_id}] =
                Author
                |> Ash.Query.filter(length(^explicit_list) > 0)
@@ -648,6 +651,7 @@ defmodule AshPostgres.FilterTest do
       |> Ash.Changeset.new()
       |> Ash.create!()
 
+      # credo:disable-for-lines:5 Credo.Check.Warning.ExpensiveEmptyEnumCheck
       assert_raise(Ash.Error.Unknown, fn ->
         Author
         |> Ash.Query.filter(length(first_name) > 0)

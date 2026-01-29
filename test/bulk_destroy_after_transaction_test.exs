@@ -348,7 +348,7 @@ defmodule AshPostgres.BulkDestroyAfterTransactionTest do
       refute_receive {:after_action_error_hook_called}
 
       assert result.status == :error
-      assert length(result.errors) > 0
+      assert result.errors != []
 
       # after_transaction receives error (runs OUTSIDE the transaction)
       assert_receive {:after_transaction_called, {:error, _}}

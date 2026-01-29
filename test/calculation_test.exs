@@ -1452,7 +1452,7 @@ defmodule AshPostgres.CalculationTest do
           ]
         )
 
-      assert length(second_page.results) > 0, "Second page should have results"
+      assert second_page.results != [], "Second page should have results"
 
       Enum.each(second_page.results, fn post ->
         refute match?(%Ash.NotLoaded{}, post.estimated_reading_time),
