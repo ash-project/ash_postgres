@@ -4,6 +4,8 @@
 
 import Config
 
+config :ash, :bulk_actions_default_to_errors?, true
+
 if Mix.env() == :dev do
   config :git_ops,
     mix_project: AshPostgres.MixProject,

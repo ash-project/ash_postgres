@@ -399,9 +399,10 @@ defmodule AshPostgres.BulkCreateTest do
   end
 
   describe "validation errors" do
-    test "skips invalid by default" do
+    test "skips invalid with stop_on_error?: false" do
       assert %{records: [_], errors: [_]} =
                Ash.bulk_create([%{title: "fred"}, %{title: "not allowed"}], Post, :create,
+                 stop_on_error?: false,
                  return_records?: true,
                  return_errors?: true
                )
@@ -451,6 +452,7 @@ defmodule AshPostgres.BulkCreateTest do
         [%{title: "george", organization_id: Ash.UUID.generate()}, %{title: "fred"}],
         Post,
         :create,
+        stop_on_error?: false,
         return_records?: true,
         batch_size: 1
       )
