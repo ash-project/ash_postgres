@@ -750,11 +750,10 @@ defmodule AshSql.AggregateTest do
         |> Ash.Changeset.for_create(:create, %{title: "A Post"})
         |> Ash.create!()
 
-      comment =
-        AshPostgres.Test.Comment
-        |> Ash.Changeset.for_create(:create, %{title: "Hello There"})
-        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-        |> Ash.create!()
+      AshPostgres.Test.Comment
+      |> Ash.Changeset.for_create(:create, %{title: "Hello There"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
 
       _post_tag =
         AshPostgres.Test.PostTag
