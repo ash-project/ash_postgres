@@ -1272,9 +1272,15 @@ defmodule AshPostgres.DataLayer do
             through_query = Ecto.Query.exclude(through_query, :select)
 
             # Determine if we need to wrap through_query in a subquery
+            # We also need to wrap if any wheres have subqueries, because Ecto's
+            # query_to_joins converts wheres to on clauses but doesn't preserve subqueries
+            has_subqueries_in_wheres? =
+              Enum.any?(through_query.wheres, fn w -> w.subqueries != [] end)
+
             needs_subquery? =
               through_query.limit != nil || through_query.order_bys != [] ||
                 (through_query.joins && through_query.joins != []) ||
+                has_subqueries_in_wheres? ||
                 (Ash.Resource.Info.multitenancy_strategy(relationship.through) == :context &&
                    source_query.tenant)
 
