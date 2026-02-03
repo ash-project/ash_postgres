@@ -407,6 +407,10 @@ defmodule AshPostgres.Test.Post do
       )
     end
 
+    create :create_with_atomic_set do
+      change atomic_set(:score, expr(100))
+    end
+
     defmodule HasBeforeAction do
       @moduledoc false
       use Ash.Resource.Change

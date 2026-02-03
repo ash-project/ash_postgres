@@ -19,6 +19,22 @@ defmodule AshPostgres.BulkCreateTest do
                |> Ash.read!()
     end
 
+    test "bulk creates with atomic_set applies to all records" do
+      assert %Ash.BulkResult{status: :success, records: records} =
+               Ash.bulk_create(
+                 [%{title: "post1"}, %{title: "post2"}, %{title: "post3"}],
+                 Post,
+                 :create_with_atomic_set,
+                 return_records?: true
+               )
+
+      assert length(records) == 3
+
+      for record <- records do
+        assert record.score == 100
+      end
+    end
+
     test "bulk creates perform before action hooks" do
       Ash.bulk_create!(
         [%{title: "before_action"}, %{title: "before_action"}],

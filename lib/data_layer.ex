@@ -2099,7 +2099,28 @@ defmodule AshPostgres.DataLayer do
           opts
         end
 
-      ecto_changesets = Enum.map(changesets, & &1.attributes)
+      create_atomics = Map.get(Enum.at(changesets, 0), :create_atomics, [])
+
+      atomic_insert_values =
+        if create_atomics != [] do
+          query = from(row in source, as: ^0)
+
+          query =
+            query
+            |> AshSql.Bindings.default_bindings(resource, AshPostgres.SqlImplementation)
+
+          case AshSql.Atomics.atomics_to_insert_values(resource, query, create_atomics) do
+            {:ok, values} -> values
+            {:error, error} -> raise Ash.Error.to_ash_error(error)
+          end
+        else
+          %{}
+        end
+
+      ecto_changesets =
+        Enum.map(changesets, fn cs ->
+          Map.merge(cs.attributes, atomic_insert_values)
+        end)
 
       opts =
         if schema = Enum.at(changesets, 0).context[:data_layer][:schema] do
