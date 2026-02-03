@@ -706,6 +706,9 @@ defmodule AshPostgres.DataLayer do
   def can?(resource, {:atomic, :upsert}),
     do: not AshPostgres.DataLayer.Info.repo(resource, :mutate).disable_atomic_actions?()
 
+  def can?(resource, {:atomic, :create}),
+    do: not AshPostgres.DataLayer.Info.repo(resource, :mutate).disable_atomic_actions?()
+
   def can?(_, :upsert), do: true
   def can?(_, :changeset_filter), do: true
 
@@ -2103,6 +2106,15 @@ defmodule AshPostgres.DataLayer do
 
       atomic_insert_values =
         if create_atomics != [] do
+          # Hydrate expressions to convert Ash.Query.Call structs to proper function structs
+          create_atomics =
+            Enum.map(create_atomics, fn {key, expr} ->
+              case Ash.Filter.hydrate_refs(expr, %{resource: resource, public?: false}) do
+                {:ok, hydrated_expr} -> {key, hydrated_expr}
+                {:error, error} -> raise Ash.Error.to_ash_error(error)
+              end
+            end)
+
           query = from(row in source, as: ^0)
 
           query =

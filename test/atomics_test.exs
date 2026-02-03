@@ -419,4 +419,89 @@ defmodule AshPostgres.AtomicsTest do
       end
     end
   )
+
+  describe "atomic create (create_atomics)" do
+    # Tests for atomic_set on create actions - supported in Ash 3.14+
+
+    test "atomic_set works on create with fragment subquery" do
+      # Create 3 initial posts
+      Enum.each(1..3, fn i ->
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "post_#{i}", price: i})
+        |> Ash.create!()
+      end)
+
+      # Use atomic_set to set score to count of existing posts
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "new_post", price: 10})
+        |> Ash.Changeset.atomic_set(
+          :score,
+          expr(fragment("(SELECT count(*) FROM posts WHERE type = 'sponsored')"))
+        )
+        |> Ash.create!()
+
+      # Score should be 3 (count of existing sponsored posts when INSERT ran)
+      assert post.score == 3
+    end
+
+    test "atomic_set works on create with simple literal expression" do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "test", price: 5})
+        |> Ash.Changeset.atomic_set(:score, expr(42))
+        |> Ash.create!()
+
+      assert post.score == 42
+    end
+
+    test "atomic_set works on create with arithmetic expression" do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "test", price: 10})
+        |> Ash.Changeset.atomic_set(:score, expr(5 + 15))
+        |> Ash.create!()
+
+      assert post.score == 20
+    end
+
+    test "atomic_set on create overrides attributes when both are set" do
+      # If both attributes and atomic_set set a value, atomics should win
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "test", price: 5, score: 999})
+        |> Ash.Changeset.atomic_set(:score, expr(100))
+        |> Ash.create!()
+
+      # The atomic expression should override the attribute value
+      assert post.score == 100
+    end
+
+    test "atomic_set on create works sequentially" do
+      # Create 2 initial posts
+      Enum.each(1..2, fn i ->
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "initial_#{i}", price: i})
+        |> Ash.create!()
+      end)
+
+      # Create posts one by one with atomic_set
+      results =
+        Enum.map(1..3, fn i ->
+          Post
+          |> Ash.Changeset.for_create(:create, %{title: "new_#{i}", price: i})
+          |> Ash.Changeset.atomic_set(
+            :score,
+            expr(fragment("(SELECT count(*) FROM posts WHERE type = 'sponsored')"))
+          )
+          |> Ash.create!()
+        end)
+
+      # First post sees 2 existing posts
+      assert Enum.at(results, 0).score == 2
+      # Subsequent posts see incrementing counts
+      assert Enum.at(results, 1).score == 3
+      assert Enum.at(results, 2).score == 4
+    end
+  end
 end
