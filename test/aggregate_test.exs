@@ -874,7 +874,9 @@ defmodule AshSql.AggregateTest do
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
-      assert "match" ==
+      # With sort(title: :asc_nils_first), nil comes first.
+      # With include_nil?: true, we should get nil (not skip to the next non-nil value)
+      assert nil ==
                Post
                |> Ash.Query.filter(id == ^post.id)
                |> Ash.Query.load(:first_comment_nils_first_include_nil)
