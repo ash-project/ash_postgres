@@ -11,6 +11,17 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.31](https://github.com/ash-project/ash_postgres/compare/v2.6.30...v2.6.31) (2026-02-05)
+
+
+
+
+### Bug Fixes:
+
+* handle atomic no_rollback errors during creates by Zach Daniel
+
+* correct test expectation for `first` aggregate with `include_nil?` (#683) by sevenseacat
+
 ## [v2.6.30](https://github.com/ash-project/ash_postgres/compare/v2.6.29...v2.6.30) (2026-02-04)
 
 
