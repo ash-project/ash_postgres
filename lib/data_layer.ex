@@ -1227,10 +1227,10 @@ defmodule AshPostgres.DataLayer do
          query,
          root_data,
          [
-           {source_query, source_attribute, source_attribute_on_join_resource, relationship},
-           {through_resource, destination_attribute_on_join_resource, destination_attribute,
-            through_relationship}
-         ] = path
+           {source_query, source_attribute, source_attribute_on_join_resource, relationship}
+           | rest
+         ] =
+           path
        ) do
     source_query = Ash.Query.new(source_query)
     source_values = Enum.map(root_data, &Map.get(&1, source_attribute))
@@ -1240,185 +1240,325 @@ defmodule AshPostgres.DataLayer do
       {:ok, data_layer_query} ->
         data_layer_query = Ecto.Query.exclude(data_layer_query, :select)
 
-        through_binding = Map.get(query, :__ash_bindings__)[:current]
+        case rest do
+          [
+            {through_resource, destination_attribute_on_join_resource, destination_attribute,
+             through_relationship}
+          ] ->
+            through_binding = Map.get(query, :__ash_bindings__)[:current]
 
-        through_resource
-        |> Ash.Query.new()
-        |> Ash.Query.put_context(:data_layer, %{
-          start_bindings_at: through_binding
-        })
-        |> Ash.Query.set_context(through_relationship.context)
-        |> Ash.Query.do_filter(through_relationship.filter)
-        |> Ash.Query.sort(through_relationship.sort)
-        |> then(fn q ->
-          if through_relationship.limit do
-            Ash.Query.limit(q, through_relationship.limit)
-          else
-            q
-          end
-        end)
-        |> Ash.Query.set_tenant(source_query.tenant)
-        |> set_lateral_join_prefix(query)
-        |> case do
-          %{valid?: true} = through_query ->
-            through_query
-            |> Ash.Query.data_layer_query()
-
-          query ->
-            {:error, query}
-        end
-        |> case do
-          {:ok, through_query} ->
-            through_query = Ecto.Query.exclude(through_query, :select)
-
-            # Determine if we need to wrap through_query in a subquery
-            # We also need to wrap if any wheres have subqueries, because Ecto's
-            # query_to_joins converts wheres to on clauses but doesn't preserve subqueries
-            has_subqueries_in_wheres? =
-              Enum.any?(through_query.wheres, fn w -> w.subqueries != [] end)
-
-            needs_subquery? =
-              through_query.limit != nil || through_query.order_bys != [] ||
-                (through_query.joins && through_query.joins != []) ||
-                has_subqueries_in_wheres? ||
-                (Ash.Resource.Info.multitenancy_strategy(relationship.through) == :context &&
-                   source_query.tenant)
-
-            through_query =
-              if needs_subquery? do
-                # When wrapping in subquery, put parent correlation inside so that
-                # any limit/order_by is applied per-parent, not globally
-                through_query =
-                  from(through in through_query,
-                    where:
-                      field(through, ^source_attribute_on_join_resource) ==
-                        field(parent_as(^0), ^source_attribute)
-                  )
-
-                subquery(
-                  set_subquery_prefix(
-                    through_query,
-                    source_query,
-                    relationship.through
-                  )
+            through_resource
+            |> Ash.Query.new()
+            |> Ash.Query.put_context(:data_layer, %{
+              start_bindings_at: through_binding
+            })
+            |> Ash.Query.set_context(Map.get(through_relationship, :context))
+            |> Ash.Query.do_filter(Map.get(through_relationship, :filter))
+            |> then(fn q ->
+              # For through-list paths, the first relationship's filter applies to the through table
+              # For many_to_many, the relationship filter is for the destination, not the through table
+              if !is_atom(Map.get(relationship, :through)) ||
+                   is_nil(Map.get(relationship, :through)) do
+                Ash.Query.do_filter(q, Map.get(relationship, :filter),
+                  parent_stack: [relationship.source]
                 )
               else
-                set_subquery_prefix(through_query, source_query, relationship.through)
+                q
               end
+            end)
+            |> Ash.Query.sort(Map.get(through_relationship, :sort))
+            |> then(fn q ->
+              if Map.get(through_relationship, :limit) do
+                Ash.Query.limit(q, Map.get(through_relationship, :limit))
+              else
+                q
+              end
+            end)
+            |> Ash.Query.set_tenant(source_query.tenant)
+            |> set_lateral_join_prefix(query)
+            |> case do
+              %{valid?: true} = through_query ->
+                through_query
+                |> Ash.Query.data_layer_query()
 
-            if query.__ash_bindings__[:__order__?] do
-              subquery =
-                if needs_subquery? do
-                  # Parent correlation is already in through_query subquery
-                  subquery(
-                    from(
-                      destination in query,
-                      select_merge: %{__order__: over(row_number(), :order)},
-                      join: through in ^through_query,
-                      as: ^through_binding,
-                      on:
-                        field(through, ^destination_attribute_on_join_resource) ==
-                          field(destination, ^destination_attribute)
-                    )
-                    |> set_subquery_prefix(
-                      source_query,
-                      relationship.destination
-                    )
-                  )
-                else
-                  subquery(
-                    from(
-                      destination in query,
-                      select_merge: %{__order__: over(row_number(), :order)},
-                      join: through in ^through_query,
-                      as: ^through_binding,
-                      on:
-                        field(through, ^destination_attribute_on_join_resource) ==
-                          field(destination, ^destination_attribute),
-                      where:
-                        field(through, ^source_attribute_on_join_resource) ==
-                          field(
-                            parent_as(^0),
-                            ^source_attribute
-                          )
-                    )
-                    |> set_subquery_prefix(
-                      source_query,
-                      relationship.destination
-                    )
-                  )
-                end
-
-              {:ok,
-               from(source in data_layer_query,
-                 where: field(source, ^source_attribute) in ^source_values,
-                 inner_lateral_join: destination in subquery(get_subquery(subquery)),
-                 on: true,
-                 select: destination,
-                 select_merge: %{__lateral_join_source__: map(source, ^source_pkey)},
-                 order_by: destination.__order__,
-                 distinct: true
-               )}
-            else
-              subquery =
-                if needs_subquery? do
-                  # Parent correlation is already in through_query subquery
-                  subquery(
-                    from(
-                      destination in query,
-                      join: through in ^through_query,
-                      as: ^through_binding,
-                      on:
-                        field(through, ^destination_attribute_on_join_resource) ==
-                          field(destination, ^destination_attribute)
-                    )
-                    |> set_subquery_prefix(
-                      source_query,
-                      relationship.destination
-                    )
-                  )
-                else
-                  subquery(
-                    from(
-                      destination in query,
-                      join: through in ^through_query,
-                      as: ^through_binding,
-                      on:
-                        field(through, ^destination_attribute_on_join_resource) ==
-                          field(destination, ^destination_attribute),
-                      where:
-                        field(through, ^source_attribute_on_join_resource) ==
-                          field(
-                            parent_as(^0),
-                            ^source_attribute
-                          )
-                    )
-                    |> set_subquery_prefix(
-                      source_query,
-                      relationship.destination
-                    )
-                  )
-                end
-
-              data_layer_query = Ecto.Query.exclude(data_layer_query, :distinct)
-
-              {:ok,
-               from(source in data_layer_query,
-                 where: field(source, ^source_attribute) in ^source_values,
-                 inner_lateral_join: destination in subquery(get_subquery(subquery)),
-                 on: true,
-                 select: destination,
-                 select_merge: %{__lateral_join_source__: map(source, ^source_pkey)},
-                 distinct: true
-               )}
+              query ->
+                {:error, query}
             end
+            |> case do
+              {:ok, through_query} ->
+                through_query = Ecto.Query.exclude(through_query, :select)
+
+                has_subqueries_in_wheres? =
+                  Enum.any?(through_query.wheres, fn w -> w.subqueries != [] end)
+
+                needs_subquery? =
+                  through_query.limit != nil || through_query.order_bys != [] ||
+                    (through_query.joins && through_query.joins != []) ||
+                    has_subqueries_in_wheres? ||
+                    (Ash.Resource.Info.multitenancy_strategy(through_relationship.source) ==
+                       :context &&
+                       source_query.tenant)
+
+                through_query =
+                  if needs_subquery? do
+                    through_query =
+                      from(through in through_query,
+                        where:
+                          field(through, ^source_attribute_on_join_resource) ==
+                            field(parent_as(^0), ^source_attribute)
+                      )
+
+                    subquery(
+                      set_subquery_prefix(
+                        through_query,
+                        source_query,
+                        through_relationship.source
+                      )
+                    )
+                  else
+                    set_subquery_prefix(through_query, source_query, through_relationship.source)
+                  end
+
+                if query.__ash_bindings__[:__order__?] do
+                  subquery =
+                    if needs_subquery? do
+                      subquery(
+                        from(
+                          destination in query,
+                          select_merge: %{__order__: over(row_number(), :order)},
+                          join: through in ^through_query,
+                          as: ^through_binding,
+                          on:
+                            field(through, ^destination_attribute_on_join_resource) ==
+                              field(destination, ^destination_attribute)
+                        )
+                        |> set_subquery_prefix(
+                          source_query,
+                          relationship.destination
+                        )
+                      )
+                    else
+                      subquery(
+                        from(
+                          destination in query,
+                          select_merge: %{__order__: over(row_number(), :order)},
+                          join: through in ^through_query,
+                          as: ^through_binding,
+                          on:
+                            field(through, ^destination_attribute_on_join_resource) ==
+                              field(destination, ^destination_attribute),
+                          where:
+                            field(through, ^source_attribute_on_join_resource) ==
+                              field(
+                                parent_as(^0),
+                                ^source_attribute
+                              )
+                        )
+                        |> set_subquery_prefix(
+                          source_query,
+                          relationship.destination
+                        )
+                      )
+                    end
+
+                  {:ok,
+                   from(source in data_layer_query,
+                     where: field(source, ^source_attribute) in ^source_values,
+                     inner_lateral_join: destination in subquery(get_subquery(subquery)),
+                     on: true,
+                     select: destination,
+                     select_merge: %{__lateral_join_source__: map(source, ^source_pkey)},
+                     order_by: destination.__order__,
+                     distinct: true
+                   )}
+                else
+                  subquery =
+                    if needs_subquery? do
+                      subquery(
+                        from(
+                          destination in query,
+                          join: through in ^through_query,
+                          as: ^through_binding,
+                          on:
+                            field(through, ^destination_attribute_on_join_resource) ==
+                              field(destination, ^destination_attribute)
+                        )
+                        |> set_subquery_prefix(
+                          source_query,
+                          relationship.destination
+                        )
+                      )
+                    else
+                      subquery(
+                        from(
+                          destination in query,
+                          join: through in ^through_query,
+                          as: ^through_binding,
+                          on:
+                            field(through, ^destination_attribute_on_join_resource) ==
+                              field(destination, ^destination_attribute),
+                          where:
+                            field(through, ^source_attribute_on_join_resource) ==
+                              field(
+                                parent_as(^0),
+                                ^source_attribute
+                              )
+                        )
+                        |> set_subquery_prefix(
+                          source_query,
+                          relationship.destination
+                        )
+                      )
+                    end
+
+                  data_layer_query = Ecto.Query.exclude(data_layer_query, :distinct)
+
+                  {:ok,
+                   from(source in data_layer_query,
+                     where: field(source, ^source_attribute) in ^source_values,
+                     inner_lateral_join: destination in subquery(get_subquery(subquery)),
+                     on: true,
+                     select: destination,
+                     select_merge: %{__lateral_join_source__: map(source, ^source_pkey)},
+                     distinct: true
+                   )}
+                end
+
+              {:error, error} ->
+                {:error, error}
+            end
+
+          rest ->
+            case build_through_queries(query, source_query, relationship, rest) do
+              {:ok, through_queries} ->
+                data_layer_query = Ecto.Query.exclude(data_layer_query, :distinct)
+
+                base_subquery =
+                  if query.__ash_bindings__[:__order__?] do
+                    from(destination in query,
+                      select_merge: %{__order__: over(row_number(), :order)}
+                    )
+                  else
+                    query
+                  end
+
+                final_subquery =
+                  rest
+                  |> Enum.zip(through_queries)
+                  |> Enum.reverse()
+                  |> Enum.reduce(
+                    {base_subquery, 0},
+                    fn {{_through_res, src_attr, dst_attr, _through_rel},
+                        {through_ecto_q, through_module}},
+                       {sub_q, offset} ->
+                      binding = Map.get(query, :__ash_bindings__)[:current] + offset
+                      is_outermost? = offset == length(rest) - 1
+
+                      prepared_through =
+                        if is_outermost? do
+                          correlated =
+                            from(through in through_ecto_q,
+                              where:
+                                field(through, ^source_attribute_on_join_resource) ==
+                                  field(parent_as(^0), ^source_attribute)
+                            )
+
+                          subquery(set_subquery_prefix(correlated, source_query, through_module))
+                        else
+                          through_ecto_q
+                          |> set_subquery_prefix(source_query, through_module)
+                          |> subquery()
+                        end
+
+                      new_sub_q =
+                        if offset == 0 do
+                          from(dest in sub_q,
+                            join: through in ^prepared_through,
+                            as: ^binding,
+                            on:
+                              field(through, ^src_attr) ==
+                                field(dest, ^dst_attr)
+                          )
+                        else
+                          prev_binding = binding - 1
+
+                          from(dest in sub_q,
+                            join: through in ^prepared_through,
+                            as: ^binding,
+                            on:
+                              field(through, ^src_attr) ==
+                                field(as(^prev_binding), ^dst_attr)
+                          )
+                        end
+
+                      {new_sub_q, offset + 1}
+                    end
+                  )
+                  |> elem(0)
+                  |> set_subquery_prefix(source_query, relationship.destination)
+                  |> subquery()
+
+                result_query =
+                  if query.__ash_bindings__[:__order__?] do
+                    from(source in data_layer_query,
+                      where: field(source, ^source_attribute) in ^source_values,
+                      inner_lateral_join: destination in subquery(get_subquery(final_subquery)),
+                      on: true,
+                      select: destination,
+                      select_merge: %{__lateral_join_source__: map(source, ^source_pkey)},
+                      order_by: destination.__order__,
+                      distinct: true
+                    )
+                  else
+                    from(source in data_layer_query,
+                      where: field(source, ^source_attribute) in ^source_values,
+                      inner_lateral_join: destination in subquery(get_subquery(final_subquery)),
+                      on: true,
+                      select: destination,
+                      select_merge: %{__lateral_join_source__: map(source, ^source_pkey)},
+                      distinct: true
+                    )
+                  end
+
+                {:ok, result_query}
+
+              {:error, error} ->
+                {:error, error}
+            end
+        end
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  defp build_through_queries(query, source_query, prev_rel, [{resource, _, _, rel}]) do
+    resource
+    |> Ash.Query.new()
+    |> Ash.Query.put_context(:data_layer, %{start_bindings_at: 0})
+    |> Ash.Query.do_filter(Map.get(prev_rel, :filter))
+    |> Ash.Query.set_tenant(source_query.tenant)
+    |> set_lateral_join_prefix(query)
+    |> case do
+      %{valid?: true} = tq ->
+        case Ash.Query.data_layer_query(tq) do
+          {:ok, ecto_query} ->
+            result = [{Ecto.Query.exclude(ecto_query, :select), rel.source}]
+            {:ok, result}
 
           {:error, error} ->
             {:error, error}
         end
 
-      {:error, error} ->
-        {:error, error}
+      invalid_query ->
+        {:error, invalid_query}
+    end
+  end
+
+  defp build_through_queries(query, source_query, prev_rel, [{_, _, _, through_rel} = head | rest]) do
+    with {:ok, rel_query} <- build_through_queries(query, source_query, prev_rel, [head]),
+         {:ok, rest_queries} <- build_through_queries(query, source_query, through_rel, rest) do
+      {:ok, rel_query ++ rest_queries}
     end
   end
 
@@ -2338,7 +2478,7 @@ defmodule AshPostgres.DataLayer do
 
     fields_to_upsert =
       upsert_fields --
-        (Keyword.keys(Enum.at(changesets, 0).atomics) -- keys)
+        Keyword.keys(Enum.at(changesets, 0).atomics) -- keys
 
     fields_to_upsert =
       case fields_to_upsert do
