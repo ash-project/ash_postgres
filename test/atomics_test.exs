@@ -5,6 +5,7 @@
 defmodule AshPostgres.AtomicsTest do
   alias AshPostgres.Test.Author
   alias AshPostgres.Test.Comment
+  alias AshPostgres.Test.TempEntity
 
   use AshPostgres.RepoCase, async: false
 
@@ -463,6 +464,16 @@ defmodule AshPostgres.AtomicsTest do
         |> Ash.create!()
 
       assert post.score == 20
+    end
+
+    test "atomic_set works on create with required attribute and fragment" do
+      temp_entity =
+        TempEntity
+        |> Ash.Changeset.for_create(:create, %{})
+        |> Ash.Changeset.atomic_set(:full_name, expr(fragment("(SELECT 'name')")))
+        |> Ash.create!()
+
+      assert temp_entity.full_name == "name"
     end
 
     test "atomic_set on create overrides attributes when both are set" do
