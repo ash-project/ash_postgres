@@ -469,11 +469,22 @@ defmodule AshPostgres.AtomicsTest do
     test "atomic_set works on create with required attribute and fragment" do
       temp_entity =
         TempEntity
-        |> Ash.Changeset.for_create(:create, %{})
+        |> Ash.Changeset.new()
         |> Ash.Changeset.atomic_set(:full_name, expr(fragment("(SELECT 'name')")))
+        |> Ash.Changeset.for_create(:create, %{})
         |> Ash.create!()
 
       assert temp_entity.full_name == "name"
+    end
+
+    test "atomic_set works on create with required attribute and fragment resolving to null" do
+      assert_raise Ash.Error.Invalid, ~r/full_name is required/, fn ->
+        TempEntity
+        |> Ash.Changeset.new()
+        |> Ash.Changeset.atomic_set(:full_name, expr(fragment("(SELECT NULL)")))
+        |> Ash.Changeset.for_create(:create, %{})
+        |> Ash.create!()
+      end
     end
 
     test "atomic_set on create overrides attributes when both are set" do
