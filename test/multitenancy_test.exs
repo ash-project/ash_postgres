@@ -356,4 +356,90 @@ defmodule AshPostgres.Test.MultitenancyTest do
       end
     )
   end
+
+  describe "context multitenancy prefix inheritance" do
+    test "loading aggregates on context multitenant resources with relationships works", %{
+      org1: org1
+    } do
+      user =
+        User
+        |> Ash.Changeset.for_create(:create, %{name: "a"}, tenant: tenant(org1))
+        |> Ash.Changeset.manage_relationship(:org, org1, type: :append_and_remove)
+        |> Ash.create!()
+
+      _post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{name: "foobar"},
+          authorize?: false,
+          tenant: tenant(org1)
+        )
+        |> Ash.Changeset.manage_relationship(:user, user, type: :append_and_remove)
+        |> Ash.create!()
+
+      # Load an aggregate that goes through a relationship path crossing multitenancy boundaries
+      # This should properly inherit the prefix from the parent query
+      assert [%{count_visited: 1}] =
+               User
+               |> Ash.Query.filter(id == ^user.id)
+               |> Ash.Query.load(:count_visited)
+               |> Ash.Query.set_tenant(tenant(org1))
+               |> Ash.read!()
+    end
+
+    test "loading context multitenant relationship from attribute multitenant resource inherits prefix",
+         %{org1: org1} do
+      user =
+        User
+        |> Ash.Changeset.for_create(:create, %{name: "test_user"}, tenant: tenant(org1))
+        |> Ash.Changeset.manage_relationship(:org, org1, type: :append_and_remove)
+        |> Ash.create!()
+
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{name: "test_post"},
+          authorize?: false,
+          tenant: tenant(org1)
+        )
+        |> Ash.Changeset.manage_relationship(:user, user, type: :append_and_remove)
+        |> Ash.create!()
+
+      # Load posts from user - this crosses from attribute multitenancy to context multitenancy
+      # The prefix should be properly set on the join query
+      loaded_user = Ash.load!(user, :posts, tenant: tenant(org1))
+      assert length(loaded_user.posts) == 1
+      assert hd(loaded_user.posts).id == post.id
+    end
+
+    test "querying context multitenant resource and loading many_to_many properly inherits prefix",
+         %{org1: org1} do
+      post1 =
+        Post
+        |> Ash.Changeset.for_create(:create, %{name: "post1"},
+          authorize?: false,
+          tenant: tenant(org1)
+        )
+        |> Ash.create!()
+
+      post2 =
+        Post
+        |> Ash.Changeset.for_create(:create, %{name: "post2"},
+          authorize?: false,
+          tenant: tenant(org1)
+        )
+        |> Ash.Changeset.manage_relationship(:linked_posts, [post1], type: :append_and_remove)
+        |> Ash.create!()
+
+      # Query with tenant set, load many_to_many relationship
+      # The join through PostLink should inherit the prefix
+      result =
+        Post
+        |> Ash.Query.filter(id == ^post2.id)
+        |> Ash.Query.load(:linked_posts)
+        |> Ash.Query.set_tenant(tenant(org1))
+        |> Ash.read!()
+
+      assert [%{linked_posts: [%{id: post1_id}]}] = result
+      assert post1_id == post1.id
+    end
+  end
 end

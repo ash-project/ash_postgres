@@ -916,7 +916,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def set_tenant(resource, query, tenant) do
-    if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
+    if Ash.Resource.Info.multitenancy_strategy(resource) == :context && tenant do
       {:ok, Map.put(Ecto.Query.put_query_prefix(query, to_string(tenant)), :__tenant__, tenant)}
     else
       {:ok, query}
