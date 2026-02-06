@@ -540,7 +540,7 @@ defmodule AshPostgres.MigrationGenerator do
     if tenant? do
       Ecto.Migrator.with_repo(repo, fn repo ->
         for prefix <- repo.all_tenants() do
-          {repo, query, opts} = Ecto.Migration.SchemaMigration.versions(repo, [], prefix)
+          {repo, query, opts} = Ecto.Migration.SchemaMigration.versions(repo, repo.config(), prefix)
 
           repo.transaction(fn ->
             versions = repo.all(query, Keyword.put(opts, :timeout, :infinity))
@@ -574,7 +574,7 @@ defmodule AshPostgres.MigrationGenerator do
       end)
     else
       Ecto.Migrator.with_repo(repo, fn repo ->
-        {repo, query, opts} = Ecto.Migration.SchemaMigration.versions(repo, [], nil)
+        {repo, query, opts} = Ecto.Migration.SchemaMigration.versions(repo, repo.config(), nil)
 
         repo.transaction(fn ->
           versions = repo.all(query, opts)
