@@ -266,15 +266,60 @@ defmodule AshPostgres.Test.ThroughRelationshipsTest do
     end
   end
 
+  describe "policy enforcement on through relationships" do
+    test "filtering on through relationships respects intermediate classroom policy", _setup do
+      school_1 = create_school("Policy Test School 1")
+      school_2 = create_school("Policy Test School 2")
+      classroom_public = create_classroom("Public Classroom", school_1.id, public: true)
+      classroom_private = create_classroom("Private Classroom", school_2.id, public: false)
+      teacher_public = create_teacher("Teacher Public")
+      teacher_private = create_teacher("Teacher Private")
+
+      assign_teacher(classroom_public.id, teacher_public.id)
+      assign_teacher(classroom_private.id, teacher_private.id)
+
+      filter = [teacher_public.name, teacher_private.name]
+
+      assert [%{name: "Policy Test School 1"}] =
+               AshPostgres.Test.Through.School
+               |> Ash.Query.filter(%{teachers: %{name: %{in: ^filter}}})
+               |> Ash.read!(authorize?: true)
+    end
+
+    test "filtering on through relationships respects classroom_teacher policy (non-retired)",
+         _setup do
+      school_active = create_school("School With Active Teacher")
+      school_retired = create_school("School With Retired Teacher")
+      classroom_active = create_classroom("Active Classroom", school_active.id, public: true)
+      classroom_retired = create_classroom("Retired Classroom", school_retired.id, public: true)
+      teacher_active = create_teacher("Teacher Active")
+      teacher_retired = create_teacher("Teacher Retired")
+
+      assign_teacher(classroom_active.id, teacher_active.id)
+      assign_teacher(classroom_retired.id, teacher_retired.id, retired_at: DateTime.utc_now())
+
+      filter = [teacher_active.name, teacher_retired.name]
+
+      assert [%{name: "School With Active Teacher"}] =
+               AshPostgres.Test.Through.School
+               |> Ash.Query.filter(%{teachers: %{name: %{in: ^filter}}})
+               |> Ash.read!(authorize?: true)
+    end
+  end
+
   defp create_school(name) do
     AshPostgres.Test.Through.School
     |> Ash.Changeset.for_create(:create, %{name: name})
     |> Ash.create!()
   end
 
-  defp create_classroom(name, school_id) do
+  defp create_classroom(name, school_id, opts \\ []) do
+    attrs =
+      %{name: name, school_id: school_id}
+      |> Map.merge(Map.new(opts))
+
     AshPostgres.Test.Through.Classroom
-    |> Ash.Changeset.for_create(:create, %{name: name, school_id: school_id})
+    |> Ash.Changeset.for_create(:create, attrs)
     |> Ash.create!()
   end
 
