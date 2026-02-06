@@ -6,11 +6,24 @@ defmodule AshPostgres.Test.Through.School do
   @moduledoc false
   use Ash.Resource,
     domain: AshPostgres.Test.Domain,
-    data_layer: AshPostgres.DataLayer
+    data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer]
 
   postgres do
     table "schools"
     repo AshPostgres.TestRepo
+  end
+
+  policies do
+    policy action_type(:read) do
+      authorize_if(always())
+    end
+  end
+
+  field_policies do
+    field_policy :* do
+      authorize_if(always())
+    end
   end
 
   attributes do

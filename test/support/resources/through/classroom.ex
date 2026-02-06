@@ -6,16 +6,30 @@ defmodule AshPostgres.Test.Through.Classroom do
   @moduledoc false
   use Ash.Resource,
     domain: AshPostgres.Test.Domain,
-    data_layer: AshPostgres.DataLayer
+    data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer]
 
   postgres do
     table "classrooms"
     repo AshPostgres.TestRepo
   end
 
+  policies do
+    policy action_type(:read) do
+      authorize_if(expr(public == true))
+    end
+  end
+
+  field_policies do
+    field_policy :* do
+      authorize_if(always())
+    end
+  end
+
   attributes do
     uuid_primary_key(:id)
     attribute(:name, :string, public?: true)
+    attribute(:public, :boolean, public?: true, default: true)
   end
 
   actions do

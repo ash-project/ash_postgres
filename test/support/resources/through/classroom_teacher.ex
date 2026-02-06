@@ -6,9 +6,22 @@ defmodule AshPostgres.Test.Through.ClassroomTeacher do
   @moduledoc false
   use Ash.Resource,
     domain: AshPostgres.Test.Domain,
-    data_layer: AshPostgres.DataLayer
+    data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer]
 
   require Ash.Query
+
+  policies do
+    policy action_type(:read) do
+      authorize_if(expr(is_nil(retired_at)))
+    end
+  end
+
+  field_policies do
+    field_policy :* do
+      authorize_if(always())
+    end
+  end
 
   postgres do
     table "classroom_teachers"
