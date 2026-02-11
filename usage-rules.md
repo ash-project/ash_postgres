@@ -10,46 +10,6 @@ SPDX-License-Identifier: MIT
 
 AshPostgres is the PostgreSQL data layer for Ash Framework. It's the most fully-featured Ash data layer and should be your default choice unless you have specific requirements for another data layer. Any PostgreSQL version higher than 13 is fully supported.
 
-## Check Constraints
-
-Define database check constraints:
-
-```elixir
-postgres do
-  check_constraints do
-    check_constraint :positive_amount,
-      check: "amount > 0",
-      name: "positive_amount_check",
-      message: "Amount must be positive"
-
-    check_constraint :status_valid,
-      check: "status IN ('pending', 'active', 'completed')"
-  end
-end
-```
-
-## Custom Indexes
-
-Define custom indexes beyond those automatically created for identities and relationships:
-
-```elixir
-postgres do
-  custom_indexes do
-    index [:first_name, :last_name]
-
-    index :email,
-      unique: true,
-      name: "users_email_index",
-      where: "email IS NOT NULL",
-      using: :gin
-
-    index [:status, :created_at],
-      concurrently: true,
-      include: [:user_id]
-  end
-end
-```
-
 ## Custom SQL Statements
 
 Include custom SQL in migrations:
