@@ -1775,6 +1775,127 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert File.read!(file) =~ ~S{create index(:posts, [:post_id])}
     end
 
+    test "changing only reference index? does not drop and re-add foreign key (issue #611)" do
+      # First generate: reference with index?: true
+      defresource PostRefIdx, "posts" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:key_id, :uuid, allow_nil?: false, public?: true)
+          attribute(:foobar, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defresource Post2RefIdx, "posts" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string, public?: true)
+          attribute(:related_key_id, :uuid, public?: true)
+        end
+
+        relationships do
+          belongs_to(:post, PostRefIdx, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        postgres do
+          references do
+            reference(:post, index?: true)
+          end
+        end
+      end
+
+      defmodule DomainRefIdx do
+        use Ash.Domain
+        resources do
+          resource(PostRefIdx)
+          resource(Post2RefIdx)
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(DomainRefIdx,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      # Second generate: same reference but index?: false (only index change)
+      defresource PostRefNoIdx, "posts" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:key_id, :uuid, allow_nil?: false, public?: true)
+          attribute(:foobar, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defresource Post2RefNoIdx, "posts" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string, public?: true)
+          attribute(:related_key_id, :uuid, public?: true)
+        end
+
+        relationships do
+          belongs_to(:post, PostRefNoIdx, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        postgres do
+          references do
+            reference(:post, index?: false)
+          end
+        end
+      end
+
+      defmodule DomainRefNoIdx do
+        use Ash.Domain
+        resources do
+          resource(PostRefNoIdx)
+          resource(Post2RefNoIdx)
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(DomainRefNoIdx,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      [_, file2] =
+        Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      content = File.read!(file2)
+
+      # Should only drop the index, not touch the foreign key
+      assert content =~ ~S{drop_if_exists index(:posts, [:post_id])},
+             "migration should drop the reference index when index? changes to false"
+
+      refute content =~ ~S{drop constraint(:posts, "posts_post_id_fkey")},
+             "migration should not drop the foreign key when only index? changed (issue #611)"
+
+      refute content =~ ~S{modify :post_id, references(},
+             "migration should not modify references when only index? changed (issue #611)"
+    end
+
     test "references with deferrable modifications generate changes with the correct schema" do
       defposts do
         attributes do
