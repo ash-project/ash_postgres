@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2020 Zach Daniel
 SPDX-License-Identifier: MIT
 -->
 
-## Basic Configuration
+# Basic Configuration
 
 To use AshPostgres, add the data layer to your resource:
 
@@ -29,9 +29,9 @@ defmodule MyApp.Tweet do
 end
 ```
 
-## PostgreSQL Configuration
+# PostgreSQL Configuration
 
-### Table & Schema Configuration
+## Table & Schema Configuration
 
 ```elixir
 postgres do
