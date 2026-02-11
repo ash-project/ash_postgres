@@ -1,10 +1,33 @@
-# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs.contributors>
+# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>
 #
 # SPDX-License-Identifier: MIT
 
 defmodule AshPostgres.DestroyTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.Post
+  alias AshPostgres.Test.{Post, Permalink}
+
+  test "destroy with restrict on_delete returns would leave records behind error" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{})
+      |> Ash.create!()
+
+    Permalink |> Ash.Changeset.for_create(:create, %{post_id: post.id}) |> Ash.create!()
+
+    assert {:error, %Ash.Error.Invalid{errors: errors}} =
+             post
+             |> Ash.Changeset.for_destroy(:destroy, %{})
+             |> Ash.destroy()
+
+    assert Enum.any?(errors, fn
+             %Ash.Error.Changes.InvalidAttribute{message: msg} ->
+               msg =~ "would leave records behind"
+
+             _ ->
+               false
+           end),
+           "Expected 'would leave records behind' error, got: #{inspect(errors)}"
+  end
 
   test "destroy action destroys the record" do
     post =

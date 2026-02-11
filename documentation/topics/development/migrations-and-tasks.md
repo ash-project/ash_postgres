@@ -27,7 +27,7 @@ For more information on generating migrations, run `mix help ash_postgres.genera
 
 > ### all_tenants/0 {: .info}
 >
-> If you have are using schema-based multitenancy, you will also need to define a `all_tenants/0` function in your repo module. See `AshPostgres.Repo` for more.
+> If you are using schema-based multitenancy, you will also need to define a `all_tenants/0` function in your repo module. See `AshPostgres.Repo` for more.
 
 ## Running Migrations in Production
 
