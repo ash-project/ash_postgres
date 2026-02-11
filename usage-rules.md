@@ -10,28 +10,6 @@ SPDX-License-Identifier: MIT
 
 AshPostgres is the PostgreSQL data layer for Ash Framework. It's the most fully-featured Ash data layer and should be your default choice unless you have specific requirements for another data layer. Any PostgreSQL version higher than 13 is fully supported.
 
-## Custom SQL Statements
-
-Include custom SQL in migrations:
-
-```elixir
-postgres do
-  custom_statements do
-    statement "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\""
-
-    statement """
-    CREATE TRIGGER update_updated_at
-    BEFORE UPDATE ON posts
-    FOR EACH ROW
-    EXECUTE FUNCTION trigger_set_timestamp();
-    """
-
-    statement "DROP INDEX IF EXISTS posts_title_index",
-      on_destroy: true # Only run when resource is destroyed/dropped
-  end
-end
-```
-
 ## Migrations and Codegen
 
 ### Development Migration Workflow (Recommended)
