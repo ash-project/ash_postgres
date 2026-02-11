@@ -2153,7 +2153,8 @@ defmodule AshPostgres.MigrationGenerator do
           table: snapshot.table,
           schema: snapshot.schema,
           source: attribute.source,
-          multitenancy: snapshot.multitenancy
+          multitenancy: snapshot.multitenancy,
+          old_multitenancy: old_snapshot.multitenancy
         }
       end)
 
@@ -2662,7 +2663,8 @@ defmodule AshPostgres.MigrationGenerator do
             []
           end
 
-        if Map.get(old_attribute, :references) != Map.get(new_attribute, :references) do
+        if Map.get(old_attribute, :references) != Map.get(new_attribute, :references) and
+             references_differ_beyond_index?(old_attribute, new_attribute) do
           redo_deferrability =
             if has_reference?(old_snapshot.multitenancy, old_attribute) and
                  differently_deferrable?(new_attribute, old_attribute) do
@@ -2769,6 +2771,23 @@ defmodule AshPostgres.MigrationGenerator do
     do: true
 
   defp differently_deferrable?(_, _), do: false
+
+  # When the only reference change is index? (add/remove index), we should not emit
+  # DropForeignKey + AlterAttribute; the separate AddReferenceIndex/RemoveReferenceIndex
+  # operations handle it. This avoids migrations that drop and re-add the same FK.
+  defp references_differ_beyond_index?(old_attr, new_attr) do
+    old_refs = Map.get(old_attr, :references)
+    new_refs = Map.get(new_attr, :references)
+
+    cond do
+      old_refs == new_refs -> false
+      is_nil(old_refs) or is_nil(new_refs) -> true
+      true ->
+        old_without_index = Map.delete(old_refs, :index?)
+        new_without_index = Map.delete(new_refs, :index?)
+        old_without_index != new_without_index
+    end
+  end
 
   # This exists to handle the fact that the remapping of the key name -> source caused attributes
   # to be considered unequal. We ignore things that only differ in that way using this function.

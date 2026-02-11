@@ -11,6 +11,12 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [Unreleased]
+
+### Bug Fixes:
+
+* avoid dropping and re-adding foreign key when only reference index changes (#611)
+
 ## [v2.6.29](https://github.com/ash-project/ash_postgres/compare/v2.6.28...v2.6.29) (2026-02-03)
 
 
