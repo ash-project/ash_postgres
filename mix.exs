@@ -44,7 +44,7 @@ defmodule AshPostgres.MixProject do
 
   defp cli do
     [
-      preferred_cli_env: [
+      preferred_envs: [
         coveralls: :test,
         "coveralls.github": :test,
         "test.create": :test,
