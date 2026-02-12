@@ -152,7 +152,7 @@ defmodule AshPostgres.DevMigrationsTest do
       assert [_extensions, migration, _migration] =
                Path.wildcard("priv/dev_test_repo/migrations/**/*_migrate_resources*.exs")
 
-      assert capture_log(fn -> migrate(migration) end) =~ "create table posts"
+      assert capture_log([level: :debug], fn -> migrate(migration) end) =~ "create table posts"
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "priv/resource_snapshots",
@@ -160,7 +160,7 @@ defmodule AshPostgres.DevMigrationsTest do
         auto_name: true
       )
 
-      assert capture_log(fn -> migrate(migration) end) =~ "create table posts"
+      assert capture_log([level: :debug], fn -> migrate(migration) end) =~ "create table posts"
     end
   end
 
@@ -217,7 +217,7 @@ defmodule AshPostgres.DevMigrationsTest do
                )
                |> Enum.reject(&String.contains?(&1, "extensions"))
 
-      assert capture_log(fn -> tenant_migrate() end) =~ "create table org_#{org.id}.posts"
+      assert capture_log([level: :debug], fn -> tenant_migrate() end) =~ "create table org_#{org.id}.posts"
     end
   end
 
