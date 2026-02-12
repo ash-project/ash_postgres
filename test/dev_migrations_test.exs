@@ -217,7 +217,8 @@ defmodule AshPostgres.DevMigrationsTest do
                )
                |> Enum.reject(&String.contains?(&1, "extensions"))
 
-      assert capture_log([level: :debug], fn -> tenant_migrate() end) =~ "create table org_#{org.id}.posts"
+      assert capture_log([level: :debug], fn -> tenant_migrate() end) =~
+               "create table org_#{org.id}.posts"
     end
   end
 
