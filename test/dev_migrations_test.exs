@@ -6,7 +6,6 @@ defmodule AshPostgres.DevMigrationsTest do
   use AshPostgres.RepoCase, async: false
   @moduletag :migration
 
-  import ExUnit.CaptureLog
   require Logger
 
   alias Ecto.Adapters.SQL.Sandbox
@@ -152,15 +151,21 @@ defmodule AshPostgres.DevMigrationsTest do
       assert [_extensions, migration, _migration] =
                Path.wildcard("priv/dev_test_repo/migrations/**/*_migrate_resources*.exs")
 
-      assert capture_log([level: :debug], fn -> migrate(migration) end) =~ "create table posts"
+      migrate(migration)
+      assert table_exists?("posts")
 
+      # Generating without dev: true rolls back the dev migration (dropping the table)
+      # and creates a permanent migration in its place
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: "priv/resource_snapshots",
         migration_path: "priv/dev_test_repo/migrations",
         auto_name: true
       )
 
-      assert capture_log([level: :debug], fn -> migrate(migration) end) =~ "create table posts"
+      refute table_exists?("posts")
+
+      migrate(migration)
+      assert table_exists?("posts")
     end
   end
 
@@ -217,8 +222,8 @@ defmodule AshPostgres.DevMigrationsTest do
                )
                |> Enum.reject(&String.contains?(&1, "extensions"))
 
-      assert capture_log([level: :debug], fn -> tenant_migrate() end) =~
-               "create table org_#{org.id}.posts"
+      tenant_migrate()
+      assert table_exists?("posts", "org_#{org.id}")
     end
   end
 
@@ -239,5 +244,15 @@ defmodule AshPostgres.DevMigrationsTest do
         "priv/dev_test_repo/tenant_migrations"
       )
     end
+  end
+
+  defp table_exists?(table, schema \\ "public") do
+    %{rows: [[exists]]} =
+      AshPostgres.DevTestRepo.query!(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = $1 AND table_name = $2)",
+        [schema, table]
+      )
+
+    exists
   end
 end
