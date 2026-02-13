@@ -565,10 +565,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       size =
-        if Map.get(attribute, :size) != Map.get(old_attribute, :size) do
-          if attribute.size do
-            ", size: #{attribute.size}"
-          end
+        if attribute[:size] &&
+             (Map.get(attribute, :size) != Map.get(old_attribute, :size) ||
+                attribute.type in [:varchar, :binary]) do
+          ", size: #{attribute.size}"
         end
 
       precision =

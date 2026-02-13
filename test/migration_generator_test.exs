@@ -3277,6 +3277,278 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "varchar migration_types on modify" do
+    setup do
+      on_exit(fn ->
+        File.rm_rf!("test_snapshots_path")
+        File.rm_rf!("test_migration_path")
+      end)
+    end
+
+    test "modify includes varchar size when adding migration_types to existing string column" do
+      defresource MyResource do
+        postgres do
+          table "my_resources"
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:blibs, :string, public?: true)
+        end
+      end
+
+      defdomain([MyResource])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      defresource MyResource do
+        postgres do
+          table "my_resources"
+          migration_types(blibs: {:varchar, 255})
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:blibs, :string, public?: true)
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      migration_files =
+        Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert length(migration_files) == 2,
+             "Expected 2 migrations: initial create + modify. Got #{length(migration_files)}"
+
+      second_migration = File.read!(Enum.at(migration_files, 1))
+
+      assert second_migration =~ ~S[modify :blibs, :varchar, size: 255],
+             "Expected modify to include size: 255 for varchar. Migration:\n#{second_migration}"
+
+      assert second_migration =~ ~S[modify :blibs, :text]
+    end
+
+    test "modify includes new size when changing from one varchar size to another" do
+      defresource MyResource do
+        postgres do
+          table "my_resources_varchar_change"
+          migration_types(blibs: {:varchar, 100})
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:blibs, :string, public?: true)
+        end
+      end
+
+      defdomain([MyResource])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      defresource MyResource do
+        postgres do
+          table "my_resources_varchar_change"
+          migration_types(blibs: {:varchar, 255})
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:blibs, :string, public?: true)
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      migration_files =
+        Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert length(migration_files) == 2
+
+      second_migration = File.read!(Enum.at(migration_files, 1))
+
+      assert second_migration =~ ~S[modify :blibs, :varchar, size: 255]
+      assert second_migration =~ ~S[modify :blibs, :varchar, size: 100]
+    end
+
+    test "modify includes size when changing text to binary with migration_types" do
+      defresource MyResource do
+        postgres do
+          table "my_resources_binary"
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:blobs, :string, public?: true)
+        end
+      end
+
+      defdomain([MyResource])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      defresource MyResource do
+        postgres do
+          table "my_resources_binary"
+          migration_types(blobs: {:binary, 500})
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:blobs, :string, public?: true)
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      migration_files =
+        Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert length(migration_files) == 2
+
+      second_migration = File.read!(Enum.at(migration_files, 1))
+
+      assert second_migration =~ ~S[modify :blobs, :binary, size: 500]
+      assert second_migration =~ ~S[modify :blobs, :text]
+    end
+
+    test "modify only affects attribute with migration_types when multiple string attributes exist" do
+      defresource MyResource do
+        postgres do
+          table "my_resources_multi"
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:blibs, :string, public?: true)
+          attribute(:blobs, :string, public?: true)
+        end
+      end
+
+      defdomain([MyResource])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      defresource MyResource do
+        postgres do
+          table "my_resources_multi"
+          migration_types(blibs: {:varchar, 255})
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:blibs, :string, public?: true)
+          attribute(:blobs, :string, public?: true)
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: "test_snapshots_path",
+        migration_path: "test_migration_path",
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      migration_files =
+        Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert length(migration_files) == 2
+
+      second_migration = File.read!(Enum.at(migration_files, 1))
+
+      assert second_migration =~ ~S[modify :blibs, :varchar, size: 255]
+
+      refute second_migration =~ ~S[modify :blobs]
+    end
+  end
+
   describe "create_table_options" do
     setup do
       on_exit(fn ->
