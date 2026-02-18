@@ -268,12 +268,12 @@ defmodule AshPostgres.MigrationGenerator do
         {module, migration_name} =
           case to_install do
             [{ext_name, version, _up_fn, _down_fn}] ->
-              {"install_#{ext_name}_v#{version}_#{timestamp(true)}",
-               "#{timestamp(true)}_install_#{ext_name}_v#{version}_extension#{dev}"}
+              {"install_#{ext_name}_v#{version}_#{timestamp()}",
+               "#{timestamp()}_install_#{ext_name}_v#{version}_extension#{dev}"}
 
             ["ash_functions"] ->
-              {"install_ash_functions_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}_#{timestamp(true)}",
-               "#{timestamp(true)}_install_ash_functions_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}"}
+              {"install_ash_functions_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}_#{timestamp()}",
+               "#{timestamp()}_install_ash_functions_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}"}
 
             _multiple ->
               migration_path = migration_path(opts, repo, false)
@@ -303,7 +303,7 @@ defmodule AshPostgres.MigrationGenerator do
                   |> Kernel.+(1)
 
                 {"#{opts.name}_extensions_#{count}",
-                 "#{timestamp(true)}_#{opts.name}_extensions_#{count}#{dev}"}
+                 "#{timestamp()}_#{opts.name}_extensions_#{count}#{dev}"}
               else
                 count =
                   migration_path
@@ -327,7 +327,7 @@ defmodule AshPostgres.MigrationGenerator do
                   |> Kernel.+(1)
 
                 {"migrate_resources_extensions_#{count}",
-                 "#{timestamp(true)}_migrate_resources_extensions_#{count}#{dev}"}
+                 "#{timestamp()}_migrate_resources_extensions_#{count}#{dev}"}
               end
           end
 
@@ -540,7 +540,8 @@ defmodule AshPostgres.MigrationGenerator do
     if tenant? do
       Ecto.Migrator.with_repo(repo, fn repo ->
         for prefix <- repo.all_tenants() do
-          {repo, query, opts} = Ecto.Migration.SchemaMigration.versions(repo, repo.config(), prefix)
+          {repo, query, opts} =
+            Ecto.Migration.SchemaMigration.versions(repo, repo.config(), prefix)
 
           repo.transaction(fn ->
             versions = repo.all(query, Keyword.put(opts, :timeout, :infinity))
@@ -1106,7 +1107,7 @@ defmodule AshPostgres.MigrationGenerator do
 
     {migration_name, last_part} =
       if opts.name do
-        {"#{timestamp(true)}_#{opts.name}", "#{opts.name}"}
+        {"#{timestamp()}_#{opts.name}", "#{opts.name}"}
       else
         count =
           migration_path
@@ -1129,7 +1130,7 @@ defmodule AshPostgres.MigrationGenerator do
           |> Enum.max(fn -> 0 end)
           |> Kernel.+(1)
 
-        {"#{timestamp(true)}_migrate_resources#{count}", "migrate_resources#{count}"}
+        {"#{timestamp()}_migrate_resources#{count}", "migrate_resources#{count}"}
       end
 
     migration_file =
@@ -3034,12 +3035,34 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  defp timestamp(require_unique? \\ false) do
-    # Alright, this is silly I know. But migration ids need to be unique
-    # and "synthesizing" that behavior is significantly more annoying than
-    # just waiting a bit, ensuring the migration versions are unique.
-    if require_unique?, do: :timer.sleep(1500)
+  defp timestamp do
     {{y, m, d}, {hh, mm, ss}} = :calendar.universal_time()
+    current = "#{y}#{pad(m)}#{pad(d)}#{pad(hh)}#{pad(mm)}#{pad(ss)}"
+
+    last = Process.get(:ash_postgres_last_migration_timestamp)
+
+    result =
+      if last && current <= last do
+        increment_timestamp(last)
+      else
+        current
+      end
+
+    Process.put(:ash_postgres_last_migration_timestamp, result)
+    result
+  end
+
+  defp increment_timestamp(timestamp) do
+    <<y::binary-4, m::binary-2, d::binary-2, hh::binary-2, mm::binary-2, ss::binary-2>> =
+      timestamp
+
+    seconds =
+      :calendar.datetime_to_gregorian_seconds({
+        {String.to_integer(y), String.to_integer(m), String.to_integer(d)},
+        {String.to_integer(hh), String.to_integer(mm), String.to_integer(ss)}
+      })
+
+    {{y, m, d}, {hh, mm, ss}} = :calendar.gregorian_seconds_to_datetime(seconds + 1)
     "#{y}#{pad(m)}#{pad(d)}#{pad(hh)}#{pad(mm)}#{pad(ss)}"
   end
 

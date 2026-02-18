@@ -5,8 +5,9 @@
 defmodule AshPostgres.MixSquashSnapshotsTest do
   use AshPostgres.RepoCase, async: false
   @moduletag :migration
+  @moduletag :tmp_dir
 
-  setup do
+  setup %{tmp_dir: tmp_dir} do
     current_shell = Mix.shell()
 
     :ok = Mix.shell(Mix.Shell.Process)
@@ -14,6 +15,11 @@ defmodule AshPostgres.MixSquashSnapshotsTest do
     on_exit(fn ->
       Mix.shell(current_shell)
     end)
+
+    %{
+      snapshot_path: Path.join(tmp_dir, "snapshots"),
+      migration_path: Path.join(tmp_dir, "migrations")
+    }
   end
 
   defmacrop defposts(mod \\ Post, do: body) do
@@ -65,22 +71,17 @@ defmodule AshPostgres.MixSquashSnapshotsTest do
     end
   end
 
-  def squash_snapshots(args) do
-    args = ["--snapshot-path", "test_snapshots_path"] ++ args
+  defp squash_snapshots(snapshot_path, args) do
+    args = ["--snapshot-path", snapshot_path] ++ args
     Mix.Task.rerun("ash_postgres.squash_snapshots", args)
   end
 
-  def list_snapshots do
-    Path.wildcard("test_snapshots_path/**/[0-9]*.json")
+  defp list_snapshots(snapshot_path) do
+    Path.wildcard("#{snapshot_path}/**/[0-9]*.json")
   end
 
   describe "with two snapshots to squash" do
-    setup do
-      on_exit(fn ->
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-      end)
-
+    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
       defposts do
         identities do
           identity(:title, [:title])
@@ -95,8 +96,8 @@ defmodule AshPostgres.MixSquashSnapshotsTest do
       defdomain([Post])
 
       AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
         quiet: true,
         format: false,
         auto_name: true
@@ -115,8 +116,8 @@ defmodule AshPostgres.MixSquashSnapshotsTest do
       end
 
       AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
         quiet: true,
         format: false,
         auto_name: true
@@ -125,49 +126,46 @@ defmodule AshPostgres.MixSquashSnapshotsTest do
       :ok
     end
 
-    test "runs without flags" do
-      [_first_snapshot, last_snapshot] = list_snapshots() |> Enum.sort()
-      squash_snapshots([])
-      assert [^last_snapshot] = list_snapshots()
+    test "runs without flags", %{snapshot_path: snapshot_path} do
+      [_first_snapshot, last_snapshot] = list_snapshots(snapshot_path) |> Enum.sort()
+      squash_snapshots(snapshot_path, [])
+      assert [^last_snapshot] = list_snapshots(snapshot_path)
     end
 
-    test "runs with `--check`" do
-      prev_snapshots = list_snapshots()
-      assert catch_exit(squash_snapshots(["--check"])) == {:shutdown, 1}
-      assert prev_snapshots == list_snapshots()
+    test "runs with `--check`", %{snapshot_path: snapshot_path} do
+      prev_snapshots = list_snapshots(snapshot_path)
+      assert catch_exit(squash_snapshots(snapshot_path, ["--check"])) == {:shutdown, 1}
+      assert prev_snapshots == list_snapshots(snapshot_path)
     end
 
-    test "runs with `--dry-run`" do
-      prev_snapshots = list_snapshots()
-      squash_snapshots(["--dry-run"])
-      assert prev_snapshots == list_snapshots()
+    test "runs with `--dry-run`", %{snapshot_path: snapshot_path} do
+      prev_snapshots = list_snapshots(snapshot_path)
+      squash_snapshots(snapshot_path, ["--dry-run"])
+      assert prev_snapshots == list_snapshots(snapshot_path)
     end
 
-    test "runs with `--into last`" do
-      [_first_snapshot, last_snapshot] = list_snapshots() |> Enum.sort()
-      squash_snapshots(["--into", "last"])
-      assert [^last_snapshot] = list_snapshots()
+    test "runs with `--into last`", %{snapshot_path: snapshot_path} do
+      [_first_snapshot, last_snapshot] = list_snapshots(snapshot_path) |> Enum.sort()
+      squash_snapshots(snapshot_path, ["--into", "last"])
+      assert [^last_snapshot] = list_snapshots(snapshot_path)
     end
 
-    test "runs with `--into first`" do
-      [first_snapshot, _last_snapshot] = list_snapshots() |> Enum.sort()
-      squash_snapshots(["--into", "first"])
-      assert [^first_snapshot] = list_snapshots()
+    test "runs with `--into first`", %{snapshot_path: snapshot_path} do
+      [first_snapshot, _last_snapshot] = list_snapshots(snapshot_path) |> Enum.sort()
+      squash_snapshots(snapshot_path, ["--into", "first"])
+      assert [^first_snapshot] = list_snapshots(snapshot_path)
     end
 
-    test "runs with `--into zero`" do
-      squash_snapshots(["--into", "zero"])
-      assert ["test_snapshots_path/test_repo/posts/00000000000000.json"] = list_snapshots()
+    test "runs with `--into zero`", %{snapshot_path: snapshot_path} do
+      squash_snapshots(snapshot_path, ["--into", "zero"])
+
+      assert [snapshot] = list_snapshots(snapshot_path)
+      assert snapshot == "#{snapshot_path}/test_repo/posts/00000000000000.json"
     end
   end
 
   describe "with one snapshot to squash" do
-    setup do
-      on_exit(fn ->
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-      end)
-
+    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
       defposts do
         identities do
           identity(:title, [:title])
@@ -182,8 +180,8 @@ defmodule AshPostgres.MixSquashSnapshotsTest do
       defdomain([Post])
 
       AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
         quiet: true,
         format: false,
         auto_name: true
@@ -192,28 +190,31 @@ defmodule AshPostgres.MixSquashSnapshotsTest do
       :ok
     end
 
-    test "runs with `--check`" do
-      prev_snapshots = list_snapshots()
-      squash_snapshots(["--check"])
-      assert prev_snapshots == list_snapshots()
+    test "runs with `--check`", %{snapshot_path: snapshot_path} do
+      prev_snapshots = list_snapshots(snapshot_path)
+      squash_snapshots(snapshot_path, ["--check"])
+      assert prev_snapshots == list_snapshots(snapshot_path)
     end
 
-    test "runs with `--check --into last`" do
-      prev_snapshots = list_snapshots()
-      squash_snapshots(["--check", "--into", "last"])
-      assert prev_snapshots == list_snapshots()
+    test "runs with `--check --into last`", %{snapshot_path: snapshot_path} do
+      prev_snapshots = list_snapshots(snapshot_path)
+      squash_snapshots(snapshot_path, ["--check", "--into", "last"])
+      assert prev_snapshots == list_snapshots(snapshot_path)
     end
 
-    test "runs with `--check --into first`" do
-      prev_snapshots = list_snapshots()
-      squash_snapshots(["--check", "--into", "last"])
-      assert prev_snapshots == list_snapshots()
+    test "runs with `--check --into first`", %{snapshot_path: snapshot_path} do
+      prev_snapshots = list_snapshots(snapshot_path)
+      squash_snapshots(snapshot_path, ["--check", "--into", "last"])
+      assert prev_snapshots == list_snapshots(snapshot_path)
     end
 
-    test "runs with `--check --into zero`" do
-      prev_snapshots = list_snapshots()
-      assert catch_exit(squash_snapshots(["--check", "--into", "zero"])) == {:shutdown, 1}
-      assert prev_snapshots == list_snapshots()
+    test "runs with `--check --into zero`", %{snapshot_path: snapshot_path} do
+      prev_snapshots = list_snapshots(snapshot_path)
+
+      assert catch_exit(squash_snapshots(snapshot_path, ["--check", "--into", "zero"])) ==
+               {:shutdown, 1}
+
+      assert prev_snapshots == list_snapshots(snapshot_path)
     end
   end
 end

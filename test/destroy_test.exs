@@ -4,7 +4,7 @@
 
 defmodule AshPostgres.DestroyTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Post, Permalink}
+  alias AshPostgres.Test.{Permalink, Post}
 
   test "destroy with restrict on_delete returns would leave records behind error" do
     post =
