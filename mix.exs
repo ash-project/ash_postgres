@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs.contributors>
+# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>
 #
 # SPDX-License-Identifier: MIT
 
@@ -9,7 +9,7 @@ defmodule AshPostgres.MixProject do
   The PostgreSQL data layer for Ash Framework
   """
 
-  @version "2.6.29"
+  @version "2.6.32"
 
   def project do
     [
@@ -185,7 +185,7 @@ defmodule AshPostgres.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ash, ash_version("~> 3.14")},
+      {:ash, ash_version("~> 3.15")},
       {:spark, "~> 2.3 and >= 2.3.4"},
       {:ash_sql, ash_sql_version("~> 0.4 and >= 0.4.3")},
       {:igniter, "~> 0.6 and >= 0.6.29", optional: true},
