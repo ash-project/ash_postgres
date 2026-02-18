@@ -1817,7 +1817,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert File.read!(file) =~ ~S{create index(:posts, [:post_id])}
     end
 
-    test "changing only reference index? does not drop and re-add foreign key (issue #611)" do
+    test "changing only reference index? does not drop and re-add foreign key (issue #611)", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
       # First generate: reference with index?: true
       defresource PostRefIdx, "posts" do
         attributes do
@@ -1862,8 +1865,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       AshPostgres.MigrationGenerator.generate(DomainRefIdx,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
         quiet: true,
         format: false,
         auto_name: true
@@ -1913,15 +1916,15 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       AshPostgres.MigrationGenerator.generate(DomainRefNoIdx,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
         quiet: true,
         format: false,
         auto_name: true
       )
 
       [_, file2] =
-        Path.wildcard("test_migration_path/**/*_migrate_resources*.exs")
+        Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
         |> Enum.reject(&String.contains?(&1, "extensions"))
         |> Enum.sort()
 
