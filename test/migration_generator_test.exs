@@ -1858,6 +1858,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defmodule DomainRefIdx do
         use Ash.Domain
+
         resources do
           resource(PostRefIdx)
           resource(Post2RefIdx)
@@ -1909,6 +1910,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defmodule DomainRefNoIdx do
         use Ash.Domain
+
         resources do
           resource(PostRefNoIdx)
           resource(Post2RefNoIdx)

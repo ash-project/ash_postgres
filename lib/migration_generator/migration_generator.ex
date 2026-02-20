@@ -2781,8 +2781,12 @@ defmodule AshPostgres.MigrationGenerator do
     new_refs = Map.get(new_attr, :references)
 
     cond do
-      old_refs == new_refs -> false
-      is_nil(old_refs) or is_nil(new_refs) -> true
+      old_refs == new_refs ->
+        false
+
+      is_nil(old_refs) or is_nil(new_refs) ->
+        true
+
       true ->
         old_without_index = Map.delete(old_refs, :index?)
         new_without_index = Map.delete(new_refs, :index?)
