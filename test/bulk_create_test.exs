@@ -189,6 +189,51 @@ defmodule AshPostgres.BulkCreateTest do
       assert DateTime.compare(upserted.updated_at, initial.updated_at) == :eq
     end
 
+    test "bulk creates with upsert does not update update_timestamp when touch_update_defaults? is false" do
+      past = DateTime.add(DateTime.utc_now(), -60, :second)
+
+      assert [
+               {:ok, %{title: "fred", uniq_one: "one", uniq_two: "two"} = initial}
+             ] =
+               Ash.bulk_create!(
+                 [
+                   %{
+                     title: "fred",
+                     uniq_one: "one",
+                     uniq_two: "two",
+                     price: 10,
+                     updated_at: past
+                   }
+                 ],
+                 Post,
+                 :create,
+                 return_stream?: true,
+                 return_records?: true
+               )
+               |> Enum.to_list()
+
+      assert DateTime.compare(initial.updated_at, past) == :eq
+
+      assert [
+               {:ok, %{title: "fred", uniq_one: "one", uniq_two: "two", price: 1000} = upserted}
+             ] =
+               Ash.bulk_create!(
+                 [%{title: "something", uniq_one: "one", uniq_two: "two", price: 1000}],
+                 Post,
+                 :create,
+                 upsert?: true,
+                 upsert_identity: :uniq_one_and_two,
+                 upsert_fields: [:price],
+                 context: %{data_layer: %{touch_update_defaults?: false}},
+                 return_stream?: true,
+                 return_errors?: true,
+                 return_records?: true
+               )
+               |> Enum.to_list()
+
+      assert DateTime.compare(upserted.updated_at, initial.updated_at) == :eq
+    end
+
     test "bulk upsert skips with filter" do
       assert [
                {:ok, %{title: "fredfoo", uniq_if_contains_foo: "1foo", price: 10}},
