@@ -2375,8 +2375,27 @@ defmodule AshPostgres.DataLayer do
 
     fields_to_upsert =
       case fields_to_upsert do
-        [] -> keys
-        fields_to_upsert -> fields_to_upsert
+        [] ->
+          keys
+
+        fields_to_upsert ->
+          # Include fields with update_defaults (e.g. update_timestamp)
+          # even if they aren't in the changeset attributes or upsert_fields.
+          # These fields should always be refreshed when an upsert modifies fields.
+          # Can be disabled via context: %{data_layer: %{touch_update_defaults?: false}}
+          touch_update_defaults? =
+            Enum.at(changesets, 0).context[:data_layer][:touch_update_defaults?] != false
+
+          if touch_update_defaults? do
+            update_default_fields =
+              update_defaults
+              |> Keyword.keys()
+              |> Enum.reject(&(&1 in fields_to_upsert or &1 in keys))
+
+            fields_to_upsert ++ update_default_fields
+          else
+            fields_to_upsert
+          end
       end
 
     fields_to_upsert
