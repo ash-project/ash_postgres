@@ -3207,6 +3207,12 @@ defmodule AshPostgres.MigrationGenerator do
             resource
             |> Ash.Resource.Info.attribute(attribute)
 
+          if is_nil(attr) do
+            raise """
+            Cannot create the check constraint '#{constraint.name}', the attribute '#{attribute}' does not exist in the resource '#{resource}' or is nil.
+            """
+          end
+
           attr.source || attr.name
         end)
 
