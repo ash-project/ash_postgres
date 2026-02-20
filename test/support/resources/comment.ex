@@ -100,6 +100,10 @@ defmodule AshPostgres.Test.Comment do
       public?(true)
     end
 
+    has_many(:better_likes, AshPostgres.Test.CommentLike) do
+      public?(true)
+    end
+
     many_to_many(:linked_comments, AshPostgres.Test.Comment) do
       public?(true)
       through(AshPostgres.Test.CommentLink)

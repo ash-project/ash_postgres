@@ -15,6 +15,7 @@ defmodule AshPostgres.Test.Domain do
 
     resource(AshPostgres.Test.Comedian)
     resource(AshPostgres.Test.Comment)
+    resource(AshPostgres.Test.CommentLike)
     resource(AshPostgres.Test.CommentLink)
     resource(AshPostgres.Test.IntegerPost)
     resource(AshPostgres.Test.Rating)

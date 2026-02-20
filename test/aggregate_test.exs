@@ -5,7 +5,7 @@
 defmodule AshSql.AggregateTest do
   use AshPostgres.RepoCase, async: false
   import ExUnit.CaptureIO
-  alias AshPostgres.Test.{Author, Chat, Comment, Organization, Post, Rating, User}
+  alias AshPostgres.Test.{Author, Chat, Comment, CommentLike, Organization, Post, Rating, User}
 
   require Ash.Query
   require Ash.Sort
@@ -468,6 +468,59 @@ defmodule AshSql.AggregateTest do
                |> Ash.Query.filter(id == ^post.id)
                |> Ash.Query.load(:count_of_comments_called_match)
                |> Ash.read_one!()
+    end
+
+    test "organization like aggregates count likes and dedupe unique likers" do
+      org =
+        Organization
+        |> Ash.Changeset.for_create(:create, %{name: "The Org"})
+        |> Ash.create!()
+
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
+        |> Ash.Changeset.manage_relationship(:organization, org, type: :append_and_remove)
+        |> Ash.create!()
+
+      comment_1 =
+        Comment
+        |> Ash.Changeset.for_create(:create, %{title: "comment 1"})
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Ash.create!()
+
+      comment_2 =
+        Comment
+        |> Ash.Changeset.for_create(:create, %{title: "comment 2"})
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Ash.create!()
+
+      author_1 =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "A", last_name: "One"})
+        |> Ash.create!()
+
+      author_2 =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "B", last_name: "Two"})
+        |> Ash.create!()
+
+      [{comment_1, author_1}, {comment_2, author_1}, {comment_1, author_2}]
+      |> Enum.each(fn {comment, author} ->
+        CommentLike
+        |> Ash.Changeset.for_create(:create, %{})
+        |> Ash.Changeset.manage_relationship(:comment, comment, type: :append_and_remove)
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Ash.create!()
+      end)
+
+      loaded_org =
+        Organization
+        |> Ash.Query.filter(id == ^org.id)
+        |> Ash.Query.load([:org_likes, :unique_org_likers])
+        |> Ash.read_one!()
+
+      assert loaded_org.org_likes == 3
+      assert loaded_org.unique_org_likers == 2
     end
   end
 
