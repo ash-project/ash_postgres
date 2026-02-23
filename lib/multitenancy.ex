@@ -45,7 +45,7 @@ defmodule AshPostgres.MultiTenancy do
     |> Enum.filter(& &1)
     |> Enum.map(&load_migration_with_file!/1)
     |> Enum.each(fn {version, mod, file} ->
-      requires_no_transaction? = migration_requires_no_transaction?(file, mod)
+      requires_no_transaction? = migration_requires_no_transaction?(mod)
 
       if requires_no_transaction? do
         # For migrations that require no transaction (e.g., concurrent indexes),
@@ -133,27 +133,17 @@ defmodule AshPostgres.MultiTenancy do
     ~r/^[a-zA-Z0-9_-]+$/
   end
 
-  # Check if a migration requires no transaction by examining the file content
-  # and the migration module attributes
-  defp migration_requires_no_transaction?(file, mod) do
-    # First check the file content for @disable_ddl_transaction
-    file_content = File.read!(file)
-    has_disable_ddl_transaction? = String.contains?(file_content, "@disable_ddl_transaction")
-
-    # Also check if the module has the attribute set (for compiled modules)
-    has_module_attribute? =
-      try do
-        if function_exported?(mod, :__migration__, 0) do
-          migration_info = mod.__migration__()
-          Map.get(migration_info, :disable_ddl_transaction, false)
-        else
-          false
-        end
-      rescue
-        _ -> false
-      end
-
-    has_disable_ddl_transaction? || has_module_attribute?
+  # Check if a migration requires no transaction by examining the compiled module's
+  # migration metadata. The module is already compiled at this point, so we ask
+  # the module directly rather than reading the file. This also catches cases
+  # where the attribute is set programmatically via Module.put_attribute/3.
+  defp migration_requires_no_transaction?(mod) do
+    if function_exported?(mod, :__migration__, 0) do
+      migration_info = mod.__migration__()
+      Map.get(migration_info, :disable_ddl_transaction, false)
+    else
+      false
+    end
   end
 
   # Run a migration that requires no transaction outside of any transaction context
