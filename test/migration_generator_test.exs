@@ -3491,13 +3491,13 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
   describe "varchar migration_types on modify" do
     setup do
-      on_exit(fn ->
-        File.rm_rf!("test_snapshots_path")
-        File.rm_rf!("test_migration_path")
-      end)
+      :ok
     end
 
-    test "modify includes varchar size when adding migration_types to existing string column" do
+    test "modify includes varchar size when adding migration_types to existing string column", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
       defresource MyResource do
         postgres do
           table "my_resources"
@@ -3517,8 +3517,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defdomain([MyResource])
 
       AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
         quiet: true,
         format: false,
         auto_name: true
@@ -3542,29 +3542,27 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
         quiet: true,
         format: false,
         auto_name: true
       )
 
-      migration_files =
-        Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-        |> Enum.reject(&String.contains?(&1, "extensions"))
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
-      assert length(migration_files) == 2,
-             "Expected 2 migrations: initial create + modify. Got #{length(migration_files)}"
+      second_migration = File.read!(file2)
 
-      second_migration = File.read!(Enum.at(migration_files, 1))
-
-      assert second_migration =~ ~S[modify :blibs, :varchar, size: 255],
-             "Expected modify to include size: 255 for varchar. Migration:\n#{second_migration}"
-
+      assert second_migration =~ ~S[modify :blibs, :varchar, size: 255]
       assert second_migration =~ ~S[modify :blibs, :text]
     end
 
-    test "modify includes new size when changing from one varchar size to another" do
+    test "modify includes new size when changing from one varchar size to another", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
       defresource MyResource do
         postgres do
           table "my_resources_varchar_change"
@@ -3585,8 +3583,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defdomain([MyResource])
 
       AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
         quiet: true,
         format: false,
         auto_name: true
@@ -3610,26 +3608,27 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
         quiet: true,
         format: false,
         auto_name: true
       )
 
-      migration_files =
-        Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-        |> Enum.reject(&String.contains?(&1, "extensions"))
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
-      assert length(migration_files) == 2
-
-      second_migration = File.read!(Enum.at(migration_files, 1))
+      second_migration = File.read!(file2)
 
       assert second_migration =~ ~S[modify :blibs, :varchar, size: 255]
       assert second_migration =~ ~S[modify :blibs, :varchar, size: 100]
     end
 
-    test "modify includes size when changing text to binary with migration_types" do
+    test "modify includes size when changing text to binary with migration_types", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
       defresource MyResource do
         postgres do
           table "my_resources_binary"
@@ -3649,8 +3648,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defdomain([MyResource])
 
       AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
         quiet: true,
         format: false,
         auto_name: true
@@ -3674,26 +3673,27 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
         quiet: true,
         format: false,
         auto_name: true
       )
 
-      migration_files =
-        Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-        |> Enum.reject(&String.contains?(&1, "extensions"))
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
-      assert length(migration_files) == 2
-
-      second_migration = File.read!(Enum.at(migration_files, 1))
+      second_migration = File.read!(file2)
 
       assert second_migration =~ ~S[modify :blobs, :binary, size: 500]
       assert second_migration =~ ~S[modify :blobs, :text]
     end
 
-    test "modify only affects attribute with migration_types when multiple string attributes exist" do
+    test "modify only affects attribute with migration_types when multiple string attributes exist", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
       defresource MyResource do
         postgres do
           table "my_resources_multi"
@@ -3714,8 +3714,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
       defdomain([MyResource])
 
       AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
         quiet: true,
         format: false,
         auto_name: true
@@ -3740,23 +3740,20 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "test_snapshots_path",
-        migration_path: "test_migration_path",
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
         quiet: true,
         format: false,
         auto_name: true
       )
 
-      migration_files =
-        Enum.sort(Path.wildcard("test_migration_path/**/*_migrate_resources*.exs"))
-        |> Enum.reject(&String.contains?(&1, "extensions"))
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
 
-      assert length(migration_files) == 2
-
-      second_migration = File.read!(Enum.at(migration_files, 1))
+      second_migration = File.read!(file2)
 
       assert second_migration =~ ~S[modify :blibs, :varchar, size: 255]
-
       refute second_migration =~ ~S[modify :blobs]
     end
   end

@@ -567,7 +567,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       size =
         if attribute[:size] &&
              (Map.get(attribute, :size) != Map.get(old_attribute, :size) ||
-                attribute.type in [:varchar, :binary]) do
+                attribute.type != old_attribute.type) do
           ", size: #{attribute.size}"
         end
 
