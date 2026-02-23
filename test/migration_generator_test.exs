@@ -3690,10 +3690,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert second_migration =~ ~S[modify :blobs, :text]
     end
 
-    test "modify only affects attribute with migration_types when multiple string attributes exist", %{
-      snapshot_path: snapshot_path,
-      migration_path: migration_path
-    } do
+    test "modify only affects attribute with migration_types when multiple string attributes exist",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
       defresource MyResource do
         postgres do
           table "my_resources_multi"
