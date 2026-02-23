@@ -1,8 +1,10 @@
-# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs.contributors>
+# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>
 #
 # SPDX-License-Identifier: MIT
 
 import Config
+
+config :ash, :bulk_actions_default_to_errors?, true
 
 if Mix.env() == :dev do
   config :git_ops,

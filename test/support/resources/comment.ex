@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs.contributors>
+# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>
 #
 # SPDX-License-Identifier: MIT
 
@@ -112,6 +112,13 @@ defmodule AshPostgres.Test.Comment do
       destination_attribute: :resource_id,
       relationship_context: %{data_layer: %{table: "comment_ratings"}}
     )
+
+    has_many :top_ratings, AshPostgres.Test.Rating do
+      destination_attribute(:resource_id)
+      relationship_context(%{data_layer: %{table: "comment_ratings"}})
+      sort(score: :desc)
+      limit(2)
+    end
 
     has_many(:popular_ratings, AshPostgres.Test.Rating,
       public?: true,

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs.contributors>
+# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>
 #
 # SPDX-License-Identifier: MIT
 
@@ -255,17 +255,6 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     LANGUAGE PLPGSQL
     SET search_path = ''
     VOLATILE;
-    \"\"\")
-
-    execute(\"\"\"
-    CREATE OR REPLACE FUNCTION timestamp_from_uuid_v7(_uuid uuid)
-    RETURNS TIMESTAMP WITHOUT TIME ZONE
-    AS $$
-      SELECT to_timestamp(('x0000' || substr(_uuid::TEXT, 1, 8) || substr(_uuid::TEXT, 10, 4))::BIT(64)::BIGINT::NUMERIC / 1000);
-    $$
-    LANGUAGE SQL
-    SET search_path = ''
-    IMMUTABLE PARALLEL SAFE STRICT;
     \"\"\")
     """
   end

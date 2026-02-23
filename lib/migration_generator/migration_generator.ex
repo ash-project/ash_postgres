@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs.contributors>
+# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>
 #
 # SPDX-License-Identifier: MIT
 
@@ -268,12 +268,12 @@ defmodule AshPostgres.MigrationGenerator do
         {module, migration_name} =
           case to_install do
             [{ext_name, version, _up_fn, _down_fn}] ->
-              {"install_#{ext_name}_v#{version}_#{timestamp(true)}",
-               "#{timestamp(true)}_install_#{ext_name}_v#{version}_extension#{dev}"}
+              {"install_#{ext_name}_v#{version}_#{timestamp()}",
+               "#{timestamp()}_install_#{ext_name}_v#{version}_extension#{dev}"}
 
             ["ash_functions"] ->
-              {"install_ash_functions_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}_#{timestamp(true)}",
-               "#{timestamp(true)}_install_ash_functions_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}"}
+              {"install_ash_functions_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}_#{timestamp()}",
+               "#{timestamp()}_install_ash_functions_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}"}
 
             _multiple ->
               migration_path = migration_path(opts, repo, false)
@@ -303,7 +303,7 @@ defmodule AshPostgres.MigrationGenerator do
                   |> Kernel.+(1)
 
                 {"#{opts.name}_extensions_#{count}",
-                 "#{timestamp(true)}_#{opts.name}_extensions_#{count}#{dev}"}
+                 "#{timestamp()}_#{opts.name}_extensions_#{count}#{dev}"}
               else
                 count =
                   migration_path
@@ -327,7 +327,7 @@ defmodule AshPostgres.MigrationGenerator do
                   |> Kernel.+(1)
 
                 {"migrate_resources_extensions_#{count}",
-                 "#{timestamp(true)}_migrate_resources_extensions_#{count}#{dev}"}
+                 "#{timestamp()}_migrate_resources_extensions_#{count}#{dev}"}
               end
           end
 
@@ -540,7 +540,8 @@ defmodule AshPostgres.MigrationGenerator do
     if tenant? do
       Ecto.Migrator.with_repo(repo, fn repo ->
         for prefix <- repo.all_tenants() do
-          {repo, query, opts} = Ecto.Migration.SchemaMigration.versions(repo, [], prefix)
+          {repo, query, opts} =
+            Ecto.Migration.SchemaMigration.versions(repo, repo.config(), prefix)
 
           repo.transaction(fn ->
             versions = repo.all(query, Keyword.put(opts, :timeout, :infinity))
@@ -574,7 +575,7 @@ defmodule AshPostgres.MigrationGenerator do
       end)
     else
       Ecto.Migrator.with_repo(repo, fn repo ->
-        {repo, query, opts} = Ecto.Migration.SchemaMigration.versions(repo, [], nil)
+        {repo, query, opts} = Ecto.Migration.SchemaMigration.versions(repo, repo.config(), nil)
 
         repo.transaction(fn ->
           versions = repo.all(query, opts)
@@ -621,11 +622,13 @@ defmodule AshPostgres.MigrationGenerator do
   defp load_migration!({version, _, file}) when is_binary(file) do
     loaded_modules = file |> compile_file() |> Enum.map(&elem(&1, 0))
 
-    if mod = Enum.find(loaded_modules, &migration?/1) do
-      {version, mod}
-    else
-      raise Ecto.MigrationError,
-            "file #{Path.relative_to_cwd(file)} does not define an Ecto.Migration"
+    case Enum.find(loaded_modules, &migration?/1) do
+      nil ->
+        raise Ecto.MigrationError,
+              "file #{Path.relative_to_cwd(file)} does not define an Ecto.Migration"
+
+      mod ->
+        {version, mod}
     end
   end
 
@@ -1073,22 +1076,22 @@ defmodule AshPostgres.MigrationGenerator do
     config = repo.config()
 
     if tenant? do
-      if path = opts.tenant_migration_path || config[:tenant_migrations_path] do
-        path
-      else
-        priv =
-          AshPostgres.Mix.Helpers.source_repo_priv(repo)
+      case opts.tenant_migration_path || config[:tenant_migrations_path] do
+        nil ->
+          priv = AshPostgres.Mix.Helpers.source_repo_priv(repo)
+          Path.join(priv, "tenant_migrations")
 
-        Path.join(priv, "tenant_migrations")
+        path ->
+          path
       end
     else
-      if path = opts.migration_path || config[:migrations_path] do
-        path
-      else
-        priv =
-          AshPostgres.Mix.Helpers.source_repo_priv(repo)
+      case opts.migration_path || config[:migrations_path] do
+        nil ->
+          priv = AshPostgres.Mix.Helpers.source_repo_priv(repo)
+          Path.join(priv, "migrations")
 
-        Path.join(priv, "migrations")
+        path ->
+          path
       end
     end
   end
@@ -1104,7 +1107,7 @@ defmodule AshPostgres.MigrationGenerator do
 
     {migration_name, last_part} =
       if opts.name do
-        {"#{timestamp(true)}_#{opts.name}", "#{opts.name}"}
+        {"#{timestamp()}_#{opts.name}", "#{opts.name}"}
       else
         count =
           migration_path
@@ -1127,7 +1130,7 @@ defmodule AshPostgres.MigrationGenerator do
           |> Enum.max(fn -> 0 end)
           |> Kernel.+(1)
 
-        {"#{timestamp(true)}_migrate_resources#{count}", "migrate_resources#{count}"}
+        {"#{timestamp()}_migrate_resources#{count}", "migrate_resources#{count}"}
       end
 
     migration_file =
@@ -2151,7 +2154,8 @@ defmodule AshPostgres.MigrationGenerator do
           table: snapshot.table,
           schema: snapshot.schema,
           source: attribute.source,
-          multitenancy: snapshot.multitenancy
+          multitenancy: snapshot.multitenancy,
+          old_multitenancy: old_snapshot.multitenancy
         }
       end)
 
@@ -2660,7 +2664,8 @@ defmodule AshPostgres.MigrationGenerator do
             []
           end
 
-        if Map.get(old_attribute, :references) != Map.get(new_attribute, :references) do
+        if Map.get(old_attribute, :references) != Map.get(new_attribute, :references) and
+             references_differ_beyond_index?(old_attribute, new_attribute) do
           redo_deferrability =
             if has_reference?(old_snapshot.multitenancy, old_attribute) and
                  differently_deferrable?(new_attribute, old_attribute) do
@@ -2767,6 +2772,27 @@ defmodule AshPostgres.MigrationGenerator do
     do: true
 
   defp differently_deferrable?(_, _), do: false
+
+  # When the only reference change is index? (add/remove index), we should not emit
+  # DropForeignKey + AlterAttribute; the separate AddReferenceIndex/RemoveReferenceIndex
+  # operations handle it. This avoids migrations that drop and re-add the same FK.
+  defp references_differ_beyond_index?(old_attr, new_attr) do
+    old_refs = Map.get(old_attr, :references)
+    new_refs = Map.get(new_attr, :references)
+
+    cond do
+      old_refs == new_refs ->
+        false
+
+      is_nil(old_refs) or is_nil(new_refs) ->
+        true
+
+      true ->
+        old_without_index = Map.delete(old_refs, :index?)
+        new_without_index = Map.delete(new_refs, :index?)
+        old_without_index != new_without_index
+    end
+  end
 
   # This exists to handle the fact that the remapping of the key name -> source caused attributes
   # to be considered unequal. We ignore things that only differ in that way using this function.
@@ -3013,12 +3039,34 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  defp timestamp(require_unique? \\ false) do
-    # Alright, this is silly I know. But migration ids need to be unique
-    # and "synthesizing" that behavior is significantly more annoying than
-    # just waiting a bit, ensuring the migration versions are unique.
-    if require_unique?, do: :timer.sleep(1500)
+  defp timestamp do
     {{y, m, d}, {hh, mm, ss}} = :calendar.universal_time()
+    current = "#{y}#{pad(m)}#{pad(d)}#{pad(hh)}#{pad(mm)}#{pad(ss)}"
+
+    last = Process.get(:ash_postgres_last_migration_timestamp)
+
+    result =
+      if last && current <= last do
+        increment_timestamp(last)
+      else
+        current
+      end
+
+    Process.put(:ash_postgres_last_migration_timestamp, result)
+    result
+  end
+
+  defp increment_timestamp(timestamp) do
+    <<y::binary-4, m::binary-2, d::binary-2, hh::binary-2, mm::binary-2, ss::binary-2>> =
+      timestamp
+
+    seconds =
+      :calendar.datetime_to_gregorian_seconds({
+        {String.to_integer(y), String.to_integer(m), String.to_integer(d)},
+        {String.to_integer(hh), String.to_integer(mm), String.to_integer(ss)}
+      })
+
+    {{y, m, d}, {hh, mm, ss}} = :calendar.gregorian_seconds_to_datetime(seconds + 1)
     "#{y}#{pad(m)}#{pad(d)}#{pad(hh)}#{pad(mm)}#{pad(ss)}"
   end
 

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs.contributors>
+# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>
 #
 # SPDX-License-Identifier: MIT
 
@@ -25,6 +25,7 @@ defmodule AshPostgres.Test.Tag do
 
   attributes do
     uuid_primary_key(:id)
+    attribute(:title, :string, allow_nil?: true, public?: true)
     attribute(:importance, :integer, allow_nil?: false, default: 0, public?: true)
   end
 
@@ -47,5 +48,13 @@ defmodule AshPostgres.Test.Tag do
       filter(expr(tags.id == parent(id)))
       sort(score_after_winning: :desc)
     end
+  end
+
+  calculations do
+    calculate(
+      :has_post_with_comment_with_same_title,
+      :boolean,
+      expr(title in posts.uniq_comment_titles)
+    )
   end
 end

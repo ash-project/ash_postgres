@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs.contributors>
+# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>
 #
 # SPDX-License-Identifier: MIT
 
@@ -597,6 +597,7 @@ defmodule AshPostgres.FilterTest do
 
       author1_id = author1.id
 
+      # credo:disable-for-lines:4 Credo.Check.Warning.ExpensiveEmptyEnumCheck
       assert [%{id: ^author1_id}] =
                Author
                |> Ash.Query.filter(length(badges) > 0)
@@ -616,6 +617,7 @@ defmodule AshPostgres.FilterTest do
 
       author1_id = author1.id
 
+      # credo:disable-for-lines:4 Credo.Check.Warning.ExpensiveEmptyEnumCheck
       assert [%{id: ^author1_id}] =
                Author
                |> Ash.Query.filter(length(badges || []) > 0)
@@ -632,6 +634,7 @@ defmodule AshPostgres.FilterTest do
 
       explicit_list = [:foo]
 
+      # credo:disable-for-lines:4 Credo.Check.Warning.ExpensiveEmptyEnumCheck
       assert [%{id: ^author1_id}] =
                Author
                |> Ash.Query.filter(length(^explicit_list) > 0)
@@ -648,6 +651,7 @@ defmodule AshPostgres.FilterTest do
       |> Ash.Changeset.new()
       |> Ash.create!()
 
+      # credo:disable-for-lines:5 Credo.Check.Warning.ExpensiveEmptyEnumCheck
       assert_raise(Ash.Error.Unknown, fn ->
         Author
         |> Ash.Query.filter(length(first_name) > 0)
@@ -1149,6 +1153,43 @@ defmodule AshPostgres.FilterTest do
            |> Ash.Query.filter(exists(first_member, id == ^cm1.id))
            |> Ash.read!()
            |> length == 1
+  end
+
+  test "using exists with has_many with limit" do
+    comment =
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "test"})
+      |> Ash.create!()
+
+    for score <- 1..5 do
+      Ash.Changeset.for_create(AshPostgres.Test.Rating, :create, %{
+        score: score,
+        resource_id: comment.id
+      })
+      |> Ash.create!(context: %{data_layer: %{table: "comment_ratings"}})
+    end
+
+    # The top_ratings relationship has limit: 2 and sort: [score: :desc]
+    # So it should only include ratings with scores 5 and 4
+    assert Comment
+           |> Ash.Query.filter(exists(top_ratings, score == 5))
+           |> Ash.read!()
+           |> length() == 1
+
+    assert Comment
+           |> Ash.Query.filter(exists(top_ratings, score == 4))
+           |> Ash.read!()
+           |> length() == 1
+
+    assert Comment
+           |> Ash.Query.filter(exists(top_ratings, score == 3))
+           |> Ash.read!()
+           |> length() == 0
+
+    assert Comment
+           |> Ash.Query.filter(exists(top_ratings, score == 1))
+           |> Ash.read!()
+           |> length() == 0
   end
 
   test "using `(is_nil(relationship) and other_relation_filter)` will trigger left join" do

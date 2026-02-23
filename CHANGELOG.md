@@ -11,6 +11,61 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.32](https://github.com/ash-project/ash_postgres/compare/v2.6.31...v2.6.32) (2026-02-11)
+
+
+
+
+### Bug Fixes:
+
+* produce correct error on `restrict` managed_relationship behavior (#690) by lincolnhuls
+
+### Improvements:
+
+* Split up usage rules into sub-rules (#691) by Mylan Connolly
+
+## [v2.6.31](https://github.com/ash-project/ash_postgres/compare/v2.6.30...v2.6.31) (2026-02-05)
+
+
+
+
+### Bug Fixes:
+
+* handle atomic no_rollback errors during creates by Zach Daniel
+
+* correct test expectation for `first` aggregate with `include_nil?` (#683) by sevenseacat
+
+## [v2.6.30](https://github.com/ash-project/ash_postgres/compare/v2.6.29...v2.6.30) (2026-02-04)
+
+
+* fix for atomic create support
+
+## [v2.6.29](https://github.com/ash-project/ash_postgres/compare/v2.6.28...v2.6.29) (2026-02-03)
+
+
+
+
+### Improvements:
+
+* support atomic creates by Zach Daniel
+
+## [v2.6.28](https://github.com/ash-project/ash_postgres/compare/v2.6.27...v2.6.28) (2026-01-29)
+
+
+
+
+### Bug Fixes:
+
+* properly wrap through queries with subqueries in wheres by Zach Daniel
+
+### Improvements:
+
+* Update AshFunctions, remove timestamp_from_uuid_v7 (#676) by Matt Savoia
+
+* Update MigrationGenerator to use uuidv7 when available (#674) by Matt Savoia
+
+* add create_table_options for partitioned tables and more (#664) by Robert Graff
+
 ## [v2.6.27](https://github.com/ash-project/ash_postgres/compare/v2.6.26...v2.6.27) (2025-12-24)
 
 

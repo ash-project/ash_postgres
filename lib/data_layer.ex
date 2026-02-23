@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs.contributors>
+# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>
 #
 # SPDX-License-Identifier: MIT
 
@@ -706,6 +706,9 @@ defmodule AshPostgres.DataLayer do
   def can?(resource, {:atomic, :upsert}),
     do: not AshPostgres.DataLayer.Info.repo(resource, :mutate).disable_atomic_actions?()
 
+  def can?(resource, {:atomic, :create}),
+    do: not AshPostgres.DataLayer.Info.repo(resource, :mutate).disable_atomic_actions?()
+
   def can?(_, :upsert), do: true
   def can?(_, :changeset_filter), do: true
 
@@ -913,7 +916,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def set_tenant(resource, query, tenant) do
-    if Ash.Resource.Info.multitenancy_strategy(resource) == :context do
+    if Ash.Resource.Info.multitenancy_strategy(resource) == :context && tenant do
       {:ok, Map.put(Ecto.Query.put_query_prefix(query, to_string(tenant)), :__tenant__, tenant)}
     else
       {:ok, query}
@@ -1272,9 +1275,15 @@ defmodule AshPostgres.DataLayer do
             through_query = Ecto.Query.exclude(through_query, :select)
 
             # Determine if we need to wrap through_query in a subquery
+            # We also need to wrap if any wheres have subqueries, because Ecto's
+            # query_to_joins converts wheres to on clauses but doesn't preserve subqueries
+            has_subqueries_in_wheres? =
+              Enum.any?(through_query.wheres, fn w -> w.subqueries != [] end)
+
             needs_subquery? =
               through_query.limit != nil || through_query.order_bys != [] ||
                 (through_query.joins && through_query.joins != []) ||
+                has_subqueries_in_wheres? ||
                 (Ash.Resource.Info.multitenancy_strategy(relationship.through) == :context &&
                    source_query.tenant)
 
@@ -2093,7 +2102,37 @@ defmodule AshPostgres.DataLayer do
           opts
         end
 
-      ecto_changesets = Enum.map(changesets, & &1.attributes)
+      create_atomics = Map.get(Enum.at(changesets, 0), :create_atomics, [])
+
+      atomic_insert_values =
+        if create_atomics != [] do
+          # Hydrate expressions to convert Ash.Query.Call structs to proper function structs
+          create_atomics =
+            Enum.map(create_atomics, fn {key, expr} ->
+              case Ash.Filter.hydrate_refs(expr, %{resource: resource, public?: false}) do
+                {:ok, hydrated_expr} -> {key, hydrated_expr}
+                {:error, error} -> raise Ash.Error.to_ash_error(error)
+              end
+            end)
+
+          query = from(row in source, as: ^0)
+
+          query =
+            query
+            |> AshSql.Bindings.default_bindings(resource, AshPostgres.SqlImplementation)
+
+          case AshSql.Atomics.atomics_to_insert_values(resource, query, create_atomics) do
+            {:ok, values} -> values
+            {:error, error} -> raise Ash.Error.to_ash_error(error)
+          end
+        else
+          %{}
+        end
+
+      ecto_changesets =
+        Enum.map(changesets, fn cs ->
+          Map.merge(cs.attributes, atomic_insert_values)
+        end)
 
       opts =
         if schema = Enum.at(changesets, 0).context[:data_layer][:schema] do
@@ -2336,8 +2375,27 @@ defmodule AshPostgres.DataLayer do
 
     fields_to_upsert =
       case fields_to_upsert do
-        [] -> keys
-        fields_to_upsert -> fields_to_upsert
+        [] ->
+          keys
+
+        fields_to_upsert ->
+          # Include fields with update_defaults (e.g. update_timestamp)
+          # even if they aren't in the changeset attributes or upsert_fields.
+          # These fields should always be refreshed when an upsert modifies fields.
+          # Can be disabled via context: %{data_layer: %{touch_update_defaults?: false}}
+          touch_update_defaults? =
+            Enum.at(changesets, 0).context[:data_layer][:touch_update_defaults?] != false
+
+          if touch_update_defaults? do
+            update_default_fields =
+              update_defaults
+              |> Keyword.keys()
+              |> Enum.reject(&(&1 in fields_to_upsert or &1 in keys))
+
+            fields_to_upsert ++ update_default_fields
+          else
+            fields_to_upsert
+          end
       end
 
     fields_to_upsert
@@ -2413,6 +2471,9 @@ defmodule AshPostgres.DataLayer do
 
       {:error, error} ->
         {:error, error}
+
+      {:error, :no_rollback, error} ->
+        {:error, :no_rollback, error}
     end
   end
 
@@ -2626,7 +2687,16 @@ defmodule AshPostgres.DataLayer do
        ) do
     case Ecto.Adapters.Postgres.Connection.to_constraints(error, []) do
       [] ->
-        {:error, Ash.Error.to_ash_error(error, stacktrace)}
+        constraints = maybe_foreign_key_violation_constraints(error)
+
+        if constraints != [] do
+          {:error,
+           changeset
+           |> constraints_to_errors(:delete, constraints, resource, error)
+           |> Ash.Error.to_ash_error()}
+        else
+          {:error, Ash.Error.to_ash_error(error, stacktrace)}
+        end
 
       constraints ->
         {:error,
@@ -2639,6 +2709,20 @@ defmodule AshPostgres.DataLayer do
   defp handle_raised_error(error, stacktrace, _ecto_changeset, _resource) do
     {:error, Ash.Error.to_ash_error(error, stacktrace)}
   end
+
+  defp maybe_foreign_key_violation_constraints(%Postgrex.Error{postgres: postgres})
+       when is_map(postgres) do
+    code = postgres[:code] || postgres["code"]
+    constraint = postgres[:constraint] || postgres["constraint"]
+
+    if code in ["23503", 23_503, :foreign_key_violation] and is_binary(constraint) do
+      [{:foreign_key, constraint}]
+    else
+      []
+    end
+  end
+
+  defp maybe_foreign_key_violation_constraints(_), do: []
 
   defp constraints_to_errors(
          %{constraints: user_constraints} = changeset,

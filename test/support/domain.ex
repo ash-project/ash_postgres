@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs.contributors>
+# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>
 #
 # SPDX-License-Identifier: MIT
 
@@ -66,6 +66,7 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.MealItem)
     resource(AshPostgres.Test.Container)
     resource(AshPostgres.Test.Item)
+    resource(AshPostgres.Test.AfterTransactionPost)
   end
 
   authorization do

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs.contributors>
+# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>
 #
 # SPDX-License-Identifier: MIT
 
@@ -17,6 +17,22 @@ defmodule AshPostgres.BulkCreateTest do
                Post
                |> Ash.Query.sort(:title)
                |> Ash.read!()
+    end
+
+    test "bulk creates with atomic_set applies to all records" do
+      assert %Ash.BulkResult{status: :success, records: records} =
+               Ash.bulk_create(
+                 [%{title: "post1"}, %{title: "post2"}, %{title: "post3"}],
+                 Post,
+                 :create_with_atomic_set,
+                 return_records?: true
+               )
+
+      assert length(records) == 3
+
+      for record <- records do
+        assert record.score == 100
+      end
     end
 
     test "bulk creates perform before action hooks" do
@@ -85,6 +101,137 @@ defmodule AshPostgres.BulkCreateTest do
                  _ ->
                    nil
                end)
+    end
+
+    test "bulk creates with upsert updates update_timestamp" do
+      past = DateTime.add(DateTime.utc_now(), -60, :second)
+
+      assert [
+               {:ok, %{title: "fred", uniq_one: "one", uniq_two: "two"} = initial}
+             ] =
+               Ash.bulk_create!(
+                 [
+                   %{
+                     title: "fred",
+                     uniq_one: "one",
+                     uniq_two: "two",
+                     price: 10,
+                     updated_at: past
+                   }
+                 ],
+                 Post,
+                 :create,
+                 return_stream?: true,
+                 return_records?: true
+               )
+               |> Enum.to_list()
+
+      assert DateTime.compare(initial.updated_at, past) == :eq
+
+      assert [
+               {:ok, %{title: "fred", uniq_one: "one", uniq_two: "two", price: 1000} = upserted}
+             ] =
+               Ash.bulk_create!(
+                 [%{title: "something", uniq_one: "one", uniq_two: "two", price: 1000}],
+                 Post,
+                 :create,
+                 upsert?: true,
+                 upsert_identity: :uniq_one_and_two,
+                 upsert_fields: [:price],
+                 return_stream?: true,
+                 return_errors?: true,
+                 return_records?: true
+               )
+               |> Enum.to_list()
+
+      assert DateTime.after?(upserted.updated_at, initial.updated_at)
+    end
+
+    test "bulk creates with empty upsert does not update update_timestamp" do
+      past = DateTime.add(DateTime.utc_now(), -60, :second)
+
+      assert [
+               {:ok, %{title: "fred", uniq_one: "one", uniq_two: "two"} = initial}
+             ] =
+               Ash.bulk_create!(
+                 [
+                   %{
+                     title: "fred",
+                     uniq_one: "one",
+                     uniq_two: "two",
+                     price: 10,
+                     updated_at: past
+                   }
+                 ],
+                 Post,
+                 :create,
+                 return_stream?: true,
+                 return_records?: true
+               )
+               |> Enum.to_list()
+
+      assert [
+               {:ok, %{title: "fred"} = upserted}
+             ] =
+               Ash.bulk_create!(
+                 [%{title: "something", uniq_one: "one", uniq_two: "two", price: 1000}],
+                 Post,
+                 :create,
+                 upsert?: true,
+                 upsert_identity: :uniq_one_and_two,
+                 upsert_fields: [],
+                 return_stream?: true,
+                 return_errors?: true,
+                 return_records?: true
+               )
+               |> Enum.to_list()
+
+      assert DateTime.compare(upserted.updated_at, initial.updated_at) == :eq
+    end
+
+    test "bulk creates with upsert does not update update_timestamp when touch_update_defaults? is false" do
+      past = DateTime.add(DateTime.utc_now(), -60, :second)
+
+      assert [
+               {:ok, %{title: "fred", uniq_one: "one", uniq_two: "two"} = initial}
+             ] =
+               Ash.bulk_create!(
+                 [
+                   %{
+                     title: "fred",
+                     uniq_one: "one",
+                     uniq_two: "two",
+                     price: 10,
+                     updated_at: past
+                   }
+                 ],
+                 Post,
+                 :create,
+                 return_stream?: true,
+                 return_records?: true
+               )
+               |> Enum.to_list()
+
+      assert DateTime.compare(initial.updated_at, past) == :eq
+
+      assert [
+               {:ok, %{title: "fred", uniq_one: "one", uniq_two: "two", price: 1000} = upserted}
+             ] =
+               Ash.bulk_create!(
+                 [%{title: "something", uniq_one: "one", uniq_two: "two", price: 1000}],
+                 Post,
+                 :create,
+                 upsert?: true,
+                 upsert_identity: :uniq_one_and_two,
+                 upsert_fields: [:price],
+                 context: %{data_layer: %{touch_update_defaults?: false}},
+                 return_stream?: true,
+                 return_errors?: true,
+                 return_records?: true
+               )
+               |> Enum.to_list()
+
+      assert DateTime.compare(upserted.updated_at, initial.updated_at) == :eq
     end
 
     test "bulk upsert skips with filter" do
@@ -399,9 +546,10 @@ defmodule AshPostgres.BulkCreateTest do
   end
 
   describe "validation errors" do
-    test "skips invalid by default" do
+    test "skips invalid with stop_on_error?: false" do
       assert %{records: [_], errors: [_]} =
                Ash.bulk_create([%{title: "fred"}, %{title: "not allowed"}], Post, :create,
+                 stop_on_error?: false,
                  return_records?: true,
                  return_errors?: true
                )
@@ -451,6 +599,7 @@ defmodule AshPostgres.BulkCreateTest do
         [%{title: "george", organization_id: Ash.UUID.generate()}, %{title: "fred"}],
         Post,
         :create,
+        stop_on_error?: false,
         return_records?: true,
         batch_size: 1
       )

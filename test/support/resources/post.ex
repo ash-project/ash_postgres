@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs.contributors>
+# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>
 #
 # SPDX-License-Identifier: MIT
 
@@ -29,12 +29,14 @@ defmodule HasNoComments do
           expr(exists(comments, true))
 
         :list ->
+          # credo:disable-for-next-line Credo.Check.Warning.ExpensiveEmptyEnumCheck
           expr(length(list(comments, field: :id)) > 0)
 
         :count ->
           expr(count(comments) > 0)
 
         :combined ->
+          # credo:disable-for-lines:4 Credo.Check.Warning.ExpensiveEmptyEnumCheck
           expr(
             exists(comments, true) and
               length(list(comments, field: :id)) > 0 and
@@ -403,6 +405,10 @@ defmodule AshPostgres.Test.Post do
           on_match: :create
         )
       )
+    end
+
+    create :create_with_atomic_set do
+      change(atomic_set(:score, expr(100)))
     end
 
     defmodule HasBeforeAction do

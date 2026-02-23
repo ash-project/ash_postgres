@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs.contributors>
+# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>
 #
 # SPDX-License-Identifier: MIT
 
@@ -738,6 +738,31 @@ defmodule AshSql.AggregateTest do
 
       assert Enum.sort(user.years_visited) == ["1955", "1985", "1985", "2015"]
     end
+
+    test "reproduction of a bug where joins involving an aggregate use the wrong id on a join condition" do
+      tag =
+        AshPostgres.Test.Tag
+        |> Ash.Changeset.for_create(:create, %{title: "Hello There"})
+        |> Ash.create!()
+
+      post =
+        AshPostgres.Test.Post
+        |> Ash.Changeset.for_create(:create, %{title: "A Post"})
+        |> Ash.create!()
+
+      AshPostgres.Test.Comment
+      |> Ash.Changeset.for_create(:create, %{title: "Hello There"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      _post_tag =
+        AshPostgres.Test.PostTag
+        |> Ash.Changeset.for_create(:create, %{post_id: post.id, tag_id: tag.id})
+        |> Ash.create!()
+
+      assert Ash.calculate!(tag, :has_post_with_comment_with_same_title, authorize?: false) ==
+               true
+    end
   end
 
   describe "first" do
@@ -849,7 +874,9 @@ defmodule AshSql.AggregateTest do
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
 
-      assert "match" ==
+      # With sort(title: :asc_nils_first), nil comes first.
+      # With include_nil?: true, we should get nil (not skip to the next non-nil value)
+      assert nil ==
                Post
                |> Ash.Query.filter(id == ^post.id)
                |> Ash.Query.load(:first_comment_nils_first_include_nil)
