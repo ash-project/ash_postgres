@@ -2375,8 +2375,27 @@ defmodule AshPostgres.DataLayer do
 
     fields_to_upsert =
       case fields_to_upsert do
-        [] -> keys
-        fields_to_upsert -> fields_to_upsert
+        [] ->
+          keys
+
+        fields_to_upsert ->
+          # Include fields with update_defaults (e.g. update_timestamp)
+          # even if they aren't in the changeset attributes or upsert_fields.
+          # These fields should always be refreshed when an upsert modifies fields.
+          # Can be disabled via context: %{data_layer: %{touch_update_defaults?: false}}
+          touch_update_defaults? =
+            Enum.at(changesets, 0).context[:data_layer][:touch_update_defaults?] != false
+
+          if touch_update_defaults? do
+            update_default_fields =
+              update_defaults
+              |> Keyword.keys()
+              |> Enum.reject(&(&1 in fields_to_upsert or &1 in keys))
+
+            fields_to_upsert ++ update_default_fields
+          else
+            fields_to_upsert
+          end
       end
 
     fields_to_upsert
@@ -2668,7 +2687,16 @@ defmodule AshPostgres.DataLayer do
        ) do
     case Ecto.Adapters.Postgres.Connection.to_constraints(error, []) do
       [] ->
-        {:error, Ash.Error.to_ash_error(error, stacktrace)}
+        constraints = maybe_foreign_key_violation_constraints(error)
+
+        if constraints != [] do
+          {:error,
+           changeset
+           |> constraints_to_errors(:delete, constraints, resource, error)
+           |> Ash.Error.to_ash_error()}
+        else
+          {:error, Ash.Error.to_ash_error(error, stacktrace)}
+        end
 
       constraints ->
         {:error,
@@ -2681,6 +2709,20 @@ defmodule AshPostgres.DataLayer do
   defp handle_raised_error(error, stacktrace, _ecto_changeset, _resource) do
     {:error, Ash.Error.to_ash_error(error, stacktrace)}
   end
+
+  defp maybe_foreign_key_violation_constraints(%Postgrex.Error{postgres: postgres})
+       when is_map(postgres) do
+    code = postgres[:code] || postgres["code"]
+    constraint = postgres[:constraint] || postgres["constraint"]
+
+    if code in ["23503", 23_503, :foreign_key_violation] and is_binary(constraint) do
+      [{:foreign_key, constraint}]
+    else
+      []
+    end
+  end
+
+  defp maybe_foreign_key_violation_constraints(_), do: []
 
   defp constraints_to_errors(
          %{constraints: user_constraints} = changeset,

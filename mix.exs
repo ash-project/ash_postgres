@@ -9,7 +9,7 @@ defmodule AshPostgres.MixProject do
   The PostgreSQL data layer for Ash Framework
   """
 
-  @version "2.6.31"
+  @version "2.6.32"
 
   def project do
     [
@@ -44,7 +44,7 @@ defmodule AshPostgres.MixProject do
 
   defp cli do
     [
-      preferred_cli_env: [
+      preferred_envs: [
         coveralls: :test,
         "coveralls.github": :test,
         "test.create": :test,

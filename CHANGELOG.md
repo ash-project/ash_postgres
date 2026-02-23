@@ -11,6 +11,19 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.6.32](https://github.com/ash-project/ash_postgres/compare/v2.6.31...v2.6.32) (2026-02-11)
+
+
+
+
+### Bug Fixes:
+
+* produce correct error on `restrict` managed_relationship behavior (#690) by lincolnhuls
+
+### Improvements:
+
+* Split up usage rules into sub-rules (#691) by Mylan Connolly
+
 ## [v2.6.31](https://github.com/ash-project/ash_postgres/compare/v2.6.30...v2.6.31) (2026-02-05)
 
 
