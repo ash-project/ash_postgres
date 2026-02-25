@@ -2382,9 +2382,8 @@ defmodule AshPostgres.DataLayer do
           # Include fields with update_defaults (e.g. update_timestamp)
           # even if they aren't in the changeset attributes or upsert_fields.
           # These fields should always be refreshed when an upsert modifies fields.
-          # Can be disabled via context: %{data_layer: %{touch_update_defaults?: false}}
-          touch_update_defaults? =
-            Enum.at(changesets, 0).context[:data_layer][:touch_update_defaults?] != false
+          # Can be disabled via touch_update_defaults?: false option
+          touch_update_defaults? = Map.get(options, :touch_update_defaults?, true)
 
           if touch_update_defaults? do
             update_default_fields =
