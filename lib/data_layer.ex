@@ -1114,6 +1114,13 @@ defmodule AshPostgres.DataLayer do
       end
 
     base_query =
+      if Map.get(relationship, :offset) do
+        from(row in base_query, offset: ^relationship.offset)
+      else
+        base_query
+      end
+
+    base_query =
       cond do
         Map.get(relationship, :manual) ->
           {module, opts} = relationship.manual
