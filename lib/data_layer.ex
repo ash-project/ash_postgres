@@ -3206,18 +3206,25 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def upsert(resource, changeset, keys, identity) do
+  def upsert(resource, changeset, keys, identity \\ nil, opts \\ []) do
     if AshPostgres.DataLayer.Info.manage_tenant_update?(resource) do
       {:error, "Cannot currently upsert a resource that owns a tenant"}
     else
       keys = keys || Ash.Resource.Info.primary_key(keys)
 
+      touch_update_defaults? = Keyword.get(opts, :touch_update_defaults?, true)
       update_defaults = update_defaults(resource)
 
       explicitly_changing_attributes =
         changeset.attributes
         |> Map.keys()
-        |> Enum.concat(Keyword.keys(update_defaults))
+        |> then(fn attrs ->
+          if touch_update_defaults? do
+            Enum.concat(attrs, Keyword.keys(update_defaults))
+          else
+            attrs
+          end
+        end)
         |> Kernel.--(Map.get(changeset, :defaults, []))
         |> Kernel.--(keys)
 
@@ -3232,6 +3239,7 @@ defmodule AshPostgres.DataLayer do
              upsert_keys: keys,
              action_select: changeset.action_select,
              upsert_fields: upsert_fields,
+             touch_update_defaults?: touch_update_defaults?,
              return_records?: true
            }) do
         {:ok, []} ->
