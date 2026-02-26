@@ -67,6 +67,8 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.Container)
     resource(AshPostgres.Test.Item)
     resource(AshPostgres.Test.AfterTransactionPost)
+    resource(AshPostgres.Test.RollbackParent)
+    resource(AshPostgres.Test.RollbackChild)
   end
 
   authorization do
