@@ -24,7 +24,7 @@ defmodule AshPostgres.BulkManageRelationshipRollbackTest do
   """
   use AshPostgres.RepoCase, async: false
 
-  alias AshPostgres.Test.{RollbackParent, RollbackChild}
+  alias AshPostgres.Test.{RollbackChild, RollbackParent}
 
   # ============================================================================
   # bulk_create
@@ -297,21 +297,41 @@ defmodule AshPostgres.BulkManageRelationshipRollbackTest do
   # ============================================================================
 
   describe "bulk_destroy: non-bulk control" do
-    test "single destroy with invalid child argument succeeds (relationship management not exercised)" do
-      # NOTE: Single Ash.destroy! does not exercise manage_relationship for
-      # has_many :create — the parent is simply deleted. This control documents
-      # that the single path behaves differently from the bulk path.
+    test "single destroy with invalid child argument rolls back (manage_relationship exercised)" do
       parent =
         Ash.create!(
           Ash.Changeset.for_create(RollbackParent, :create, %{name: "should_be_destroyed"}),
           authorize?: false
         )
 
-      parent
-      |> Ash.Changeset.for_destroy(:destroy_with_children, %{children: [%{title: nil}]})
-      |> Ash.destroy!(authorize?: false)
+      assert {:error, %Ash.Error.Invalid{}} =
+               parent
+               |> Ash.Changeset.for_destroy(:destroy_with_children, %{children: [%{title: nil}]})
+               |> Ash.destroy(authorize?: false)
 
-      assert [] == Ash.read!(RollbackParent, authorize?: false)
+      # Parent should still exist because the transaction rolled back
+      assert [%{name: "should_be_destroyed"}] = Ash.read!(RollbackParent, authorize?: false)
+      assert [] == Ash.read!(RollbackChild, authorize?: false)
+    end
+
+    test "single destroy with valid child argument rolls back due to FK constraint" do
+      # Creating children that belong_to a hard-deleted parent will always fail
+      # at the DB level (FK constraint), so the transaction rolls back.
+      parent =
+        Ash.create!(
+          Ash.Changeset.for_create(RollbackParent, :create, %{name: "should_be_destroyed"}),
+          authorize?: false
+        )
+
+      assert {:error, %Ash.Error.Invalid{}} =
+               parent
+               |> Ash.Changeset.for_destroy(:destroy_with_children, %{
+                 children: [%{title: "orphan_child"}]
+               })
+               |> Ash.destroy(authorize?: false)
+
+      # Parent still exists because transaction rolled back
+      assert [%{name: "should_be_destroyed"}] = Ash.read!(RollbackParent, authorize?: false)
       assert [] == Ash.read!(RollbackChild, authorize?: false)
     end
   end
