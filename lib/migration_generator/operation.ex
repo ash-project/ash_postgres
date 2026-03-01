@@ -46,6 +46,18 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       end
     end
 
+    def concurrent_option(table, multitenancy, schema) do
+      if multitenancy.strategy == :context do
+        # For tenant migrations, prefix is a function call
+        "concurrently: AshPostgres.MigrationHelper.maybe_index_concurrently?(:#{as_atom(table)}, repo(), prefix())"
+      else
+        # For regular migrations, prefix is a string or nil
+        prefix_arg = if schema, do: "\"#{schema}\"", else: "nil"
+
+        "concurrently: AshPostgres.MigrationHelper.maybe_index_concurrently?(:#{as_atom(table)}, repo(), #{prefix_arg})"
+      end
+    end
+
     def on_delete(%{on_delete: {:nilify, columns}}) when is_list(columns) do
       "on_delete: {:nilify, #{inspect(columns)}}"
     end
@@ -880,30 +892,46 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           },
           table: table,
           schema: schema,
-          multitenancy: multitenancy
+          multitenancy: multitenancy,
+          concurrently: concurrently
         }) do
       keys = index_keys(keys, all_tenants?, multitenancy)
 
       index_name = index_name || "#{table}_#{name}_index"
 
+      concurrent_opt =
+        if concurrently do
+          concurrent_option(table, multitenancy, schema)
+        else
+          nil
+        end
+
+      base_opts =
+        join([
+          "name: \"#{index_name}\"",
+          option("prefix", schema),
+          option("nulls_distinct", nils_distinct?),
+          concurrent_opt
+        ])
+
       cond do
         base_filter && where ->
           where = "(#{where}) AND (#{base_filter})"
 
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where)])})"
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join([base_opts, option("where", where)])})"
 
         base_filter ->
           base_filter = "(#{base_filter})"
 
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?)])})"
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{base_opts})"
 
         where ->
           where = "(#{where})"
 
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where)])})"
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join([base_opts, option("where", where)])})"
 
         true ->
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?)])})"
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{base_opts})"
       end
     end
 
@@ -984,11 +1012,18 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           {where, base_filter} -> %{index | where: base_filter <> " AND " <> where}
         end
 
+      concurrent_opt =
+        if index.concurrently do
+          concurrent_option(table, multitenancy, schema)
+        else
+          nil
+        end
+
       opts =
         join([
           option(:name, index.name),
           option(:unique, index.unique),
-          option(:concurrently, index.concurrently),
+          concurrent_opt,
           option(:using, index.using),
           option(:prefix, index.prefix),
           option(:where, index.where),

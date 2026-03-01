@@ -556,6 +556,14 @@ defmodule AshPostgres.MigrationGenerator do
               version in versions
             end)
             |> Enum.each(fn {version, mod} ->
+              runner_opts =
+                [
+                  all: true,
+                  prefix: prefix
+                ]
+                |> maybe_put_mod_attribute(mod, :disable_ddl_transaction)
+                |> maybe_put_mod_attribute(mod, :disable_migration_lock)
+
               Ecto.Migration.Runner.run(
                 repo,
                 [],
@@ -564,8 +572,7 @@ defmodule AshPostgres.MigrationGenerator do
                 :forward,
                 :down,
                 :down,
-                all: true,
-                prefix: prefix
+                runner_opts
               )
 
               Ecto.Migration.SchemaMigration.down(repo, repo.config(), version, prefix: prefix)
@@ -3918,4 +3925,14 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp to_ordered_object(value) when is_list(value), do: Enum.map(value, &to_ordered_object/1)
   defp to_ordered_object(value), do: value
+
+  defp maybe_put_mod_attribute(opts, mod, attribute) do
+    migration_config = mod.__migration__()
+
+    case migration_config[attribute] do
+      nil -> opts
+      false -> opts
+      value -> Keyword.put(opts, attribute, value)
+    end
+  end
 end
