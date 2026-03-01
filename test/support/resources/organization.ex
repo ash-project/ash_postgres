@@ -34,6 +34,14 @@ defmodule AshPostgres.Test.Organization do
     count :no_cast_open_posts_count, :posts do
       filter(expr(status_enum_no_cast != :closed))
     end
+
+    count :org_likes, [:posts, :comments, :better_likes] do
+      uniq?(true)
+    end
+
+    count :unique_org_likers, [:posts, :comments, :better_likes, :author] do
+      uniq?(true)
+    end
   end
 
   actions do
