@@ -686,16 +686,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, {:lock, :for_update}), do: true
   def can?(_, :composite_types), do: true
 
-  def can?(_, {:lock, string}) do
-    string = String.trim_trailing(string, " NOWAIT")
-
-    String.upcase(string) in [
-      "FOR UPDATE",
-      "FOR NO KEY UPDATE",
-      "FOR SHARE",
-      "FOR KEY SHARE"
-    ]
-  end
+  def can?(_, {:lock, string}), do: string |> String.upcase() |> can_lock?()
 
   def can?(_, :transact), do: true
   def can?(_, :composite_primary_key), do: true
@@ -791,6 +782,23 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :distinct), do: true
   def can?(_, {:sort, _}), do: true
   def can?(_, _), do: false
+
+  @locks [
+    "FOR UPDATE",
+    "FOR NO KEY UPDATE",
+    "FOR SHARE",
+    "FOR KEY SHARE"
+  ]
+
+  for lock <- @locks do
+    defp can_lock?(unquote(lock)), do: true
+
+    for suffix <- ["NOWAIT", "SKIP LOCKED"] do
+      defp can_lock?(unquote("#{lock} #{suffix}")), do: true
+    end
+  end
+
+  defp can_lock?(_), do: false
 
   @impl true
   def in_transaction?(resource) do
@@ -3575,13 +3583,6 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  @locks [
-    "FOR UPDATE",
-    "FOR NO KEY UPDATE",
-    "FOR SHARE",
-    "FOR KEY SHARE"
-  ]
-
   for lock <- @locks do
     frag = "#{lock} OF ?"
 
@@ -3590,16 +3591,16 @@ defmodule AshPostgres.DataLayer do
     end
 
     frag = "#{lock} OF ? NOWAIT"
-    lock = "#{lock} NOWAIT"
+    new_lock = "#{lock} NOWAIT"
 
-    def lock(query, unquote(lock), _) do
+    def lock(query, unquote(new_lock), _) do
       {:ok, Ecto.Query.lock(query, [{^0, a}], fragment(unquote(frag), a))}
     end
 
     frag = "#{lock} OF ? SKIP LOCKED"
-    lock = "#{lock} SKIP LOCKED"
+    new_lock = "#{lock} SKIP LOCKED"
 
-    def lock(query, unquote(lock), _) do
+    def lock(query, unquote(new_lock), _) do
       {:ok, Ecto.Query.lock(query, [{^0, a}], fragment(unquote(frag), a))}
     end
   end
