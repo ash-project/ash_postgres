@@ -46,6 +46,14 @@ defmodule AshPostgres.MultiTenancy do
     |> Enum.filter(& &1)
     |> Enum.map(&load_migration!/1)
     |> Enum.each(fn {version, mod} ->
+      runner_opts =
+        [
+          all: true,
+          prefix: tenant_name
+        ]
+        |> maybe_put_mod_attribute(mod, :disable_ddl_transaction)
+        |> maybe_put_mod_attribute(mod, :disable_migration_lock)
+
       Ecto.Migration.Runner.run(
         repo,
         [],
@@ -54,8 +62,7 @@ defmodule AshPostgres.MultiTenancy do
         :forward,
         :up,
         :up,
-        all: true,
-        prefix: tenant_name
+        runner_opts
       )
 
       Ecto.Migration.SchemaMigration.up(repo, repo.config(), version, prefix: tenant_name)
@@ -122,5 +129,15 @@ defmodule AshPostgres.MultiTenancy do
 
   defp tenant_name_regex do
     ~r/^[a-zA-Z0-9_-]+$/
+  end
+
+  defp maybe_put_mod_attribute(opts, mod, attribute) do
+    migration_config = mod.__migration__()
+
+    case migration_config[attribute] do
+      nil -> opts
+      false -> opts
+      value -> Keyword.put(opts, attribute, value)
+    end
   end
 end
