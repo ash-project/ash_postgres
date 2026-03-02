@@ -3225,7 +3225,7 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
-  def upsert(resource, changeset, keys, identity \\ nil) do
+  def upsert(resource, changeset, keys, identity) do
     if AshPostgres.DataLayer.Info.manage_tenant_update?(resource) do
       {:error, "Cannot currently upsert a resource that owns a tenant"}
     else
