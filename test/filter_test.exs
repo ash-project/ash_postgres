@@ -29,25 +29,28 @@ defmodule AshPostgres.FilterTest do
     test "it does not do unnecessary type casting" do
       {query, vars} =
         Post
-        |> Ash.Query.filter(version == ^10)
+        |> Ash.Query.filter(decimal == ^Decimal.new("10"))
         |> Ash.data_layer_query!()
         |> Map.get(:query)
         |> then(&AshPostgres.TestRepo.to_sql(:all, &1))
 
-      assert vars == ["sponsored", 10]
+      assert vars == ["sponsored", Decimal.new("10")]
 
-      assert String.contains?(query, "(p0.\"version\"::bigint = $2::bigint)")
+      assert String.contains?(query, "(p0.\"decimal\"::decimal = $2::decimal)")
     end
 
     test "it uses coalesce to optimize the || operator for non-booleans" do
+      ten = Decimal.new("10")
+      twenty = Decimal.new("20")
+
       {query, _vars} =
         Post
-        |> Ash.Query.filter((version || 10) == 20)
+        |> Ash.Query.filter((decimal || ^ten) == ^twenty)
         |> Ash.data_layer_query!()
         |> Map.get(:query)
         |> then(&AshPostgres.TestRepo.to_sql(:all, &1))
 
-      assert String.contains?(query, "(coalesce(p0.\"version\"::bigint, $2::bigint)")
+      assert String.contains?(query, "coalesce(p0.\"decimal\"")
     end
 
     test "it uses OR to optimize the || operator for booleans" do

@@ -65,6 +65,33 @@ defmodule AshPostgres.Test.LoadTest do
              |> Map.get(:latest_comment)
   end
 
+  test "has_one with offset returns the correct record" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "title"})
+      |> Ash.create!()
+
+    %{id: first_comment_id} =
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "first"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+    :timer.sleep(1)
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "second"})
+    |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+    |> Ash.create!()
+
+    # second_latest_comment: sort(created_at: :desc), offset(1) => first comment
+    assert %{id: ^first_comment_id} =
+             Post
+             |> Ash.Query.load(:second_latest_comment)
+             |> Ash.read_one!()
+             |> Map.get(:second_latest_comment)
+  end
+
   test "belongs_to relationships can be loaded" do
     assert %Comment{post: %Ash.NotLoaded{type: :relationship}} =
              comment =
