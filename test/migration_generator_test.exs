@@ -99,6 +99,13 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  defp position_of_substring(string, substring) do
+    case :binary.match(string, substring) do
+      {pos, _len} -> pos
+      :nomatch -> nil
+    end
+  end
+
   defmacrop defresource(mod, table, do: body) do
     quote do
       Code.compiler_options(ignore_module_conflict: true)
@@ -1675,6 +1682,78 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert File.read!(file) =~
                ~S[references(:posts, column: :id, name: "posts_post_id_fkey", type: :uuid, prefix: "public")]
+    end
+
+    @tag :issue_236
+    test "unique index is created before dependent foreign key (issue #236)", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource Template, "templates" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defresource Phase, "phases" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defresource TemplatePhase, "template_phase" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string, allow_nil?: false, public?: true)
+        end
+
+        identities do
+          identity(:id, [:id])
+        end
+
+        relationships do
+          belongs_to(:template, Template, primary_key?: true, allow_nil?: false, public?: true)
+          belongs_to(:phase, Phase, primary_key?: true, allow_nil?: false, public?: true)
+
+          belongs_to(:template_phase, __MODULE__) do
+            source_attribute(:follows)
+            destination_attribute(:id)
+            attribute_writable?(true)
+            allow_nil?(true)
+            public?(true)
+          end
+        end
+      end
+
+      defdomain([Template, Phase, TemplatePhase])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [file] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      file_contents = File.read!(file)
+
+      unique_index_pos =
+        position_of_substring(
+          file_contents,
+          ~S{create unique_index(:template_phase, [:id], name: "template_phase_id_index")}
+        )
+
+      follows_fk_pos = position_of_substring(file_contents, "references(:template_phase")
+
+      assert unique_index_pos && follows_fk_pos,
+             "expected migration to contain both the unique index and the follows foreign key"
+
+      assert unique_index_pos < follows_fk_pos,
+             "expected unique index creation to appear before the follows foreign key modification"
     end
 
     test "references are inferred automatically if the attribute has a different type", %{

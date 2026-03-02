@@ -862,6 +862,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       :schema,
       :multitenancy,
       :old_multitenancy,
+      :insert_after_attribute_order,
       no_phase: true,
       concurrently: false
     ]
