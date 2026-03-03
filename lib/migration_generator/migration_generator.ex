@@ -1525,7 +1525,7 @@ defmodule AshPostgres.MigrationGenerator do
        ),
        do: false
 
-  # Unique index must be created before any alter that adds FKs referencing it (issue #236).
+  # Unique index must be created before any alter that adds FKs referencing it.
   defp after?(
          %Operation.AddUniqueIndex{table: table, schema: schema},
          %Operation.AlterAttribute{table: table, schema: schema}
