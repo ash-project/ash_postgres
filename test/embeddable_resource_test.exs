@@ -23,6 +23,28 @@ defmodule AshPostgres.EmbeddableResourceTest do
              Ash.load!(post, :calc_returning_json)
   end
 
+  test "can filter on a doubly-nested embedded resource field" do
+    Author
+    |> Ash.Changeset.for_create(:create, %{
+      bio: %{address: %{city: "Sydney", country: "AU"}}
+    })
+    |> Ash.create!()
+
+    Author
+    |> Ash.Changeset.for_create(:create, %{
+      bio: %{address: %{city: "Melbourne", country: "AU"}}
+    })
+    |> Ash.create!()
+
+    results =
+      Author
+      |> Ash.Query.filter(bio[:address][:city] == "Sydney")
+      |> Ash.read!()
+
+    assert length(results) == 1
+    assert hd(results).bio.address.city == "Sydney"
+  end
+
   test "embeds with list attributes set to nil are loaded as nil" do
     author =
       Author
