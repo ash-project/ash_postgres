@@ -777,6 +777,9 @@ defmodule AshPostgres.DataLayer do
   def can?(resource, :expr_error),
     do: not AshPostgres.DataLayer.Info.repo(resource, :mutate).disable_expr_error?()
 
+  def can?(resource, :required_error),
+    do: not AshPostgres.DataLayer.Info.repo(resource, :mutate).disable_expr_error?()
+
   def can?(resource, {:filter_expr, %Ash.Query.Function.Error{}}) do
     not AshPostgres.DataLayer.Info.repo(resource, :mutate).disable_expr_error?() &&
       "ash-functions" in AshPostgres.DataLayer.Info.repo(resource, :read).installed_extensions() &&
@@ -877,7 +880,8 @@ defmodule AshPostgres.DataLayer do
     functions = [
       AshPostgres.Functions.Like,
       AshPostgres.Functions.ILike,
-      AshPostgres.Functions.Binding
+      AshPostgres.Functions.Binding,
+      AshPostgres.Functions.RequiredError
     ]
 
     functions =
@@ -2669,6 +2673,7 @@ defmodule AshPostgres.DataLayer do
     case Ecto.Adapters.Postgres.Connection.to_constraints(error, []) do
       [] ->
         constraints = maybe_foreign_key_violation_constraints(error)
+
         if constraints != [] do
           {:error,
            changeset
@@ -2695,7 +2700,7 @@ defmodule AshPostgres.DataLayer do
     code = postgres[:code] || postgres["code"]
     constraint = postgres[:constraint] || postgres["constraint"]
 
-    if code in ["23503", 23503, :foreign_key_violation] and is_binary(constraint) do
+    if code in ["23503", 23_503, :foreign_key_violation] and is_binary(constraint) do
       [{:foreign_key, constraint}]
     else
       []

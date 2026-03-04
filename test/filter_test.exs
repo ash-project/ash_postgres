@@ -1240,4 +1240,244 @@ defmodule AshPostgres.FilterTest do
 
     assert fetched_org.id == organization.id
   end
+
+  describe "required!/1 and ash_required/1" do
+    test "not is_nil(expr) compiles to IS NOT NULL in SQL (regression)" do
+      {query, _vars} =
+        Post
+        |> Ash.Query.filter(not is_nil(category))
+        |> Ash.data_layer_query!()
+        |> Map.get(:query)
+        |> then(&AshPostgres.TestRepo.to_sql(:all, &1))
+
+      # SQL may be (expr) IS NOT NULL or NOT ((expr) IS NULL); both are equivalent.
+      assert query =~ "IS NOT NULL" or query =~ "is not null" or
+               (query =~ "NOT (" and query =~ "IS NULL"),
+             "Expected filter(not is_nil(...)) to compile to presence check (IS NOT NULL or NOT (... IS NULL)), got: #{query}"
+    end
+
+    test "not is_nil(expr) filter returns only records where attribute is present (behavioral regression)" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "with category", category: "tech"})
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "no category"})
+      |> Ash.create!()
+
+      assert [%{title: "with category"}] =
+               Post
+               |> Ash.Query.filter(not is_nil(category))
+               |> Ash.read!()
+    end
+
+    test "not is_nil(expr) returns empty list when no records have attribute set (edge case)" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "a"})
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "b"})
+      |> Ash.create!()
+
+      assert [] =
+               Post
+               |> Ash.Query.filter(not is_nil(category))
+               |> Ash.read!()
+    end
+
+    test "not is_nil(expr) includes records where value is 0 or false — required means not null, not truthy (edge case)" do
+      post_zero =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "zero score", score: 0})
+        |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "nil score"})
+      |> Ash.create!()
+
+      assert [%{id: id}] =
+               Post
+               |> Ash.Query.filter(title in ["zero score", "nil score"] and not is_nil(score))
+               |> Ash.read!()
+
+      assert id == post_zero.id
+
+      post_false =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "false public", public: false})
+        |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "nil public"})
+      |> Ash.create!()
+
+      assert [%{id: id2}] =
+               Post
+               |> Ash.Query.filter(title in ["false public", "nil public"] and not is_nil(public))
+               |> Ash.read!()
+
+      assert id2 == post_false.id
+    end
+
+    test "filter with required!(attribute) returns only records where attribute is present" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "with category", category: "tech"})
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "no category"})
+      |> Ash.create!()
+
+      assert [%{title: "with category"}] =
+               Post
+               |> Ash.Query.filter(required!(category))
+               |> Ash.read!()
+    end
+
+    test "filter with ash_required(attribute) is equivalent to required!" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "with category", category: "tech"})
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "no category"})
+      |> Ash.create!()
+
+      assert [%{title: "with category"}] =
+               Post
+               |> Ash.Query.filter(ash_required(category))
+               |> Ash.read!()
+    end
+
+    test "required! on relationship id in filter (e.g. author_id)" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "A", last_name: "B"})
+        |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "linked", author_id: author.id})
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "no author"})
+      |> Ash.create!()
+
+      assert [%{title: "linked"}] =
+               Post
+               |> Ash.Query.filter(required!(author_id))
+               |> Ash.read!()
+    end
+
+    test "required! in exists() returns only records where related resource has required value" do
+      post_with_titled_comment =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "has comment with title"})
+        |> Ash.create!()
+
+      post_with_untitled_comment =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "has comment without title"})
+        |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "has title"})
+      |> Ash.Changeset.manage_relationship(:post, post_with_titled_comment,
+        type: :append_and_remove
+      )
+      |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.manage_relationship(:post, post_with_untitled_comment,
+        type: :append_and_remove
+      )
+      |> Ash.create!()
+
+      assert [%{title: "has comment with title"}] =
+               Post
+               |> Ash.Query.filter(exists(comments, required!(title)))
+               |> Ash.read!()
+    end
+
+    test "required! on get_path (jsonb key) filters by presence of key" do
+      Author
+      |> Ash.Changeset.for_create(:create, %{
+        first_name: "A",
+        last_name: "B",
+        settings: %{"dues_reminders" => ["email"]}
+      })
+      |> Ash.create!()
+
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "C", last_name: "D", settings: %{}})
+      |> Ash.create!()
+
+      assert [_] =
+               Author
+               |> Ash.Query.filter(required!(settings["dues_reminders"]))
+               |> Ash.read!()
+    end
+
+    @tag :skip
+    test "required! on relationship/aggregate ref does not raise (e.g. popular_ratings.id)" do
+      # Skipped: building reference popular_ratings.id in filter not supported in this AshSql version
+      Comment
+      |> Ash.Query.filter(required!(popular_ratings.id))
+      |> Ash.read!()
+    end
+
+    test "required!(attr) returns empty list when no records have attribute set (edge case)" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "a"})
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "b"})
+      |> Ash.create!()
+
+      assert [] =
+               Post
+               |> Ash.Query.filter(required!(category))
+               |> Ash.read!()
+    end
+
+    test "required! with compound filter (and) — required!(a) and other_condition (edge case)" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "match", category: "tech"})
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "other", category: "other"})
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "no category"})
+      |> Ash.create!()
+
+      assert [%{title: "match"}] =
+               Post
+               |> Ash.Query.filter(required!(category) and category == "tech")
+               |> Ash.read!()
+    end
+
+    test "required! treats 0 and false as present — not null, not truthy (edge case)" do
+      post_zero =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "zero score", score: 0})
+        |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "nil score"})
+      |> Ash.create!()
+
+      assert [%{id: id}] =
+               Post
+               |> Ash.Query.filter(title in ["zero score", "nil score"] and required!(score))
+               |> Ash.read!()
+
+      assert id == post_zero.id
+    end
+  end
 end

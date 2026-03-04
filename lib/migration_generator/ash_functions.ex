@@ -48,6 +48,8 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     IMMUTABLE;
     \"\"\")
 
+    #{ash_required()}
+
     execute(\"\"\"
     CREATE OR REPLACE FUNCTION ash_trim_whitespace(arr text[])
     RETURNS text[] AS $$
@@ -159,11 +161,13 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     execute("ALTER FUNCTION ash_raise_error(jsonb) STABLE;")
     execute("ALTER FUNCTION ash_raise_error(jsonb, ANYCOMPATIBLE) STABLE")
     #{uuid_generate_v7()}
+    #{ash_required()}
     """
   end
 
   def drop(4) do
     """
+    execute("DROP FUNCTION IF EXISTS ash_required(ANYCOMPATIBLE)")
     execute("ALTER FUNCTION ash_raise_error(jsonb) VOLATILE;")
     execute("ALTER FUNCTION ash_raise_error(jsonb, ANYCOMPATIBLE) VOLATILE")
     """
@@ -190,7 +194,19 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
   end
 
   def drop(nil) do
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_elixir_and(BOOLEAN, ANYCOMPATIBLE), ash_elixir_and(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(BOOLEAN, ANYCOMPATIBLE), ash_trim_whitespace(text[])\")"
+    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_elixir_and(BOOLEAN, ANYCOMPATIBLE), ash_elixir_and(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(BOOLEAN, ANYCOMPATIBLE), ash_required(ANYCOMPATIBLE), ash_trim_whitespace(text[])\")"
+  end
+
+  defp ash_required do
+    """
+    execute(\"\"\"
+    CREATE OR REPLACE FUNCTION ash_required(value ANYCOMPATIBLE)
+    RETURNS BOOLEAN AS $$ SELECT $1 IS NOT NULL $$
+    LANGUAGE SQL
+    SET search_path = ''
+    IMMUTABLE;
+    \"\"\")
+    """
   end
 
   defp ash_raise_error do
