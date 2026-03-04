@@ -2333,11 +2333,22 @@ defmodule AshPostgres.MigrationGenerator do
         end)
       end
       |> Enum.map(fn identity ->
+        orders =
+          identity.keys
+          |> Enum.map(&Enum.find_index(snapshot.attributes, fn attr -> attr.source == &1 end))
+          |> Enum.reject(&is_nil/1)
+
+        insert_after_attribute_order =
+          case orders do
+            [] -> nil
+            _ -> Enum.max(orders)
+          end
+
         %Operation.AddUniqueIndex{
           identity: identity,
           schema: snapshot.schema,
           table: snapshot.table,
-          insert_after_attribute_order: max(0, length(snapshot.attributes) - 1),
+          insert_after_attribute_order: insert_after_attribute_order,
           concurrently: opts.concurrent_indexes
         }
       end)
