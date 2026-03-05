@@ -618,6 +618,18 @@ defmodule AshPostgres.Test.Post do
     attribute(:string_point, AshPostgres.Test.StringPoint, public?: true)
     attribute(:person_detail, AshPostgres.Test.PersonDetail, public?: true)
     attribute(:stuff, :map, public?: true)
+
+    attribute :keyword_map, :keyword do
+      public?(true)
+      allow_nil?(true)
+      constraints(
+        fields: [
+          display_template: [
+            type: :string
+          ]
+        ]
+      )
+    end
     attribute(:list_of_stuff, {:array, :map}, public?: true)
     attribute(:uniq_one, :string, public?: true)
     attribute(:uniq_two, :string, public?: true)
