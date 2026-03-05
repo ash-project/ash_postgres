@@ -469,6 +469,58 @@ defmodule AshSql.AggregateTest do
                |> Ash.Query.load(:count_of_comments_called_match)
                |> Ash.read_one!()
     end
+
+    test "it properly applies join criteria on the first term of a two-level path" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create)
+        |> Ash.create!()
+
+      public_post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "public", public: true})
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Ash.create!()
+
+      private_post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "private", public: false})
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Ash.create!()
+
+      # Create 2 comments on the public post
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "comment on public 1"})
+      |> Ash.Changeset.manage_relationship(:post, public_post, type: :append_and_remove)
+      |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "comment on public 2"})
+      |> Ash.Changeset.manage_relationship(:post, public_post, type: :append_and_remove)
+      |> Ash.create!()
+
+      # Create 3 comments on the private post
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "comment on private 1"})
+      |> Ash.Changeset.manage_relationship(:post, private_post, type: :append_and_remove)
+      |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "comment on private 2"})
+      |> Ash.Changeset.manage_relationship(:post, private_post, type: :append_and_remove)
+      |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "comment on private 3"})
+      |> Ash.Changeset.manage_relationship(:post, private_post, type: :append_and_remove)
+      |> Ash.create!()
+
+      # Should only count the 2 comments on the public post, not the 3 on the private post
+      assert [%{count_of_comments_on_public_posts: 2}] =
+               Author
+               |> Ash.Query.load(:count_of_comments_on_public_posts)
+               |> Ash.read!()
+    end
   end
 
   describe "exists" do

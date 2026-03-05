@@ -201,6 +201,10 @@ defmodule AshPostgres.Test.Author do
       join_filter([:posts, :comments], expr(parent(score) < likes))
     end
 
+    count :count_of_comments_on_public_posts, [:posts, :comments] do
+      join_filter([:posts], expr(public == true))
+    end
+
     count(:num_of_authors_with_same_first_name, :authors_with_same_first_name)
   end
 end
