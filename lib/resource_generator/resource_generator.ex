@@ -76,7 +76,11 @@ if Code.ensure_loaded?(Igniter) do
         |> Spec.add_relationships(resources, opts)
 
       Enum.reduce(specs, igniter, fn table_spec, igniter ->
-        table_to_resource(igniter, table_spec, domain, opts)
+        if opts[:use_fragments] do
+          table_to_resource_with_fragment(igniter, table_spec, domain, opts)
+        else
+          table_to_resource(igniter, table_spec, domain, opts)
+        end
       end)
     end
 
@@ -146,6 +150,147 @@ if Code.ensure_loaded?(Igniter) do
         else
           igniter
         end
+      end)
+    end
+
+    defp table_to_resource_with_fragment(
+           igniter,
+           %AshPostgres.ResourceGenerator.Spec{} = table_spec,
+           domain,
+           opts
+         ) do
+      fragment_module = Module.concat(table_spec.resource, Model)
+
+      fragment_content =
+        """
+        use Spark.Dsl.Fragment,
+          of: Ash.Resource
+
+        #{attributes_block(table_spec, opts)}
+        #{identities_block(table_spec)}
+        #{relationships_block(table_spec, opts)}
+        """
+
+      resource_path = Igniter.Project.Module.proper_location(igniter, table_spec.resource)
+
+      resource_exists? =
+        Rewrite.has_source?(igniter.rewrite, resource_path) ||
+          Igniter.exists?(igniter, resource_path)
+
+      if resource_exists? do
+        # Only create/update the fragment file
+        Igniter.Project.Module.create_module(igniter, fragment_module, fragment_content)
+      else
+        # Create both resource and fragment
+        no_migrate_flag =
+          if opts[:no_migrations] do
+            "migrate? false"
+          end
+
+        resource_content =
+          """
+          use Ash.Resource,
+            domain: #{inspect(domain)},
+            data_layer: AshPostgres.DataLayer,
+            fragments: [#{inspect(fragment_module)}]
+
+          #{default_actions(opts)}
+
+          postgres do
+            table #{inspect(table_spec.table_name)}
+            repo #{inspect(table_spec.repo)}
+            #{schema_option(table_spec)}
+            #{no_migrate_flag}
+            #{references(table_spec, opts[:no_migrations])}
+            #{custom_indexes(table_spec, opts[:no_migrations])}
+            #{check_constraints(table_spec, opts[:no_migrations])}
+            #{skip_unique_indexes(table_spec)}
+            #{identity_index_names(table_spec)}
+          end
+          """
+
+        igniter
+        |> Igniter.Project.Module.create_module(fragment_module, fragment_content)
+        |> Igniter.Project.Module.create_module(table_spec.resource, resource_content)
+        |> Ash.Domain.Igniter.add_resource_reference(domain, table_spec.resource)
+        |> then(fn igniter ->
+          if opts[:extend] && opts[:extend] != [] do
+            Igniter.compose_task(igniter, "ash.patch.extend", [
+              table_spec.resource | opts[:extend] || []
+            ])
+          else
+            igniter
+          end
+        end)
+      end
+    end
+
+    defp attributes_block(table_spec, opts) do
+      """
+      attributes do
+        #{attributes(table_spec, opts)}
+      end
+      """
+    end
+
+    defp identities_block(%{indexes: indexes}) do
+      indexes
+      |> Enum.filter(fn %{unique?: unique?, columns: columns} ->
+        unique? && Enum.all?(columns, &Regex.match?(~r/^[0-9a-zA-Z_]+$/, &1))
+      end)
+      |> Enum.map(fn index ->
+        name = index.identity_name
+
+        fields = "[" <> Enum.map_join(index.columns, ", ", &":#{&1}") <> "]"
+
+        case identity_options(index) do
+          "" ->
+            "identity :#{name}, #{fields}"
+
+          options ->
+            """
+            identity :#{name}, #{fields} do
+              #{options}
+            end
+            """
+        end
+      end)
+      |> case do
+        [] ->
+          ""
+
+        identities ->
+          """
+          identities do
+            #{Enum.join(identities, "\n")}
+          end
+          """
+      end
+    end
+
+    defp relationships_block(%{relationships: []}, _opts), do: ""
+
+    defp relationships_block(%{relationships: relationships} = spec, opts) do
+      relationships
+      |> Enum.map_join("\n", fn relationship ->
+        case relationship_options(spec, relationship, opts) do
+          "" ->
+            "#{relationship.type} :#{relationship.name}, #{inspect(relationship.destination)}"
+
+          options ->
+            """
+            #{relationship.type} :#{relationship.name}, #{inspect(relationship.destination)} do
+               #{options}
+            end
+            """
+        end
+      end)
+      |> then(fn rels ->
+        """
+        relationships do
+          #{rels}
+        end
+        """
       end)
     end
 
