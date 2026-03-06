@@ -2256,4 +2256,52 @@ defmodule AshSql.AggregateTest do
              "Calculation was not loaded when using page(count: true) with aggregates"
     end
   end
+
+  describe "join_filters in aggregate calculations" do
+    test "Ash.Filter structs in join_filters are properly converted to Ecto expressions" do
+      # This test reproduces the bug where Ash.Filter structs in join_filters
+      # are not properly converted to Ecto dynamic expressions, causing:
+      #   ** (Ecto.Query.CastError) value `#Ash.Filter<...>` in `where` cannot be cast to type :boolean
+      #
+      # The root cause is in ash_sql/lib/expr.ex - when a BooleanExpression contains
+      # an Ash.Filter struct as an operand, the private do_dynamic_expr/default_dynamic_expr
+      # functions don't have a clause to handle it, so the Ash.Filter is passed directly
+      # to Ecto instead of being converted to a dynamic expression.
+
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "Test", last_name: "Author"})
+        |> Ash.create!()
+
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "test"})
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Ash.create!()
+
+      comment =
+        Comment
+        |> Ash.Changeset.for_create(:create, %{title: "comment", likes: 5})
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Ash.create!()
+
+      Rating
+      |> Ash.Changeset.for_create(:create, %{score: 10, resource_id: comment.id})
+      |> Ash.Changeset.set_context(%{data_layer: %{table: "comment_ratings"}})
+      |> Ash.create!()
+
+      # This triggers the bug - loading a calculation that uses join_filters with actor reference.
+      # The join_filter `expr(author_id == ^actor(:id))` gets resolved to an Ash.Filter struct
+      # which is then combined with other filters in a BooleanExpression.
+      # We use authorize?: false to bypass Post's organization-based authorization policies.
+      assert {:ok, [loaded_post]} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:max_rating_with_join_filter)
+               |> Ash.read(actor: author, authorize?: false)
+
+      assert loaded_post.max_rating_with_join_filter == 10
+    end
+  end
 end
