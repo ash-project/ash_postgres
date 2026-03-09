@@ -109,6 +109,7 @@ defmodule AshPostgres.MixProject do
         "documentation/topics/about-ash-postgres/what-is-ash-postgres.md",
         "documentation/topics/resources/references.md",
         "documentation/topics/resources/polymorphic-resources.md",
+        "documentation/topics/resources/working-with-existing-databases.md",
         "documentation/topics/development/migrations-and-tasks.md",
         "documentation/topics/development/testing.md",
         "documentation/topics/development/upgrading-to-2.0.md",
