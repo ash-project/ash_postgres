@@ -76,7 +76,7 @@ if Code.ensure_loaded?(Igniter) do
         |> Spec.add_relationships(resources, opts)
 
       Enum.reduce(specs, igniter, fn table_spec, igniter ->
-        if opts[:use_fragments] do
+        if opts[:fragments] do
           table_to_resource_with_fragment(igniter, table_spec, domain, opts)
         else
           table_to_resource(igniter, table_spec, domain, opts)

@@ -197,8 +197,8 @@ defmodule AshPostgres.ResourceGeenratorTests do
     """)
   end
 
-  describe "--use_fragments option" do
-    @describetag :use_fragments
+  describe "--fragments option" do
+    @describetag :fragments
 
     test "generates resource and fragment files when resource does not exist" do
       test_project()
@@ -209,7 +209,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
         "--yes",
         "--repo",
         "AshPostgres.TestRepo",
-        "--use-fragments"
+        "--fragments"
       ])
       |> assert_creates("lib/my_app/accounts/example_table.ex", """
       defmodule MyApp.Accounts.ExampleTable do
@@ -255,7 +255,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
       """)
     end
 
-    @tag :use_fragments
+    @tag :fragments
     test "generates fragment with relationships" do
       AshPostgres.TestRepo.query!("CREATE SCHEMA IF NOT EXISTS fragtest")
 
@@ -285,7 +285,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
         "--yes",
         "--repo",
         "AshPostgres.TestRepo",
-        "--use-fragments"
+        "--fragments"
       ])
       |> assert_creates("lib/my_app/sales/customer.ex", """
       defmodule MyApp.Sales.Customer do
@@ -365,7 +365,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
       """)
     end
 
-    @tag :use_fragments
+    @tag :fragments
     test "only regenerates fragment when resource already exists" do
       # Create a pre-existing resource file with user customization
       existing_resource = """
@@ -403,7 +403,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
         "--yes",
         "--repo",
         "AshPostgres.TestRepo",
-        "--use-fragments"
+        "--fragments"
       ])
       # Resource should NOT be modified (it already exists)
       |> assert_unchanged("lib/my_app/accounts/example_table.ex")
