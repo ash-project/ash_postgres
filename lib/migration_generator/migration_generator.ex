@@ -440,16 +440,51 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.flat_map(fn {repo, snapshots} ->
       deduped = deduplicate_snapshots(snapshots, opts, non_tenant_snapshots)
 
-      snapshots_with_operations =
+      current_table_keys =
         deduped
+        |> Enum.map(fn {%{table: t, schema: s}, _} -> {t, s} end)
+        |> MapSet.new()
+
+      {drop_operations, orphan_snapshots, rename_map} =
+        drop_operations_for_orphan_tables(repo, current_table_keys, opts, tenant?)
+
+      deduped_with_renames =
+        Enum.map(deduped, fn {%{table: table, schema: schema} = snapshot, existing_snapshot} ->
+          case Map.get(rename_map, {table, schema}) do
+            nil ->
+              {snapshot, existing_snapshot}
+
+            %{snapshot: old_snapshot} ->
+              {snapshot, old_snapshot}
+          end
+        end)
+
+      snapshots_with_operations =
+        deduped_with_renames
         |> fetch_operations(opts)
         |> Enum.map(&add_order_to_operations/1)
 
       snapshots = Enum.map(snapshots_with_operations, &elem(&1, 0))
 
-      snapshots_with_operations
-      |> Enum.flat_map(&elem(&1, 1))
-      |> Enum.uniq()
+      rename_operations =
+        Enum.map(rename_map, fn {{new_table, schema}, %{old_table: old_table, snapshot: snapshot}} ->
+          %Operation.RenameTable{
+            old_table: old_table,
+            new_table: new_table,
+            schema: schema,
+            multitenancy: snapshot.multitenancy,
+            repo: repo
+          }
+        end)
+
+      operations =
+        snapshots_with_operations
+        |> Enum.flat_map(&elem(&1, 1))
+        |> Enum.concat(rename_operations)
+        |> Enum.concat(drop_operations)
+        |> Enum.uniq()
+
+      operations
       |> case do
         [] ->
           []
@@ -500,6 +535,10 @@ defmodule AshPostgres.MigrationGenerator do
             end)
           end
           |> Enum.concat(create_new_snapshot(snapshots, repo_name(repo), opts, tenant?))
+          |> then(fn files ->
+            remove_orphan_snapshots(orphan_snapshots, opts)
+            files
+          end)
       end
     end)
   end
@@ -1391,6 +1430,40 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp group_into_phases(
+         [
+           %Operation.DropTable{
+             table: table,
+             schema: schema,
+             multitenancy: multitenancy,
+             repo: repo
+           }
+           | rest
+         ],
+         nil,
+         acc
+       ) do
+    group_into_phases(rest, nil, [
+      %Phase.Drop{
+        table: table,
+        schema: schema,
+        multitenancy: multitenancy,
+        repo: repo
+      }
+      | acc
+    ])
+  end
+
+  defp group_into_phases(
+         [%Operation.DropTable{} = op | rest],
+         phase,
+         acc
+       )
+       when not is_nil(phase) do
+    phase = %{phase | operations: Enum.reverse(phase.operations)}
+    group_into_phases([op | rest], nil, [phase | acc])
+  end
+
+  defp group_into_phases(
          [%Operation.AddAttribute{table: table, schema: schema} = op | rest],
          %{table: table, schema: schema} = phase,
          acc
@@ -1979,6 +2052,21 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp after?(%Operation.AddCheckConstraint{}, _), do: true
   defp after?(%Operation.RemoveCheckConstraint{}, _), do: true
+
+  defp after?(
+         op,
+         %Operation.RenameTable{
+           new_table: table,
+           schema: schema
+         }
+       ) do
+    match?(%{table: ^table, schema: ^schema}, op)
+  end
+
+  defp after?(%Operation.RenameTable{}, _), do: false
+
+  defp after?(_, %Operation.DropTable{}), do: true
+  defp after?(%Operation.DropTable{}, _), do: false
 
   defp after?(_, _), do: false
 
@@ -2960,6 +3048,133 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
+  defp list_snapshot_tables(repo, opts, tenant?) do
+    base_folder =
+      if tenant? do
+        opts
+        |> snapshot_path(repo)
+        |> Path.join(repo_name(repo))
+        |> Path.join("tenants")
+      else
+        opts
+        |> snapshot_path(repo)
+        |> Path.join(repo_name(repo))
+      end
+
+    if !File.exists?(base_folder) do
+      []
+    else
+      base_folder
+      |> File.ls!()
+      |> Enum.filter(fn name ->
+        path = Path.join(base_folder, name)
+        File.dir?(path) and name != "extensions"
+      end)
+      |> Enum.map(fn name ->
+        if String.contains?(name, ".") do
+          [schema, table] = String.split(name, ".", parts: 2)
+          {table, schema}
+        else
+          {name, nil}
+        end
+      end)
+    end
+  end
+
+  defp drop_operations_for_orphan_tables(repo, current_table_keys, opts, tenant?) do
+    snapshot_table_keys =
+      list_snapshot_tables(repo, opts, tenant?)
+      |> MapSet.new()
+
+    orphan_keys = MapSet.difference(snapshot_table_keys, current_table_keys)
+    added_keys = MapSet.difference(current_table_keys, snapshot_table_keys)
+
+    added_keys_list = MapSet.to_list(added_keys)
+
+    multitenancy =
+      if tenant? do
+        %{strategy: :context, attribute: nil, global: nil}
+      else
+        %{strategy: nil, attribute: nil, global: nil}
+      end
+
+    {drop_ops, rename_map, loaded} =
+      Enum.reduce(orphan_keys, {[], %{}, []}, fn {table, schema} = old_key,
+                                                 {ops, rename_map, snapshots} ->
+        minimal_snapshot = %{
+          table: table,
+          schema: schema,
+          repo: repo,
+          multitenancy: multitenancy
+        }
+
+        case get_existing_snapshot(minimal_snapshot, opts) do
+          nil ->
+            {ops, rename_map, snapshots}
+
+          existing_snapshot ->
+            # Only consider new tables in the same schema as candidates
+            candidates =
+              Enum.filter(added_keys_list, fn {new_table, new_schema} ->
+                new_schema == schema && new_table != table
+              end)
+
+            {ops, rename_map, snapshots} =
+              case candidates do
+                [{new_table, new_schema}] ->
+                  if renaming_table_to?(old_key, {new_table, new_schema}, opts) do
+                    new_rename_map =
+                      Map.put(rename_map, {new_table, new_schema}, %{
+                        old_table: table,
+                        old_schema: schema,
+                        snapshot: existing_snapshot
+                      })
+
+                    {ops, new_rename_map, [existing_snapshot | snapshots]}
+                  else
+                    drop_op = %Operation.DropTable{
+                      table: existing_snapshot.table,
+                      schema: existing_snapshot.schema,
+                      repo: existing_snapshot.repo,
+                      multitenancy: existing_snapshot.multitenancy
+                    }
+
+                    {[drop_op | ops], rename_map, [existing_snapshot | snapshots]}
+                  end
+
+                _ ->
+                  drop_op = %Operation.DropTable{
+                    table: existing_snapshot.table,
+                    schema: existing_snapshot.schema,
+                    repo: existing_snapshot.repo,
+                    multitenancy: existing_snapshot.multitenancy
+                  }
+
+                  {[drop_op | ops], rename_map, [existing_snapshot | snapshots]}
+              end
+
+            {ops, rename_map, snapshots}
+        end
+      end)
+
+    {Enum.reverse(drop_ops), Enum.reverse(loaded), rename_map}
+  end
+
+  defp remove_orphan_snapshots(orphan_snapshots, opts) do
+    if opts.dry_run || opts.check || opts.snapshots_only || orphan_snapshots == [] do
+      :ok
+    else
+      Enum.each(orphan_snapshots, fn snapshot ->
+        folder = get_snapshot_folder(snapshot, opts)
+        path = get_snapshot_path(snapshot, folder)
+
+        if File.exists?(path) do
+          File.rm_rf(path)
+        end
+      end)
+    end
+  end
+
   defp resolve_renames(_table, adding, [], _opts), do: {adding, [], []}
 
   defp resolve_renames(_table, [], removing, _opts), do: {[], removing, []}
@@ -3009,6 +3224,25 @@ defmodule AshPostgres.MigrationGenerator do
         raise "Unimplemented: cannot determine: Are you renaming #{table}.#{removing.source}? without shell input"
       else
         yes?(opts, "Are you renaming #{table}.#{removing.source}?")
+      end
+    end
+  end
+
+  defp renaming_table_to?({old_table, schema}, {new_table, _new_schema}, opts) do
+    if opts.dev do
+      false
+    else
+      message =
+        if schema do
+          "Are you renaming #{schema}.#{old_table} to #{schema}.#{new_table}?"
+        else
+          "Are you renaming #{old_table} to #{new_table}?"
+        end
+
+      if opts.no_shell? do
+        raise "Unimplemented: cannot determine: #{message} without shell input"
+      else
+        yes?(opts, message)
       end
     end
   end

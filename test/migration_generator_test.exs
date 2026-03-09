@@ -3845,4 +3845,404 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[create table(:posts, primary_key: false, prefix: prefix(), options: "PARTITION BY RANGE (id)") do]
     end
   end
+
+  describe "dropping tables when resources are removed" do
+    test "generates drop table migration when a resource is removed from the domain", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      # Define two resources so we have two tables and two snapshots
+      defresource PostForDrop, "posts_for_drop" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defresource MessageForDrop, "messages_for_drop" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([PostForDrop, MessageForDrop])
+
+      # First run: creates both tables and snapshots
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "add_posts_and_messages"
+      )
+
+      migration_files =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      assert length(migration_files) >= 1
+
+      first_migration = File.read!(List.first(migration_files))
+      assert first_migration =~ "create table(:posts_for_drop"
+      assert first_migration =~ "create table(:messages_for_drop"
+
+      assert File.exists?(Path.join(snapshot_path, "test_repo/posts_for_drop"))
+      assert File.exists?(Path.join(snapshot_path, "test_repo/messages_for_drop"))
+
+      # Redefine domain with only PostForDrop (MessageForDrop removed)
+      defdomain([PostForDrop])
+
+      # Second run: should generate a migration that drops messages_for_drop table
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "remove_messages"
+      )
+
+      migration_files_after =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      assert length(migration_files_after) >= 2
+
+      # Newest migration should be the drop
+      latest_migration =
+        migration_files_after
+        |> List.last()
+        |> File.read!()
+
+      assert latest_migration =~ "drop table(:messages_for_drop)",
+             "Expected migration to contain 'drop table(:messages_for_drop)', got:\n#{latest_migration}"
+
+      # Orphan snapshot for messages_for_drop should have been removed
+      refute File.exists?(Path.join(snapshot_path, "test_repo/messages_for_drop")),
+             "Orphan snapshot dir should be removed after generating drop migration"
+
+      # Snapshot for remaining resource should still exist
+      assert File.exists?(Path.join(snapshot_path, "test_repo/posts_for_drop"))
+    end
+
+    test "second generate after drop reports no changes", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      # Single resource, generate once
+      defresource SoloPost, "solo_posts" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([SoloPost])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "add_solo"
+      )
+
+      count_before =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> length()
+
+      # Remove resource from domain and add a different one
+      defresource OtherResource, "other_table" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([OtherResource])
+
+      # Answer "no" to the table-rename prompt (we are dropping one resource and adding another, not renaming)
+      send(self(), {:mix_shell_input, :yes?, false})
+
+      # This run drops solo_posts and creates other_table
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "drop_solo_add_other"
+      )
+
+      count_after_first_drop =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> length()
+
+      # Run generate again with same domain - should create no new migrations
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "no_op"
+      )
+
+      count_after_second =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> length()
+
+      assert count_after_second == count_after_first_drop,
+             "Expected no new migration files (count #{count_after_first_drop}), got #{count_after_second}"
+    end
+
+    test "drop table migration uses correct prefix when resource has schema", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      # Resource with schema
+      defresource SchemaPost, "schema_posts" do
+        postgres do
+          table "schema_posts"
+          schema "my_schema"
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([SchemaPost])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "add_schema_post"
+      )
+
+      # Remove from domain - need at least one resource for repo group, so add a dummy
+      defresource DummyForSchema, "dummy_table" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([DummyForSchema])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "remove_schema_post"
+      )
+
+      migration_files =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      latest = File.read!(List.last(migration_files))
+
+      assert latest =~ "drop table(:schema_posts"
+      assert latest =~ ~S(prefix: "my_schema")
+    end
+  end
+
+  describe "renaming tables when resources change" do
+    test "generates a rename table migration when a resource table is renamed", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource MessageRename, "messages_rename" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([MessageRename])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "add_messages_rename"
+      )
+
+      migration_files_before =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      assert length(migration_files_before) >= 1
+
+      # Now rename the underlying table for the same resource
+      defresource MessageRename, "messages_rename_new" do
+        postgres do
+          table "messages_rename_new"
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([MessageRename])
+
+      # Answer "yes" to the rename table prompt
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "rename_messages_table"
+      )
+
+      migration_files_after =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      assert length(migration_files_after) >= length(migration_files_before) + 1
+
+      latest_migration =
+        migration_files_after
+        |> List.last()
+        |> File.read!()
+
+      assert latest_migration =~
+               "rename table(:messages_rename), to: table(:messages_rename_new)"
+
+      refute latest_migration =~ "drop table(:messages_rename)"
+      refute latest_migration =~ "create table(:messages_rename_new"
+    end
+
+    test "rename table migration respects schema prefix", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource SchemaMessageRename, "schema_messages_rename" do
+        postgres do
+          table "schema_messages_rename"
+          schema "my_schema_rename"
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([SchemaMessageRename])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "add_schema_messages_rename"
+      )
+
+      # Now rename the table while keeping the same schema
+      defresource SchemaMessageRename, "schema_messages_rename_new" do
+        postgres do
+          table "schema_messages_rename_new"
+          schema "my_schema_rename"
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([SchemaMessageRename])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "rename_schema_messages_table"
+      )
+
+      migration_files =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      latest =
+        migration_files
+        |> List.last()
+        |> File.read!()
+
+      assert latest =~
+               ~S[rename table(:schema_messages_rename, prefix: "my_schema_rename"), to: table(:schema_messages_rename_new, prefix: "my_schema_rename")]
+    end
+  end
 end
