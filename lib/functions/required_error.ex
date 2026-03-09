@@ -4,12 +4,12 @@
 
 defmodule AshPostgres.Functions.RequiredError do
   @moduledoc """
-  Expression that returns the value if present, or an error if nil.
-  Used for required-attribute validation (Part B): `ash_required!(^value, ^attribute)`.
+  Function that returns the value if present, or an error if nil.
+  Used for required-attribute validation: `ash_required!(^value, ^attribute)`.
 
   When the data layer supports `:required_error`, Ash can build
   `expr(ash_required!(^value, ^attribute))` instead of the inline if/is_nil/error block.
-  This module is returned from the data layer's `functions/1` so the expression is available
+  This module is returned from the data layer's `functions/1` so the function is available
   when using AshPostgres.
   """
   use Ash.Query.Function, name: :ash_required!, predicate?: false

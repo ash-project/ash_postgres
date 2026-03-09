@@ -402,34 +402,6 @@ defmodule AshSql.AggregateTest do
                |> Ash.read_one!()
     end
 
-    test "aggregate with query filter using required!(field) counts only non-nil" do
-      post =
-        Post
-        |> Ash.Changeset.for_create(:create, %{title: "title"})
-        |> Ash.create!()
-
-      Comment
-      |> Ash.Changeset.for_create(:create, %{title: "match"})
-      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-      |> Ash.create!()
-
-      Comment
-      |> Ash.Changeset.new()
-      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-      |> Ash.create!()
-
-      assert %{aggregates: %{custom_count_of_comments: 1}} =
-               Post
-               |> Ash.Query.filter(id == ^post.id)
-               |> Ash.Query.aggregate(
-                 :custom_count_of_comments,
-                 :count,
-                 :comments,
-                 query: [filter: expr(required!(title))]
-               )
-               |> Ash.read_one!()
-    end
-
     test "with data for a many_to_many, it returns the count" do
       post =
         Post

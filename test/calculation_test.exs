@@ -1670,33 +1670,4 @@ defmodule AshPostgres.CalculationTest do
     assert Ash.calculate!(post, :past_datetime2?)
   end
 
-  describe "required!/1 in calculations" do
-    test "calculation using required!(field) returns true when present, false when nil" do
-      post = Post |> Ash.Changeset.for_create(:create, %{title: "t"}) |> Ash.create!()
-
-      comment_with_rating =
-        Comment
-        |> Ash.Changeset.for_create(:create, %{title: "c1", rating: %{score: 5}})
-        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-        |> Ash.create!()
-
-      comment_without_rating =
-        Comment
-        |> Ash.Changeset.for_create(:create, %{title: "c2"})
-        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
-        |> Ash.create!()
-
-      comments =
-        Comment
-        |> Ash.Query.filter(id in [^comment_with_rating.id, ^comment_without_rating.id])
-        |> Ash.Query.load(:has_rating)
-        |> Ash.read!()
-
-      with_rating = Enum.find(comments, &(&1.id == comment_with_rating.id))
-      without_rating = Enum.find(comments, &(&1.id == comment_without_rating.id))
-
-      assert with_rating.has_rating == true
-      assert without_rating.has_rating == false
-    end
-  end
 end
