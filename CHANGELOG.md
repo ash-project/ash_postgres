@@ -11,6 +11,46 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.8.0](https://github.com/ash-project/ash_postgres/compare/v2.7.0...v2.8.0) (2026-03-09)
+
+
+
+
+### Features:
+
+* add --use_fragments option to resource generator | Closes #437 (#709) by henryzhan013
+
+### Bug Fixes:
+
+* test setup by Philip Capel
+
+* formatting by Philip Capel
+
+## [v2.7.0](https://github.com/ash-project/ash_postgres/compare/v2.6.32...v2.7.0) (2026-03-05)
+
+
+
+
+### Features:
+
+* support offset option in lateral join queries (#700) by Jinkyou Son
+
+* support touch_update_defaults? option to skip update_default fields on upsert by Michael Bärtschi
+
+### Bug Fixes:
+
+* bulk_create with upsert now updates update_timestamp fields on conflict by Michael Bärtschi
+
+* Fix locks handling for WAIT and SKIP_LOCKED (#704) by sezaru
+
+* set size when type changes in migrations (Issue #150) (#694) by Jatanasio
+
+* bulk_create with upsert now updates update_timestamp fields (#697) by Michael Bärtschi
+
+### Improvements:
+
+* read touch_update_defaults? from options instead of changeset context (#701) by Michael Bärtschi
+
 ## [v2.6.32](https://github.com/ash-project/ash_postgres/compare/v2.6.31...v2.6.32) (2026-02-11)
 
 

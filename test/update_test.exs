@@ -9,6 +9,20 @@ defmodule AshPostgres.UpdateTest do
   import ExUnit.CaptureLog
   import Ash.Expr
 
+  test "can update a keyword type attribute" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "keyword test"})
+      |> Ash.create!()
+
+    updated =
+      post
+      |> Ash.Changeset.for_update(:update, %{keyword_map: [display_template: "{{foo}}"]})
+      |> Ash.update!()
+
+    assert updated.keyword_map == [display_template: "{{foo}}"]
+  end
+
   test "can update with nested maps" do
     Post
     |> Ash.Changeset.for_create(:create, %{stuff: %{foo: %{bar: :baz}}})

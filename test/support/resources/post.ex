@@ -618,6 +618,20 @@ defmodule AshPostgres.Test.Post do
     attribute(:string_point, AshPostgres.Test.StringPoint, public?: true)
     attribute(:person_detail, AshPostgres.Test.PersonDetail, public?: true)
     attribute(:stuff, :map, public?: true)
+
+    attribute :keyword_map, :keyword do
+      public?(true)
+      allow_nil?(true)
+
+      constraints(
+        fields: [
+          display_template: [
+            type: :string
+          ]
+        ]
+      )
+    end
+
     attribute(:list_of_stuff, {:array, :map}, public?: true)
     attribute(:uniq_one, :string, public?: true)
     attribute(:uniq_two, :string, public?: true)
@@ -1199,6 +1213,19 @@ defmodule AshPostgres.Test.Post do
 
     calculate(:past_datetime1?, :boolean, expr(now() > datetime))
     calculate(:past_datetime2?, :boolean, expr(datetime <= now()))
+
+    # Test case for join_filters bug where Ash.Filter structs are not converted to Ecto expressions
+    calculate(
+      :max_rating_with_join_filter,
+      :integer,
+      expr(
+        max([:comments, :ratings],
+          query: [filter: expr(score > 0)],
+          field: :score,
+          join_filters: %{comments: expr(author_id == ^actor(:id))}
+        )
+      )
+    )
   end
 
   aggregates do

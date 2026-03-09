@@ -34,6 +34,7 @@ if Code.ensure_loaded?(Igniter) do
     - `public` - Mark all attributes and relationships as `public? true`. Defaults to `true`.
     - `no-migrations` - Do not generate snapshots & migrations for the resources. Defaults to `false`.
     - `skip-unknown` - Skip any attributes with types that we don't have a corresponding Elixir type for, and relationships that we can't assume the name of.
+    - `fragments` - Generate attributes and relationships in a separate fragment file. This allows the fragment to be regenerated without affecting user customizations in the main resource file. Defaults to `false`.
 
     ## Tables
 
@@ -61,7 +62,8 @@ if Code.ensure_loaded?(Igniter) do
           skip_unknown: :boolean,
           migrations: :boolean,
           snapshots_only: :boolean,
-          domain: :keep
+          domain: :keep,
+          fragments: :boolean
         ],
         aliases: [
           t: :tables,
@@ -74,7 +76,8 @@ if Code.ensure_loaded?(Igniter) do
         defaults: [
           default_actions: true,
           migrations: true,
-          public: true
+          public: true,
+          fragments: false
         ]
       }
     end
