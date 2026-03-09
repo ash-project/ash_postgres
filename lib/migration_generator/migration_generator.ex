@@ -1539,36 +1539,35 @@ defmodule AshPostgres.MigrationGenerator do
        ),
        do: false
 
-  # Place AddUniqueIndex after the last AddAttribute for the same table so it
-  # appears before AlterAttributes (issue #236).
+  # Place AddUniqueIndex after a specific attribute (by source) for the same
+  # table so it appears before AlterAttributes (issue #236).
   defp after?(
          %Operation.AddUniqueIndex{
-           insert_after_attribute_order: max_order,
+           insert_after_attribute_source: source,
            table: table,
            schema: schema
          },
          %Operation.AddAttribute{
            table: table,
            schema: schema,
-           attribute: %{order: order}
+           attribute: %{source: source}
          }
        )
-       when not is_nil(max_order) and order == max_order,
+       when not is_nil(source),
        do: true
 
   defp after?(
          %Operation.AddUniqueIndex{
-           insert_after_attribute_order: max_order,
+           insert_after_attribute_source: source,
            table: table,
            schema: schema
          },
          %Operation.AddAttribute{
            table: table,
-           schema: schema,
-           attribute: %{order: order}
+           schema: schema
          }
        )
-       when not is_nil(max_order) and order != max_order,
+       when not is_nil(source),
        do: false
 
   defp after?(
@@ -2333,22 +2332,26 @@ defmodule AshPostgres.MigrationGenerator do
         end)
       end
       |> Enum.map(fn identity ->
-        orders =
+        {insert_after_attribute_source, _best_index} =
           identity.keys
-          |> Enum.map(&Enum.find_index(snapshot.attributes, fn attr -> attr.source == &1 end))
-          |> Enum.reject(&is_nil/1)
+          |> Enum.reduce({nil, -1}, fn key, {best_source, best_index} ->
+            case Enum.find_index(snapshot.attributes, &(&1.source == key)) do
+              nil ->
+                {best_source, best_index}
 
-        insert_after_attribute_order =
-          case orders do
-            [] -> nil
-            _ -> Enum.max(orders)
-          end
+              idx when idx > best_index ->
+                {key, idx}
+
+              _ ->
+                {best_source, best_index}
+            end
+          end)
 
         %Operation.AddUniqueIndex{
           identity: identity,
           schema: snapshot.schema,
           table: snapshot.table,
-          insert_after_attribute_order: insert_after_attribute_order,
+          insert_after_attribute_source: insert_after_attribute_source,
           concurrently: opts.concurrent_indexes
         }
       end)
