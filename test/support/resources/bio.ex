@@ -22,5 +22,7 @@ defmodule AshPostgres.Test.Bio do
       allow_nil?(true)
       default(nil)
     end
+
+    attribute(:address, AshPostgres.Test.BioAddress, public?: true)
   end
 end
