@@ -44,31 +44,31 @@ defmodule AshPostgres.MultiTenancy do
     |> Enum.map(&extract_migration_info/1)
     |> Enum.filter(& &1)
     |> Enum.map(&load_migration_with_file!/1)
-    |> Enum.each(fn {version, mod, file} ->
-      requires_no_transaction? = migration_requires_no_transaction?(mod)
+    |> Enum.each(fn {version, mod, _file} ->
+      if migration_requires_no_transaction?(mod) && repo.in_transaction?() do
+        Logger.warning("""
+        Tenant migration #{inspect(mod)} uses @disable_ddl_transaction (e.g. CREATE INDEX CONCURRENTLY) \
+        but is running inside a transaction. This will likely fail with "CREATE INDEX CONCURRENTLY \
+        cannot run inside a transaction block".
 
-      if requires_no_transaction? do
-        # For migrations that require no transaction (e.g., concurrent indexes),
-        # we need to ensure they run outside of any transaction.
-        # Ecto.Migration.Runner.run will handle @disable_ddl_transaction correctly
-        # if we're not already in a transaction, so we use a separate connection
-        # or ensure we're not in a transaction.
-        run_migration_without_transaction(repo, version, mod, tenant_name)
-      else
-        Ecto.Migration.Runner.run(
-          repo,
-          [],
-          version,
-          mod,
-          :forward,
-          :up,
-          :up,
-          all: true,
-          prefix: tenant_name
-        )
-
-        Ecto.Migration.SchemaMigration.up(repo, repo.config(), version, prefix: tenant_name)
+        To fix this, ensure the action that creates/migrates tenants does not run inside a transaction. \
+        For Ash resources with manage_tenant: true, set transaction?: false on the create/update action.
+        """)
       end
+
+      Ecto.Migration.Runner.run(
+        repo,
+        [],
+        version,
+        mod,
+        :forward,
+        :up,
+        :up,
+        all: true,
+        prefix: tenant_name
+      )
+
+      Ecto.Migration.SchemaMigration.up(repo, repo.config(), version, prefix: tenant_name)
     end)
   end
 
@@ -134,9 +134,8 @@ defmodule AshPostgres.MultiTenancy do
   end
 
   # Check if a migration requires no transaction by examining the compiled module's
-  # migration metadata. The module is already compiled at this point, so we ask
-  # the module directly rather than reading the file. This also catches cases
-  # where the attribute is set programmatically via Module.put_attribute/3.
+  # migration metadata (e.g. @disable_ddl_transaction for CREATE INDEX CONCURRENTLY).
+  # Running such migrations inside a transaction will fail in PostgreSQL.
   defp migration_requires_no_transaction?(mod) do
     if function_exported?(mod, :__migration__, 0) do
       migration_info = mod.__migration__()
@@ -144,33 +143,5 @@ defmodule AshPostgres.MultiTenancy do
     else
       false
     end
-  end
-
-  # Run a migration that requires no transaction outside of any transaction context
-  defp run_migration_without_transaction(repo, version, mod, tenant_name) do
-    # For migrations that require no transaction (e.g., concurrent indexes),
-    # we need to ensure they run outside of any transaction.
-    # Ecto.Migration.Runner.run respects @disable_ddl_transaction, but if we're
-    # already in a transaction, PostgreSQL will still error.
-    #
-    # We use Ecto.Adapters.SQL.checkout/3 to get a fresh connection from the pool
-    # that's not part of any transaction, ensuring the migration runs correctly.
-    config = repo.config()
-
-    Ecto.Adapters.SQL.checkout(repo, config, fn ->
-      Ecto.Migration.Runner.run(
-        repo,
-        [],
-        version,
-        mod,
-        :forward,
-        :up,
-        :up,
-        all: true,
-        prefix: tenant_name
-      )
-
-      Ecto.Migration.SchemaMigration.up(repo, config, version, prefix: tenant_name)
-    end)
   end
 end
