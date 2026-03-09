@@ -44,18 +44,35 @@ defmodule AshPostgres.MultiTenancy do
     |> Enum.map(&extract_migration_info/1)
     |> Enum.filter(& &1)
     |> Enum.map(&load_migration_with_file!/1)
-    |> Enum.each(fn {version, mod, _file} ->
-      if migration_requires_no_transaction?(mod) && repo.in_transaction?() do
-        Logger.warning("""
-        Tenant migration #{inspect(mod)} uses @disable_ddl_transaction (e.g. CREATE INDEX CONCURRENTLY) \
-        but is running inside a transaction. This will likely fail with "CREATE INDEX CONCURRENTLY \
-        cannot run inside a transaction block".
+    |> then(fn migrations ->
+      if repo.in_transaction?() do
+        modules_requiring_no_transaction =
+          migrations
+          |> Enum.filter(fn {_version, mod, _file} -> migration_requires_no_transaction?(mod) end)
+          |> Enum.map(fn {_version, mod, _file} -> mod end)
 
-        To fix this, ensure the action that creates/migrates tenants does not run inside a transaction. \
-        For Ash resources with manage_tenant: true, set transaction?: false on the create/update action.
-        """)
+        if modules_requiring_no_transaction != [] do
+          module_list =
+            modules_requiring_no_transaction
+            |> Enum.map(&inspect/1)
+            |> Enum.join(", ")
+
+          Logger.warning("""
+          Tenant migrations use @disable_ddl_transaction (e.g. CREATE INDEX CONCURRENTLY) but are \
+          running inside a transaction. This will likely fail with "CREATE INDEX CONCURRENTLY cannot \
+          run inside a transaction block".
+
+          Affected modules: #{module_list}
+
+          To fix this, ensure the action that creates/migrates tenants does not run inside a transaction. \
+          For Ash resources with manage_tenant: true, set transaction?: false on the create/update action.
+          """)
+        end
       end
 
+      migrations
+    end)
+    |> Enum.each(fn {version, mod, _file} ->
       Ecto.Migration.Runner.run(
         repo,
         [],
