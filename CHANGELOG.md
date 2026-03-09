@@ -11,6 +11,21 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.8.0](https://github.com/ash-project/ash_postgres/compare/v2.7.0...v2.8.0) (2026-03-09)
+
+
+
+
+### Features:
+
+* add --use_fragments option to resource generator | Closes #437 (#709) by henryzhan013
+
+### Bug Fixes:
+
+* test setup by Philip Capel
+
+* formatting by Philip Capel
+
 ## [v2.7.0](https://github.com/ash-project/ash_postgres/compare/v2.6.32...v2.7.0) (2026-03-05)
 
 
