@@ -131,7 +131,7 @@ defmodule AshPostgres.ReferencesTest do
           end
 
           relationships do
-            has_many :children, AshPostgres.ReferencesTest.Child
+            has_many(:children, AshPostgres.ReferencesTest.Child)
           end
 
           postgres do
@@ -159,7 +159,7 @@ defmodule AshPostgres.ReferencesTest do
           end
 
           relationships do
-            belongs_to :parent, AshPostgres.ReferencesTest.Parent
+            belongs_to(:parent, AshPostgres.ReferencesTest.Parent)
           end
 
           postgres do
