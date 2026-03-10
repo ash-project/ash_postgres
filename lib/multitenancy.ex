@@ -51,7 +51,7 @@ defmodule AshPostgres.MultiTenancy do
           |> Enum.filter(fn {_version, mod, _file} -> migration_requires_no_transaction?(mod) end)
           |> Enum.map(fn {_version, mod, _file} -> mod end)
 
-        if modules_requiring_no_transaction != [] do
+        if Enum.any?(modules_requiring_no_transaction) do
           module_list =
             modules_requiring_no_transaction
             |> Enum.map(&inspect/1)
