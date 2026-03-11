@@ -163,21 +163,24 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     import Helper, only: [as_atom: 1]
 
-    def up(%{old_table: old_table, new_table: new_table, schema: schema, multitenancy: multitenancy}) do
+    def up(%{
+          old_table: old_table,
+          new_table: new_table,
+          schema: schema,
+          multitenancy: multitenancy
+        }) do
       {old_table_expr, new_table_expr} =
         table_expressions(old_table, new_table, schema, multitenancy)
 
       "rename #{old_table_expr}, to: #{new_table_expr}"
     end
 
-    def down(
-          %{
-            old_table: old_table,
-            new_table: new_table,
-            schema: schema,
-            multitenancy: multitenancy
-          }
-        ) do
+    def down(%{
+          old_table: old_table,
+          new_table: new_table,
+          schema: schema,
+          multitenancy: multitenancy
+        }) do
       {old_table_expr, new_table_expr} =
         table_expressions(old_table, new_table, schema, multitenancy)
 
