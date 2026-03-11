@@ -1518,6 +1518,75 @@ defmodule AshPostgres.MigrationGenerator do
     true
   end
 
+  # CreateTable must appear before AddUniqueIndex for the same table (table must exist first).
+  defp after?(
+         %Operation.CreateTable{table: table, schema: schema},
+         %Operation.AddUniqueIndex{table: table, schema: schema}
+       ),
+       do: false
+
+  # Unique index must be created before any alter that adds FKs referencing it.
+  defp after?(
+         %Operation.AddUniqueIndex{table: table, schema: schema},
+         %Operation.AlterAttribute{table: table, schema: schema}
+       ),
+       do: false
+
+  # Do not place AddUniqueIndex after CreateTable (must be after columns are added).
+  defp after?(
+         %Operation.AddUniqueIndex{table: table, schema: schema},
+         %Operation.CreateTable{table: table, schema: schema}
+       ),
+       do: false
+
+  # Place AddUniqueIndex after a specific attribute (by source) for the same
+  # table so it appears before AlterAttributes (issue #236).
+  defp after?(
+         %Operation.AddUniqueIndex{
+           insert_after_attribute_source: source,
+           table: table,
+           schema: schema
+         },
+         %Operation.AddAttribute{
+           table: table,
+           schema: schema,
+           attribute: %{source: source}
+         }
+       )
+       when not is_nil(source),
+       do: true
+
+  defp after?(
+         %Operation.AddUniqueIndex{
+           insert_after_attribute_source: source,
+           table: table,
+           schema: schema
+         },
+         %Operation.AddAttribute{
+           table: table,
+           schema: schema
+         }
+       )
+       when not is_nil(source),
+       do: false
+
+  defp after?(
+         %Operation.AddUniqueIndex{
+           identity: %{keys: keys},
+           table: table,
+           schema: schema
+         },
+         %Operation.AlterAttribute{
+           table: table,
+           schema: schema,
+           new_attribute: %{
+             references: %{table: table, destination_attribute: destination_attribute}
+           }
+         }
+       ) do
+    destination_attribute not in List.wrap(keys)
+  end
+
   defp after?(
          %Operation.AddUniqueIndex{
            table: table,
@@ -2263,10 +2332,26 @@ defmodule AshPostgres.MigrationGenerator do
         end)
       end
       |> Enum.map(fn identity ->
+        {insert_after_attribute_source, _best_index} =
+          identity.keys
+          |> Enum.reduce({nil, -1}, fn key, {best_source, best_index} ->
+            case Enum.find_index(snapshot.attributes, &(&1.source == key)) do
+              nil ->
+                {best_source, best_index}
+
+              idx when idx > best_index ->
+                {key, idx}
+
+              _ ->
+                {best_source, best_index}
+            end
+          end)
+
         %Operation.AddUniqueIndex{
           identity: identity,
           schema: snapshot.schema,
           table: snapshot.table,
+          insert_after_attribute_source: insert_after_attribute_source,
           concurrently: opts.concurrent_indexes
         }
       end)
@@ -2301,13 +2386,22 @@ defmodule AshPostgres.MigrationGenerator do
         }
       end)
 
+    # Place unique indexes after create/add attributes but before alter attributes
+    # so FKs that reference identity columns see the unique index (issue #236).
+    {creates_and_adds, alter_and_rest} =
+      Enum.split_while(attribute_operations, fn
+        %Operation.AlterAttribute{} -> false
+        _ -> true
+      end)
+
     [
       pkey_operations,
       unique_indexes_to_remove,
-      attribute_operations,
+      creates_and_adds,
+      unique_indexes_to_add,
+      alter_and_rest,
       reference_indexes_to_add,
       reference_indexes_to_remove,
-      unique_indexes_to_add,
       unique_indexes_to_rename,
       constraints_to_remove,
       constraints_to_add,
