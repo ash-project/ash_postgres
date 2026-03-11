@@ -52,10 +52,7 @@ defmodule AshPostgres.MultiTenancy do
           |> Enum.map(fn {_version, mod, _file} -> mod end)
 
         if Enum.any?(modules_requiring_no_transaction) do
-          module_list =
-            modules_requiring_no_transaction
-            |> Enum.map(&inspect/1)
-            |> Enum.join(", ")
+          module_list = Enum.map_join(modules_requiring_no_transaction, ", ", &inspect/1)
 
           Logger.warning("""
           Tenant migrations use @disable_ddl_transaction (e.g. CREATE INDEX CONCURRENTLY) but are \
@@ -104,11 +101,13 @@ defmodule AshPostgres.MultiTenancy do
   defp load_migration_with_file!({version, _, file}) when is_binary(file) do
     loaded_modules = file |> compile_file() |> Enum.map(&elem(&1, 0))
 
-    if mod = Enum.find(loaded_modules, &migration?/1) do
-      {version, mod, file}
-    else
-      raise Ecto.MigrationError,
-            "file #{Path.relative_to_cwd(file)} does not define an Ecto.Migration"
+    case Enum.find(loaded_modules, &migration?/1) do
+      nil ->
+        raise Ecto.MigrationError,
+              "file #{Path.relative_to_cwd(file)} does not define an Ecto.Migration"
+
+      mod ->
+        {version, mod, file}
     end
   end
 
