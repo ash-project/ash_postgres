@@ -112,7 +112,6 @@ defmodule AshPostgres.MultiTenancy do
     end
   end
 
-
   defp compile_file(file) do
     AshPostgres.MigrationCompileCache.start_link()
     AshPostgres.MigrationCompileCache.compile_file(file)

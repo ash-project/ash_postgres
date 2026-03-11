@@ -92,7 +92,9 @@ defmodule AshPostgres.Test.ConcurrentIndexMultitenancyTest do
 
     test "logs warning when @disable_ddl_transaction migration runs inside a transaction" do
       tenant_name = "test_tenant_warning"
-      migration_file = Path.join(@temp_migrations_dir, "20250101000001_create_table_with_attr.exs")
+
+      migration_file =
+        Path.join(@temp_migrations_dir, "20250101000001_create_table_with_attr.exs")
 
       # Migration has @disable_ddl_transaction but only creates a table (no CONCURRENTLY).
       # This lets the migration succeed while still triggering the warning when run in a transaction.
