@@ -154,7 +154,17 @@ defmodule AshPostgres.MultiTenancy do
   defp migration_requires_no_transaction?(mod) do
     if function_exported?(mod, :__migration__, 0) do
       migration_info = mod.__migration__()
-      Map.get(migration_info, :disable_ddl_transaction, false)
+
+      case migration_info do
+        map when is_map(map) ->
+          Map.get(migration_info, :disable_ddl_transaction, false)
+
+        keyword when is_list(keyword) ->
+          Keyword.get(migration_info, :disable_ddl_transaction, false)
+
+        _ ->
+          false
+      end
     else
       false
     end

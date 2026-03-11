@@ -33,6 +33,8 @@ defmodule AshPostgres.Test.ConcurrentIndexMultitenancyTest do
         "test_tenant_warning"
       ]
 
+      :ok = Ecto.Adapters.SQL.Sandbox.checkout(AshPostgres.TestRepo)
+
       for tenant <- test_tenants do
         try do
           Ecto.Adapters.SQL.query!(
