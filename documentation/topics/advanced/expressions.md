@@ -81,3 +81,17 @@ For example:
 ```elixir
 Ash.Query.filter(User, trigram_similarity(first_name, "fred") > 0.8)
 ```
+
+## Required error (ash_required!/2 and required_error/2)
+
+When the data layer supports the `:required_error` capability, Ash can use `ash_required!/2` for required-attribute validation: it returns the value when present, or returns `Ash.Error.Changes.Required` when the value is nil. This avoids inline `if is_nil(value), do: {:error, ...}, else: {:ok, value}` in changesets.
+
+Use `required_error/2` with `Ash.Changeset.require_change/3` so that when a value is nil, Ash calls the data layer and gets the standard required error:
+
+```elixir
+change fn changeset, _context ->
+  Ash.Changeset.require_change(changeset, :title, &AshPostgres.Functions.RequiredError.required_error/2)
+end
+```
+
+The function `AshPostgres.Functions.RequiredError.required_error/2` is provided by the data layer when `can?(:required_error)` is true (default when the ash-functions extension is installed). Ash uses it to build `expr(ash_required!(^value, ^attribute))` for required validation.
