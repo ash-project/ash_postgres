@@ -3142,9 +3142,7 @@ defmodule AshPostgres.MigrationGenerator do
         |> Path.join(repo_name(repo))
       end
 
-    if !File.exists?(base_folder) do
-      []
-    else
+    if File.exists?(base_folder) do
       base_folder
       |> File.ls!()
       |> Enum.filter(fn name ->
@@ -3159,6 +3157,8 @@ defmodule AshPostgres.MigrationGenerator do
           {name, nil}
         end
       end)
+    else
+      []
     end
   end
 
