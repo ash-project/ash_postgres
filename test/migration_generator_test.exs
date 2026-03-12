@@ -3851,7 +3851,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
       snapshot_path: snapshot_path,
       migration_path: migration_path
     } do
-      # Define two resources so we have two tables and two snapshots
       defresource PostForDrop, "posts_for_drop" do
         attributes do
           uuid_primary_key(:id)
@@ -3876,7 +3875,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([PostForDrop, MessageForDrop])
 
-      # First run: creates both tables and snapshots
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: snapshot_path,
         migration_path: migration_path,
@@ -3900,10 +3898,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert File.exists?(Path.join(snapshot_path, "test_repo/posts_for_drop"))
       assert File.exists?(Path.join(snapshot_path, "test_repo/messages_for_drop"))
 
-      # Redefine domain with only PostForDrop (MessageForDrop removed)
       defdomain([PostForDrop])
 
-      # Second run: should generate a migration that drops messages_for_drop table
+      send(self(), {:mix_shell_input, :yes?, true})
+
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: snapshot_path,
         migration_path: migration_path,
@@ -3920,7 +3918,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert length(migration_files_after) >= 2
 
-      # Newest migration should be the drop
       latest_migration =
         migration_files_after
         |> List.last()
@@ -3929,11 +3926,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert latest_migration =~ "drop table(:messages_for_drop)",
              "Expected migration to contain 'drop table(:messages_for_drop)', got:\n#{latest_migration}"
 
-      # Orphan snapshot for messages_for_drop should have been removed
       refute File.exists?(Path.join(snapshot_path, "test_repo/messages_for_drop")),
              "Orphan snapshot dir should be removed after generating drop migration"
 
-      # Snapshot for remaining resource should still exist
       assert File.exists?(Path.join(snapshot_path, "test_repo/posts_for_drop"))
     end
 
@@ -3941,7 +3936,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
       snapshot_path: snapshot_path,
       migration_path: migration_path
     } do
-      # Single resource, generate once
       defresource SoloPost, "solo_posts" do
         attributes do
           uuid_primary_key(:id)
@@ -3968,7 +3962,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
         |> Enum.reject(&String.contains?(&1, "extensions"))
         |> length()
 
-      # Remove resource from domain and add a different one
       defresource OtherResource, "other_table" do
         attributes do
           uuid_primary_key(:id)
@@ -3981,10 +3974,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([OtherResource])
 
-      # Answer "no" to the table-rename prompt (we are dropping one resource and adding another, not renaming)
       send(self(), {:mix_shell_input, :yes?, false})
+      send(self(), {:mix_shell_input, :yes?, true})
 
-      # This run drops solo_posts and creates other_table
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: snapshot_path,
         migration_path: migration_path,
@@ -3999,7 +3991,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
         |> Enum.reject(&String.contains?(&1, "extensions"))
         |> length()
 
-      # Run generate again with same domain - should create no new migrations
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: snapshot_path,
         migration_path: migration_path,
@@ -4018,11 +4009,96 @@ defmodule AshPostgres.MigrationGeneratorTest do
              "Expected no new migration files (count #{count_after_first_drop}), got #{count_after_second}"
     end
 
+    test "when user opts out of drop, snapshot is updated and we do not ask again", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource OptOutPost, "opt_out_posts" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defresource OptOutMessage, "opt_out_messages" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([OptOutPost, OptOutMessage])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "add_opt_out_tables"
+      )
+
+      assert File.exists?(Path.join(snapshot_path, "test_repo/opt_out_messages"))
+
+      defdomain([OptOutPost])
+
+      send(self(), {:mix_shell_input, :yes?, false})
+
+      count_before =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> length()
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "would_remove_opt_out_messages"
+      )
+
+      count_after_opt_out =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> length()
+
+      assert count_after_opt_out == count_before,
+             "Expected no new migration when opting out of drop, got #{count_after_opt_out - count_before} new file(s)"
+
+      assert File.exists?(Path.join(snapshot_path, "test_repo/opt_out_messages")),
+             "Opted-out table snapshot dir should remain"
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "no_op_after_opt_out"
+      )
+
+      count_after_second =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> length()
+
+      assert count_after_second == count_after_opt_out,
+             "Expected no new migration on second run after opt-out (count #{count_after_opt_out}), got #{count_after_second}"
+
+      assert File.exists?(Path.join(snapshot_path, "test_repo/opt_out_messages"))
+    end
+
     test "drop table migration uses correct prefix when resource has schema", %{
       snapshot_path: snapshot_path,
       migration_path: migration_path
     } do
-      # Resource with schema
       defresource SchemaPost, "schema_posts" do
         postgres do
           table "schema_posts"
@@ -4050,7 +4126,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
         name: "add_schema_post"
       )
 
-      # Remove from domain - need at least one resource for repo group, so add a dummy
       defresource DummyForSchema, "dummy_table" do
         attributes do
           uuid_primary_key(:id)
@@ -4062,6 +4137,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       defdomain([DummyForSchema])
+
+      send(self(), {:mix_shell_input, :yes?, true})
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: snapshot_path,
@@ -4118,7 +4195,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert length(migration_files_before) >= 1
 
-      # Now rename the underlying table for the same resource
       defresource MessageRename, "messages_rename_new" do
         postgres do
           table "messages_rename_new"
@@ -4137,7 +4213,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([MessageRename])
 
-      # Answer "yes" to the rename table prompt
       send(self(), {:mix_shell_input, :yes?, true})
 
       AshPostgres.MigrationGenerator.generate(Domain,
@@ -4200,7 +4275,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
         name: "add_schema_messages_rename"
       )
 
-      # Now rename the table while keeping the same schema
       defresource SchemaMessageRename, "schema_messages_rename_new" do
         postgres do
           table "schema_messages_rename_new"

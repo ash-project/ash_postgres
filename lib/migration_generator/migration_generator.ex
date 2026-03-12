@@ -1095,6 +1095,38 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
+  defp drop_table_confirmed?(existing_snapshot, opts) do
+    cond do
+      opts.check ->
+        true
+
+      opts.dev ->
+        true
+
+      opts.no_shell? ->
+        table_label =
+          if existing_snapshot.schema do
+            "#{existing_snapshot.schema}.#{existing_snapshot.table}"
+          else
+            existing_snapshot.table
+          end
+
+        raise "Unimplemented: cannot determine whether to generate DROP for table #{table_label} without shell input"
+
+      true ->
+        message =
+          if existing_snapshot.schema do
+            "Table #{existing_snapshot.schema}.#{existing_snapshot.table} no longer has a resource. " <>
+              "Generate a migration to DROP this table? This will permanently remove the table and its data."
+          else
+            "Table #{existing_snapshot.table} no longer has a resource. " <>
+              "Generate a migration to DROP this table? This will permanently remove the table and its data."
+          end
+
+        yes?(opts, message)
+    end
+  end
+
   defp prompt(opts, message) do
     if opts.check do
       "response"
@@ -3023,6 +3055,55 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
+  defp get_latest_snapshot_file_path(snapshot, opts) do
+    folder = get_snapshot_folder(snapshot, opts)
+    snapshot_dir = get_snapshot_path(snapshot, folder)
+
+    if File.exists?(snapshot_dir) do
+      snapshot_files =
+        File.ls!(snapshot_dir)
+        |> Enum.filter(
+          &(String.match?(&1, ~r/^\d{14}\.json$/) or
+              (opts.dev and String.match?(&1, ~r/^\d{14}\_dev\.json$/)))
+        )
+
+      case snapshot_files do
+        [] ->
+          if snapshot.schema do
+            path = Path.join(folder, "#{snapshot.schema}.#{snapshot.table}.json")
+            if File.exists?(path), do: path, else: nil
+          else
+            path = Path.join(folder, "#{snapshot.table}.json")
+            if File.exists?(path), do: path, else: nil
+          end
+
+        files ->
+          Path.join(snapshot_dir, Enum.max(files))
+      end
+    else
+      nil
+    end
+  end
+
+  defp record_drop_table_opt_out(snapshot, opts) do
+    if opts.dry_run || opts.check || opts.snapshots_only do
+      :ok
+    else
+      case get_latest_snapshot_file_path(snapshot, opts) do
+        nil ->
+          :ok
+
+        path ->
+          path
+          |> File.read!()
+          |> Jason.decode!(keys: :atoms!)
+          |> Map.put(:drop_table_opted_out, true)
+          |> Jason.encode!(pretty: true)
+          |> then(&File.write!(path, &1))
+      end
+    end
+  end
+
   defp get_old_snapshot(folder, snapshot) do
     schema_file =
       if snapshot.schema do
@@ -3113,47 +3194,61 @@ defmodule AshPostgres.MigrationGenerator do
             {ops, rename_map, snapshots}
 
           existing_snapshot ->
-            # Only consider new tables in the same schema as candidates
-            candidates =
-              Enum.filter(added_keys_list, fn {new_table, new_schema} ->
-                new_schema == schema && new_table != table
-              end)
+            if Map.get(existing_snapshot, :drop_table_opted_out, false) do
+              {ops, rename_map, snapshots}
+            else
+              # Only consider new tables in the same schema as candidates
+              candidates =
+                Enum.filter(added_keys_list, fn {new_table, new_schema} ->
+                  new_schema == schema && new_table != table
+                end)
 
-            {ops, rename_map, snapshots} =
-              case candidates do
-                [{new_table, new_schema}] ->
-                  if renaming_table_to?(old_key, {new_table, new_schema}, opts) do
-                    new_rename_map =
-                      Map.put(rename_map, {new_table, new_schema}, %{
-                        old_table: table,
-                        old_schema: schema,
-                        snapshot: existing_snapshot
-                      })
+              {ops, rename_map, snapshots} =
+                case candidates do
+                  [{new_table, new_schema}] ->
+                    if renaming_table_to?(old_key, {new_table, new_schema}, opts) do
+                      new_rename_map =
+                        Map.put(rename_map, {new_table, new_schema}, %{
+                          old_table: table,
+                          old_schema: schema,
+                          snapshot: existing_snapshot
+                        })
 
-                    {ops, new_rename_map, [existing_snapshot | snapshots]}
-                  else
-                    drop_op = %Operation.DropTable{
-                      table: existing_snapshot.table,
-                      schema: existing_snapshot.schema,
-                      repo: existing_snapshot.repo,
-                      multitenancy: existing_snapshot.multitenancy
-                    }
+                      {ops, new_rename_map, [existing_snapshot | snapshots]}
+                    else
+                      if drop_table_confirmed?(existing_snapshot, opts) do
+                        drop_op = %Operation.DropTable{
+                          table: existing_snapshot.table,
+                          schema: existing_snapshot.schema,
+                          repo: existing_snapshot.repo,
+                          multitenancy: existing_snapshot.multitenancy
+                        }
 
-                    {[drop_op | ops], rename_map, [existing_snapshot | snapshots]}
-                  end
+                        {[drop_op | ops], rename_map, [existing_snapshot | snapshots]}
+                      else
+                        record_drop_table_opt_out(existing_snapshot, opts)
+                        {ops, rename_map, snapshots}
+                      end
+                    end
 
-                _ ->
-                  drop_op = %Operation.DropTable{
-                    table: existing_snapshot.table,
-                    schema: existing_snapshot.schema,
-                    repo: existing_snapshot.repo,
-                    multitenancy: existing_snapshot.multitenancy
-                  }
+                  _ ->
+                    if drop_table_confirmed?(existing_snapshot, opts) do
+                      drop_op = %Operation.DropTable{
+                        table: existing_snapshot.table,
+                        schema: existing_snapshot.schema,
+                        repo: existing_snapshot.repo,
+                        multitenancy: existing_snapshot.multitenancy
+                      }
 
-                  {[drop_op | ops], rename_map, [existing_snapshot | snapshots]}
-              end
+                      {[drop_op | ops], rename_map, [existing_snapshot | snapshots]}
+                    else
+                      record_drop_table_opt_out(existing_snapshot, opts)
+                      {ops, rename_map, snapshots}
+                    end
+                end
 
-            {ops, rename_map, snapshots}
+              {ops, rename_map, snapshots}
+            end
         end
       end)
 
@@ -3960,6 +4055,7 @@ defmodule AshPostgres.MigrationGenerator do
     })
     |> Map.update!(:multitenancy, &load_multitenancy/1)
     |> Map.put_new(:base_filter, nil)
+    |> Map.put_new(:drop_table_opted_out, false)
   end
 
   defp load_check_constraints(constraints) do
