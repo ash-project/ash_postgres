@@ -3889,7 +3889,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
         |> Enum.reject(&String.contains?(&1, "extensions"))
         |> Enum.sort()
 
-      assert length(migration_files) >= 1
+      assert migration_files != []
 
       first_migration = File.read!(List.first(migration_files))
       assert first_migration =~ "create table(:posts_for_drop"
@@ -4193,7 +4193,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
         |> Enum.reject(&String.contains?(&1, "extensions"))
         |> Enum.sort()
 
-      assert length(migration_files_before) >= 1
+      assert migration_files_before != []
 
       defresource MessageRename, "messages_rename_new" do
         postgres do
