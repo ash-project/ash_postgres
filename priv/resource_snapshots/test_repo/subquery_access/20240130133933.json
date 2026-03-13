@@ -6,9 +6,9 @@
       "type": "uuid",
       "source": "id",
       "references": null,
+      "primary_key?": true,
       "allow_nil?": false,
-      "generated?": false,
-      "primary_key?": true
+      "generated?": false
     },
     {
       "default": "nil",
@@ -18,8 +18,6 @@
       "references": {
         "name": "subquery_access_parent_id_fkey",
         "table": "subquery_parent",
-        "schema": "public",
-        "on_delete": null,
         "multitenancy": {
           "global": null,
           "attribute": null,
@@ -27,16 +25,18 @@
         },
         "primary_key?": true,
         "destination_attribute": "id",
+        "schema": "public",
         "deferrable": false,
-        "match_type": null,
-        "match_with": null,
-        "on_update": null,
         "destination_attribute_default": null,
-        "destination_attribute_generated": null
+        "destination_attribute_generated": null,
+        "on_delete": null,
+        "on_update": null,
+        "match_with": null,
+        "match_type": null
       },
+      "primary_key?": false,
       "allow_nil?": true,
-      "generated?": false,
-      "primary_key?": false
+      "generated?": false
     },
     {
       "default": "nil",
@@ -44,24 +44,25 @@
       "type": "text",
       "source": "email",
       "references": null,
+      "primary_key?": false,
       "allow_nil?": true,
-      "generated?": false,
-      "primary_key?": false
+      "generated?": false
     }
   ],
   "table": "subquery_access",
   "hash": "B7DFB67DE808049D03358E207644E9865B03C3C7707F6FE1FA6F581605046CFF",
   "repo": "Elixir.AshPostgres.TestRepo",
-  "identities": [],
-  "schema": null,
-  "check_constraints": [],
-  "custom_indexes": [],
-  "base_filter": null,
   "multitenancy": {
     "global": null,
     "attribute": null,
     "strategy": null
   },
+  "schema": null,
+  "identities": [],
+  "has_create_action": true,
+  "custom_indexes": [],
   "custom_statements": [],
-  "has_create_action": true
+  "base_filter": null,
+  "check_constraints": [],
+  "drop_table_opted_out": true
 }

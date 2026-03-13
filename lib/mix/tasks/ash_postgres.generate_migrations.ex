@@ -55,6 +55,14 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
   For example, if you remove an attribute and add an attribute, it will ask you if you are renaming
   the column in question. If not, it will remove one column and add the other.
 
+  #### Dropping tables when resources are removed
+
+  When you remove a resource from your domain, the generator compares current resources to existing snapshots. Tables that have a snapshot but no longer exist in the domain are treated as removed. Before generating a migration to drop each such table, the generator will ask whether or not you'd like to generate a migration to drop the table. If you answer no, the generator will not ask again for that table on future runs. If you answer yes, a migration is generated to drop the table and the corresponding snapshot directory is removed. Run `mix ash_postgres.generate_migrations --name remove_my_resource` (or similar) after deleting a resource to generate the drop migration.
+
+  #### Renaming tables
+
+  When you change a resource's table name, if the generator detects one removed table and one new table in the same schema, it will ask if you are intending to rename the table. If you answer yes, a single migration is generated using Ecto's `rename table(...), to: table(...)`, which renames the table in place and preserves data and foreign keys. If you answer no, it generates a drop of the old table and a create of the new one instead.
+
   Additionally, it lowers things to the database where possible:
 
   #### Defaults

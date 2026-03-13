@@ -25,6 +25,10 @@ dev migrations and run them.
 
 For more information on generating migrations, run `mix help ash_postgres.generate_migrations` (the underlying task that is called by `mix ash.migrate`)
 
+When you remove a resource from your domain, run the migration generator (e.g. `mix ash_postgres.generate_migrations --name remove_my_resource`). It will generate a migration to drop the table and remove the snapshot for that table.
+
+When you rename a resource's table (e.g. change the `table "..."` in the `postgres do` block), the generator will ask whether you are renaming the table. If you answer yes, it generates a single `rename table(...), to: table(...)` migration so the table is renamed in place and data and foreign keys are preserved.
+
 > ### all_tenants/0 {: .info}
 >
 > If you are using schema-based multitenancy, you will also need to define a `all_tenants/0` function in your repo module. See `AshPostgres.Repo` for more.

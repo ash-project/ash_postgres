@@ -139,4 +139,30 @@ defmodule AshPostgres.MigrationGenerator.Phase do
       end
     end
   end
+
+  defmodule Drop do
+    @moduledoc false
+    defstruct [:table, :schema, :multitenancy, :repo, commented?: false]
+
+    import AshPostgres.MigrationGenerator.Operation.Helper, only: [as_atom: 1]
+
+    def up(%{schema: schema, table: table, multitenancy: multitenancy}) do
+      if multitenancy.strategy == :context do
+        "drop table(:#{as_atom(table)}, prefix: prefix())"
+      else
+        opts =
+          if schema do
+            ", prefix: \"#{schema}\""
+          else
+            ""
+          end
+
+        "drop table(:#{as_atom(table)}#{opts})"
+      end
+    end
+
+    def down(_) do
+      "# Rollback would require recreating the table manually"
+    end
+  end
 end

@@ -152,6 +152,66 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     defstruct [:table, :schema, :multitenancy, :old_multitenancy, :repo, :create_table_options]
   end
 
+  defmodule DropTable do
+    @moduledoc false
+    defstruct [:table, :schema, :multitenancy, :repo]
+  end
+
+  defmodule RenameTable do
+    @moduledoc false
+    defstruct [:old_table, :new_table, :schema, :multitenancy, :repo, no_phase: true]
+
+    import Helper, only: [as_atom: 1]
+
+    def up(%{
+          old_table: old_table,
+          new_table: new_table,
+          schema: schema,
+          multitenancy: multitenancy
+        }) do
+      {old_table_expr, new_table_expr} =
+        table_expressions(old_table, new_table, schema, multitenancy)
+
+      "rename #{old_table_expr}, to: #{new_table_expr}"
+    end
+
+    def down(%{
+          old_table: old_table,
+          new_table: new_table,
+          schema: schema,
+          multitenancy: multitenancy
+        }) do
+      {old_table_expr, new_table_expr} =
+        table_expressions(old_table, new_table, schema, multitenancy)
+
+      # Reverse the direction for the down migration
+      "rename #{new_table_expr}, to: #{old_table_expr}"
+    end
+
+    defp table_expressions(old_table, new_table, schema, multitenancy) do
+      case multitenancy.strategy do
+        :context ->
+          {
+            "table(:#{as_atom(old_table)}, prefix: prefix())",
+            "table(:#{as_atom(new_table)}, prefix: prefix())"
+          }
+
+        _ ->
+          prefix_opt =
+            if schema do
+              ~s[, prefix: "#{schema}"]
+            else
+              ""
+            end
+
+          {
+            "table(:#{as_atom(old_table)}#{prefix_opt})",
+            "table(:#{as_atom(new_table)}#{prefix_opt})"
+          }
+      end
+    end
+  end
+
   defmodule AddAttribute do
     @moduledoc false
     defstruct [:attribute, :table, :schema, :multitenancy, :old_multitenancy]
