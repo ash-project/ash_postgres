@@ -1,29 +1,30 @@
 {
   "attributes": [
     {
-      "allow_nil?": false,
       "default": "fragment(\"gen_random_uuid()\")",
-      "generated?": false,
-      "primary_key?": true,
-      "references": null,
       "size": null,
+      "type": "uuid",
       "source": "id",
-      "type": "uuid"
+      "references": null,
+      "primary_key?": true,
+      "allow_nil?": false,
+      "generated?": false
     }
   ],
-  "base_filter": null,
-  "check_constraints": [],
-  "custom_indexes": [],
-  "custom_statements": [],
-  "has_create_action": true,
+  "table": "schematic_groups",
   "hash": "F24673A4219DEC6873571CCF68B8F0CC34B5843DAA2D7B71A16EFE576C385C1C",
-  "identities": [],
+  "repo": "Elixir.AshPostgres.TestRepo",
   "multitenancy": {
-    "attribute": null,
     "global": null,
+    "attribute": null,
     "strategy": null
   },
-  "repo": "Elixir.AshPostgres.TestRepo",
   "schema": null,
-  "table": "schematic_groups"
+  "identities": [],
+  "has_create_action": true,
+  "custom_indexes": [],
+  "custom_statements": [],
+  "base_filter": null,
+  "check_constraints": [],
+  "drop_table_opted_out": true
 }
