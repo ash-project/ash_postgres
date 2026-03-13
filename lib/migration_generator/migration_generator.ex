@@ -1098,7 +1098,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp drop_table_confirmed?(existing_snapshot, opts) do
     cond do
       opts.check ->
-        true
+        false
 
       opts.dev ->
         true
