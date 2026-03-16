@@ -792,12 +792,18 @@ defmodule AshPostgres.MigrationGenerator do
         snapshots
         |> Enum.count(& &1.has_create_action)
 
+      identity_column_defaults =
+        snapshots
+        |> Enum.flat_map(&Map.get(&1, :identity_column_defaults, []))
+        |> Enum.uniq()
+
       new_snapshot = %{
         snapshot
         | attributes: merge_attributes(attributes, snapshot.table, count_with_create),
           identities: snapshots |> Enum.flat_map(& &1.identities) |> Enum.uniq(),
           custom_indexes: snapshots |> Enum.flat_map(& &1.custom_indexes) |> Enum.uniq(),
-          custom_statements: snapshots |> Enum.flat_map(& &1.custom_statements) |> Enum.uniq()
+          custom_statements: snapshots |> Enum.flat_map(& &1.custom_statements) |> Enum.uniq(),
+          identity_column_defaults: identity_column_defaults
       }
 
       all_identities =
@@ -2615,13 +2621,15 @@ defmodule AshPostgres.MigrationGenerator do
             %Operation.AddAttribute{
               attribute: Map.delete(attribute, :references),
               schema: snapshot.schema,
-              table: snapshot.table
+              table: snapshot.table,
+              identity_column_defaults: Map.get(snapshot, :identity_column_defaults, [])
             },
             %Operation.AlterAttribute{
               old_attribute: Map.delete(attribute, :references),
               new_attribute: attribute,
               schema: snapshot.schema,
-              table: snapshot.table
+              table: snapshot.table,
+              identity_column_defaults: Map.get(snapshot, :identity_column_defaults, [])
             },
             %Operation.DropForeignKey{
               attribute: attribute,
@@ -2636,7 +2644,8 @@ defmodule AshPostgres.MigrationGenerator do
             %Operation.AddAttribute{
               attribute: attribute,
               table: snapshot.table,
-              schema: snapshot.schema
+              schema: snapshot.schema,
+              identity_column_defaults: Map.get(snapshot, :identity_column_defaults, [])
             }
           ]
         end
@@ -2695,7 +2704,8 @@ defmodule AshPostgres.MigrationGenerator do
                   new_attribute: new_attribute,
                   old_attribute: old_attribute,
                   schema: snapshot.schema,
-                  table: snapshot.table
+                  table: snapshot.table,
+                  identity_column_defaults: Map.get(snapshot, :identity_column_defaults, [])
                 }
               ]
             else
@@ -2704,7 +2714,8 @@ defmodule AshPostgres.MigrationGenerator do
                   new_attribute: new_attribute,
                   old_attribute: old_attribute,
                   schema: snapshot.schema,
-                  table: snapshot.table
+                  table: snapshot.table,
+                  identity_column_defaults: Map.get(snapshot, :identity_column_defaults, [])
                 }
               ]
             end ++
@@ -2732,7 +2743,8 @@ defmodule AshPostgres.MigrationGenerator do
               new_attribute: Map.delete(new_attribute, :references),
               old_attribute: Map.delete(old_attribute, :references),
               schema: snapshot.schema,
-              table: snapshot.table
+              table: snapshot.table,
+              identity_column_defaults: Map.get(snapshot, :identity_column_defaults, [])
             }
           ]
         end
@@ -3160,7 +3172,8 @@ defmodule AshPostgres.MigrationGenerator do
       multitenancy: multitenancy(resource),
       base_filter: AshPostgres.DataLayer.Info.base_filter_sql(resource),
       has_create_action: has_create_action?(resource),
-      create_table_options: AshPostgres.DataLayer.Info.create_table_options(resource)
+      create_table_options: AshPostgres.DataLayer.Info.create_table_options(resource),
+      identity_column_defaults: AshPostgres.DataLayer.Info.identity_column_defaults(resource)
     }
 
     hash =

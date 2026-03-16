@@ -956,6 +956,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
 
   defp type("bigint"), do: {:ok, :integer}
   defp type("bigserial"), do: {:ok, :integer}
+  defp type("identity"), do: {:ok, :identity}
   defp type("boolean"), do: {:ok, :boolean}
   defp type("bytea"), do: {:ok, :binary}
   defp type("varchar"), do: {:ok, :string}

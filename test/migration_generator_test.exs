@@ -1598,6 +1598,201 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "identity_column_defaults" do
+    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defresource(Post) do
+        postgres do
+          table "posts"
+          repo(AshPostgres.TestRepo)
+          identity_column_defaults [:id]
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          integer_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      :ok
+    end
+
+    test "uses :identity instead of :bigserial when identity_column_defaults includes the attribute", %{
+      migration_path: migration_path
+    } do
+      assert [file] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert File.read!(file) =~
+               ~S[add :id, :identity, null: false, primary_key: true]
+    end
+  end
+
+  describe "identity_column_defaults when empty" do
+    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defresource(IdentityNoOptInPost) do
+        postgres do
+          table "identity_no_opt_in_posts"
+          repo(AshPostgres.TestRepo)
+          identity_column_defaults []
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          integer_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defmodule IdentityNoOptInDomain do
+        use Ash.Domain
+        resources do
+          resource(IdentityNoOptInPost)
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(IdentityNoOptInDomain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      :ok
+    end
+
+    test "uses :bigserial when identity_column_defaults is empty", %{
+      migration_path: migration_path
+    } do
+      assert [file] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert File.read!(file) =~ ~S[add :id, :bigserial, null: false, primary_key: true]
+    end
+  end
+
+  describe "identity_column_defaults when attribute not in list" do
+    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defresource(IdentityPartialOptInPost) do
+        postgres do
+          table "identity_partial_opt_in_posts"
+          repo(AshPostgres.TestRepo)
+          identity_column_defaults [:other_id]
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          integer_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defmodule IdentityPartialOptInDomain do
+        use Ash.Domain
+        resources do
+          resource(IdentityPartialOptInPost)
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(IdentityPartialOptInDomain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      :ok
+    end
+
+    test "uses :bigserial when attribute is not in identity_column_defaults", %{
+      migration_path: migration_path
+    } do
+      assert [file] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert File.read!(file) =~ ~S[add :id, :bigserial, null: false, primary_key: true]
+    end
+  end
+
+  describe "identity_column_defaults with multiple attributes" do
+    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defresource(IdentityMultiOptInPost) do
+        postgres do
+          table "identity_multi_opt_in_posts"
+          repo(AshPostgres.TestRepo)
+          identity_column_defaults [:id, :sequence_id]
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          integer_primary_key(:id)
+          attribute(:sequence_id, :integer,
+            generated?: true,
+            allow_nil?: false,
+            public?: true
+          )
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defmodule IdentityMultiOptInDomain do
+        use Ash.Domain
+        resources do
+          resource(IdentityMultiOptInPost)
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(IdentityMultiOptInDomain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      :ok
+    end
+
+    test "uses :identity for multiple attributes when all are in identity_column_defaults", %{
+      migration_path: migration_path
+    } do
+      assert [file] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      file_contents = File.read!(file)
+      assert file_contents =~ ~S[add :id, :identity, null: false, primary_key: true]
+      assert file_contents =~ ~S[add :sequence_id, :identity, null: false]
+    end
+  end
+
   describe "--check option" do
     setup do
       defposts do
