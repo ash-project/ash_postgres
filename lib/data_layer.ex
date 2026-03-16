@@ -881,7 +881,7 @@ defmodule AshPostgres.DataLayer do
       AshPostgres.Functions.Like,
       AshPostgres.Functions.ILike,
       AshPostgres.Functions.Binding,
-      AshPostgres.Functions.RequiredError
+      Ash.Query.Function.RequiredError
     ]
 
     functions =

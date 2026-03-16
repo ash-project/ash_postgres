@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshPostgres.Functions.RequiredErrorTest do
+defmodule AshPostgres.RequiredErrorCoreFunctionTest do
   use ExUnit.Case, async: true
 
-  alias AshPostgres.Functions.RequiredError
+  alias Ash.Query.Function.RequiredError
 
   test "ash_required!/2 returns error when value is nil" do
     attribute = %{name: :title, resource: MyApp.Post}

@@ -230,6 +230,55 @@ defmodule AshPostgres.SqlImplementation do
   end
 
   def expr(
+        query,
+        %Ash.Query.Function.RequiredError{
+          arguments: [value_expr, attribute],
+          embedded?: pred_embedded?
+        },
+        bindings,
+        embedded?,
+        acc,
+        type
+      ) do
+    {value_dyn, acc} =
+      AshSql.Expr.dynamic_expr(
+        query,
+        value_expr,
+        bindings,
+        pred_embedded? || embedded?,
+        type,
+        acc
+      )
+
+    resource =
+      Map.get(attribute, :resource) ||
+        raise("attribute must have :resource for ash_required!")
+
+    field =
+      Map.get(attribute, :name) ||
+        Map.get(attribute, "name") ||
+        raise("attribute must have :name for ash_required!")
+
+    payload =
+      %{
+        exception: inspect(Ash.Error.Changes.Required),
+        input: %{field: field, type: :attribute, resource: resource}
+      }
+      |> Jason.encode!()
+
+    {:ok,
+     Ecto.Query.dynamic(
+       fragment(
+         "CASE WHEN ? IS NULL THEN ash_raise_error(?::jsonb, ?) ELSE ? END",
+         ^value_dyn,
+         ^payload,
+         ^value_dyn,
+         ^value_dyn
+       )
+     ), acc}
+  end
+
+  def expr(
         _query,
         _expr,
         _bindings,
