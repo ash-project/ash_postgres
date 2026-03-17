@@ -19,6 +19,23 @@ defmodule AshPostgres.Test.Author do
     end
   end
 
+  defmodule TrueIfActorInContext do
+    @moduledoc """
+    An example of a calculation that references the actor from context, in a trivial way for demonstration purposes.
+    """
+    use Ash.Resource.Calculation
+
+    def expression(_opts, context) do
+      actor = context.actor
+
+      if is_nil(actor) do
+        expr(false)
+      else
+        expr(true)
+      end
+    end
+  end
+
   postgres do
     table("authors")
     repo(AshPostgres.TestRepo)
@@ -190,6 +207,14 @@ defmodule AshPostgres.Test.Author do
     )
 
     calculate(:profile_description_calc, :string, expr(profile.description), allow_nil?: true)
+
+    calculate(:true_if_actor_in_context, :boolean, TrueIfActorInContext)
+
+    calculate(
+      :true_if_actor_in_context_nested,
+      :boolean,
+      expr(true_if_actor_in_context and fragment("1 = 1"))
+    )
   end
 
   aggregates do
