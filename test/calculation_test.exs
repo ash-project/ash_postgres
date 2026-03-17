@@ -1669,4 +1669,25 @@ defmodule AshPostgres.CalculationTest do
     assert Ash.calculate!(post, :past_datetime1?)
     assert Ash.calculate!(post, :past_datetime2?)
   end
+
+  test "bug repro" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{
+        first_name: "Bill",
+        last_name: "Jones",
+        bio: %{title: "Mr.", bio: "Bones"}
+      })
+      |> Ash.create!()
+
+    [author_with_loads] =
+      Author
+      |> Ash.Query.for_read(:read, %{}, actor: %{id: "it's a me"})
+      |> Ash.Query.load([:true_if_actor_from_context, :true_if_actor_from_context_nested])
+      |> Ash.Query.filter(id == ^author.id)
+      |> Ash.read!()
+
+    assert author_with_loads.true_if_actor_in_context
+    assert author_with_loads.true_if_actor_in_context_nested
+  end
 end
