@@ -1683,7 +1683,7 @@ defmodule AshPostgres.CalculationTest do
     [author_with_loads] =
       Author
       |> Ash.Query.for_read(:read, %{}, actor: %{id: "it's a me"})
-      |> Ash.Query.load([:true_if_actor_from_context, :true_if_actor_from_context_nested])
+      |> Ash.Query.load([:true_if_actor_in_context, :true_if_actor_in_context_nested])
       |> Ash.Query.filter(id == ^author.id)
       |> Ash.read!()
 
