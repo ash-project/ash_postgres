@@ -231,15 +231,14 @@ defmodule AshPostgres.SqlImplementation do
 
   def expr(
         query,
-        %Ash.Query.Function.RequiredError{
-          arguments: [value_expr, attribute],
-          embedded?: pred_embedded?
-        },
+        %{name: :required!, arguments: [value_expr, attribute]} = required,
         bindings,
         embedded?,
         acc,
         type
       ) do
+    pred_embedded? = Map.get(required, :embedded?, false)
+
     {value_dyn, acc} =
       AshSql.Expr.dynamic_expr(
         query,
@@ -269,11 +268,9 @@ defmodule AshPostgres.SqlImplementation do
     {:ok,
      Ecto.Query.dynamic(
        fragment(
-         "CASE WHEN ? IS NULL THEN ash_raise_error(?::jsonb, ?) ELSE ? END",
+         "ash_required(?, ?::jsonb)",
          ^value_dyn,
-         ^payload,
-         ^value_dyn,
-         ^value_dyn
+         ^payload
        )
      ), acc}
   end

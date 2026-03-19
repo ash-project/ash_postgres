@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshPostgres.MigrationGenerator.AshFunctions do
-  @latest_version 5
+  @latest_version 6
 
   def latest_version, do: @latest_version
 
@@ -76,6 +76,8 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
 
     #{ash_raise_error()}
 
+    #{ash_required()}
+
     #{uuid_generate_v7()}
     """
   end
@@ -99,6 +101,8 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     \"\"\")
 
     #{ash_raise_error()}
+
+    #{ash_required()}
 
     #{uuid_generate_v7()}
 
@@ -134,6 +138,8 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     """
     #{ash_raise_error()}
 
+    #{ash_required()}
+
     #{uuid_generate_v7()}
     """
   end
@@ -141,6 +147,8 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
   def install(2) do
     """
     #{ash_raise_error()}
+
+    #{ash_required()}
 
     #{uuid_generate_v7()}
     """
@@ -150,6 +158,9 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     """
     execute("ALTER FUNCTION ash_raise_error(jsonb) STABLE;")
     execute("ALTER FUNCTION ash_raise_error(jsonb, ANYCOMPATIBLE) STABLE")
+
+    #{ash_required()}
+
     #{uuid_generate_v7()}
     """
   end
@@ -158,7 +169,16 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     """
     execute("ALTER FUNCTION ash_raise_error(jsonb) STABLE;")
     execute("ALTER FUNCTION ash_raise_error(jsonb, ANYCOMPATIBLE) STABLE")
+
+    #{ash_required()}
+
     #{uuid_generate_v7()}
+    """
+  end
+
+  def install(5) do
+    """
+    #{ash_required()}
     """
   end
 
@@ -166,31 +186,56 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     """
     execute("ALTER FUNCTION ash_raise_error(jsonb) VOLATILE;")
     execute("ALTER FUNCTION ash_raise_error(jsonb, ANYCOMPATIBLE) VOLATILE")
+
+    execute("DROP FUNCTION IF EXISTS ash_required(ANYCOMPATIBLE, jsonb)")
     """
   end
 
+  def drop(5) do
+    "execute(\"DROP FUNCTION IF EXISTS ash_required(ANYCOMPATIBLE, jsonb)\")"
+  end
+
   def drop(3) do
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid)\")"
+    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_required(ANYCOMPATIBLE, jsonb)\")"
   end
 
   def drop(2) do
     """
     #{ash_raise_error()}
 
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid)\")"
+    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_required(ANYCOMPATIBLE, jsonb)\")"
     """
   end
 
   def drop(1) do
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE)\")"
+    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_required(ANYCOMPATIBLE, jsonb)\")"
   end
 
   def drop(0) do
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_trim_whitespace(text[])\")"
+    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_trim_whitespace(text[]), ash_required(ANYCOMPATIBLE, jsonb)\")"
   end
 
   def drop(nil) do
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_elixir_and(BOOLEAN, ANYCOMPATIBLE), ash_elixir_and(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(BOOLEAN, ANYCOMPATIBLE), ash_trim_whitespace(text[])\")"
+    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_elixir_and(BOOLEAN, ANYCOMPATIBLE), ash_elixir_and(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(BOOLEAN, ANYCOMPATIBLE), ash_trim_whitespace(text[]), ash_required(ANYCOMPATIBLE, jsonb)\")"
+  end
+
+  defp ash_required do
+    """
+    execute(\"\"\"
+    CREATE OR REPLACE FUNCTION ash_required(value ANYCOMPATIBLE, payload jsonb)
+    RETURNS ANYCOMPATIBLE AS $$
+    BEGIN
+      IF value IS NULL THEN
+        RETURN ash_raise_error(payload, value);
+      END IF;
+
+      RETURN value;
+    END;
+    $$ LANGUAGE plpgsql
+    STABLE
+    SET search_path = '';
+    \"\"\")
+    """
   end
 
   defp ash_raise_error do
