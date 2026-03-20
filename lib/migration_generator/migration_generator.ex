@@ -515,7 +515,8 @@ defmodule AshPostgres.MigrationGenerator do
           else
             operations
             |> split_into_migrations()
-            |> Enum.map(fn operations ->
+            |> Enum.with_index()
+            |> Enum.map(fn {operations, split_index} ->
               run_without_transaction? =
                 Enum.any?(operations, fn
                   %Operation.AddCustomIndex{index: %{concurrently: true}} ->
@@ -531,7 +532,7 @@ defmodule AshPostgres.MigrationGenerator do
               operations
               |> organize_operations
               |> build_up_and_down()
-              |> migration(repo, opts, tenant?, run_without_transaction?)
+              |> migration(repo, opts, tenant?, run_without_transaction?, split_index)
             end)
           end
           |> Enum.concat(create_new_snapshot(snapshots, repo_name(repo), opts, tenant?))
@@ -718,9 +719,61 @@ defmodule AshPostgres.MigrationGenerator do
         [ops]
 
       {concurrent_indexes, ops} ->
-        [ops, concurrent_indexes]
+        concurrent_unique_columns =
+          Enum.flat_map(concurrent_indexes, fn
+            %Operation.AddUniqueIndex{table: table, identity: %{keys: keys}} ->
+              Enum.map(keys, &{table, &1})
+
+            _ ->
+              []
+          end)
+
+        if Enum.empty?(concurrent_unique_columns) do
+          [ops, concurrent_indexes]
+        else
+          {deferred_fk_ops, regular_ops} =
+            Enum.split_with(
+              ops,
+              &references_concurrent_unique_column?(&1, concurrent_unique_columns)
+            )
+
+          [regular_ops, concurrent_indexes, deferred_fk_ops]
+        end
     end
+    |> Enum.reject(&Enum.empty?/1)
   end
+
+  defp references_concurrent_unique_column?(
+         %Operation.AlterAttribute{
+           new_attribute: %{references: %{table: ref_table, destination_attribute: ref_col}}
+         },
+         concurrent_unique_columns
+       )
+       when not is_nil(ref_table) do
+    {ref_table, ref_col} in concurrent_unique_columns
+  end
+
+  defp references_concurrent_unique_column?(
+         %Operation.AddAttribute{
+           attribute: %{references: %{table: ref_table, destination_attribute: ref_col}}
+         },
+         concurrent_unique_columns
+       )
+       when not is_nil(ref_table) do
+    {ref_table, ref_col} in concurrent_unique_columns
+  end
+
+  defp references_concurrent_unique_column?(
+         %Operation.DropForeignKey{
+           attribute: %{references: %{table: ref_table, destination_attribute: ref_col}}
+         },
+         concurrent_unique_columns
+       )
+       when not is_nil(ref_table) do
+    {ref_table, ref_col} in concurrent_unique_columns
+  end
+
+  defp references_concurrent_unique_column?(_op, _concurrent_unique_columns), do: false
 
   defp add_order_to_operations({snapshot, operations}) do
     operations_with_order = Enum.map(operations, &add_order_to_operation(&1, snapshot.attributes))
@@ -1171,14 +1224,16 @@ defmodule AshPostgres.MigrationGenerator do
     repo |> Module.split() |> List.last() |> Macro.underscore()
   end
 
-  defp migration({up, down}, repo, opts, tenant?, run_without_transaction?) do
+  defp migration({up, down}, repo, opts, tenant?, run_without_transaction?, split_index \\ 0) do
     migration_path = migration_path(opts, repo, tenant?)
 
     require_name!(opts)
 
+    split_suffix = if split_index > 0, do: "_#{split_index}", else: ""
+
     {migration_name, last_part} =
       if opts.name do
-        {"#{timestamp()}_#{opts.name}", "#{opts.name}"}
+        {"#{timestamp()}_#{opts.name}#{split_suffix}", "#{opts.name}#{split_suffix}"}
       else
         count =
           migration_path
@@ -1201,7 +1256,7 @@ defmodule AshPostgres.MigrationGenerator do
           |> Enum.max(fn -> 0 end)
           |> Kernel.+(1)
 
-        {"#{timestamp()}_migrate_resources#{count}", "migrate_resources#{count}"}
+        {"#{timestamp()}_migrate_resources#{count}#{split_suffix}", "migrate_resources#{count}#{split_suffix}"}
       end
 
     migration_file =

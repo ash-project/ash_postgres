@@ -504,7 +504,10 @@ defmodule AshPostgres.CalculationTest do
       |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.for_create(:create, %{title: "comment"})
+    |> Ash.Changeset.for_create(:create, %{
+      title: "comment",
+      created_at: DateTime.add(DateTime.utc_now(), 1, :day)
+    })
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Ash.create!()
 

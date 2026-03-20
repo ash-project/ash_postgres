@@ -547,6 +547,114 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "unique identities with `concurrent_indexes: true`" do
+    test "dependent foreign keys are generated only after the unique index migration", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      Code.compiler_options(ignore_module_conflict: true)
+
+      defmodule ConcurrentUniqueTarget do
+        use Ash.Resource, data_layer: AshPostgres.DataLayer, domain: nil
+
+        postgres do
+          table "concurrent_unique_targets"
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:code, :string, allow_nil?: false, public?: true)
+        end
+
+        identities do
+          identity(:uniq_code, [:code])
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defmodule ConcurrentUniqueDependent do
+        use Ash.Resource, data_layer: AshPostgres.DataLayer, domain: nil
+
+        postgres do
+          table "concurrent_unique_dependents"
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:target_code, :string, public?: true)
+        end
+
+        relationships do
+          belongs_to(:target, ConcurrentUniqueTarget) do
+            source_attribute(:target_code)
+            destination_attribute(:code)
+            attribute_writable?(true)
+            allow_nil?(true)
+            public?(true)
+          end
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defmodule ConcurrentUniqueDomain do
+        use Ash.Domain
+
+        resources do
+          resource(ConcurrentUniqueTarget)
+          resource(ConcurrentUniqueDependent)
+        end
+      end
+
+      Code.compiler_options(ignore_module_conflict: false)
+
+      AshPostgres.MigrationGenerator.generate(ConcurrentUniqueDomain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        concurrent_indexes: true
+      )
+
+      assert [table_migration, unique_index_migration, fk_migration] =
+               Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      table_contents = File.read!(table_migration)
+      index_contents = File.read!(unique_index_migration)
+      fk_contents = File.read!(fk_migration)
+
+      # Three steps are generated:
+      # 1. create tables without the FK to `:code`
+      # 2. create the concurrent unique index on `concurrent_unique_targets.code`
+      # 3. add the FK from `concurrent_unique_dependents.target_code`
+
+      # Step 1: tables created, but target_code has no FK reference
+      assert table_contents =~ ~S|create table(:concurrent_unique_targets|
+      assert table_contents =~ ~S|create table(:concurrent_unique_dependents|
+      refute table_contents =~ ~S|references(:concurrent_unique_targets|
+
+      # Step 2: concurrent unique index (in a @disable_ddl_transaction migration)
+      assert index_contents =~ ~S|@disable_ddl_transaction true|
+      assert index_contents =~ ~S|@disable_migration_lock true|
+
+      assert index_contents =~
+               ~S|create unique_index(:concurrent_unique_targets, [:code], name: "concurrent_unique_targets_uniq_code_index", concurrently: true)|
+
+      # Step 3: FK reference added
+      assert fk_contents =~
+               ~S|modify :target_code, references(:concurrent_unique_targets, column: :code, name: "concurrent_unique_dependents_target_code_fkey", type: :text, prefix: "public")|
+    end
+  end
+
   describe "custom_indexes with `null_distinct: false`" do
     setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
       :ok
@@ -1574,10 +1682,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert file3_content =~ ~S[@disable_ddl_transaction true]
 
       assert file3_content =~
-               "create unique_index(:posts, [:title], name: \"posts_unique_title_index\")"
+               "create unique_index(:posts, [:title], name: \"posts_unique_title_index\", concurrently: true)"
 
       assert file3_content =~
-               "create unique_index(:posts, [:name], name: \"posts_unique_name_index\")"
+               "create unique_index(:posts, [:name], name: \"posts_unique_name_index\", concurrently: true)"
     end
 
     test "when an attribute exists only on some of the resources that use the same table, it isn't marked as null: false",
