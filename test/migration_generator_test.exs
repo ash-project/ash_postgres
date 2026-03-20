@@ -490,6 +490,61 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "custom_indexes with `concurrently: true` and an explicit name" do
+    test "it gives each generated migration a unique name and module", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      :ok
+
+      defposts do
+        postgres do
+          custom_indexes do
+            index([:title], concurrently: true)
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        name: "repro_case"
+      )
+
+      assert [first_migration, second_migration] =
+               Enum.sort(Path.wildcard("#{migration_path}/**/*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      first_contents = File.read!(first_migration)
+      second_contents = File.read!(second_migration)
+
+      first_name =
+        first_migration
+        |> Path.basename(".exs")
+        |> then(&Regex.replace(~r/^\d+_/, &1, ""))
+
+      second_name =
+        second_migration
+        |> Path.basename(".exs")
+        |> then(&Regex.replace(~r/^\d+_/, &1, ""))
+
+      assert [_, first_module] = Regex.run(~r/^defmodule\s+(.+)\s+do$/m, first_contents)
+      assert [_, second_module] = Regex.run(~r/^defmodule\s+(.+)\s+do$/m, second_contents)
+
+      assert first_name != second_name
+      assert first_module != second_module
+    end
+  end
+
   describe "custom_indexes with `null_distinct: false`" do
     setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
       :ok
