@@ -567,25 +567,32 @@ defmodule AshPostgres.MigrationGeneratorTest do
         concurrent_indexes: true
       )
 
-      assert [migration_before_index, unique_index_migration] =
+      assert [table_migration, unique_index_migration, fk_migration] =
                Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
                |> Enum.reject(&String.contains?(&1, "extensions"))
 
-      first_contents = File.read!(migration_before_index)
-      second_contents = File.read!(unique_index_migration)
+      table_contents = File.read!(table_migration)
+      index_contents = File.read!(unique_index_migration)
+      fk_contents = File.read!(fk_migration)
 
-      # The correct end state here likely needs three steps:
-      # 1. create/alter tables without the FK to `:code`
+      # Three steps are generated:
+      # 1. create tables without the FK to `:code`
       # 2. create the concurrent unique index on `concurrent_unique_targets.code`
       # 3. add the FK from `concurrent_unique_dependents.target_code`
-      #
-      # With only two files, the FK must not appear before the concurrent unique
-      # index migration, because Postgres requires the referenced column to be
-      # backed by a unique or primary key constraint before the FK is added.
-      assert first_contents =~
+
+      # Step 1: tables created, but target_code has no FK reference
+      assert table_contents =~ ~S|create table(:concurrent_unique_targets|
+      assert table_contents =~ ~S|create table(:concurrent_unique_dependents|
+      refute table_contents =~ ~S|references(:concurrent_unique_targets|
+
+      # Step 2: concurrent unique index (in a @disable_ddl_transaction migration)
+      assert index_contents =~ ~S|@disable_ddl_transaction true|
+      assert index_contents =~ ~S|@disable_migration_lock true|
+      assert index_contents =~
                ~S|create unique_index(:concurrent_unique_targets, [:code], name: "concurrent_unique_targets_uniq_code_index", concurrently: true)|
 
-      assert second_contents =~
+      # Step 3: FK reference added
+      assert fk_contents =~
                ~S|modify :target_code, references(:concurrent_unique_targets, column: :code, name: "concurrent_unique_dependents_target_code_fkey", type: :text, prefix: "public")|
     end
   end
@@ -1617,10 +1624,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert file3_content =~ ~S[@disable_ddl_transaction true]
 
       assert file3_content =~
-               "create unique_index(:posts, [:title], name: \"posts_unique_title_index\")"
+               "create unique_index(:posts, [:title], name: \"posts_unique_title_index\", concurrently: true)"
 
       assert file3_content =~
-               "create unique_index(:posts, [:name], name: \"posts_unique_name_index\")"
+               "create unique_index(:posts, [:name], name: \"posts_unique_name_index\", concurrently: true)"
     end
 
     test "when an attribute exists only on some of the resources that use the same table, it isn't marked as null: false",

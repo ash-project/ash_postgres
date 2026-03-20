@@ -942,29 +942,31 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           table: table,
           schema: schema,
           multitenancy: multitenancy
-        }) do
+        } = op) do
       keys = index_keys(keys, all_tenants?, multitenancy)
 
       index_name = index_name || "#{table}_#{name}_index"
+
+      concurrently_option = if Map.get(op, :concurrently), do: "concurrently: true"
 
       cond do
         base_filter && where ->
           where = "(#{where}) AND (#{base_filter})"
 
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where)])})"
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where), concurrently_option])})"
 
         base_filter ->
           base_filter = "(#{base_filter})"
 
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?)])})"
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), concurrently_option])})"
 
         where ->
           where = "(#{where})"
 
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where)])})"
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where), concurrently_option])})"
 
         true ->
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?)])})"
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), concurrently_option])})"
       end
     end
 

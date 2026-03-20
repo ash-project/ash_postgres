@@ -718,9 +718,61 @@ defmodule AshPostgres.MigrationGenerator do
         [ops]
 
       {concurrent_indexes, ops} ->
-        [ops, concurrent_indexes]
+        concurrent_unique_columns =
+          Enum.flat_map(concurrent_indexes, fn
+            %Operation.AddUniqueIndex{table: table, identity: %{keys: keys}} ->
+              Enum.map(keys, &{table, &1})
+
+            _ ->
+              []
+          end)
+
+        if Enum.empty?(concurrent_unique_columns) do
+          [ops, concurrent_indexes]
+        else
+          {deferred_fk_ops, regular_ops} =
+            Enum.split_with(
+              ops,
+              &references_concurrent_unique_column?(&1, concurrent_unique_columns)
+            )
+
+          [regular_ops, concurrent_indexes, deferred_fk_ops]
+        end
     end
+    |> Enum.reject(&Enum.empty?/1)
   end
+
+  defp references_concurrent_unique_column?(
+         %Operation.AlterAttribute{
+           new_attribute: %{references: %{table: ref_table, destination_attribute: ref_col}}
+         },
+         concurrent_unique_columns
+       )
+       when not is_nil(ref_table) do
+    {ref_table, ref_col} in concurrent_unique_columns
+  end
+
+  defp references_concurrent_unique_column?(
+         %Operation.AddAttribute{
+           attribute: %{references: %{table: ref_table, destination_attribute: ref_col}}
+         },
+         concurrent_unique_columns
+       )
+       when not is_nil(ref_table) do
+    {ref_table, ref_col} in concurrent_unique_columns
+  end
+
+  defp references_concurrent_unique_column?(
+         %Operation.DropForeignKey{
+           attribute: %{references: %{table: ref_table, destination_attribute: ref_col}}
+         },
+         concurrent_unique_columns
+       )
+       when not is_nil(ref_table) do
+    {ref_table, ref_col} in concurrent_unique_columns
+  end
+
+  defp references_concurrent_unique_column?(_op, _concurrent_unique_columns), do: false
 
   defp add_order_to_operations({snapshot, operations}) do
     operations_with_order = Enum.map(operations, &add_order_to_operation(&1, snapshot.attributes))
