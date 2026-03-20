@@ -1256,7 +1256,8 @@ defmodule AshPostgres.MigrationGenerator do
           |> Enum.max(fn -> 0 end)
           |> Kernel.+(1)
 
-        {"#{timestamp()}_migrate_resources#{count}#{split_suffix}", "migrate_resources#{count}#{split_suffix}"}
+        {"#{timestamp()}_migrate_resources#{count}#{split_suffix}",
+         "migrate_resources#{count}#{split_suffix}"}
       end
 
     migration_file =

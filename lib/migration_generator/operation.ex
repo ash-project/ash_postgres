@@ -929,20 +929,22 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     import Helper
 
-    def up(%{
-          identity: %{
-            name: name,
-            keys: keys,
-            nils_distinct?: nils_distinct?,
-            where: where,
-            base_filter: base_filter,
-            index_name: index_name,
-            all_tenants?: all_tenants?
-          },
-          table: table,
-          schema: schema,
-          multitenancy: multitenancy
-        } = op) do
+    def up(
+          %{
+            identity: %{
+              name: name,
+              keys: keys,
+              nils_distinct?: nils_distinct?,
+              where: where,
+              base_filter: base_filter,
+              index_name: index_name,
+              all_tenants?: all_tenants?
+            },
+            table: table,
+            schema: schema,
+            multitenancy: multitenancy
+          } = op
+        ) do
       keys = index_keys(keys, all_tenants?, multitenancy)
 
       index_name = index_name || "#{table}_#{name}_index"
