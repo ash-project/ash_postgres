@@ -207,6 +207,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
   describe "get_operations_from_snapshots" do
     test "explicit fk attribute order does not change create table emission" do
+      # This also reproduces if a non-identity attribute like :note appears between
+      # :post_id and the identity key (:title), but this test keeps the minimal case.
       defposts do
         attributes do
           uuid_primary_key(:id)
