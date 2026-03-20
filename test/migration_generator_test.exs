@@ -273,7 +273,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
       before_ops =
         AshPostgres.MigrationGenerator.get_operations_from_snapshots([], before_snapshots)
 
-      after_ops = AshPostgres.MigrationGenerator.get_operations_from_snapshots([], after_snapshots)
+      after_ops =
+        AshPostgres.MigrationGenerator.get_operations_from_snapshots([], after_snapshots)
 
       assert Enum.any?(
                after_ops,
