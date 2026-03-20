@@ -490,6 +490,106 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "unique identities with `concurrent_indexes: true`" do
+    test "dependent foreign keys are generated only after the unique index migration", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      Code.compiler_options(ignore_module_conflict: true)
+
+      defmodule ConcurrentUniqueTarget do
+        use Ash.Resource, data_layer: AshPostgres.DataLayer, domain: nil
+
+        postgres do
+          table "concurrent_unique_targets"
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:code, :string, allow_nil?: false, public?: true)
+        end
+
+        identities do
+          identity(:uniq_code, [:code])
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defmodule ConcurrentUniqueDependent do
+        use Ash.Resource, data_layer: AshPostgres.DataLayer, domain: nil
+
+        postgres do
+          table "concurrent_unique_dependents"
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:target_code, :string, public?: true)
+        end
+
+        relationships do
+          belongs_to(:target, ConcurrentUniqueTarget) do
+            source_attribute(:target_code)
+            destination_attribute(:code)
+            attribute_writable?(true)
+            allow_nil?(true)
+            public?(true)
+          end
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defmodule ConcurrentUniqueDomain do
+        use Ash.Domain
+
+        resources do
+          resource(ConcurrentUniqueTarget)
+          resource(ConcurrentUniqueDependent)
+        end
+      end
+
+      Code.compiler_options(ignore_module_conflict: false)
+
+      AshPostgres.MigrationGenerator.generate(ConcurrentUniqueDomain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        concurrent_indexes: true
+      )
+
+      assert [migration_before_index, unique_index_migration] =
+               Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      first_contents = File.read!(migration_before_index)
+      second_contents = File.read!(unique_index_migration)
+
+      # The correct end state here likely needs three steps:
+      # 1. create/alter tables without the FK to `:code`
+      # 2. create the concurrent unique index on `concurrent_unique_targets.code`
+      # 3. add the FK from `concurrent_unique_dependents.target_code`
+      #
+      # With only two files, the FK must not appear before the concurrent unique
+      # index migration, because Postgres requires the referenced column to be
+      # backed by a unique or primary key constraint before the FK is added.
+      assert first_contents =~
+               ~S|create unique_index(:concurrent_unique_targets, [:code], name: "concurrent_unique_targets_uniq_code_index", concurrently: true)|
+
+      assert second_contents =~
+               ~S|modify :target_code, references(:concurrent_unique_targets, column: :code, name: "concurrent_unique_dependents_target_code_fkey", type: :text, prefix: "public")|
+    end
+  end
+
   describe "custom_indexes with `null_distinct: false`" do
     setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
       :ok
