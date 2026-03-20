@@ -540,6 +540,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert [_, first_module] = Regex.run(~r/^defmodule\s+(.+)\s+do$/m, first_contents)
       assert [_, second_module] = Regex.run(~r/^defmodule\s+(.+)\s+do$/m, second_contents)
 
+      # Split migrations still need unique derived names and modules, even
+      # when the generation run uses an explicit `name`.
       assert first_name != second_name
       assert first_module != second_module
     end
