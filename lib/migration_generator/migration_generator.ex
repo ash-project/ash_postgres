@@ -515,7 +515,8 @@ defmodule AshPostgres.MigrationGenerator do
           else
             operations
             |> split_into_migrations()
-            |> Enum.map(fn operations ->
+            |> Enum.with_index()
+            |> Enum.map(fn {operations, split_index} ->
               run_without_transaction? =
                 Enum.any?(operations, fn
                   %Operation.AddCustomIndex{index: %{concurrently: true}} ->
@@ -531,7 +532,7 @@ defmodule AshPostgres.MigrationGenerator do
               operations
               |> organize_operations
               |> build_up_and_down()
-              |> migration(repo, opts, tenant?, run_without_transaction?)
+              |> migration(repo, opts, tenant?, run_without_transaction?, split_index)
             end)
           end
           |> Enum.concat(create_new_snapshot(snapshots, repo_name(repo), opts, tenant?))
@@ -1223,14 +1224,16 @@ defmodule AshPostgres.MigrationGenerator do
     repo |> Module.split() |> List.last() |> Macro.underscore()
   end
 
-  defp migration({up, down}, repo, opts, tenant?, run_without_transaction?) do
+  defp migration({up, down}, repo, opts, tenant?, run_without_transaction?, split_index \\ 0) do
     migration_path = migration_path(opts, repo, tenant?)
 
     require_name!(opts)
 
+    split_suffix = if split_index > 0, do: "_#{split_index}", else: ""
+
     {migration_name, last_part} =
       if opts.name do
-        {"#{timestamp()}_#{opts.name}", "#{opts.name}"}
+        {"#{timestamp()}_#{opts.name}#{split_suffix}", "#{opts.name}#{split_suffix}"}
       else
         count =
           migration_path
@@ -1253,7 +1256,7 @@ defmodule AshPostgres.MigrationGenerator do
           |> Enum.max(fn -> 0 end)
           |> Kernel.+(1)
 
-        {"#{timestamp()}_migrate_resources#{count}", "migrate_resources#{count}"}
+        {"#{timestamp()}_migrate_resources#{count}#{split_suffix}", "migrate_resources#{count}#{split_suffix}"}
       end
 
     migration_file =
