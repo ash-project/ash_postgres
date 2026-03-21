@@ -1224,7 +1224,7 @@ defmodule AshPostgres.MigrationGenerator do
     repo |> Module.split() |> List.last() |> Macro.underscore()
   end
 
-  defp migration({up, down}, repo, opts, tenant?, run_without_transaction?, split_index \\ 0) do
+  defp migration({up, down}, repo, opts, tenant?, run_without_transaction?, split_index) do
     migration_path = migration_path(opts, repo, tenant?)
 
     require_name!(opts)
