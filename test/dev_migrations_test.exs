@@ -5,12 +5,13 @@
 defmodule AshPostgres.DevMigrationsTest do
   use AshPostgres.RepoCase, async: false
   @moduletag :migration
+  @moduletag :tmp_dir
 
   require Logger
 
   alias Ecto.Adapters.SQL.Sandbox
 
-  setup do
+  setup %{tmp_dir: tmp_dir} do
     current_shell = Mix.shell()
 
     :ok = Mix.shell(Mix.Shell.Process)
@@ -20,6 +21,17 @@ defmodule AshPostgres.DevMigrationsTest do
     end)
 
     Sandbox.checkout(AshPostgres.DevTestRepo)
+
+    # Copy existing snapshots to tmp dir so the generator doesn't
+    # re-generate extensions or delete orphan snapshots from priv/
+    snapshot_path = Path.join(tmp_dir, "snapshots")
+    source = "priv/resource_snapshots"
+
+    if File.exists?(source) do
+      File.cp_r!(source, snapshot_path)
+    end
+
+    %{snapshot_path: snapshot_path}
   end
 
   defmacrop defresource(mod, do: body) do
@@ -80,11 +92,6 @@ defmodule AshPostgres.DevMigrationsTest do
   end
 
   setup do
-    resource_dev_path = "priv/resource_snapshots/dev_test_repo"
-
-    initial_resource_files =
-      if File.exists?(resource_dev_path), do: File.ls!(resource_dev_path), else: []
-
     migrations_dev_path = "priv/dev_test_repo/migrations"
 
     initial_migration_files =
@@ -98,12 +105,6 @@ defmodule AshPostgres.DevMigrationsTest do
         else: []
 
     clean = fn ->
-      if File.exists?(resource_dev_path) do
-        current_resource_files = File.ls!(resource_dev_path)
-        new_resource_files = current_resource_files -- initial_resource_files
-        Enum.each(new_resource_files, &File.rm_rf!(Path.join(resource_dev_path, &1)))
-      end
-
       if File.exists?(migrations_dev_path) do
         current_migration_files = File.ls!(migrations_dev_path)
         new_migration_files = current_migration_files -- initial_migration_files
@@ -131,7 +132,7 @@ defmodule AshPostgres.DevMigrationsTest do
   end
 
   describe "--dev option" do
-    test "rolls back dev migrations before deleting" do
+    test "rolls back dev migrations before deleting", %{snapshot_path: snapshot_path} do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -142,7 +143,7 @@ defmodule AshPostgres.DevMigrationsTest do
       defdomain([Post])
 
       AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "priv/resource_snapshots",
+        snapshot_path: snapshot_path,
         migration_path: "priv/dev_test_repo/migrations",
         dev: true,
         auto_name: true
@@ -157,7 +158,7 @@ defmodule AshPostgres.DevMigrationsTest do
       # Generating without dev: true rolls back the dev migration (dropping the table)
       # and creates a permanent migration in its place
       AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "priv/resource_snapshots",
+        snapshot_path: snapshot_path,
         migration_path: "priv/dev_test_repo/migrations",
         auto_name: true
       )
@@ -170,7 +171,7 @@ defmodule AshPostgres.DevMigrationsTest do
   end
 
   describe "--dev option tenant" do
-    test "rolls back dev migrations before deleting" do
+    test "rolls back dev migrations before deleting", %{snapshot_path: snapshot_path} do
       defposts do
         attributes do
           uuid_primary_key(:id)
@@ -185,7 +186,7 @@ defmodule AshPostgres.DevMigrationsTest do
       defdomain([Post])
 
       AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "priv/resource_snapshots",
+        snapshot_path: snapshot_path,
         migration_path: "priv/dev_test_repo/migrations",
         tenant_migration_path: "priv/dev_test_repo/tenant_migrations",
         dev: true,
@@ -210,7 +211,7 @@ defmodule AshPostgres.DevMigrationsTest do
                |> Enum.reject(&String.contains?(&1, "extensions"))
 
       AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: "priv/resource_snapshots",
+        snapshot_path: snapshot_path,
         migration_path: "priv/dev_test_repo/migrations",
         tenant_migration_path: "priv/dev_test_repo/tenant_migrations",
         auto_name: true

@@ -1693,12 +1693,12 @@ defmodule AshPostgres.MigrationGenerator do
        ),
        do: false
 
-  # Do not place AddUniqueIndex after CreateTable (must be after columns are added).
+  # AddUniqueIndex must come after CreateTable (table must exist first).
   defp after?(
          %Operation.AddUniqueIndex{table: table, schema: schema},
          %Operation.CreateTable{table: table, schema: schema}
        ),
-       do: false
+       do: true
 
   # Place AddUniqueIndex after a specific attribute (by source) for the same
   # table so it appears before AlterAttributes (issue #236).
@@ -1729,7 +1729,7 @@ defmodule AshPostgres.MigrationGenerator do
          }
        )
        when not is_nil(source),
-       do: false
+       do: true
 
   defp after?(
          %Operation.AddUniqueIndex{
