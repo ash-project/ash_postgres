@@ -205,6 +205,99 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "get_operations_from_snapshots" do
+    test "explicit fk attribute order does not change create table emission" do
+      # This also reproduces if a non-identity attribute like :note appears between
+      # :post_id and the identity key (:title), but this test keeps the minimal case.
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defresource CommentPostIdBeforeTitle, "comments_post_id_before_title" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:post_id, :uuid, allow_nil?: false, public?: true)
+          attribute(:title, :string, public?: true)
+        end
+
+        identities do
+          identity(:uniq_title, [:title])
+        end
+
+        relationships do
+          belongs_to(:post, Post) do
+            source_attribute(:post_id)
+            destination_attribute(:id)
+          end
+        end
+      end
+
+      defresource CommentTitleBeforePostId, "comments_title_before_post_id" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:post_id, :uuid, allow_nil?: false, public?: true)
+        end
+
+        identities do
+          identity(:uniq_title, [:title])
+        end
+
+        relationships do
+          belongs_to(:post, Post) do
+            source_attribute(:post_id)
+            destination_attribute(:id)
+          end
+        end
+      end
+
+      before_snapshots =
+        AshPostgres.MigrationGenerator.get_snapshots(CommentPostIdBeforeTitle, [
+          Post,
+          CommentPostIdBeforeTitle
+        ])
+
+      after_snapshots =
+        AshPostgres.MigrationGenerator.get_snapshots(CommentTitleBeforePostId, [
+          Post,
+          CommentTitleBeforePostId
+        ])
+
+      assert [before_snapshot] = before_snapshots
+      assert [after_snapshot] = after_snapshots
+      assert Enum.map(before_snapshot.attributes, & &1.source) == [:id, :post_id, :title]
+      assert Enum.map(after_snapshot.attributes, & &1.source) == [:id, :title, :post_id]
+
+      before_ops =
+        AshPostgres.MigrationGenerator.get_operations_from_snapshots([], before_snapshots)
+
+      after_ops =
+        AshPostgres.MigrationGenerator.get_operations_from_snapshots([], after_snapshots)
+
+      assert Enum.any?(
+               after_ops,
+               &match?(
+                 %AshPostgres.MigrationGenerator.Phase.Create{
+                   table: "comments_title_before_post_id"
+                 },
+                 &1
+               )
+             )
+
+      assert Enum.any?(
+               before_ops,
+               &match?(
+                 %AshPostgres.MigrationGenerator.Phase.Create{
+                   table: "comments_post_id_before_title"
+                 },
+                 &1
+               )
+             )
+    end
+  end
+
   describe "creating initial snapshots" do
     setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
       :ok
