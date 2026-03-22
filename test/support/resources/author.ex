@@ -206,6 +206,15 @@ defmodule AshPostgres.Test.Author do
       expr(exists(posts, title == parent(first_name)))
     )
 
+    # When used standalone on a Post, parent(title) correctly refers to the Post.
+    # But when used inside exists(posts, ...) from Author, parent(title) incorrectly
+    # resolves to Author (which doesn't have a title column).
+    calculate(
+      :has_post_matching_author_via_nested_exists,
+      :boolean,
+      expr(exists(posts, has_matching_author_by_unrelated_exists))
+    )
+
     calculate(:profile_description_calc, :string, expr(profile.description), allow_nil?: true)
 
     calculate(:true_if_actor_in_context, :boolean, TrueIfActorInContext)

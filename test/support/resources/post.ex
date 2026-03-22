@@ -1036,6 +1036,18 @@ defmodule AshPostgres.Test.Post do
       expr(exists(followers, name == "fred"))
     )
 
+    # Used to test nested exists with parent() — see nested_exists_test.exs
+    calculate(
+      :has_matching_author_by_unrelated_exists,
+      :boolean,
+      expr(
+        exists(
+          AshPostgres.Test.Author,
+          first_name == parent(title)
+        )
+      )
+    )
+
     calculate(
       :composite_origin,
       AshPostgres.Test.CompositePoint,
