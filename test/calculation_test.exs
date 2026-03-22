@@ -1693,4 +1693,35 @@ defmodule AshPostgres.CalculationTest do
     assert author_with_loads.true_if_actor_in_context
     assert author_with_loads.true_if_actor_in_context_nested
   end
+
+  describe "nested exists with calculation containing parent() inside unrelated exists" do
+    test "parent() references in a calculation are scoped to the calculation's own resource, not the outer exists" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "Alice"})
+        |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "Alice", author_id: author.id})
+      |> Ash.create!()
+
+      assert %{has_post_matching_author_via_nested_exists: true} =
+               Ash.load!(author, [:has_post_matching_author_via_nested_exists])
+    end
+
+    test "the inner calculation works correctly when loaded directly on the child resource" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "Bob"})
+        |> Ash.create!()
+
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "Bob", author_id: author.id})
+        |> Ash.create!()
+
+      assert %{has_matching_author_by_unrelated_exists: true} =
+               Ash.load!(post, [:has_matching_author_by_unrelated_exists])
+    end
+  end
 end
