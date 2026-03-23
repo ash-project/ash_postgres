@@ -1669,5 +1669,4 @@ defmodule AshPostgres.CalculationTest do
     assert Ash.calculate!(post, :past_datetime1?)
     assert Ash.calculate!(post, :past_datetime2?)
   end
-
 end

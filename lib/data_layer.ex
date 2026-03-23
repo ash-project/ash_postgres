@@ -777,8 +777,12 @@ defmodule AshPostgres.DataLayer do
   def can?(resource, :expr_error),
     do: not AshPostgres.DataLayer.Info.repo(resource, :mutate).disable_expr_error?()
 
-  def can?(resource, :required_error),
-    do: not AshPostgres.DataLayer.Info.repo(resource, :mutate).disable_expr_error?()
+  def can?(resource, :required_error) do
+    Code.ensure_loaded?(Ash.Query.Function.RequiredError) &&
+      not AshPostgres.DataLayer.Info.repo(resource, :mutate).disable_expr_error?() &&
+      "ash-functions" in AshPostgres.DataLayer.Info.repo(resource, :read).installed_extensions() &&
+      "ash-functions" in AshPostgres.DataLayer.Info.repo(resource, :mutate).installed_extensions()
+  end
 
   def can?(resource, {:filter_expr, %Ash.Query.Function.Error{}}) do
     not AshPostgres.DataLayer.Info.repo(resource, :mutate).disable_expr_error?() &&
@@ -880,9 +884,15 @@ defmodule AshPostgres.DataLayer do
     functions = [
       AshPostgres.Functions.Like,
       AshPostgres.Functions.ILike,
-      AshPostgres.Functions.Binding,
-      Ash.Query.Function.RequiredError
+      AshPostgres.Functions.Binding
     ]
+
+    functions =
+      if Code.ensure_loaded?(Ash.Query.Function.RequiredError) do
+        [Ash.Query.Function.RequiredError | functions]
+      else
+        functions
+      end
 
     functions =
       if "pg_trgm" in (config[:installed_extensions] || []) do
