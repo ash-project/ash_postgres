@@ -1724,4 +1724,64 @@ defmodule AshPostgres.CalculationTest do
                Ash.load!(post, [:has_matching_author_by_unrelated_exists])
     end
   end
+
+  describe "field?: false calculations" do
+    test "can be loaded and appear in the calculations map" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "zach", last_name: "daniel"})
+        |> Ash.create!()
+
+      author = Ash.load!(author, [:non_field_full_name])
+      assert author.calculations[:non_field_full_name] == "zach daniel"
+    end
+
+    test "can be loaded via Ash.Query.load" do
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "zach", last_name: "daniel"})
+      |> Ash.create!()
+
+      author =
+        Author
+        |> Ash.Query.load(:non_field_full_name)
+        |> Ash.read_one!()
+
+      assert author.calculations[:non_field_full_name] == "zach daniel"
+    end
+
+    test "can be referenced in other expressions" do
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "zach", last_name: "daniel"})
+      |> Ash.create!()
+
+      author =
+        Author
+        |> Ash.Query.load(:non_field_refers_to_field_calc)
+        |> Ash.read_one!()
+
+      assert author.calculations[:non_field_refers_to_field_calc] ==
+               "zach daniel (zach daniel)"
+    end
+
+    test "can be used in filters" do
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "zach", last_name: "daniel"})
+      |> Ash.create!()
+
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "other", last_name: "person"})
+      |> Ash.create!()
+
+      assert [author] =
+               Author
+               |> Ash.Query.filter(non_field_full_name == "zach daniel")
+               |> Ash.read!()
+
+      assert author.first_name == "zach"
+    end
+
+    test "do not add a key to the resource struct" do
+      refute Map.has_key?(%Author{}, :non_field_full_name)
+    end
+  end
 end

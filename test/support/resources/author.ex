@@ -217,6 +217,14 @@ defmodule AshPostgres.Test.Author do
 
     calculate(:profile_description_calc, :string, expr(profile.description), allow_nil?: true)
 
+    calculate :non_field_full_name, :string, expr(first_name <> " " <> last_name) do
+      field?(false)
+    end
+
+    calculate :non_field_refers_to_field_calc, :string, expr(full_name <> " (" <> non_field_full_name <> ")") do
+      field?(false)
+    end
+
     calculate(:true_if_actor_in_context, :boolean, TrueIfActorInContext)
 
     calculate(
