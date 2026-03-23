@@ -1783,5 +1783,14 @@ defmodule AshPostgres.CalculationTest do
     test "do not add a key to the resource struct" do
       refute Map.has_key?(%Author{}, :non_field_full_name)
     end
+
+    test "works with Ash.calculate" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "zach", last_name: "daniel"})
+        |> Ash.create!()
+
+      assert {:ok, "zach daniel"} = Ash.calculate(author, :non_field_full_name)
+    end
   end
 end
