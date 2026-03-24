@@ -268,9 +268,11 @@ defmodule AshPostgres.SqlImplementation do
     {:ok,
      Ecto.Query.dynamic(
        fragment(
-         "ash_required(?, ?::jsonb)",
+         "CASE WHEN ? IS NULL THEN ash_raise_error(?::jsonb, ?) ELSE ? END",
          ^value_dyn,
-         ^payload
+         ^payload,
+         ^value_dyn,
+         ^value_dyn
        )
      ), acc}
   end

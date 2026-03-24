@@ -82,8 +82,3 @@ For example:
 Ash.Query.filter(User, trigram_similarity(first_name, "fred") > 0.8)
 ```
 
-## Required error (ash_required!/2)
-
-When the data layer supports the `:required_error` capability, Ash can use `ash_required!/2` for required-attribute validation: it returns the value when present, or returns `Ash.Error.Changes.Required` when the value is nil. This avoids inline `if is_nil(value), do: {:error, ...}, else: {:ok, value}` in changesets.
-
-The core query function `Ash.Query.Function.RequiredError` powers `ash_required!/2`. When `can?(resource, :required_error)` is true (the default when the ash-functions extension is installed), AshPostgres includes this function so expressions like `expr(ash_required!(^value, ^attribute))` can be evaluated by the data layer.
