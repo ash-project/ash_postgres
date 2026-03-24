@@ -221,7 +221,9 @@ defmodule AshPostgres.Test.Author do
       field?(false)
     end
 
-    calculate :non_field_refers_to_field_calc, :string, expr(full_name <> " (" <> non_field_full_name <> ")") do
+    calculate :non_field_refers_to_field_calc,
+              :string,
+              expr(full_name <> " (" <> non_field_full_name <> ")") do
       field?(false)
     end
 
