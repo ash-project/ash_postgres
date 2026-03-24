@@ -63,4 +63,66 @@ defmodule AshPostgres.CreateTest do
 
     assert Ash.Resource.get_metadata(post, :upsert_skipped)
   end
+
+  describe "manage_relationship from hooks on create" do
+    test "before_transaction hook" do
+      comment =
+        AshPostgres.Test.Comment
+        |> Ash.Changeset.for_create(:create_with_post_from_before_transaction, %{
+          title: "test comment"
+        })
+        |> Ash.create!()
+
+      assert comment.post_id != nil
+      loaded = Ash.load!(comment, :post)
+      assert loaded.post.title == "created-in-before-transaction"
+    end
+
+    test "before_action hook" do
+      comment =
+        AshPostgres.Test.Comment
+        |> Ash.Changeset.for_create(:create_with_post_from_before_action, %{
+          title: "test comment"
+        })
+        |> Ash.create!()
+
+      assert comment.post_id != nil
+      loaded = Ash.load!(comment, :post)
+      assert loaded.post.title == "created-in-before-action"
+    end
+
+    test "before_transaction hook via bulk_create" do
+      result =
+        Ash.bulk_create!(
+          [%{title: "bulk comment"}],
+          AshPostgres.Test.Comment,
+          :create_with_post_from_before_transaction,
+          return_records?: true,
+          return_errors?: true
+        )
+
+      assert result.status == :success
+      [comment] = result.records
+      assert comment.post_id != nil
+      loaded = Ash.load!(comment, :post)
+      assert loaded.post.title == "created-in-before-transaction"
+    end
+
+    test "before_action hook via bulk_create" do
+      result =
+        Ash.bulk_create!(
+          [%{title: "bulk comment"}],
+          AshPostgres.Test.Comment,
+          :create_with_post_from_before_action,
+          return_records?: true,
+          return_errors?: true
+        )
+
+      assert result.status == :success
+      [comment] = result.records
+      assert comment.post_id != nil
+      loaded = Ash.load!(comment, :post)
+      assert loaded.post.title == "created-in-before-action"
+    end
+  end
 end

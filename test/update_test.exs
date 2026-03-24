@@ -257,4 +257,90 @@ defmodule AshPostgres.UpdateTest do
 
     assert [%Post{}] = author.posts
   end
+
+  describe "manage_relationship from hooks on update" do
+    test "before_transaction hook" do
+      comment =
+        AshPostgres.Test.Comment
+        |> Ash.Changeset.for_create(:create, %{title: "test comment"})
+        |> Ash.create!()
+
+      assert comment.post_id == nil
+
+      updated =
+        comment
+        |> Ash.Changeset.for_update(:update_with_post_from_before_transaction, %{})
+        |> Ash.update!()
+
+      assert updated.post_id != nil
+      loaded = Ash.load!(updated, :post)
+      assert loaded.post.title == "created-in-before-transaction"
+    end
+
+    test "before_action hook" do
+      comment =
+        AshPostgres.Test.Comment
+        |> Ash.Changeset.for_create(:create, %{title: "test comment"})
+        |> Ash.create!()
+
+      assert comment.post_id == nil
+
+      updated =
+        comment
+        |> Ash.Changeset.for_update(:update_with_post_from_before_action, %{})
+        |> Ash.update!()
+
+      assert updated.post_id != nil
+      loaded = Ash.load!(updated, :post)
+      assert loaded.post.title == "created-in-before-action"
+    end
+
+    test "before_transaction hook via bulk_update" do
+      comment =
+        AshPostgres.Test.Comment
+        |> Ash.Changeset.for_create(:create, %{title: "test comment"})
+        |> Ash.create!()
+
+      assert comment.post_id == nil
+
+      result =
+        AshPostgres.Test.Comment
+        |> Ash.Query.filter(id == ^comment.id)
+        |> Ash.bulk_update!(:update_with_post_from_before_transaction, %{},
+          strategy: :stream,
+          return_records?: true,
+          return_errors?: true
+        )
+
+      assert result.status == :success
+      [updated] = result.records
+      assert updated.post_id != nil
+      loaded = Ash.load!(updated, :post)
+      assert loaded.post.title == "created-in-before-transaction"
+    end
+
+    test "before_action hook via bulk_update" do
+      comment =
+        AshPostgres.Test.Comment
+        |> Ash.Changeset.for_create(:create, %{title: "test comment"})
+        |> Ash.create!()
+
+      assert comment.post_id == nil
+
+      result =
+        AshPostgres.Test.Comment
+        |> Ash.Query.filter(id == ^comment.id)
+        |> Ash.bulk_update!(:update_with_post_from_before_action, %{},
+          strategy: :stream,
+          return_records?: true,
+          return_errors?: true
+        )
+
+      assert result.status == :success
+      [updated] = result.records
+      assert updated.post_id != nil
+      loaded = Ash.load!(updated, :post)
+      assert loaded.post.title == "created-in-before-action"
+    end
+  end
 end
