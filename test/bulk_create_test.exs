@@ -224,7 +224,7 @@ defmodule AshPostgres.BulkCreateTest do
                  upsert?: true,
                  upsert_identity: :uniq_one_and_two,
                  upsert_fields: [:price],
-                 context: %{data_layer: %{touch_update_defaults?: false}},
+                 touch_update_defaults?: false,
                  return_stream?: true,
                  return_errors?: true,
                  return_records?: true

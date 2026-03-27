@@ -39,10 +39,11 @@
   ],
   "base_filter": null,
   "check_constraints": [],
+  "create_table_options": null,
   "custom_indexes": [],
   "custom_statements": [],
   "has_create_action": true,
-  "hash": "979D7BEB5939EAD2706978B7914C561B5F6854EBBCFD1F2748AB4C98668304EB",
+  "hash": "91AC15B568CA41F1EFE4B3AE9F4B40FCEF1D94B91F295C04C8685F4AC698E3DB",
   "identities": [
     {
       "all_tenants?": false,

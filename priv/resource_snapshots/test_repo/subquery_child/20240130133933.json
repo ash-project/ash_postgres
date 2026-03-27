@@ -6,9 +6,9 @@
       "type": "uuid",
       "source": "id",
       "references": null,
+      "primary_key?": true,
       "allow_nil?": false,
-      "generated?": false,
-      "primary_key?": true
+      "generated?": false
     },
     {
       "default": "nil",
@@ -16,24 +16,25 @@
       "type": "text",
       "source": "state",
       "references": null,
+      "primary_key?": false,
       "allow_nil?": true,
-      "generated?": false,
-      "primary_key?": false
+      "generated?": false
     }
   ],
   "table": "subquery_child",
   "hash": "14EB56AF533B090146C1A6FA930E83747D6D2765EE518576A4D6329B5CFA2B9E",
   "repo": "Elixir.AshPostgres.TestRepo",
-  "identities": [],
-  "schema": null,
-  "check_constraints": [],
-  "custom_indexes": [],
-  "base_filter": null,
   "multitenancy": {
     "global": null,
     "attribute": null,
     "strategy": null
   },
+  "schema": null,
+  "identities": [],
+  "has_create_action": true,
+  "custom_indexes": [],
   "custom_statements": [],
-  "has_create_action": true
+  "base_filter": null,
+  "check_constraints": [],
+  "drop_table_opted_out": true
 }

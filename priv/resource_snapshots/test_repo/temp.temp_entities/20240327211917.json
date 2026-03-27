@@ -6,9 +6,9 @@
       "type": "uuid",
       "source": "id",
       "references": null,
-      "primary_key?": true,
       "allow_nil?": false,
-      "generated?": false
+      "generated?": false,
+      "primary_key?": true
     },
     {
       "default": "nil",
@@ -16,9 +16,9 @@
       "type": "text",
       "source": "full_name",
       "references": null,
-      "primary_key?": false,
       "allow_nil?": false,
-      "generated?": false
+      "generated?": false,
+      "primary_key?": false
     },
     {
       "default": "fragment(\"(now() AT TIME ZONE 'utc')\")",
@@ -26,9 +26,9 @@
       "type": "utc_datetime_usec",
       "source": "inserted_at",
       "references": null,
-      "primary_key?": false,
       "allow_nil?": false,
-      "generated?": false
+      "generated?": false,
+      "primary_key?": false
     },
     {
       "default": "fragment(\"(now() AT TIME ZONE 'utc')\")",
@@ -36,24 +36,25 @@
       "type": "utc_datetime_usec",
       "source": "updated_at",
       "references": null,
-      "primary_key?": false,
       "allow_nil?": false,
-      "generated?": false
+      "generated?": false,
+      "primary_key?": false
     }
   ],
   "table": "temp_entities",
   "hash": "96A9F379FDC5364E80B0E424BFF3F43F58733AB25F6CDF5F921E36D4261E6AE1",
   "repo": "Elixir.AshPostgres.TestRepo",
+  "identities": [],
+  "schema": "temp",
   "multitenancy": {
     "global": null,
     "attribute": null,
     "strategy": null
   },
-  "schema": "temp",
-  "identities": [],
-  "has_create_action": true,
+  "check_constraints": [],
   "custom_indexes": [],
-  "custom_statements": [],
   "base_filter": null,
-  "check_constraints": []
+  "custom_statements": [],
+  "has_create_action": true,
+  "drop_table_opted_out": true
 }

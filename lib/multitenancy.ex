@@ -5,7 +5,6 @@
 defmodule AshPostgres.MultiTenancy do
   @moduledoc false
 
-  @dialyzer {:nowarn_function, load_migration!: 1}
   require Logger
 
   # sobelow_skip ["SQL.Query"]
@@ -44,8 +43,33 @@ defmodule AshPostgres.MultiTenancy do
     end)
     |> Enum.map(&extract_migration_info/1)
     |> Enum.filter(& &1)
-    |> Enum.map(&load_migration!/1)
-    |> Enum.each(fn {version, mod} ->
+    |> Enum.map(&load_migration_with_file!/1)
+    |> then(fn migrations ->
+      if repo.in_transaction?() do
+        modules_requiring_no_transaction =
+          migrations
+          |> Enum.filter(fn {_version, mod, _file} -> migration_requires_no_transaction?(mod) end)
+          |> Enum.map(fn {_version, mod, _file} -> mod end)
+
+        if Enum.any?(modules_requiring_no_transaction) do
+          module_list = Enum.map_join(modules_requiring_no_transaction, ", ", &inspect/1)
+
+          Logger.warning("""
+          Tenant migrations use @disable_ddl_transaction (e.g. CREATE INDEX CONCURRENTLY) but are \
+          running inside a transaction. This will likely fail with "CREATE INDEX CONCURRENTLY cannot \
+          run inside a transaction block".
+
+          Affected modules: #{module_list}
+
+          To fix this, ensure the action that creates/migrates tenants does not run inside a transaction. \
+          For Ash resources with manage_tenant: true, set transaction?: false on the create/update action.
+          """)
+        end
+      end
+
+      migrations
+    end)
+    |> Enum.each(fn {version, mod, _file} ->
       Ecto.Migration.Runner.run(
         repo,
         [],
@@ -74,7 +98,7 @@ defmodule AshPostgres.MultiTenancy do
     :ok
   end
 
-  defp load_migration!({version, _, file}) when is_binary(file) do
+  defp load_migration_with_file!({version, _, file}) when is_binary(file) do
     loaded_modules = file |> compile_file() |> Enum.map(&elem(&1, 0))
 
     case Enum.find(loaded_modules, &migration?/1) do
@@ -83,7 +107,7 @@ defmodule AshPostgres.MultiTenancy do
               "file #{Path.relative_to_cwd(file)} does not define an Ecto.Migration"
 
       mod ->
-        {version, mod}
+        {version, mod, file}
     end
   end
 
@@ -122,5 +146,27 @@ defmodule AshPostgres.MultiTenancy do
 
   defp tenant_name_regex do
     ~r/^[a-zA-Z0-9_-]+$/
+  end
+
+  # Check if a migration requires no transaction by examining the compiled module's
+  # migration metadata (e.g. @disable_ddl_transaction for CREATE INDEX CONCURRENTLY).
+  # Running such migrations inside a transaction will fail in PostgreSQL.
+  defp migration_requires_no_transaction?(mod) do
+    if function_exported?(mod, :__migration__, 0) do
+      migration_info = mod.__migration__()
+
+      case migration_info do
+        map when is_map(map) ->
+          Map.get(migration_info, :disable_ddl_transaction, false)
+
+        keyword when is_list(keyword) ->
+          Keyword.get(migration_info, :disable_ddl_transaction, false)
+
+        _ ->
+          false
+      end
+    else
+      false
+    end
   end
 end

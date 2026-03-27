@@ -81,3 +81,4 @@ For example:
 ```elixir
 Ash.Query.filter(User, trigram_similarity(first_name, "fred") > 0.8)
 ```
+

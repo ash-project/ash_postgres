@@ -469,6 +469,58 @@ defmodule AshSql.AggregateTest do
                |> Ash.Query.load(:count_of_comments_called_match)
                |> Ash.read_one!()
     end
+
+    test "it properly applies join criteria on the first term of a two-level path" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create)
+        |> Ash.create!()
+
+      public_post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "public", public: true})
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Ash.create!()
+
+      private_post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "private", public: false})
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Ash.create!()
+
+      # Create 2 comments on the public post
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "comment on public 1"})
+      |> Ash.Changeset.manage_relationship(:post, public_post, type: :append_and_remove)
+      |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "comment on public 2"})
+      |> Ash.Changeset.manage_relationship(:post, public_post, type: :append_and_remove)
+      |> Ash.create!()
+
+      # Create 3 comments on the private post
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "comment on private 1"})
+      |> Ash.Changeset.manage_relationship(:post, private_post, type: :append_and_remove)
+      |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "comment on private 2"})
+      |> Ash.Changeset.manage_relationship(:post, private_post, type: :append_and_remove)
+      |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "comment on private 3"})
+      |> Ash.Changeset.manage_relationship(:post, private_post, type: :append_and_remove)
+      |> Ash.create!()
+
+      # Should only count the 2 comments on the public post, not the 3 on the private post
+      assert [%{count_of_comments_on_public_posts: 2}] =
+               Author
+               |> Ash.Query.load(:count_of_comments_on_public_posts)
+               |> Ash.read!()
+    end
   end
 
   describe "exists" do
@@ -2202,6 +2254,72 @@ defmodule AshSql.AggregateTest do
       # This assertion should fail if the bug is present
       assert result_with_page_count.author_first_name_calc == "John",
              "Calculation was not loaded when using page(count: true) with aggregates"
+    end
+  end
+
+  describe "join_filters in aggregate calculations" do
+    test "Ash.Filter structs in join_filters are properly converted to Ecto expressions" do
+      # This test reproduces the bug where Ash.Filter structs in join_filters
+      # are not properly converted to Ecto dynamic expressions, causing:
+      #   ** (Ecto.Query.CastError) value `#Ash.Filter<...>` in `where` cannot be cast to type :boolean
+      #
+      # The root cause is in ash_sql/lib/expr.ex - when a BooleanExpression contains
+      # an Ash.Filter struct as an operand, the private do_dynamic_expr/default_dynamic_expr
+      # functions don't have a clause to handle it, so the Ash.Filter is passed directly
+      # to Ecto instead of being converted to a dynamic expression.
+      #
+      # The bug triggers when authorization policies create Ash.Filter structs that get
+      # combined with join_filter expressions in BooleanExpressions.
+
+      # Set up authorization chain: User -> Organization -> Post -> Comment
+      org =
+        Organization
+        |> Ash.Changeset.for_create(:create, %{name: "Test Org"})
+        |> Ash.create!()
+
+      user =
+        User
+        |> Ash.Changeset.for_create(:create, %{})
+        |> Ash.Changeset.manage_relationship(:organization, org, type: :append_and_remove)
+        |> Ash.create!()
+
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "Test", last_name: "Author"})
+        |> Ash.create!()
+
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "test"})
+        |> Ash.Changeset.manage_relationship(:organization, org, type: :append_and_remove)
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Ash.create!()
+
+      comment =
+        Comment
+        |> Ash.Changeset.for_create(:create, %{title: "comment", likes: 5})
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Ash.create!()
+
+      Rating
+      |> Ash.Changeset.for_create(:create, %{score: 10, resource_id: comment.id})
+      |> Ash.Changeset.set_context(%{data_layer: %{table: "comment_ratings"}})
+      |> Ash.create!()
+
+      # This triggers the bug - loading a calculation that uses join_filters with actor reference.
+      # The join_filter `expr(author_id == ^actor(:id))` gets resolved to an Ash.Filter struct
+      # which is then combined with authorization policy filters in a BooleanExpression.
+      assert {:ok, [loaded_post]} =
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.load(:max_rating_with_join_filter)
+               |> Ash.read(actor: user)
+
+      # The rating won't match because the comment's author_id doesn't match user.id,
+      # but the important thing is the query executes without CastError
+      assert is_nil(loaded_post.max_rating_with_join_filter) or
+               loaded_post.max_rating_with_join_filter == 10
     end
   end
 end

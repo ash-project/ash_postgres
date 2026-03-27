@@ -40,4 +40,10 @@ defmodule AshPostgres.Test.ComplexCalculations.ChannelMember do
 
     belongs_to(:channel, AshPostgres.Test.ComplexCalculations.Channel, public?: true)
   end
+
+  policies do
+    policy always() do
+      authorize_if(always())
+    end
+  end
 end
