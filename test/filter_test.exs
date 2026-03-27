@@ -1243,4 +1243,84 @@ defmodule AshPostgres.FilterTest do
 
     assert fetched_org.id == organization.id
   end
+
+  describe "not is_nil(expr) in filters" do
+    test "not is_nil(expr) compiles to IS NOT NULL in SQL (regression)" do
+      {query, _vars} =
+        Post
+        |> Ash.Query.filter(not is_nil(category))
+        |> Ash.data_layer_query!()
+        |> Map.get(:query)
+        |> then(&AshPostgres.TestRepo.to_sql(:all, &1))
+
+      # SQL may be (expr) IS NOT NULL or NOT ((expr) IS NULL); both are equivalent.
+      assert query =~ "IS NOT NULL" or query =~ "is not null" or
+               (query =~ "NOT (" and query =~ "IS NULL"),
+             "Expected filter(not is_nil(...)) to compile to presence check (IS NOT NULL or NOT (... IS NULL)), got: #{query}"
+    end
+
+    test "not is_nil(expr) filter returns only records where attribute is present (behavioral regression)" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "with category", category: "tech"})
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "no category"})
+      |> Ash.create!()
+
+      assert [%{title: "with category"}] =
+               Post
+               |> Ash.Query.filter(not is_nil(category))
+               |> Ash.read!()
+    end
+
+    test "not is_nil(expr) returns empty list when no records have attribute set (edge case)" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "a"})
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "b"})
+      |> Ash.create!()
+
+      assert [] =
+               Post
+               |> Ash.Query.filter(not is_nil(category))
+               |> Ash.read!()
+    end
+
+    test "not is_nil(expr) includes records where value is 0 or false — required means not null, not truthy (edge case)" do
+      post_zero =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "zero score", score: 0})
+        |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "nil score"})
+      |> Ash.create!()
+
+      assert [%{id: id}] =
+               Post
+               |> Ash.Query.filter(title in ["zero score", "nil score"] and not is_nil(score))
+               |> Ash.read!()
+
+      assert id == post_zero.id
+
+      post_false =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "false public", public: false})
+        |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "nil public"})
+      |> Ash.create!()
+
+      assert [%{id: id2}] =
+               Post
+               |> Ash.Query.filter(title in ["false public", "nil public"] and not is_nil(public))
+               |> Ash.read!()
+
+      assert id2 == post_false.id
+    end
+  end
 end
