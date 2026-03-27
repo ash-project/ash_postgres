@@ -885,7 +885,8 @@ defmodule AshPostgres.DataLayer do
     functions = [
       AshPostgres.Functions.Like,
       AshPostgres.Functions.ILike,
-      AshPostgres.Functions.Binding
+      AshPostgres.Functions.Binding,
+      AshPostgres.Functions.NativeIn
     ]
 
     functions =

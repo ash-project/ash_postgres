@@ -179,6 +179,91 @@ defmodule AshPostgres.SqlImplementation do
 
   def expr(
         query,
+        %AshPostgres.Functions.NativeIn{
+          arguments: [left, right],
+          embedded?: pred_embedded?
+        },
+        bindings,
+        embedded?,
+        acc,
+        _type
+      ) do
+    context_embedded? = pred_embedded? || embedded?
+
+    # Determine the Ecto type from the left-hand side for proper value encoding
+    left_type =
+      case left do
+        %Ash.Query.Ref{attribute: %{type: type, constraints: constraints}} ->
+          AshPostgres.SqlImplementation.parameterized_type(type, constraints)
+
+        _ ->
+          :any
+      end
+
+    {left_expr, acc} =
+      AshSql.Expr.dynamic_expr(query, left, bindings, context_embedded?, :any, acc)
+
+    case right do
+      %Ash.Query.Ref{} ->
+        # If right side is a reference (i.e. an array column), fall back to = ANY(...)
+        {right_expr, acc} =
+          AshSql.Expr.dynamic_expr(query, right, bindings, context_embedded?, :any, acc)
+
+        {:ok, Ecto.Query.dynamic(^left_expr in ^right_expr), acc}
+
+      _ ->
+        values =
+          case right do
+            %Ash.Query.Function.Type{arguments: [value | _]} -> value
+            value -> value
+          end
+
+        values = if is_list(values), do: values, else: [values]
+
+        # Build params and fragment_data in forward order (not reversed)
+        # Param index 0 = left_expr, indices 1..N = values
+        params = [{left_expr, :any}]
+
+        {params, value_fragment_parts, _count, acc} =
+          Enum.reduce(values, {params, [], 1, acc}, fn value, {params, parts, count, acc} ->
+            {value_expr, acc} =
+              AshSql.Expr.dynamic_expr(query, value, bindings, context_embedded?, :any, acc)
+
+            separator =
+              if count == 1, do: "", else: ", "
+
+            typed_value =
+              if left_type != :any do
+                Ecto.Query.dynamic(type(^value_expr, ^left_type))
+              else
+                value_expr
+              end
+
+            new_parts = [{:raw, separator}, {:expr, {:^, [], [count]}}]
+            {params ++ [{typed_value, :any}], parts ++ new_parts, count + 1, acc}
+          end)
+
+        # Build complete fragment: "" left_expr " IN (" v1 ", " v2 ... ")"
+        fragment_data =
+          [{:raw, ""}, {:expr, {:^, [], [0]}}, {:raw, " IN ("}] ++
+            value_fragment_parts ++
+            [{:raw, ")"}]
+
+        dynamic = %Ecto.Query.DynamicExpr{
+          fun: fn _query ->
+            {{:fragment, [], fragment_data}, params, [], %{}}
+          end,
+          binding: [],
+          file: __ENV__.file,
+          line: __ENV__.line
+        }
+
+        {:ok, dynamic, acc}
+    end
+  end
+
+  def expr(
+        query,
         %Ash.Query.Ref{
           attribute: %Ash.Resource.Attribute{
             type: attr_type,
