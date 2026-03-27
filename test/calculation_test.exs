@@ -874,6 +874,23 @@ defmodule AshPostgres.CalculationTest do
                |> Ash.Query.load(:score_map)
                |> Ash.read!()
     end
+
+    test "maps with field constraints and relationship references work" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "John", last_name: "Doe"})
+        |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "test", score: 1})
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+      |> Ash.create!()
+
+      assert [%{author_name_map: %{first_name: "John", last_name: "Doe"}}] =
+               Post
+               |> Ash.Query.load(:author_name_map)
+               |> Ash.read!()
+    end
   end
 
   describe "at/2" do

@@ -1063,6 +1063,24 @@ defmodule AshPostgres.Test.Post do
     )
 
     calculate(
+      :author_name_map,
+      :map,
+      expr(%{
+        first_name: author.first_name,
+        last_name: author.last_name
+      })
+    ) do
+      public?(true)
+
+      constraints(
+        fields: [
+          first_name: [type: :string, allow_nil?: true],
+          last_name: [type: :string, allow_nil?: true]
+        ]
+      )
+    end
+
+    calculate(
       :count_of_comments_called_baz,
       :integer,
       expr(count(comments, query: [filter: expr(title == "baz")]))
