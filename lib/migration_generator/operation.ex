@@ -70,29 +70,18 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def on_update(_), do: nil
 
-    def reference_type(attribute, reference, identity_column_defaults \\ [])
-
     def reference_type(
           %{type: :integer},
-          %{destination_attribute_generated: true, destination_attribute_default: "nil"},
-          _identity_column_defaults
+          %{destination_attribute_generated: true, destination_attribute_default: "nil"}
         ) do
       :bigint
     end
 
-    def reference_type(
-          %{source: source, type: :integer, default: "nil", generated?: true},
-          _reference,
-          identity_column_defaults
-        ) do
-      if source in identity_column_defaults do
-        ":identity"
-      else
-        ":bigserial"
-      end
-    end
+    def reference_type(%{type: :identity}, _), do: ":identity"
 
-    def reference_type(%{type: type}, _, _), do: type
+    def reference_type(%{type: :integer, default: "nil", generated?: true}, _), do: ":bigserial"
+
+    def reference_type(%{type: type}, _), do: type
 
     def with_match(reference, source_attribute \\ nil)
 
@@ -163,11 +152,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule AddAttribute do
     @moduledoc false
-    defstruct [:attribute, :table, :schema, :multitenancy, :old_multitenancy, :identity_column_defaults]
+    defstruct [:attribute, :table, :schema, :multitenancy, :old_multitenancy]
 
     import Helper
 
-    def up(op = %{
+    def up(%{
           multitenancy: %{strategy: :attribute, attribute: source_attribute},
           attribute:
             %{
@@ -194,7 +183,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "column: #{inspect(reference_attribute)}",
           with_match,
           "name: #{inspect(reference.name)}",
-          "type: #{inspect(reference_type(attribute, reference, Map.get(op, :identity_column_defaults, [])))}",
+          "type: #{inspect(reference_type(attribute, reference))}",
           option("prefix", destination_schema),
           on_delete(reference),
           on_update(reference)
@@ -210,7 +199,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       |> join()
     end
 
-    def up(op = %{
+    def up(%{
           multitenancy: %{strategy: :context},
           attribute:
             %{
@@ -238,7 +227,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           with_match,
           option("prefix", destination_schema),
           "name: #{inspect(reference.name)}",
-          "type: #{inspect(reference_type(attribute, reference, Map.get(op, :identity_column_defaults, [])))}",
+          "type: #{inspect(reference_type(attribute, reference))}",
           on_delete(reference),
           on_update(reference)
         ],
@@ -307,7 +296,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       |> join()
     end
 
-    def up(op = %{
+    def up(%{
           multitenancy: %{strategy: :context},
           attribute:
             %{
@@ -333,7 +322,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "column: #{inspect(destination_attribute)}",
           with_match,
           "name: #{inspect(reference.name)}",
-          "type: #{inspect(reference_type(attribute, reference, Map.get(op, :identity_column_defaults, [])))}",
+          "type: #{inspect(reference_type(attribute, reference))}",
           "prefix: prefix()",
           size,
           maybe_add_precision(attribute[:precision]),
@@ -349,7 +338,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       |> join()
     end
 
-    def up(op = %{
+    def up(%{
           multitenancy: %{strategy: :context},
           schema: schema,
           attribute:
@@ -381,7 +370,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "column: #{inspect(destination_attribute)}",
           with_match,
           "name: #{inspect(reference.name)}",
-          "type: #{inspect(reference_type(attribute, reference, Map.get(op, :identity_column_defaults, [])))}",
+          "type: #{inspect(reference_type(attribute, reference))}",
           option("prefix", destination_schema),
           on_delete(reference),
           on_update(reference)
@@ -397,7 +386,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       |> join()
     end
 
-    def up(op = %{
+    def up(%{
           attribute:
             %{
               references:
@@ -422,7 +411,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "column: #{inspect(destination_attribute)}",
           with_match,
           "name: #{inspect(reference.name)}",
-          "type: #{inspect(reference_type(attribute, reference, Map.get(op, :identity_column_defaults, [])))}",
+          "type: #{inspect(reference_type(attribute, reference))}",
           option("prefix", destination_schema),
           on_delete(reference),
           on_update(reference)
@@ -438,30 +427,30 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       |> join()
     end
 
-    def up(%{
-          attribute: %{source: source, type: :bigint, default: "nil", generated?: true} = attribute
-        } = op) do
-      identity_column_defaults = Map.get(op, :identity_column_defaults, [])
-      type = if is_list(identity_column_defaults) and source in identity_column_defaults, do: ":identity", else: ":bigserial"
-
+    def up(%{attribute: %{type: :identity} = attribute}) do
       [
         "add #{inspect(attribute.source)}",
-        type,
+        ":identity",
         maybe_add_null(attribute.allow_nil?),
         maybe_add_primary_key(attribute.primary_key?)
       ]
       |> join()
     end
 
-    def up(%{
-          attribute: %{source: source, type: :integer, default: "nil", generated?: true} = attribute
-        } = op) do
-      identity_column_defaults = Map.get(op, :identity_column_defaults, [])
-      type = if is_list(identity_column_defaults) and source in identity_column_defaults, do: ":identity", else: ":serial"
-
+    def up(%{attribute: %{type: :bigint, default: "nil", generated?: true} = attribute}) do
       [
         "add #{inspect(attribute.source)}",
-        type,
+        ":bigserial",
+        maybe_add_null(attribute.allow_nil?),
+        maybe_add_primary_key(attribute.primary_key?)
+      ]
+      |> join()
+    end
+
+    def up(%{attribute: %{type: :integer, default: "nil", generated?: true} = attribute}) do
+      [
+        "add #{inspect(attribute.source)}",
+        ":serial",
         maybe_add_null(attribute.allow_nil?),
         maybe_add_primary_key(attribute.primary_key?)
       ]
@@ -551,8 +540,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       :table,
       :schema,
       :multitenancy,
-      :old_multitenancy,
-      :identity_column_defaults
+      :old_multitenancy
     ]
 
     import Helper
@@ -608,34 +596,30 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       "#{null}#{default}#{size}#{precision}#{scale}#{primary_key}"
     end
 
-    def up(op = %{
+    def up(%{
           multitenancy: multitenancy,
           old_attribute: old_attribute,
           new_attribute: attribute,
           schema: schema
         }) do
-      identity_column_defaults = Map.get(op, :identity_column_defaults, [])
-
       type_or_reference =
         if AshPostgres.MigrationGenerator.has_reference?(multitenancy, attribute) and
              Map.get(old_attribute, :references) != Map.get(attribute, :references) do
-          reference(multitenancy, attribute, schema, identity_column_defaults)
+          reference(multitenancy, attribute, schema)
         else
-          if attribute.type == :bigint and attribute.default == "nil" and attribute.generated? do
-            if is_list(identity_column_defaults) and attribute.source in identity_column_defaults do
-              ":identity"
-            else
-              ":bigserial"
-            end
+          if attribute.type == :identity do
+            ":identity"
           else
-            inspect(attribute.type)
+            if attribute.type == :bigint and attribute.default == "nil" and attribute.generated? do
+              ":bigserial"
+            else
+              inspect(attribute.type)
+            end
           end
         end
 
       "modify #{inspect(attribute.source)}, #{type_or_reference}#{alter_opts(attribute, old_attribute)}"
     end
-
-    defp reference(multitenancy, attribute, schema, identity_column_defaults)
 
     defp reference(
            %{strategy: :context},
@@ -647,8 +631,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                  destination_attribute: destination_attribute
                } = reference
            } = attribute,
-           _schema,
-           identity_column_defaults
+           _schema
          ) do
       with_match = with_match(reference)
 
@@ -656,7 +639,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "references(:#{as_atom(table)}, column: #{inspect(destination_attribute)}",
         with_match,
         "name: #{inspect(reference.name)}",
-        "type: #{inspect(reference_type(attribute, reference, identity_column_defaults))}",
+        "type: #{inspect(reference_type(attribute, reference))}",
         "prefix: prefix()",
         on_delete(reference),
         on_update(reference),
@@ -675,8 +658,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                  destination_attribute: reference_attribute
                } = reference
            } = attribute,
-           schema,
-           identity_column_defaults
+           schema
          ) do
       destination_schema =
         if schema != destination_schema do
@@ -689,7 +671,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "references(:#{as_atom(table)}, column: #{inspect(reference_attribute)}",
         with_match,
         "name: #{inspect(reference.name)}",
-        "type: #{inspect(reference_type(attribute, reference, identity_column_defaults))}",
+        "type: #{inspect(reference_type(attribute, reference))}",
         option("prefix", destination_schema),
         on_delete(reference),
         on_update(reference),
@@ -707,8 +689,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                  schema: destination_schema
                } = reference
            } = attribute,
-           schema,
-           identity_column_defaults
+           schema
          ) do
       with_match = with_match(reference)
 
@@ -721,7 +702,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "references(:#{as_atom(table)}, column: #{inspect(destination_attribute)}",
         with_match,
         "name: #{inspect(reference.name)}",
-        "type: #{inspect(reference_type(attribute, reference, identity_column_defaults))}",
+        "type: #{inspect(reference_type(attribute, reference))}",
         option("prefix", destination_schema),
         on_delete(reference),
         on_update(reference),
@@ -739,8 +720,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                  schema: destination_schema
                } = reference
            } = attribute,
-           schema,
-           identity_column_defaults
+           schema
          ) do
       with_match = with_match(reference)
 
@@ -753,7 +733,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "references(:#{as_atom(table)}, column: #{inspect(destination_attribute)}",
         with_match,
         "name: #{inspect(reference.name)}",
-        "type: #{inspect(reference_type(attribute, reference, identity_column_defaults))}",
+        "type: #{inspect(reference_type(attribute, reference))}",
         option("prefix", destination_schema),
         on_delete(reference),
         on_update(reference),
