@@ -6,9 +6,9 @@
       "type": "uuid",
       "source": "id",
       "references": null,
-      "primary_key?": true,
       "allow_nil?": false,
-      "generated?": false
+      "generated?": false,
+      "primary_key?": true
     },
     {
       "default": "nil",
@@ -16,9 +16,9 @@
       "type": "text",
       "source": "description",
       "references": null,
-      "primary_key?": false,
       "allow_nil?": true,
-      "generated?": false
+      "generated?": false,
+      "primary_key?": false
     },
     {
       "default": "nil",
@@ -28,40 +28,41 @@
       "references": {
         "name": "profile_author_id_fkey",
         "table": "authors",
+        "schema": "public",
+        "primary_key?": true,
+        "destination_attribute": "id",
         "multitenancy": {
           "global": null,
           "attribute": null,
           "strategy": null
         },
-        "primary_key?": true,
-        "destination_attribute": "id",
-        "schema": "public",
-        "deferrable": false,
-        "destination_attribute_default": null,
-        "destination_attribute_generated": null,
         "on_delete": null,
         "on_update": null,
+        "deferrable": false,
+        "match_type": null,
         "match_with": null,
-        "match_type": null
+        "destination_attribute_default": null,
+        "destination_attribute_generated": null
       },
-      "primary_key?": false,
       "allow_nil?": true,
-      "generated?": false
+      "generated?": false,
+      "primary_key?": false
     }
   ],
   "table": "profile",
   "hash": "4D5319352707FBF8EEEC4221C202ABF4F77AFE3A931697795D125CBB87F8F78C",
   "repo": "Elixir.AshPostgres.TestRepo",
+  "identities": [],
+  "schema": "profiles",
   "multitenancy": {
     "global": null,
     "attribute": null,
     "strategy": null
   },
-  "schema": "profiles",
-  "identities": [],
-  "has_create_action": true,
+  "check_constraints": [],
   "custom_indexes": [],
-  "custom_statements": [],
   "base_filter": null,
-  "check_constraints": []
+  "custom_statements": [],
+  "has_create_action": true,
+  "drop_table_opted_out": true
 }

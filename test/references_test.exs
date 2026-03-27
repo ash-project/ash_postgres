@@ -114,6 +114,68 @@ defmodule AshPostgres.ReferencesTest do
     assert io =~ "Unsupported match_type"
   end
 
+  test "raises error when reference is configured for a has_many relationship" do
+    Code.compiler_options(ignore_module_conflict: true)
+    on_exit(fn -> Code.compiler_options(ignore_module_conflict: false) end)
+
+    {_, io} =
+      with_io(:stderr, fn ->
+        defmodule Parent do
+          @moduledoc false
+          use Ash.Resource,
+            domain: nil,
+            data_layer: AshPostgres.DataLayer
+
+          attributes do
+            uuid_primary_key(:id)
+          end
+
+          relationships do
+            has_many(:children, AshPostgres.ReferencesTest.Child)
+          end
+
+          postgres do
+            table("parents")
+            repo(AshPostgres.TestRepo)
+
+            references do
+              reference :children, on_delete: :delete
+            end
+          end
+
+          actions do
+            defaults([:create, :read, :update, :destroy])
+          end
+        end
+
+        defmodule Child do
+          @moduledoc false
+          use Ash.Resource,
+            domain: nil,
+            data_layer: AshPostgres.DataLayer
+
+          attributes do
+            uuid_primary_key(:id)
+          end
+
+          relationships do
+            belongs_to(:parent, AshPostgres.ReferencesTest.Parent)
+          end
+
+          postgres do
+            table("children")
+            repo(AshPostgres.TestRepo)
+          end
+
+          actions do
+            defaults([:create, :read, :update, :destroy])
+          end
+        end
+      end)
+
+    assert io =~ "References can only be configured for `belongs_to` relationships"
+  end
+
   test "named reference results in properly applied foreign_key_constraint/3 on the underlying changeset" do
     # Create a comment with an invalid post_id
     assert {:error, %Ash.Error.Invalid{errors: errors}} =

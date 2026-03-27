@@ -686,16 +686,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, {:lock, :for_update}), do: true
   def can?(_, :composite_types), do: true
 
-  def can?(_, {:lock, string}) do
-    string = String.trim_trailing(string, " NOWAIT")
-
-    String.upcase(string) in [
-      "FOR UPDATE",
-      "FOR NO KEY UPDATE",
-      "FOR SHARE",
-      "FOR KEY SHARE"
-    ]
-  end
+  def can?(_, {:lock, string}), do: string |> String.upcase() |> can_lock?()
 
   def can?(_, :transact), do: true
   def can?(_, :composite_primary_key), do: true
@@ -797,6 +788,23 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :distinct), do: true
   def can?(_, {:sort, _}), do: true
   def can?(_, _), do: false
+
+  @locks [
+    "FOR UPDATE",
+    "FOR NO KEY UPDATE",
+    "FOR SHARE",
+    "FOR KEY SHARE"
+  ]
+
+  for lock <- @locks do
+    defp can_lock?(unquote(lock)), do: true
+
+    for suffix <- ["NOWAIT", "SKIP LOCKED"] do
+      defp can_lock?(unquote("#{lock} #{suffix}")), do: true
+    end
+  end
+
+  defp can_lock?(_), do: false
 
   @impl true
   def in_transaction?(resource) do
@@ -1120,6 +1128,13 @@ defmodule AshPostgres.DataLayer do
     base_query =
       if Map.get(relationship, :from_many?) do
         from(row in base_query, limit: 1)
+      else
+        base_query
+      end
+
+    base_query =
+      if Map.get(relationship, :offset) do
+        from(row in base_query, offset: ^relationship.offset)
       else
         base_query
       end
@@ -2383,8 +2398,30 @@ defmodule AshPostgres.DataLayer do
 
     fields_to_upsert =
       case fields_to_upsert do
-        [] -> keys
-        fields_to_upsert -> fields_to_upsert
+        [] ->
+          keys
+
+        fields_to_upsert ->
+          # Include fields with update_defaults (e.g. update_timestamp)
+          # even if they aren't in the changeset attributes or upsert_fields.
+          # These fields should always be refreshed when an upsert modifies fields.
+          # Can be disabled via touch_update_defaults?: false in the changeset
+          # context (either in [:private] or [:data_layer]) or via options map
+          touch_update_defaults? =
+            Map.get(options, :touch_update_defaults?, true) &&
+              Enum.at(changesets, 0).context[:private][:touch_update_defaults?] != false &&
+              Enum.at(changesets, 0).context[:data_layer][:touch_update_defaults?] != false
+
+          if touch_update_defaults? do
+            update_default_fields =
+              update_defaults
+              |> Keyword.keys()
+              |> Enum.reject(&(&1 in fields_to_upsert or &1 in keys))
+
+            fields_to_upsert ++ update_default_fields
+          else
+            fields_to_upsert
+          end
       end
 
     fields_to_upsert
@@ -3202,12 +3239,21 @@ defmodule AshPostgres.DataLayer do
     else
       keys = keys || Ash.Resource.Info.primary_key(keys)
 
+      touch_update_defaults? =
+        changeset.context[:private][:touch_update_defaults?] != false
+
       update_defaults = update_defaults(resource)
 
       explicitly_changing_attributes =
         changeset.attributes
         |> Map.keys()
-        |> Enum.concat(Keyword.keys(update_defaults))
+        |> then(fn attrs ->
+          if touch_update_defaults? do
+            Enum.concat(attrs, Keyword.keys(update_defaults))
+          else
+            attrs
+          end
+        end)
         |> Kernel.--(Map.get(changeset, :defaults, []))
         |> Kernel.--(keys)
 
@@ -3222,6 +3268,7 @@ defmodule AshPostgres.DataLayer do
              upsert_keys: keys,
              action_select: changeset.action_select,
              upsert_fields: upsert_fields,
+             touch_update_defaults?: touch_update_defaults?,
              return_records?: true
            }) do
         {:ok, []} ->
@@ -3557,13 +3604,6 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  @locks [
-    "FOR UPDATE",
-    "FOR NO KEY UPDATE",
-    "FOR SHARE",
-    "FOR KEY SHARE"
-  ]
-
   for lock <- @locks do
     frag = "#{lock} OF ?"
 
@@ -3572,16 +3612,16 @@ defmodule AshPostgres.DataLayer do
     end
 
     frag = "#{lock} OF ? NOWAIT"
-    lock = "#{lock} NOWAIT"
+    new_lock = "#{lock} NOWAIT"
 
-    def lock(query, unquote(lock), _) do
+    def lock(query, unquote(new_lock), _) do
       {:ok, Ecto.Query.lock(query, [{^0, a}], fragment(unquote(frag), a))}
     end
 
     frag = "#{lock} OF ? SKIP LOCKED"
-    lock = "#{lock} SKIP LOCKED"
+    new_lock = "#{lock} SKIP LOCKED"
 
-    def lock(query, unquote(lock), _) do
+    def lock(query, unquote(new_lock), _) do
       {:ok, Ecto.Query.lock(query, [{^0, a}], fragment(unquote(frag), a))}
     end
   end

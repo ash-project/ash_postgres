@@ -11,6 +11,8 @@
 # The directory Mix downloads your dependencies sources to.
 /deps/
 
+/tmp/
+
 # Where third-party dependencies like ExDoc output generated docs.
 /doc/
 

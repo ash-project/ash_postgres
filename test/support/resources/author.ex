@@ -19,6 +19,23 @@ defmodule AshPostgres.Test.Author do
     end
   end
 
+  defmodule TrueIfActorInContext do
+    @moduledoc """
+    An example of a calculation that references the actor from context, in a trivial way for demonstration purposes.
+    """
+    use Ash.Resource.Calculation
+
+    def expression(_opts, context) do
+      actor = context.actor
+
+      if is_nil(actor) do
+        expr(false)
+      else
+        expr(true)
+      end
+    end
+  end
+
   postgres do
     table("authors")
     repo(AshPostgres.TestRepo)
@@ -189,7 +206,34 @@ defmodule AshPostgres.Test.Author do
       expr(exists(posts, title == parent(first_name)))
     )
 
+    # When used standalone on a Post, parent(title) correctly refers to the Post.
+    # But when used inside exists(posts, ...) from Author, parent(title) incorrectly
+    # resolves to Author (which doesn't have a title column).
+    calculate(
+      :has_post_matching_author_via_nested_exists,
+      :boolean,
+      expr(exists(posts, has_matching_author_by_unrelated_exists))
+    )
+
     calculate(:profile_description_calc, :string, expr(profile.description), allow_nil?: true)
+
+    calculate :non_field_full_name, :string, expr(first_name <> " " <> last_name) do
+      field?(false)
+    end
+
+    calculate :non_field_refers_to_field_calc,
+              :string,
+              expr(full_name <> " (" <> non_field_full_name <> ")") do
+      field?(false)
+    end
+
+    calculate(:true_if_actor_in_context, :boolean, TrueIfActorInContext)
+
+    calculate(
+      :true_if_actor_in_context_nested,
+      :boolean,
+      expr(true_if_actor_in_context and fragment("1 = 1"))
+    )
   end
 
   aggregates do
@@ -199,6 +243,10 @@ defmodule AshPostgres.Test.Author do
 
     exists :has_post_with_better_comment, [:posts, :comments] do
       join_filter([:posts, :comments], expr(parent(score) < likes))
+    end
+
+    count :count_of_comments_on_public_posts, [:posts, :comments] do
+      join_filter([:posts], expr(public == true))
     end
 
     count(:num_of_authors_with_same_first_name, :authors_with_same_first_name)

@@ -504,7 +504,10 @@ defmodule AshPostgres.CalculationTest do
       |> Ash.create!()
 
     Comment
-    |> Ash.Changeset.for_create(:create, %{title: "comment"})
+    |> Ash.Changeset.for_create(:create, %{
+      title: "comment",
+      created_at: DateTime.add(DateTime.utc_now(), 1, :day)
+    })
     |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
     |> Ash.create!()
 
@@ -869,6 +872,23 @@ defmodule AshPostgres.CalculationTest do
       assert [%{score_map: %{negative_score: %{foo: -42}}}] =
                Post
                |> Ash.Query.load(:score_map)
+               |> Ash.read!()
+    end
+
+    test "maps with field constraints and relationship references work" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "John", last_name: "Doe"})
+        |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "test", score: 1})
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+      |> Ash.create!()
+
+      assert [%{author_name_map: %{first_name: "John", last_name: "Doe"}}] =
+               Post
+               |> Ash.Query.load(:author_name_map)
                |> Ash.read!()
     end
   end
@@ -1668,5 +1688,126 @@ defmodule AshPostgres.CalculationTest do
 
     assert Ash.calculate!(post, :past_datetime1?)
     assert Ash.calculate!(post, :past_datetime2?)
+  end
+
+  test "bug repro" do
+    author =
+      Author
+      |> Ash.Changeset.for_create(:create, %{
+        first_name: "Bill",
+        last_name: "Jones",
+        bio: %{title: "Mr.", bio: "Bones"}
+      })
+      |> Ash.create!()
+
+    [author_with_loads] =
+      Author
+      |> Ash.Query.for_read(:read, %{}, actor: %{id: "it's a me"})
+      |> Ash.Query.load([:true_if_actor_in_context, :true_if_actor_in_context_nested])
+      |> Ash.Query.filter(id == ^author.id)
+      |> Ash.read!()
+
+    assert author_with_loads.true_if_actor_in_context
+    assert author_with_loads.true_if_actor_in_context_nested
+  end
+
+  describe "nested exists with calculation containing parent() inside unrelated exists" do
+    test "parent() references in a calculation are scoped to the calculation's own resource, not the outer exists" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "Alice"})
+        |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "Alice", author_id: author.id})
+      |> Ash.create!()
+
+      assert %{has_post_matching_author_via_nested_exists: true} =
+               Ash.load!(author, [:has_post_matching_author_via_nested_exists])
+    end
+
+    test "the inner calculation works correctly when loaded directly on the child resource" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "Bob"})
+        |> Ash.create!()
+
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "Bob", author_id: author.id})
+        |> Ash.create!()
+
+      assert %{has_matching_author_by_unrelated_exists: true} =
+               Ash.load!(post, [:has_matching_author_by_unrelated_exists])
+    end
+  end
+
+  describe "field?: false calculations" do
+    test "can be loaded and appear in the calculations map" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "zach", last_name: "daniel"})
+        |> Ash.create!()
+
+      author = Ash.load!(author, [:non_field_full_name])
+      assert author.calculations[:non_field_full_name] == "zach daniel"
+    end
+
+    test "can be loaded via Ash.Query.load" do
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "zach", last_name: "daniel"})
+      |> Ash.create!()
+
+      author =
+        Author
+        |> Ash.Query.load(:non_field_full_name)
+        |> Ash.read_one!()
+
+      assert author.calculations[:non_field_full_name] == "zach daniel"
+    end
+
+    test "can be referenced in other expressions" do
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "zach", last_name: "daniel"})
+      |> Ash.create!()
+
+      author =
+        Author
+        |> Ash.Query.load(:non_field_refers_to_field_calc)
+        |> Ash.read_one!()
+
+      assert author.calculations[:non_field_refers_to_field_calc] ==
+               "zach daniel (zach daniel)"
+    end
+
+    test "can be used in filters" do
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "zach", last_name: "daniel"})
+      |> Ash.create!()
+
+      Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "other", last_name: "person"})
+      |> Ash.create!()
+
+      assert [author] =
+               Author
+               |> Ash.Query.filter(non_field_full_name == "zach daniel")
+               |> Ash.read!()
+
+      assert author.first_name == "zach"
+    end
+
+    test "do not add a key to the resource struct" do
+      refute Map.has_key?(%Author{}, :non_field_full_name)
+    end
+
+    test "works with Ash.calculate" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "zach", last_name: "daniel"})
+        |> Ash.create!()
+
+      assert {:ok, "zach daniel"} = Ash.calculate(author, :non_field_full_name)
+    end
   end
 end

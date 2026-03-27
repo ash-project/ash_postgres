@@ -618,6 +618,20 @@ defmodule AshPostgres.Test.Post do
     attribute(:string_point, AshPostgres.Test.StringPoint, public?: true)
     attribute(:person_detail, AshPostgres.Test.PersonDetail, public?: true)
     attribute(:stuff, :map, public?: true)
+
+    attribute :keyword_map, :keyword do
+      public?(true)
+      allow_nil?(true)
+
+      constraints(
+        fields: [
+          display_template: [
+            type: :string
+          ]
+        ]
+      )
+    end
+
     attribute(:list_of_stuff, {:array, :map}, public?: true)
     attribute(:uniq_one, :string, public?: true)
     attribute(:uniq_two, :string, public?: true)
@@ -759,6 +773,12 @@ defmodule AshPostgres.Test.Post do
     has_one :latest_comment, AshPostgres.Test.Comment do
       sort(created_at: :desc)
       from_many?(true)
+      public?(true)
+    end
+
+    has_one :second_latest_comment, AshPostgres.Test.Comment do
+      sort(created_at: :desc)
+      offset(1)
       public?(true)
     end
 
@@ -1016,6 +1036,18 @@ defmodule AshPostgres.Test.Post do
       expr(exists(followers, name == "fred"))
     )
 
+    # Used to test nested exists with parent() — see nested_exists_test.exs
+    calculate(
+      :has_matching_author_by_unrelated_exists,
+      :boolean,
+      expr(
+        exists(
+          AshPostgres.Test.Author,
+          first_name == parent(title)
+        )
+      )
+    )
+
     calculate(
       :composite_origin,
       AshPostgres.Test.CompositePoint,
@@ -1029,6 +1061,24 @@ defmodule AshPostgres.Test.Post do
         negative_score: %{foo: negative_score, bar: negative_score}
       })
     )
+
+    calculate(
+      :author_name_map,
+      :map,
+      expr(%{
+        first_name: author.first_name,
+        last_name: author.last_name
+      })
+    ) do
+      public?(true)
+
+      constraints(
+        fields: [
+          first_name: [type: :string, allow_nil?: true],
+          last_name: [type: :string, allow_nil?: true]
+        ]
+      )
+    end
 
     calculate(
       :count_of_comments_called_baz,
@@ -1193,6 +1243,19 @@ defmodule AshPostgres.Test.Post do
 
     calculate(:past_datetime1?, :boolean, expr(now() > datetime))
     calculate(:past_datetime2?, :boolean, expr(datetime <= now()))
+
+    # Test case for join_filters bug where Ash.Filter structs are not converted to Ecto expressions
+    calculate(
+      :max_rating_with_join_filter,
+      :integer,
+      expr(
+        max([:comments, :ratings],
+          query: [filter: expr(score > 0)],
+          field: :score,
+          join_filters: %{comments: expr(author_id == ^actor(:id))}
+        )
+      )
+    )
   end
 
   aggregates do

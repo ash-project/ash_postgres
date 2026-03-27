@@ -9,7 +9,7 @@ defmodule AshPostgres.MixProject do
   The PostgreSQL data layer for Ash Framework
   """
 
-  @version "2.6.32"
+  @version "2.8.0"
 
   def project do
     [
@@ -44,7 +44,7 @@ defmodule AshPostgres.MixProject do
 
   defp cli do
     [
-      preferred_cli_env: [
+      preferred_envs: [
         coveralls: :test,
         "coveralls.github": :test,
         "test.create": :test,
@@ -109,6 +109,7 @@ defmodule AshPostgres.MixProject do
         "documentation/topics/about-ash-postgres/what-is-ash-postgres.md",
         "documentation/topics/resources/references.md",
         "documentation/topics/resources/polymorphic-resources.md",
+        "documentation/topics/resources/working-with-existing-databases.md",
         "documentation/topics/development/migrations-and-tasks.md",
         "documentation/topics/development/testing.md",
         "documentation/topics/development/upgrading-to-2.0.md",
@@ -221,11 +222,8 @@ defmodule AshPostgres.MixProject do
       "main" ->
         [git: "https://github.com/ash-project/ash.git", override: true]
 
-      version when is_binary(version) ->
-        "~> #{version}"
-
       version ->
-        version
+        "~> #{version}"
     end
   end
 
@@ -240,11 +238,8 @@ defmodule AshPostgres.MixProject do
       "main" ->
         [git: "https://github.com/ash-project/ash_sql.git"]
 
-      version when is_binary(version) ->
-        "~> #{version}"
-
       version ->
-        version
+        "~> #{version}"
     end
   end
 

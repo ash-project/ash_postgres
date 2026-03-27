@@ -6,9 +6,9 @@
       "type": "uuid",
       "source": "id",
       "references": null,
+      "primary_key?": true,
       "allow_nil?": false,
-      "generated?": false,
-      "primary_key?": true
+      "generated?": false
     },
     {
       "default": "nil",
@@ -16,9 +16,9 @@
       "type": "text",
       "source": "owner_email",
       "references": null,
+      "primary_key?": false,
       "allow_nil?": true,
-      "generated?": false,
-      "primary_key?": false
+      "generated?": false
     },
     {
       "default": "nil",
@@ -26,9 +26,9 @@
       "type": "text",
       "source": "other_owner_email",
       "references": null,
+      "primary_key?": false,
       "allow_nil?": true,
-      "generated?": false,
-      "primary_key?": false
+      "generated?": false
     },
     {
       "default": "nil",
@@ -36,24 +36,25 @@
       "type": "boolean",
       "source": "visible",
       "references": null,
+      "primary_key?": false,
       "allow_nil?": true,
-      "generated?": false,
-      "primary_key?": false
+      "generated?": false
     }
   ],
   "table": "subquery_parent",
   "hash": "4F7C9D2564C1C54AB4E45BE8A5209B764EDC05F060C9B9D3E8EBE8A134FAF797",
   "repo": "Elixir.AshPostgres.TestRepo",
-  "identities": [],
-  "schema": null,
-  "check_constraints": [],
-  "custom_indexes": [],
-  "base_filter": null,
   "multitenancy": {
     "global": null,
     "attribute": null,
     "strategy": null
   },
+  "schema": null,
+  "identities": [],
+  "has_create_action": true,
+  "custom_indexes": [],
   "custom_statements": [],
-  "has_create_action": true
+  "base_filter": null,
+  "check_constraints": [],
+  "drop_table_opted_out": true
 }

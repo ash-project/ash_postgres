@@ -268,12 +268,12 @@ defmodule AshPostgres.MigrationGenerator do
         {module, migration_name} =
           case to_install do
             [{ext_name, version, _up_fn, _down_fn}] ->
-              {"install_#{ext_name}_v#{version}_#{timestamp(true)}",
-               "#{timestamp(true)}_install_#{ext_name}_v#{version}_extension#{dev}"}
+              {"install_#{ext_name}_v#{version}_#{timestamp()}",
+               "#{timestamp()}_install_#{ext_name}_v#{version}_extension#{dev}"}
 
             ["ash_functions"] ->
-              {"install_ash_functions_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}_#{timestamp(true)}",
-               "#{timestamp(true)}_install_ash_functions_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}"}
+              {"install_ash_functions_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}_#{timestamp()}",
+               "#{timestamp()}_install_ash_functions_extension_#{AshPostgres.MigrationGenerator.AshFunctions.latest_version()}"}
 
             _multiple ->
               migration_path = migration_path(opts, repo, false)
@@ -303,7 +303,7 @@ defmodule AshPostgres.MigrationGenerator do
                   |> Kernel.+(1)
 
                 {"#{opts.name}_extensions_#{count}",
-                 "#{timestamp(true)}_#{opts.name}_extensions_#{count}#{dev}"}
+                 "#{timestamp()}_#{opts.name}_extensions_#{count}#{dev}"}
               else
                 count =
                   migration_path
@@ -327,7 +327,7 @@ defmodule AshPostgres.MigrationGenerator do
                   |> Kernel.+(1)
 
                 {"migrate_resources_extensions_#{count}",
-                 "#{timestamp(true)}_migrate_resources_extensions_#{count}#{dev}"}
+                 "#{timestamp()}_migrate_resources_extensions_#{count}#{dev}"}
               end
           end
 
@@ -440,16 +440,51 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.flat_map(fn {repo, snapshots} ->
       deduped = deduplicate_snapshots(snapshots, opts, non_tenant_snapshots)
 
-      snapshots_with_operations =
+      current_table_keys =
         deduped
+        |> Enum.map(fn {%{table: t, schema: s}, _} -> {t, s} end)
+        |> MapSet.new()
+
+      {drop_operations, orphan_snapshots, rename_map} =
+        drop_operations_for_orphan_tables(repo, current_table_keys, opts, tenant?)
+
+      deduped_with_renames =
+        Enum.map(deduped, fn {%{table: table, schema: schema} = snapshot, existing_snapshot} ->
+          case Map.get(rename_map, {table, schema}) do
+            nil ->
+              {snapshot, existing_snapshot}
+
+            %{snapshot: old_snapshot} ->
+              {snapshot, old_snapshot}
+          end
+        end)
+
+      snapshots_with_operations =
+        deduped_with_renames
         |> fetch_operations(opts)
         |> Enum.map(&add_order_to_operations/1)
 
       snapshots = Enum.map(snapshots_with_operations, &elem(&1, 0))
 
-      snapshots_with_operations
-      |> Enum.flat_map(&elem(&1, 1))
-      |> Enum.uniq()
+      rename_operations =
+        Enum.map(rename_map, fn {{new_table, schema}, %{old_table: old_table, snapshot: snapshot}} ->
+          %Operation.RenameTable{
+            old_table: old_table,
+            new_table: new_table,
+            schema: schema,
+            multitenancy: snapshot.multitenancy,
+            repo: repo
+          }
+        end)
+
+      operations =
+        snapshots_with_operations
+        |> Enum.flat_map(&elem(&1, 1))
+        |> Enum.concat(rename_operations)
+        |> Enum.concat(drop_operations)
+        |> Enum.uniq()
+
+      operations
       |> case do
         [] ->
           []
@@ -480,7 +515,8 @@ defmodule AshPostgres.MigrationGenerator do
           else
             operations
             |> split_into_migrations()
-            |> Enum.map(fn operations ->
+            |> Enum.with_index()
+            |> Enum.map(fn {operations, split_index} ->
               run_without_transaction? =
                 Enum.any?(operations, fn
                   %Operation.AddCustomIndex{index: %{concurrently: true}} ->
@@ -496,10 +532,14 @@ defmodule AshPostgres.MigrationGenerator do
               operations
               |> organize_operations
               |> build_up_and_down()
-              |> migration(repo, opts, tenant?, run_without_transaction?)
+              |> migration(repo, opts, tenant?, run_without_transaction?, split_index)
             end)
           end
           |> Enum.concat(create_new_snapshot(snapshots, repo_name(repo), opts, tenant?))
+          |> then(fn files ->
+            remove_orphan_snapshots(orphan_snapshots, opts)
+            files
+          end)
       end
     end)
   end
@@ -679,9 +719,61 @@ defmodule AshPostgres.MigrationGenerator do
         [ops]
 
       {concurrent_indexes, ops} ->
-        [ops, concurrent_indexes]
+        concurrent_unique_columns =
+          Enum.flat_map(concurrent_indexes, fn
+            %Operation.AddUniqueIndex{table: table, identity: %{keys: keys}} ->
+              Enum.map(keys, &{table, &1})
+
+            _ ->
+              []
+          end)
+
+        if Enum.empty?(concurrent_unique_columns) do
+          [ops, concurrent_indexes]
+        else
+          {deferred_fk_ops, regular_ops} =
+            Enum.split_with(
+              ops,
+              &references_concurrent_unique_column?(&1, concurrent_unique_columns)
+            )
+
+          [regular_ops, concurrent_indexes, deferred_fk_ops]
+        end
     end
+    |> Enum.reject(&Enum.empty?/1)
   end
+
+  defp references_concurrent_unique_column?(
+         %Operation.AlterAttribute{
+           new_attribute: %{references: %{table: ref_table, destination_attribute: ref_col}}
+         },
+         concurrent_unique_columns
+       )
+       when not is_nil(ref_table) do
+    {ref_table, ref_col} in concurrent_unique_columns
+  end
+
+  defp references_concurrent_unique_column?(
+         %Operation.AddAttribute{
+           attribute: %{references: %{table: ref_table, destination_attribute: ref_col}}
+         },
+         concurrent_unique_columns
+       )
+       when not is_nil(ref_table) do
+    {ref_table, ref_col} in concurrent_unique_columns
+  end
+
+  defp references_concurrent_unique_column?(
+         %Operation.DropForeignKey{
+           attribute: %{references: %{table: ref_table, destination_attribute: ref_col}}
+         },
+         concurrent_unique_columns
+       )
+       when not is_nil(ref_table) do
+    {ref_table, ref_col} in concurrent_unique_columns
+  end
+
+  defp references_concurrent_unique_column?(_op, _concurrent_unique_columns), do: false
 
   defp add_order_to_operations({snapshot, operations}) do
     operations_with_order = Enum.map(operations, &add_order_to_operation(&1, snapshot.attributes))
@@ -1056,6 +1148,38 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
+  defp drop_table_confirmed?(existing_snapshot, opts) do
+    cond do
+      opts.check ->
+        false
+
+      opts.dev ->
+        true
+
+      opts.no_shell? ->
+        table_label =
+          if existing_snapshot.schema do
+            "#{existing_snapshot.schema}.#{existing_snapshot.table}"
+          else
+            existing_snapshot.table
+          end
+
+        raise "Unimplemented: cannot determine whether to generate DROP for table #{table_label} without shell input"
+
+      true ->
+        message =
+          if existing_snapshot.schema do
+            "Table #{existing_snapshot.schema}.#{existing_snapshot.table} no longer has a resource. " <>
+              "Generate a migration to DROP this table? This will permanently remove the table and its data."
+          else
+            "Table #{existing_snapshot.table} no longer has a resource. " <>
+              "Generate a migration to DROP this table? This will permanently remove the table and its data."
+          end
+
+        yes?(opts, message)
+    end
+  end
+
   defp prompt(opts, message) do
     if opts.check do
       "response"
@@ -1100,14 +1224,16 @@ defmodule AshPostgres.MigrationGenerator do
     repo |> Module.split() |> List.last() |> Macro.underscore()
   end
 
-  defp migration({up, down}, repo, opts, tenant?, run_without_transaction?) do
+  defp migration({up, down}, repo, opts, tenant?, run_without_transaction?, split_index) do
     migration_path = migration_path(opts, repo, tenant?)
 
     require_name!(opts)
 
+    split_suffix = if split_index > 0, do: "_#{split_index}", else: ""
+
     {migration_name, last_part} =
       if opts.name do
-        {"#{timestamp(true)}_#{opts.name}", "#{opts.name}"}
+        {"#{timestamp()}_#{opts.name}#{split_suffix}", "#{opts.name}#{split_suffix}"}
       else
         count =
           migration_path
@@ -1130,7 +1256,8 @@ defmodule AshPostgres.MigrationGenerator do
           |> Enum.max(fn -> 0 end)
           |> Kernel.+(1)
 
-        {"#{timestamp(true)}_migrate_resources#{count}", "migrate_resources#{count}"}
+        {"#{timestamp()}_migrate_resources#{count}#{split_suffix}",
+         "migrate_resources#{count}#{split_suffix}"}
       end
 
     migration_file =
@@ -1391,6 +1518,40 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp group_into_phases(
+         [
+           %Operation.DropTable{
+             table: table,
+             schema: schema,
+             multitenancy: multitenancy,
+             repo: repo
+           }
+           | rest
+         ],
+         nil,
+         acc
+       ) do
+    group_into_phases(rest, nil, [
+      %Phase.Drop{
+        table: table,
+        schema: schema,
+        multitenancy: multitenancy,
+        repo: repo
+      }
+      | acc
+    ])
+  end
+
+  defp group_into_phases(
+         [%Operation.DropTable{} = op | rest],
+         phase,
+         acc
+       )
+       when not is_nil(phase) do
+    phase = %{phase | operations: Enum.reverse(phase.operations)}
+    group_into_phases([op | rest], nil, [phase | acc])
+  end
+
+  defp group_into_phases(
          [%Operation.AddAttribute{table: table, schema: schema} = op | rest],
          %{table: table, schema: schema} = phase,
          acc
@@ -1516,6 +1677,75 @@ defmodule AshPostgres.MigrationGenerator do
          %{table: table, schema: schema}
        ) do
     true
+  end
+
+  # CreateTable must appear before AddUniqueIndex for the same table (table must exist first).
+  defp after?(
+         %Operation.CreateTable{table: table, schema: schema},
+         %Operation.AddUniqueIndex{table: table, schema: schema}
+       ),
+       do: false
+
+  # Unique index must be created before any alter that adds FKs referencing it.
+  defp after?(
+         %Operation.AddUniqueIndex{table: table, schema: schema},
+         %Operation.AlterAttribute{table: table, schema: schema}
+       ),
+       do: false
+
+  # AddUniqueIndex must come after CreateTable (table must exist first).
+  defp after?(
+         %Operation.AddUniqueIndex{table: table, schema: schema},
+         %Operation.CreateTable{table: table, schema: schema}
+       ),
+       do: true
+
+  # Place AddUniqueIndex after a specific attribute (by source) for the same
+  # table so it appears before AlterAttributes (issue #236).
+  defp after?(
+         %Operation.AddUniqueIndex{
+           insert_after_attribute_source: source,
+           table: table,
+           schema: schema
+         },
+         %Operation.AddAttribute{
+           table: table,
+           schema: schema,
+           attribute: %{source: source}
+         }
+       )
+       when not is_nil(source),
+       do: true
+
+  defp after?(
+         %Operation.AddUniqueIndex{
+           insert_after_attribute_source: source,
+           table: table,
+           schema: schema
+         },
+         %Operation.AddAttribute{
+           table: table,
+           schema: schema
+         }
+       )
+       when not is_nil(source),
+       do: true
+
+  defp after?(
+         %Operation.AddUniqueIndex{
+           identity: %{keys: keys},
+           table: table,
+           schema: schema
+         },
+         %Operation.AlterAttribute{
+           table: table,
+           schema: schema,
+           new_attribute: %{
+             references: %{table: table, destination_attribute: destination_attribute}
+           }
+         }
+       ) do
+    destination_attribute not in List.wrap(keys)
   end
 
   defp after?(
@@ -1980,6 +2210,21 @@ defmodule AshPostgres.MigrationGenerator do
   defp after?(%Operation.AddCheckConstraint{}, _), do: true
   defp after?(%Operation.RemoveCheckConstraint{}, _), do: true
 
+  defp after?(
+         op,
+         %Operation.RenameTable{
+           new_table: table,
+           schema: schema
+         }
+       ) do
+    match?(%{table: ^table, schema: ^schema}, op)
+  end
+
+  defp after?(%Operation.RenameTable{}, _), do: false
+
+  defp after?(_, %Operation.DropTable{}), do: true
+  defp after?(%Operation.DropTable{}, _), do: false
+
   defp after?(_, _), do: false
 
   defp fetch_operations(snapshots, opts) do
@@ -2154,7 +2399,8 @@ defmodule AshPostgres.MigrationGenerator do
           table: snapshot.table,
           schema: snapshot.schema,
           source: attribute.source,
-          multitenancy: snapshot.multitenancy
+          multitenancy: snapshot.multitenancy,
+          old_multitenancy: old_snapshot.multitenancy
         }
       end)
 
@@ -2262,10 +2508,26 @@ defmodule AshPostgres.MigrationGenerator do
         end)
       end
       |> Enum.map(fn identity ->
+        {insert_after_attribute_source, _best_index} =
+          identity.keys
+          |> Enum.reduce({nil, -1}, fn key, {best_source, best_index} ->
+            case Enum.find_index(snapshot.attributes, &(&1.source == key)) do
+              nil ->
+                {best_source, best_index}
+
+              idx when idx > best_index ->
+                {key, idx}
+
+              _ ->
+                {best_source, best_index}
+            end
+          end)
+
         %Operation.AddUniqueIndex{
           identity: identity,
           schema: snapshot.schema,
           table: snapshot.table,
+          insert_after_attribute_source: insert_after_attribute_source,
           concurrently: opts.concurrent_indexes
         }
       end)
@@ -2300,13 +2562,22 @@ defmodule AshPostgres.MigrationGenerator do
         }
       end)
 
+    # Place unique indexes after create/add attributes but before alter attributes
+    # so FKs that reference identity columns see the unique index (issue #236).
+    {creates_and_adds, alter_and_rest} =
+      Enum.split_while(attribute_operations, fn
+        %Operation.AlterAttribute{} -> false
+        _ -> true
+      end)
+
     [
       pkey_operations,
       unique_indexes_to_remove,
-      attribute_operations,
+      creates_and_adds,
+      unique_indexes_to_add,
+      alter_and_rest,
       reference_indexes_to_add,
       reference_indexes_to_remove,
-      unique_indexes_to_add,
       unique_indexes_to_rename,
       constraints_to_remove,
       constraints_to_add,
@@ -2663,7 +2934,8 @@ defmodule AshPostgres.MigrationGenerator do
             []
           end
 
-        if Map.get(old_attribute, :references) != Map.get(new_attribute, :references) do
+        if Map.get(old_attribute, :references) != Map.get(new_attribute, :references) and
+             references_differ_beyond_index?(old_attribute, new_attribute) do
           redo_deferrability =
             if has_reference?(old_snapshot.multitenancy, old_attribute) and
                  differently_deferrable?(new_attribute, old_attribute) do
@@ -2770,6 +3042,27 @@ defmodule AshPostgres.MigrationGenerator do
     do: true
 
   defp differently_deferrable?(_, _), do: false
+
+  # When the only reference change is index? (add/remove index), we should not emit
+  # DropForeignKey + AlterAttribute; the separate AddReferenceIndex/RemoveReferenceIndex
+  # operations handle it. This avoids migrations that drop and re-add the same FK.
+  defp references_differ_beyond_index?(old_attr, new_attr) do
+    old_refs = Map.get(old_attr, :references)
+    new_refs = Map.get(new_attr, :references)
+
+    cond do
+      old_refs == new_refs ->
+        false
+
+      is_nil(old_refs) or is_nil(new_refs) ->
+        true
+
+      true ->
+        old_without_index = Map.delete(old_refs, :index?)
+        new_without_index = Map.delete(new_refs, :index?)
+        old_without_index != new_without_index
+    end
+  end
 
   # This exists to handle the fact that the remapping of the key name -> source caused attributes
   # to be considered unequal. We ignore things that only differ in that way using this function.
@@ -2912,6 +3205,55 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
+  defp get_latest_snapshot_file_path(snapshot, opts) do
+    folder = get_snapshot_folder(snapshot, opts)
+    snapshot_dir = get_snapshot_path(snapshot, folder)
+
+    if File.exists?(snapshot_dir) do
+      snapshot_files =
+        File.ls!(snapshot_dir)
+        |> Enum.filter(
+          &(String.match?(&1, ~r/^\d{14}\.json$/) or
+              (opts.dev and String.match?(&1, ~r/^\d{14}\_dev\.json$/)))
+        )
+
+      case snapshot_files do
+        [] ->
+          if snapshot.schema do
+            path = Path.join(folder, "#{snapshot.schema}.#{snapshot.table}.json")
+            if File.exists?(path), do: path, else: nil
+          else
+            path = Path.join(folder, "#{snapshot.table}.json")
+            if File.exists?(path), do: path, else: nil
+          end
+
+        files ->
+          Path.join(snapshot_dir, Enum.max(files))
+      end
+    else
+      nil
+    end
+  end
+
+  defp record_drop_table_opt_out(snapshot, opts) do
+    if opts.dry_run || opts.check || opts.snapshots_only do
+      :ok
+    else
+      case get_latest_snapshot_file_path(snapshot, opts) do
+        nil ->
+          :ok
+
+        path ->
+          path
+          |> File.read!()
+          |> Jason.decode!(keys: :atoms!)
+          |> Map.put(:drop_table_opted_out, true)
+          |> Jason.encode!(pretty: true)
+          |> then(&File.write!(path, &1))
+      end
+    end
+  end
+
   defp get_old_snapshot(folder, snapshot) do
     schema_file =
       if snapshot.schema do
@@ -2934,6 +3276,147 @@ defmodule AshPostgres.MigrationGenerator do
         |> File.read!()
         |> load_snapshot()
       end
+    end
+  end
+
+  defp list_snapshot_tables(repo, opts, tenant?) do
+    base_folder =
+      if tenant? do
+        opts
+        |> snapshot_path(repo)
+        |> Path.join(repo_name(repo))
+        |> Path.join("tenants")
+      else
+        opts
+        |> snapshot_path(repo)
+        |> Path.join(repo_name(repo))
+      end
+
+    if File.exists?(base_folder) do
+      base_folder
+      |> File.ls!()
+      |> Enum.filter(fn name ->
+        path = Path.join(base_folder, name)
+        File.dir?(path) and name != "extensions"
+      end)
+      |> Enum.map(fn name ->
+        if String.contains?(name, ".") do
+          [schema, table] = String.split(name, ".", parts: 2)
+          {table, schema}
+        else
+          {name, nil}
+        end
+      end)
+    else
+      []
+    end
+  end
+
+  defp drop_operations_for_orphan_tables(repo, current_table_keys, opts, tenant?) do
+    snapshot_table_keys =
+      list_snapshot_tables(repo, opts, tenant?)
+      |> MapSet.new()
+
+    orphan_keys = MapSet.difference(snapshot_table_keys, current_table_keys)
+    added_keys = MapSet.difference(current_table_keys, snapshot_table_keys)
+
+    added_keys_list = MapSet.to_list(added_keys)
+
+    multitenancy =
+      if tenant? do
+        %{strategy: :context, attribute: nil, global: nil}
+      else
+        %{strategy: nil, attribute: nil, global: nil}
+      end
+
+    {drop_ops, rename_map, loaded} =
+      Enum.reduce(orphan_keys, {[], %{}, []}, fn {table, schema} = old_key,
+                                                 {ops, rename_map, snapshots} ->
+        minimal_snapshot = %{
+          table: table,
+          schema: schema,
+          repo: repo,
+          multitenancy: multitenancy
+        }
+
+        case get_existing_snapshot(minimal_snapshot, opts) do
+          nil ->
+            {ops, rename_map, snapshots}
+
+          existing_snapshot ->
+            if Map.get(existing_snapshot, :drop_table_opted_out, false) do
+              {ops, rename_map, snapshots}
+            else
+              # Only consider new tables in the same schema as candidates
+              candidates =
+                Enum.filter(added_keys_list, fn {new_table, new_schema} ->
+                  new_schema == schema && new_table != table
+                end)
+
+              {ops, rename_map, snapshots} =
+                case candidates do
+                  [{new_table, new_schema}] ->
+                    if renaming_table_to?(old_key, {new_table, new_schema}, opts) do
+                      new_rename_map =
+                        Map.put(rename_map, {new_table, new_schema}, %{
+                          old_table: table,
+                          old_schema: schema,
+                          snapshot: existing_snapshot
+                        })
+
+                      {ops, new_rename_map, [existing_snapshot | snapshots]}
+                    else
+                      if drop_table_confirmed?(existing_snapshot, opts) do
+                        drop_op = %Operation.DropTable{
+                          table: existing_snapshot.table,
+                          schema: existing_snapshot.schema,
+                          repo: existing_snapshot.repo,
+                          multitenancy: existing_snapshot.multitenancy
+                        }
+
+                        {[drop_op | ops], rename_map, [existing_snapshot | snapshots]}
+                      else
+                        record_drop_table_opt_out(existing_snapshot, opts)
+                        {ops, rename_map, snapshots}
+                      end
+                    end
+
+                  _ ->
+                    if drop_table_confirmed?(existing_snapshot, opts) do
+                      drop_op = %Operation.DropTable{
+                        table: existing_snapshot.table,
+                        schema: existing_snapshot.schema,
+                        repo: existing_snapshot.repo,
+                        multitenancy: existing_snapshot.multitenancy
+                      }
+
+                      {[drop_op | ops], rename_map, [existing_snapshot | snapshots]}
+                    else
+                      record_drop_table_opt_out(existing_snapshot, opts)
+                      {ops, rename_map, snapshots}
+                    end
+                end
+
+              {ops, rename_map, snapshots}
+            end
+        end
+      end)
+
+    {Enum.reverse(drop_ops), Enum.reverse(loaded), rename_map}
+  end
+
+  defp remove_orphan_snapshots(orphan_snapshots, opts) do
+    if opts.dry_run || opts.check || opts.snapshots_only || orphan_snapshots == [] do
+      :ok
+    else
+      Enum.each(orphan_snapshots, fn snapshot ->
+        folder = get_snapshot_folder(snapshot, opts)
+        path = get_snapshot_path(snapshot, folder)
+
+        if File.exists?(path) do
+          File.rm_rf(path)
+        end
+      end)
     end
   end
 
@@ -2990,6 +3473,25 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
+  defp renaming_table_to?({old_table, schema}, {new_table, _new_schema}, opts) do
+    if opts.dev do
+      false
+    else
+      message =
+        if schema do
+          "Are you renaming #{schema}.#{old_table} to #{schema}.#{new_table}?"
+        else
+          "Are you renaming #{old_table} to #{new_table}?"
+        end
+
+      if opts.no_shell? do
+        raise "Unimplemented: cannot determine: #{message} without shell input"
+      else
+        yes?(opts, message)
+      end
+    end
+  end
+
   defp get_new_attribute(adding, opts, tries \\ 3)
 
   defp get_new_attribute(_adding, _opts, 0) do
@@ -3016,12 +3518,34 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  defp timestamp(require_unique? \\ false) do
-    # Alright, this is silly I know. But migration ids need to be unique
-    # and "synthesizing" that behavior is significantly more annoying than
-    # just waiting a bit, ensuring the migration versions are unique.
-    if require_unique?, do: :timer.sleep(1500)
+  defp timestamp do
     {{y, m, d}, {hh, mm, ss}} = :calendar.universal_time()
+    current = "#{y}#{pad(m)}#{pad(d)}#{pad(hh)}#{pad(mm)}#{pad(ss)}"
+
+    last = Process.get(:ash_postgres_last_migration_timestamp)
+
+    result =
+      if last && current <= last do
+        increment_timestamp(last)
+      else
+        current
+      end
+
+    Process.put(:ash_postgres_last_migration_timestamp, result)
+    result
+  end
+
+  defp increment_timestamp(timestamp) do
+    <<y::binary-4, m::binary-2, d::binary-2, hh::binary-2, mm::binary-2, ss::binary-2>> =
+      timestamp
+
+    seconds =
+      :calendar.datetime_to_gregorian_seconds({
+        {String.to_integer(y), String.to_integer(m), String.to_integer(d)},
+        {String.to_integer(hh), String.to_integer(mm), String.to_integer(ss)}
+      })
+
+    {{y, m, d}, {hh, mm, ss}} = :calendar.gregorian_seconds_to_datetime(seconds + 1)
     "#{y}#{pad(m)}#{pad(d)}#{pad(hh)}#{pad(mm)}#{pad(ss)}"
   end
 
@@ -3681,6 +4205,7 @@ defmodule AshPostgres.MigrationGenerator do
     })
     |> Map.update!(:multitenancy, &load_multitenancy/1)
     |> Map.put_new(:base_filter, nil)
+    |> Map.put_new(:drop_table_opted_out, false)
   end
 
   defp load_check_constraints(constraints) do

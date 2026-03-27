@@ -41,6 +41,68 @@ defmodule AshPostgres.Test.Comment do
     read :with_modify_query do
       modify_query({AshPostgres.Test.Comment.ModifyQuery, :modify, []})
     end
+
+    # Create actions with manage_relationship from hooks
+    create :create_with_post_from_before_transaction do
+      argument(:rating, :map)
+
+      change(fn changeset, _context ->
+        Ash.Changeset.before_transaction(changeset, fn changeset ->
+          Ash.Changeset.manage_relationship(
+            changeset,
+            :post,
+            %{title: "created-in-before-transaction"},
+            on_no_match: :create
+          )
+        end)
+      end)
+    end
+
+    create :create_with_post_from_before_action do
+      argument(:rating, :map)
+
+      change(fn changeset, _context ->
+        Ash.Changeset.before_action(changeset, fn changeset ->
+          Ash.Changeset.manage_relationship(
+            changeset,
+            :post,
+            %{title: "created-in-before-action"},
+            on_no_match: :create
+          )
+        end)
+      end)
+    end
+
+    # Update actions with manage_relationship from hooks (non-atomic)
+    update :update_with_post_from_before_transaction do
+      require_atomic?(false)
+
+      change(fn changeset, _context ->
+        Ash.Changeset.before_transaction(changeset, fn changeset ->
+          Ash.Changeset.manage_relationship(
+            changeset,
+            :post,
+            %{title: "created-in-before-transaction"},
+            on_no_match: :create
+          )
+        end)
+      end)
+    end
+
+    update :update_with_post_from_before_action do
+      require_atomic?(false)
+
+      change(fn changeset, _context ->
+        Ash.Changeset.before_action(changeset, fn changeset ->
+          Ash.Changeset.manage_relationship(
+            changeset,
+            :post,
+            %{title: "created-in-before-action"},
+            on_no_match: :create
+          )
+        end)
+      end)
+    end
   end
 
   attributes do

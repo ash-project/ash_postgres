@@ -152,6 +152,66 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     defstruct [:table, :schema, :multitenancy, :old_multitenancy, :repo, :create_table_options]
   end
 
+  defmodule DropTable do
+    @moduledoc false
+    defstruct [:table, :schema, :multitenancy, :repo]
+  end
+
+  defmodule RenameTable do
+    @moduledoc false
+    defstruct [:old_table, :new_table, :schema, :multitenancy, :repo, no_phase: true]
+
+    import Helper, only: [as_atom: 1]
+
+    def up(%{
+          old_table: old_table,
+          new_table: new_table,
+          schema: schema,
+          multitenancy: multitenancy
+        }) do
+      {old_table_expr, new_table_expr} =
+        table_expressions(old_table, new_table, schema, multitenancy)
+
+      "rename #{old_table_expr}, to: #{new_table_expr}"
+    end
+
+    def down(%{
+          old_table: old_table,
+          new_table: new_table,
+          schema: schema,
+          multitenancy: multitenancy
+        }) do
+      {old_table_expr, new_table_expr} =
+        table_expressions(old_table, new_table, schema, multitenancy)
+
+      # Reverse the direction for the down migration
+      "rename #{new_table_expr}, to: #{old_table_expr}"
+    end
+
+    defp table_expressions(old_table, new_table, schema, multitenancy) do
+      case multitenancy.strategy do
+        :context ->
+          {
+            "table(:#{as_atom(old_table)}, prefix: prefix())",
+            "table(:#{as_atom(new_table)}, prefix: prefix())"
+          }
+
+        _ ->
+          prefix_opt =
+            if schema do
+              ~s[, prefix: "#{schema}"]
+            else
+              ""
+            end
+
+          {
+            "table(:#{as_atom(old_table)}#{prefix_opt})",
+            "table(:#{as_atom(new_table)}#{prefix_opt})"
+          }
+      end
+    end
+  end
+
   defmodule AddAttribute do
     @moduledoc false
     defstruct [:attribute, :table, :schema, :multitenancy, :old_multitenancy]
@@ -565,10 +625,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         end
 
       size =
-        if Map.get(attribute, :size) != Map.get(old_attribute, :size) do
-          if attribute.size do
-            ", size: #{attribute.size}"
-          end
+        if attribute[:size] &&
+             (Map.get(attribute, :size) != Map.get(old_attribute, :size) ||
+                attribute.type != old_attribute.type) do
+          ", size: #{attribute.size}"
         end
 
       precision =
@@ -862,48 +922,53 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       :schema,
       :multitenancy,
       :old_multitenancy,
+      :insert_after_attribute_source,
       no_phase: true,
       concurrently: false
     ]
 
     import Helper
 
-    def up(%{
-          identity: %{
-            name: name,
-            keys: keys,
-            nils_distinct?: nils_distinct?,
-            where: where,
-            base_filter: base_filter,
-            index_name: index_name,
-            all_tenants?: all_tenants?
-          },
-          table: table,
-          schema: schema,
-          multitenancy: multitenancy
-        }) do
+    def up(
+          %{
+            identity: %{
+              name: name,
+              keys: keys,
+              nils_distinct?: nils_distinct?,
+              where: where,
+              base_filter: base_filter,
+              index_name: index_name,
+              all_tenants?: all_tenants?
+            },
+            table: table,
+            schema: schema,
+            multitenancy: multitenancy
+          } = op
+        ) do
       keys = index_keys(keys, all_tenants?, multitenancy)
 
       index_name = index_name || "#{table}_#{name}_index"
+
+      concurrently_option = if Map.get(op, :concurrently), do: "concurrently: true"
 
       cond do
         base_filter && where ->
           where = "(#{where}) AND (#{base_filter})"
 
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where)])})"
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where), concurrently_option])})"
 
         base_filter ->
           base_filter = "(#{base_filter})"
 
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?)])})"
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), concurrently_option])})"
 
         where ->
           where = "(#{where})"
 
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where)])})"
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where), concurrently_option])})"
 
         true ->
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?)])})"
+          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), concurrently_option])})"
       end
     end
 
