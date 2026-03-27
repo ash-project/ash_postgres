@@ -2,18 +2,18 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshPostgres.NativeInTest do
+defmodule AshPostgres.PostgresInTest do
   use AshPostgres.RepoCase, async: false
 
   alias AshPostgres.Test.Post
 
   require Ash.Query
 
-  describe "native_in/2" do
+  describe "postgres_in/2" do
     test "generates SQL IN (...) syntax instead of = ANY(...)" do
       {query, _vars} =
         Post
-        |> Ash.Query.filter(native_in(id, [^Ash.UUID.generate(), ^Ash.UUID.generate()]))
+        |> Ash.Query.filter(postgres_in(id, [^Ash.UUID.generate(), ^Ash.UUID.generate()]))
         |> Ash.data_layer_query!()
         |> Map.get(:query)
         |> then(&AshPostgres.TestRepo.to_sql(:all, &1))
@@ -40,7 +40,7 @@ defmodule AshPostgres.NativeInTest do
 
       results =
         Post
-        |> Ash.Query.filter(native_in(id, [^post1.id, ^post2.id]))
+        |> Ash.Query.filter(postgres_in(id, [^post1.id, ^post2.id]))
         |> Ash.read!()
         |> Enum.sort_by(& &1.title)
 
@@ -55,7 +55,7 @@ defmodule AshPostgres.NativeInTest do
 
       results =
         Post
-        |> Ash.Query.filter(native_in(id, [^Ash.UUID.generate()]))
+        |> Ash.Query.filter(postgres_in(id, [^Ash.UUID.generate()]))
         |> Ash.read!()
 
       assert results == []
@@ -69,7 +69,7 @@ defmodule AshPostgres.NativeInTest do
 
       results =
         Post
-        |> Ash.Query.filter(native_in(id, [^post.id]))
+        |> Ash.Query.filter(postgres_in(id, [^post.id]))
         |> Ash.read!()
 
       assert length(results) == 1

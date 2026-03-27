@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshPostgres.Functions.NativeIn do
+defmodule AshPostgres.Functions.PostgresIn do
   @moduledoc """
   Generates a native SQL `IN (...)` clause instead of the default `= ANY(...)` array syntax.
 
@@ -12,7 +12,7 @@ defmodule AshPostgres.Functions.NativeIn do
 
   ## Example
 
-      filter(query, native_in(id, [^id1, ^id2, ^id3]))
+      filter(query, postgres_in(id, [^id1, ^id2, ^id3]))
 
   Generates:
 
@@ -25,7 +25,7 @@ defmodule AshPostgres.Functions.NativeIn do
   See: https://github.com/ash-project/ash/issues/2605
   """
 
-  use Ash.Query.Function, name: :native_in, predicate?: true
+  use Ash.Query.Function, name: :postgres_in, predicate?: true
 
   def args, do: [[:any, {:array, :any}]]
 end

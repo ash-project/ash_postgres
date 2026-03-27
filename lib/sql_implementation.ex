@@ -179,7 +179,7 @@ defmodule AshPostgres.SqlImplementation do
 
   def expr(
         query,
-        %AshPostgres.Functions.NativeIn{
+        %AshPostgres.Functions.PostgresIn{
           arguments: [left, right],
           embedded?: pred_embedded?
         },
