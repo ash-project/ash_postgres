@@ -1025,16 +1025,13 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp merge_types(types, name, table) do
-    types = Enum.uniq(types)
+    types
+    |> Enum.uniq()
+    |> case do
+      [type] ->
+        type
 
-    cond do
-      length(types) == 1 ->
-        hd(types)
-
-      :identity in types ->
-        :identity
-
-      true ->
+      types ->
         raise "Conflicting types for table `#{table}.#{name}`: #{inspect(types)}"
     end
   end
