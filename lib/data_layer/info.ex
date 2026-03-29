@@ -231,9 +231,4 @@ defmodule AshPostgres.DataLayer.Info do
   def create_table_options(resource) do
     Extension.get_opt(resource, [:postgres], :create_table_options, nil)
   end
-
-  @doc "Attributes that should use IDENTITY instead of SERIAL/BIGSERIAL in migrations"
-  def identity_column_defaults(resource) do
-    Extension.get_opt(resource, [:postgres], :identity_column_defaults, [])
-  end
 end

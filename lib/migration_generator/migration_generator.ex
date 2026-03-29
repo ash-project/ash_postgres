@@ -530,7 +530,7 @@ defmodule AshPostgres.MigrationGenerator do
                 end)
 
               operations
-              |> organize_operations
+              |> organize_operations()
               |> build_up_and_down()
               |> migration(repo, opts, tenant?, run_without_transaction?, split_index)
             end)
@@ -3755,16 +3755,6 @@ defmodule AshPostgres.MigrationGenerator do
       type =
         if function_exported?(repo, :override_migration_type, 1) do
           repo.override_migration_type(type)
-        else
-          type
-        end
-
-      identity_column_defaults = AshPostgres.DataLayer.Info.identity_column_defaults(resource)
-      source = attribute.source || attribute.name
-
-      type =
-        if source in identity_column_defaults and attribute.generated? and type in [:bigint, :integer] do
-          :identity
         else
           type
         end

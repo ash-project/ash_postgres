@@ -18,7 +18,6 @@ spark_locals_without_parens = [
   error_fields: 1,
   exclusion_constraint_names: 1,
   foreign_key_names: 1,
-  identity_column_defaults: 1,
   identity_index_names: 1,
   identity_wheres_to_sql: 1,
   ignore?: 1,

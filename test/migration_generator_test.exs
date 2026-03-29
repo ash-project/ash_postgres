@@ -1863,13 +1863,13 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
-  describe "identity_column_defaults" do
+  describe "migration_types identity" do
     setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
-      defresource(Post) do
+      defresource(IdentityPost) do
         postgres do
-          table "posts"
+          table "identity_posts"
           repo(AshPostgres.TestRepo)
-          identity_column_defaults [:id]
+          migration_types(id: :identity, sequence_id: :identity)
         end
 
         actions do
@@ -1878,163 +1878,26 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
         attributes do
           integer_primary_key(:id)
-          attribute(:title, :string, public?: true)
-        end
-      end
 
-      defdomain([Post])
-
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: snapshot_path,
-        migration_path: migration_path,
-        quiet: true,
-        format: false,
-        auto_name: true
-      )
-
-      :ok
-    end
-
-    test "uses :identity instead of :bigserial when identity_column_defaults includes the attribute", %{
-      migration_path: migration_path
-    } do
-      assert [file] =
-               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      assert File.read!(file) =~
-               ~S[add :id, :identity, null: false, primary_key: true]
-    end
-  end
-
-  describe "identity_column_defaults when empty" do
-    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
-      defresource(IdentityNoOptInPost) do
-        postgres do
-          table "identity_no_opt_in_posts"
-          repo(AshPostgres.TestRepo)
-          identity_column_defaults []
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        attributes do
-          integer_primary_key(:id)
-          attribute(:title, :string, public?: true)
-        end
-      end
-
-      defmodule IdentityNoOptInDomain do
-        use Ash.Domain
-        resources do
-          resource(IdentityNoOptInPost)
-        end
-      end
-
-      AshPostgres.MigrationGenerator.generate(IdentityNoOptInDomain,
-        snapshot_path: snapshot_path,
-        migration_path: migration_path,
-        quiet: true,
-        format: false,
-        auto_name: true
-      )
-
-      :ok
-    end
-
-    test "uses :bigserial when identity_column_defaults is empty", %{
-      migration_path: migration_path
-    } do
-      assert [file] =
-               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      assert File.read!(file) =~ ~S[add :id, :bigserial, null: false, primary_key: true]
-    end
-  end
-
-  describe "identity_column_defaults when attribute not in list" do
-    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
-      defresource(IdentityPartialOptInPost) do
-        postgres do
-          table "identity_partial_opt_in_posts"
-          repo(AshPostgres.TestRepo)
-          identity_column_defaults [:other_id]
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        attributes do
-          integer_primary_key(:id)
-          attribute(:title, :string, public?: true)
-        end
-      end
-
-      defmodule IdentityPartialOptInDomain do
-        use Ash.Domain
-        resources do
-          resource(IdentityPartialOptInPost)
-        end
-      end
-
-      AshPostgres.MigrationGenerator.generate(IdentityPartialOptInDomain,
-        snapshot_path: snapshot_path,
-        migration_path: migration_path,
-        quiet: true,
-        format: false,
-        auto_name: true
-      )
-
-      :ok
-    end
-
-    test "uses :bigserial when attribute is not in identity_column_defaults", %{
-      migration_path: migration_path
-    } do
-      assert [file] =
-               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      assert File.read!(file) =~ ~S[add :id, :bigserial, null: false, primary_key: true]
-    end
-  end
-
-  describe "identity_column_defaults with multiple attributes" do
-    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
-      defresource(IdentityMultiOptInPost) do
-        postgres do
-          table "identity_multi_opt_in_posts"
-          repo(AshPostgres.TestRepo)
-          identity_column_defaults [:id, :sequence_id]
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        attributes do
-          integer_primary_key(:id)
           attribute(:sequence_id, :integer,
             generated?: true,
             allow_nil?: false,
             public?: true
           )
+
           attribute(:title, :string, public?: true)
         end
       end
 
-      defmodule IdentityMultiOptInDomain do
+      defmodule IdentityDomain do
         use Ash.Domain
+
         resources do
-          resource(IdentityMultiOptInPost)
+          resource(IdentityPost)
         end
       end
 
-      AshPostgres.MigrationGenerator.generate(IdentityMultiOptInDomain,
+      AshPostgres.MigrationGenerator.generate(IdentityDomain,
         snapshot_path: snapshot_path,
         migration_path: migration_path,
         quiet: true,
@@ -2045,9 +1908,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       :ok
     end
 
-    test "uses :identity for multiple attributes when all are in identity_column_defaults", %{
-      migration_path: migration_path
-    } do
+    test "uses :identity when set in migration_types", %{migration_path: migration_path} do
       assert [file] =
                Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
                |> Enum.reject(&String.contains?(&1, "extensions"))
@@ -4022,275 +3883,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
   end
 
   describe "varchar migration_types on modify" do
-    setup do
-      :ok
-    end
-
-    test "modify includes varchar size when adding migration_types to existing string column", %{
-      snapshot_path: snapshot_path,
-      migration_path: migration_path
-    } do
-      defresource MyResource do
-        postgres do
-          table "my_resources"
-          repo(AshPostgres.TestRepo)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:blibs, :string, public?: true)
-        end
-      end
-
-      defdomain([MyResource])
-
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: snapshot_path,
-        migration_path: migration_path,
-        quiet: true,
-        format: false,
-        auto_name: true
-      )
-
-      defresource MyResource do
-        postgres do
-          table "my_resources"
-          migration_types(blibs: {:varchar, 255})
-          repo(AshPostgres.TestRepo)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:blibs, :string, public?: true)
-        end
-      end
-
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: snapshot_path,
-        migration_path: migration_path,
-        quiet: true,
-        format: false,
-        auto_name: true
-      )
-
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      second_migration = File.read!(file2)
-
-      assert second_migration =~ ~S[modify :blibs, :varchar, size: 255]
-      assert second_migration =~ ~S[modify :blibs, :text]
-    end
-
-    test "modify includes new size when changing from one varchar size to another", %{
-      snapshot_path: snapshot_path,
-      migration_path: migration_path
-    } do
-      defresource MyResource do
-        postgres do
-          table "my_resources_varchar_change"
-          migration_types(blibs: {:varchar, 100})
-          repo(AshPostgres.TestRepo)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:blibs, :string, public?: true)
-        end
-      end
-
-      defdomain([MyResource])
-
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: snapshot_path,
-        migration_path: migration_path,
-        quiet: true,
-        format: false,
-        auto_name: true
-      )
-
-      defresource MyResource do
-        postgres do
-          table "my_resources_varchar_change"
-          migration_types(blibs: {:varchar, 255})
-          repo(AshPostgres.TestRepo)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:blibs, :string, public?: true)
-        end
-      end
-
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: snapshot_path,
-        migration_path: migration_path,
-        quiet: true,
-        format: false,
-        auto_name: true
-      )
-
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      second_migration = File.read!(file2)
-
-      assert second_migration =~ ~S[modify :blibs, :varchar, size: 255]
-      assert second_migration =~ ~S[modify :blibs, :varchar, size: 100]
-    end
-
-    test "modify includes size when changing text to binary with migration_types", %{
-      snapshot_path: snapshot_path,
-      migration_path: migration_path
-    } do
-      defresource MyResource do
-        postgres do
-          table "my_resources_binary"
-          repo(AshPostgres.TestRepo)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:blobs, :string, public?: true)
-        end
-      end
-
-      defdomain([MyResource])
-
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: snapshot_path,
-        migration_path: migration_path,
-        quiet: true,
-        format: false,
-        auto_name: true
-      )
-
-      defresource MyResource do
-        postgres do
-          table "my_resources_binary"
-          migration_types(blobs: {:binary, 500})
-          repo(AshPostgres.TestRepo)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:blobs, :string, public?: true)
-        end
-      end
-
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: snapshot_path,
-        migration_path: migration_path,
-        quiet: true,
-        format: false,
-        auto_name: true
-      )
-
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      second_migration = File.read!(file2)
-
-      assert second_migration =~ ~S[modify :blobs, :binary, size: 500]
-      assert second_migration =~ ~S[modify :blobs, :text]
-    end
-
-    test "modify only affects attribute with migration_types when multiple string attributes exist", %{
-      snapshot_path: snapshot_path,
-      migration_path: migration_path
-    } do
-      defresource MyResource do
-        postgres do
-          table "my_resources_multi"
-          repo(AshPostgres.TestRepo)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:blibs, :string, public?: true)
-          attribute(:blobs, :string, public?: true)
-        end
-      end
-
-      defdomain([MyResource])
-
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: snapshot_path,
-        migration_path: migration_path,
-        quiet: true,
-        format: false,
-        auto_name: true
-      )
-
-      defresource MyResource do
-        postgres do
-          table "my_resources_multi"
-          migration_types(blibs: {:varchar, 255})
-          repo(AshPostgres.TestRepo)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:blibs, :string, public?: true)
-          attribute(:blobs, :string, public?: true)
-        end
-      end
-
-      AshPostgres.MigrationGenerator.generate(Domain,
-        snapshot_path: snapshot_path,
-        migration_path: migration_path,
-        quiet: true,
-        format: false,
-        auto_name: true
-      )
-
-      assert [_file1, file2] =
-               Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      second_migration = File.read!(file2)
-
-      assert second_migration =~ ~S[modify :blibs, :varchar, size: 255]
-      refute second_migration =~ ~S[modify :blobs]
-    end
-  end
-
-  describe "create_table_options" do
     setup do
       :ok
     end
