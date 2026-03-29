@@ -1863,6 +1863,62 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "migration_types identity" do
+    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defresource(IdentityPost) do
+        postgres do
+          table "identity_posts"
+          repo(AshPostgres.TestRepo)
+          migration_types(id: :identity, sequence_id: :identity)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          integer_primary_key(:id)
+
+          attribute(:sequence_id, :integer,
+            generated?: true,
+            allow_nil?: false,
+            public?: true
+          )
+
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defmodule IdentityDomain do
+        use Ash.Domain
+
+        resources do
+          resource(IdentityPost)
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(IdentityDomain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      :ok
+    end
+
+    test "uses :identity when set in migration_types", %{migration_path: migration_path} do
+      assert [file] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      file_contents = File.read!(file)
+      assert file_contents =~ ~S[add :id, :identity, null: false, primary_key: true]
+      assert file_contents =~ ~S[add :sequence_id, :identity, null: false]
+    end
+  end
+
   describe "--check option" do
     setup do
       defposts do

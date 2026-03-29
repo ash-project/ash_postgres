@@ -1128,13 +1128,13 @@ defmodule AshPostgres.FilterTest do
            |> Ash.Query.for_read(:read)
            |> Ash.Query.filter(first_member.id != ^cm2.id)
            |> Ash.read!()
-           |> length == 4
+           |> length() == 4
 
     assert Channel
            |> Ash.Query.for_read(:read)
            |> Ash.Query.filter(first_member.id == ^cm2.id)
            |> Ash.read!()
-           |> length == 1
+           |> length() == 1
   end
 
   test "using exists with from_many?" do
@@ -1149,13 +1149,13 @@ defmodule AshPostgres.FilterTest do
            |> Ash.Query.for_read(:read)
            |> Ash.Query.filter(exists(first_member, id == ^cm2.id))
            |> Ash.read!()
-           |> length == 0
+           |> length() == 0
 
     assert Channel
            |> Ash.Query.for_read(:read)
            |> Ash.Query.filter(exists(first_member, id == ^cm1.id))
            |> Ash.read!()
-           |> length == 1
+           |> length() == 1
   end
 
   test "using exists with has_many with limit" do

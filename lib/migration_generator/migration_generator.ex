@@ -530,7 +530,7 @@ defmodule AshPostgres.MigrationGenerator do
                 end)
 
               operations
-              |> organize_operations
+              |> organize_operations()
               |> build_up_and_down()
               |> migration(repo, opts, tenant?, run_without_transaction?, split_index)
             end)

@@ -77,13 +77,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       :bigint
     end
 
-    def reference_type(%{type: :integer, default: "nil", generated?: true}, _) do
-      ":bigserial"
-    end
+    def reference_type(%{type: :identity}, _), do: ":identity"
 
-    def reference_type(%{type: type}, _) do
-      type
-    end
+    def reference_type(%{type: :integer, default: "nil", generated?: true}, _), do: ":bigserial"
+
+    def reference_type(%{type: type}, _), do: type
 
     def with_match(reference, source_attribute \\ nil)
 
@@ -489,6 +487,16 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       |> join()
     end
 
+    def up(%{attribute: %{type: :identity} = attribute}) do
+      [
+        "add #{inspect(attribute.source)}",
+        ":identity",
+        maybe_add_null(attribute.allow_nil?),
+        maybe_add_primary_key(attribute.primary_key?)
+      ]
+      |> join()
+    end
+
     def up(%{attribute: %{type: :bigint, default: "nil", generated?: true} = attribute}) do
       [
         "add #{inspect(attribute.source)}",
@@ -659,10 +667,14 @@ defmodule AshPostgres.MigrationGenerator.Operation do
              Map.get(old_attribute, :references) != Map.get(attribute, :references) do
           reference(multitenancy, attribute, schema)
         else
-          if attribute.type == :bigint and attribute.default == "nil" and attribute.generated? do
-            ":bigserial"
+          if attribute.type == :identity do
+            ":identity"
           else
-            inspect(attribute.type)
+            if attribute.type == :bigint and attribute.default == "nil" and attribute.generated? do
+              ":bigserial"
+            else
+              inspect(attribute.type)
+            end
           end
         end
 
