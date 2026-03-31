@@ -1323,4 +1323,26 @@ defmodule AshPostgres.FilterTest do
       assert id2 == post_false.id
     end
   end
+
+  describe "intersects/2 with mismatched array types" do
+    test "uuid array intersects with text array" do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "post with comments"})
+        |> Ash.create!()
+
+      comment =
+        Comment
+        |> Ash.Changeset.for_create(:create, %{title: "comment1"})
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Ash.create!()
+
+      comment_id_as_string = to_string(comment.id)
+
+      assert [%Post{}] =
+               Post
+               |> Ash.Query.filter(intersects(comment_ids, [^comment_id_as_string]))
+               |> Ash.read!()
+    end
+  end
 end

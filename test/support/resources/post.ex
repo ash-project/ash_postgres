@@ -1335,6 +1335,8 @@ defmodule AshPostgres.Test.Post do
       sort(title: :asc_nils_last)
     end
 
+    list(:comment_ids, :comments, :id)
+
     sum :total_edited_time, :comments, :edited_duration do
       filter(expr(version == :edited))
       public?(true)
