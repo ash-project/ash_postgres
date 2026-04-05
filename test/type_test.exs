@@ -120,4 +120,43 @@ defmodule AshPostgres.Test.TypeTest do
 
     assert updated.response == :awaiting
   end
+
+  test "operator_expression rewrites operator to custom expression" do
+    import ExUnit.CaptureLog
+    import Ash.Expr
+
+    prev = Application.get_env(:ash_postgres, AshPostgres.TestRepo)
+    Application.put_env(:ash_postgres, AshPostgres.TestRepo, Keyword.put(prev, :log, :info))
+
+    try do
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "low", score: 5})
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "mid", score: 25})
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "high", score: 50})
+      |> Ash.create!()
+
+      range = Enum.to_list(20..30)
+
+      log =
+        capture_log(fn ->
+          results =
+            Post
+            |> Ash.Query.filter(expr(score in ^range))
+            |> Ash.read!()
+
+          assert length(results) == 1
+          assert hd(results).title == "mid"
+        end)
+
+      assert log =~ "custom_any("
+    after
+      Application.put_env(:ash_postgres, AshPostgres.TestRepo, prev)
+    end
+  end
 end
