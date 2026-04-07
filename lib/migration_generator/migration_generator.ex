@@ -3248,6 +3248,7 @@ defmodule AshPostgres.MigrationGenerator do
           |> File.read!()
           |> Jason.decode!(keys: :atoms!)
           |> Map.put(:drop_table_opted_out, true)
+          |> to_ordered_object()
           |> Jason.encode!(pretty: true)
           |> then(&File.write!(path, &1))
       end
