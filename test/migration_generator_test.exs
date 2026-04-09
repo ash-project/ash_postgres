@@ -4552,6 +4552,107 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert latest =~ "drop table(:schema_posts"
       assert latest =~ ~S(prefix: "my_schema")
     end
+
+    test "drop table migration orders dependent tables before referenced tables", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource CompanyForDropOrder, "companies_for_drop_order" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string, public?: true)
+        end
+      end
+
+      defresource ProjectForDropOrder, "projects_for_drop_order" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string, public?: true)
+        end
+
+        relationships do
+          belongs_to(:company, CompanyForDropOrder) do
+            allow_nil?(false)
+            public?(true)
+          end
+        end
+
+        postgres do
+          references do
+            reference(:company, on_delete: :delete)
+          end
+        end
+      end
+
+      defresource TaskForDropOrder, "tasks_for_drop_order" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+
+        relationships do
+          belongs_to(:project, ProjectForDropOrder) do
+            allow_nil?(false)
+            public?(true)
+          end
+        end
+
+        postgres do
+          references do
+            reference(:project, on_delete: :delete)
+          end
+        end
+      end
+
+      defresource KeepaliveForDropOrder, "keepalive_for_drop_order" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defdomain([CompanyForDropOrder, ProjectForDropOrder, TaskForDropOrder, KeepaliveForDropOrder])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "add_drop_order_resources"
+      )
+
+      defdomain([KeepaliveForDropOrder])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+      send(self(), {:mix_shell_input, :yes?, true})
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "remove_drop_order_resources"
+      )
+
+      latest_migration =
+        migration_path
+        |> Path.join("**/*remove_drop_order_resources*.exs")
+        |> Path.wildcard()
+        |> List.first()
+        |> File.read!()
+
+      task_pos = position_of_substring(latest_migration, "drop table(:tasks_for_drop_order)")
+      project_pos = position_of_substring(latest_migration, "drop table(:projects_for_drop_order)")
+      company_pos = position_of_substring(latest_migration, "drop table(:companies_for_drop_order)")
+
+      assert is_integer(task_pos)
+      assert is_integer(project_pos)
+      assert is_integer(company_pos)
+      assert task_pos < project_pos
+      assert project_pos < company_pos
+    end
   end
 
   describe "renaming tables when resources change" do

@@ -3403,7 +3403,118 @@ defmodule AshPostgres.MigrationGenerator do
         end
       end)
 
-    {Enum.reverse(drop_ops), Enum.reverse(loaded), rename_map}
+    loaded = Enum.reverse(loaded)
+    drop_ops = Enum.reverse(drop_ops)
+
+    {sort_drop_table_operations(drop_ops, loaded), loaded, rename_map}
+  end
+
+  defp sort_drop_table_operations(drop_ops, snapshots) do
+    snapshots_by_key =
+      Map.new(snapshots, fn snapshot ->
+        {drop_table_key(snapshot.table, snapshot.schema), snapshot}
+      end)
+
+    ops_by_key =
+      Map.new(drop_ops, fn op ->
+        {drop_table_key(op.table, op.schema), op}
+      end)
+
+    original_positions =
+      drop_ops
+      |> Enum.with_index()
+      |> Map.new(fn {op, index} ->
+        {drop_table_key(op.table, op.schema), index}
+      end)
+
+    adjacency =
+      Map.new(drop_ops, fn op ->
+        key = drop_table_key(op.table, op.schema)
+        snapshot = Map.fetch!(snapshots_by_key, key)
+
+        referenced_keys =
+          snapshot
+          |> referenced_drop_table_keys(snapshots_by_key)
+          |> Enum.uniq()
+
+        {key, referenced_keys}
+      end)
+
+    in_degrees =
+      Enum.reduce(adjacency, Map.new(Map.keys(adjacency), &{&1, 0}), fn {_key, referenced_keys}, acc ->
+        Enum.reduce(referenced_keys, acc, fn referenced_key, acc ->
+          Map.update!(acc, referenced_key, &(&1 + 1))
+        end)
+      end)
+
+    queue =
+      in_degrees
+      |> Enum.filter(fn {_key, in_degree} -> in_degree == 0 end)
+      |> Enum.map(&elem(&1, 0))
+      |> Enum.sort_by(&Map.fetch!(original_positions, &1))
+
+    {ordered_keys, _in_degrees} =
+      toposort_drop_table_keys(queue, adjacency, in_degrees, original_positions, [])
+
+    if length(ordered_keys) == map_size(ops_by_key) do
+      Enum.map(ordered_keys, &Map.fetch!(ops_by_key, &1))
+    else
+      # Fall back to the original order if we ever encounter an unexpected cycle.
+      drop_ops
+    end
+  end
+
+  defp toposort_drop_table_keys([], _adjacency, in_degrees, _original_positions, acc) do
+    {Enum.reverse(acc), in_degrees}
+  end
+
+  defp toposort_drop_table_keys(
+         [key | rest],
+         adjacency,
+         in_degrees,
+         original_positions,
+         acc
+       ) do
+    {in_degrees, newly_available} =
+      Enum.reduce(Map.get(adjacency, key, []), {in_degrees, []}, fn referenced_key,
+                                                                    {in_degrees, newly_available} ->
+        updated_in_degree = Map.fetch!(in_degrees, referenced_key) - 1
+        in_degrees = Map.put(in_degrees, referenced_key, updated_in_degree)
+
+        if updated_in_degree == 0 do
+          {in_degrees, [referenced_key | newly_available]}
+        else
+          {in_degrees, newly_available}
+        end
+      end)
+
+    queue =
+      rest ++
+        (newly_available
+         |> Enum.uniq()
+         |> Enum.sort_by(&Map.fetch!(original_positions, &1)))
+
+    toposort_drop_table_keys(queue, adjacency, in_degrees, original_positions, [key | acc])
+  end
+
+  defp referenced_drop_table_keys(snapshot, snapshots_by_key) do
+    Enum.flat_map(snapshot.attributes, fn
+      %{references: %{table: table} = references} ->
+        key = drop_table_key(table, Map.get(references, :schema))
+
+        if Map.has_key?(snapshots_by_key, key) do
+          [key]
+        else
+          []
+        end
+
+      _attribute ->
+        []
+    end)
+  end
+
+  defp drop_table_key(table, schema) do
+    {table, schema || "public"}
   end
 
   defp remove_orphan_snapshots(orphan_snapshots, opts) do
