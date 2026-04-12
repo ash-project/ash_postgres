@@ -4610,7 +4610,12 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      defdomain([CompanyForDropOrder, ProjectForDropOrder, TaskForDropOrder, KeepaliveForDropOrder])
+      defdomain([
+        CompanyForDropOrder,
+        ProjectForDropOrder,
+        TaskForDropOrder,
+        KeepaliveForDropOrder
+      ])
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: snapshot_path,
@@ -4644,8 +4649,12 @@ defmodule AshPostgres.MigrationGeneratorTest do
         |> File.read!()
 
       task_pos = position_of_substring(latest_migration, "drop table(:tasks_for_drop_order)")
-      project_pos = position_of_substring(latest_migration, "drop table(:projects_for_drop_order)")
-      company_pos = position_of_substring(latest_migration, "drop table(:companies_for_drop_order)")
+
+      project_pos =
+        position_of_substring(latest_migration, "drop table(:projects_for_drop_order)")
+
+      company_pos =
+        position_of_substring(latest_migration, "drop table(:companies_for_drop_order)")
 
       assert is_integer(task_pos)
       assert is_integer(project_pos)

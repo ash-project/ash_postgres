@@ -3441,7 +3441,8 @@ defmodule AshPostgres.MigrationGenerator do
       end)
 
     in_degrees =
-      Enum.reduce(adjacency, Map.new(Map.keys(adjacency), &{&1, 0}), fn {_key, referenced_keys}, acc ->
+      Enum.reduce(adjacency, Map.new(Map.keys(adjacency), &{&1, 0}), fn {_key, referenced_keys},
+                                                                        acc ->
         Enum.reduce(referenced_keys, acc, fn referenced_key, acc ->
           Map.update!(acc, referenced_key, &(&1 + 1))
         end)

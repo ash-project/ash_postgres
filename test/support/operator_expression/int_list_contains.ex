@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.Test.OperatorExpression.IntListContains do
   @moduledoc """
   Custom expression that replaces `value in list` with `value = ANY(array)` in postgres.
