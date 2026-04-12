@@ -11,6 +11,45 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.9.0](https://github.com/ash-project/ash_postgres/compare/v2.8.0...v2.9.0) (2026-04-12)
+
+
+
+
+### Features:
+
+* relationship through (#686) by Kenneth Kostrešević
+
+* add support for `:identity` types  (#715) by Jatanasio
+
+* add native_in/2 function for SQL IN (...) syntax (#728) by jkreddy020203
+
+* Drop tables on missing resources & table name change handling (#713) by obviouslyweb
+
+### Bug Fixes:
+
+* Add missing usage_rules files to hex package (#733) by Philip Munksgaard
+
+* ensure proper ordering when dropping orphan tables (#730) by Jechol Lee
+
+* sort snapshot JSON keys when recording drop_table opt-out (#729) by Jechol Lee
+
+* sort AddUniqueIndex after CreateTable and all AddAttribute ops by Zach Daniel
+
+* ensure split migrations get unique names and modules by Zach Daniel
+
+* properly sequence items that depend on concurrent migrations by Zach Daniel
+
+* Fix/236 unique index before self fk (#705) by WillG2001
+
+* show warning on concurrent index multitenancy #610 (#711) by Ryland Bangerter
+
+* raise error when reference is configured for non-belongs_to relationship (#712) by henryzhan013
+
+### Improvements:
+
+* Add required!/1, ash_required/1, and ash_required!/2 (issue #261) (#707) by dallingson
+
 ## [v2.8.0](https://github.com/ash-project/ash_postgres/compare/v2.7.0...v2.8.0) (2026-03-09)
 
 
