@@ -69,7 +69,7 @@ defmodule AshPostgres.MixProject do
       ],
       licenses: ["MIT"],
       files: ~w(lib .formatter.exs mix.exs README* LICENSE*
-      CHANGELOG* documentation usage-rules.md),
+      CHANGELOG* documentation usage-rules.md usage-rules),
       links: %{
         "GitHub" => "https://github.com/ash-project/ash_postgres",
         "Changelog" => "https://github.com/ash-project/ash_postgres/blob/main/CHANGELOG.md",
