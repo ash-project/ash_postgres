@@ -67,6 +67,11 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.Container)
     resource(AshPostgres.Test.Item)
     resource(AshPostgres.Test.AfterTransactionPost)
+    resource(AshPostgres.Test.Through.School)
+    resource(AshPostgres.Test.Through.Classroom)
+    resource(AshPostgres.Test.Through.Teacher)
+    resource(AshPostgres.Test.Through.ClassroomTeacher)
+    resource(AshPostgres.Test.Through.Student)
   end
 
   authorization do
