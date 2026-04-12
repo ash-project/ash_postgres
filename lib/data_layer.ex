@@ -787,6 +787,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :distinct_sort), do: true
   def can?(_, :distinct), do: true
   def can?(_, {:sort, _}), do: true
+  def can?(_, :through_relationship), do: true
   def can?(_, _), do: false
 
   @impl true
