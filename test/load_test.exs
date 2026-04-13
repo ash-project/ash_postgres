@@ -65,6 +65,43 @@ defmodule AshPostgres.Test.LoadTest do
              |> Map.get(:latest_comment)
   end
 
+  test "has_one with sort returns correct record when also loading aggregates" do
+    post_a =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "post_a"})
+      |> Ash.create!()
+
+    post_b =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "post_b"})
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "comment on A"})
+    |> Ash.Changeset.manage_relationship(:post, post_a, type: :append_and_remove)
+    |> Ash.create!()
+
+    :timer.sleep(1)
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{title: "comment on B"})
+    |> Ash.Changeset.manage_relationship(:post, post_b, type: :append_and_remove)
+    |> Ash.create!()
+
+    # Without aggregates, this works fine
+    assert %{title: "comment on A"} =
+             post_a
+             |> Ash.load!(:latest_comment)
+             |> Map.get(:latest_comment)
+
+    # With aggregates, the parent filter moves outside the LIMIT 1 subquery,
+    # so the subquery picks the globally latest comment (B's) then discards it
+    assert %{title: "comment on A"} =
+             post_a
+             |> Ash.load!(latest_comment: [:count_of_ratings])
+             |> Map.get(:latest_comment)
+  end
+
   test "has_one with offset returns the correct record" do
     post =
       Post

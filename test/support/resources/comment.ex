@@ -136,6 +136,8 @@ defmodule AshPostgres.Test.Comment do
     first :latest_rating_score, :ratings, :score do
       sort(score: :desc)
     end
+
+    count(:count_of_ratings, :ratings)
   end
 
   calculations do
