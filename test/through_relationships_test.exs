@@ -266,6 +266,80 @@ defmodule AshPostgres.Test.ThroughRelationshipsTest do
     end
   end
 
+  describe "exists filter on through relationships" do
+    test "exists filter works on a 3-hop through relationship", setup do
+      %{school_1: school_1, classroom_1: classroom_1, classroom_3: classroom_3} = setup
+
+      %{teacher_1: teacher_1, teacher_2: teacher_2} = setup
+
+      assign_teacher(classroom_1.id, teacher_1.id)
+      assign_teacher(classroom_3.id, teacher_2.id)
+
+      # Filter schools that have a teacher named "Mr. Smith" via through relationship
+      result =
+        AshPostgres.Test.Through.School
+        |> Ash.Query.filter(exists(teachers, name == "Mr. Smith"))
+        |> Ash.read!()
+
+      assert length(result) == 1
+      assert hd(result).id == school_1.id
+
+      # Filter for a teacher that doesn't exist
+      result =
+        AshPostgres.Test.Through.School
+        |> Ash.Query.filter(exists(teachers, name == "Nobody"))
+        |> Ash.read!()
+
+      assert result == []
+    end
+
+    test "exists filter works on a 2-hop through relationship", setup do
+      %{classroom_1: classroom_1} = setup
+      %{teacher_1: teacher_1, teacher_2: teacher_2} = setup
+
+      assign_teacher(classroom_1.id, teacher_1.id)
+      assign_teacher(classroom_1.id, teacher_2.id)
+
+      # retired_teachers uses through: [:retired_classroom_teachers, :teacher]
+      result =
+        AshPostgres.Test.Through.Classroom
+        |> Ash.Query.filter(exists(retired_teachers, name == "Mr. Smith"))
+        |> Ash.read!()
+
+      assert length(result) == 1
+      assert hd(result).id == classroom_1.id
+    end
+
+    test "exists filter works with multiple matches on through", setup do
+      %{school_1: school_1} = setup
+      %{classroom_1: classroom_1, classroom_2: classroom_2, classroom_3: classroom_3} = setup
+      %{teacher_1: teacher_1, teacher_2: teacher_2, teacher_3: teacher_3} = setup
+
+      assign_teacher(classroom_1.id, teacher_1.id)
+      assign_teacher(classroom_2.id, teacher_2.id)
+      assign_teacher(classroom_3.id, teacher_3.id)
+
+      # Both schools should match when filtering for any of the teachers
+      result =
+        AshPostgres.Test.Through.School
+        |> Ash.Query.filter(exists(teachers, name in ["Mr. Smith", "Dr. Williams"]))
+        |> Ash.Query.sort(:name)
+        |> Ash.read!()
+
+      assert length(result) == 2
+      assert [%{name: "School One"}, %{name: "School Two"}] = result
+
+      # Only school 1 when filtering for teacher in classroom_1 only
+      result =
+        AshPostgres.Test.Through.School
+        |> Ash.Query.filter(exists(teachers, name == "Mr. Smith"))
+        |> Ash.read!()
+
+      assert length(result) == 1
+      assert hd(result).id == school_1.id
+    end
+  end
+
   describe "policy enforcement on through relationships" do
     test "filtering on through relationships respects intermediate classroom policy", _setup do
       school_1 = create_school("Policy Test School 1")
