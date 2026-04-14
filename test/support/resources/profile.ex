@@ -53,5 +53,14 @@ defmodule AshPostgres.Test.Profile do
     belongs_to(:author, AshPostgres.Test.Author) do
       public?(true)
     end
+
+    # Cross-schema many_to_many: Profile (profiles schema) -> Interest (public schema)
+    # through ProfileInterest (profiles schema)
+    many_to_many :interests, AshPostgres.Test.Interest do
+      public?(true)
+      through(AshPostgres.Test.ProfileInterest)
+      source_attribute_on_join_resource(:profile_id)
+      destination_attribute_on_join_resource(:interest_id)
+    end
   end
 end

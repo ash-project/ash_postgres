@@ -1323,7 +1323,7 @@ defmodule AshPostgres.DataLayer do
                   through_query.limit != nil || through_query.order_bys != [] ||
                     (through_query.joins && through_query.joins != []) ||
                     has_subqueries_in_wheres? ||
-                    (Ash.Resource.Info.multitenancy_strategy(through_relationship.source) ==
+                    (Ash.Resource.Info.multitenancy_strategy(through_resource.resource) ==
                        :context &&
                        source_query.tenant)
 
@@ -1340,11 +1340,11 @@ defmodule AshPostgres.DataLayer do
                       set_subquery_prefix(
                         through_query,
                         source_query,
-                        through_relationship.source
+                        through_resource.resource
                       )
                     )
                   else
-                    set_subquery_prefix(through_query, source_query, through_relationship.source)
+                    set_subquery_prefix(through_query, source_query, through_resource.resource)
                   end
 
                 if query.__ash_bindings__[:__order__?] do
@@ -2536,7 +2536,7 @@ defmodule AshPostgres.DataLayer do
 
     fields_to_upsert =
       upsert_fields --
-        Keyword.keys(Enum.at(changesets, 0).atomics) -- keys
+        (Keyword.keys(Enum.at(changesets, 0).atomics) -- keys)
 
     fields_to_upsert =
       case fields_to_upsert do
