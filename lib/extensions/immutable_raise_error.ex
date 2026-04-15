@@ -179,6 +179,61 @@ defmodule AshPostgres.Extensions.ImmutableRaiseError do
     end
   end
 
+  def immutable_required_expr(
+        query,
+        %{name: :required!, arguments: [value_expr, attribute]} = required,
+        bindings,
+        embedded?,
+        acc,
+        type
+      ) do
+    pred_embedded? = Map.get(required, :embedded?, false)
+
+    {value_dyn, acc} =
+      AshSql.Expr.dynamic_expr(
+        query,
+        value_expr,
+        bindings,
+        pred_embedded? || embedded?,
+        type,
+        acc
+      )
+
+    resource =
+      Map.get(attribute, :resource) ||
+        raise("attribute must have :resource for ash_required!")
+
+    field =
+      Map.get(attribute, :name) ||
+        Map.get(attribute, "name") ||
+        raise("attribute must have :name for ash_required!")
+
+    payload =
+      %{
+        exception: inspect(Ash.Error.Changes.Required),
+        input: %{field: field, type: :attribute, resource: resource}
+      }
+      |> Jason.encode!()
+
+    case immutable_error_expr_token(query, bindings) do
+      nil ->
+        :error
+
+      row_token ->
+        {:ok,
+         Ecto.Query.dynamic(
+           fragment(
+             "CASE WHEN ? IS NULL THEN ash_raise_error_immutable(?::jsonb, ?, ?) ELSE ? END",
+             ^value_dyn,
+             ^payload,
+             ^value_dyn,
+             ^row_token,
+             ^value_dyn
+           )
+         ), acc}
+    end
+  end
+
   # Encodes an error payload as jsonb using only IMMUTABLE SQL functions.
   #
   # Strategy:
