@@ -350,16 +350,29 @@ defmodule AshPostgres.SqlImplementation do
       }
       |> Jason.encode!()
 
-    {:ok,
-     Ecto.Query.dynamic(
-       fragment(
-         "CASE WHEN ? IS NULL THEN ash_raise_error(?::jsonb, ?) ELSE ? END",
-         ^value_dyn,
-         ^payload,
-         ^value_dyn,
-         ^value_dyn
-       )
-     ), acc}
+    repo = AshSql.dynamic_repo(resource, AshPostgres.SqlImplementation, query)
+
+    if repo.immutable_expr_error?() do
+      AshPostgres.Extensions.ImmutableRaiseError.immutable_required_expr(
+        query,
+        required,
+        bindings,
+        embedded?,
+        acc,
+        type
+      )
+    else
+      {:ok,
+       Ecto.Query.dynamic(
+         fragment(
+           "CASE WHEN ? IS NULL THEN ash_raise_error(?::jsonb, ?) ELSE ? END",
+           ^value_dyn,
+           ^payload,
+           ^value_dyn,
+           ^value_dyn
+         )
+       ), acc}
+    end
   end
 
   def expr(
