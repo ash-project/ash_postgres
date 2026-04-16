@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshPostgres.TestRepo.Migrations.AddCrossSchemaM2MTest do
   @moduledoc """
   Migration for cross-schema many_to_many regression test.

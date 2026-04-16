@@ -196,27 +196,27 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
   end
 
   def drop(3) do
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_required(ANYCOMPATIBLE, jsonb)\")"
+    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), ash_required(ANYCOMPATIBLE, jsonb)\")"
   end
 
   def drop(2) do
     """
     #{ash_raise_error()}
 
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_required(ANYCOMPATIBLE, jsonb)\")"
+    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), ash_required(ANYCOMPATIBLE, jsonb)\")"
     """
   end
 
   def drop(1) do
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_required(ANYCOMPATIBLE, jsonb)\")"
+    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_required(ANYCOMPATIBLE, jsonb)\")"
   end
 
   def drop(0) do
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_trim_whitespace(text[]), ash_required(ANYCOMPATIBLE, jsonb)\")"
+    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_trim_whitespace(text[]), ash_required(ANYCOMPATIBLE, jsonb)\")"
   end
 
   def drop(nil) do
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), timestamp_from_uuid_v7(uuid), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_elixir_and(BOOLEAN, ANYCOMPATIBLE), ash_elixir_and(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(BOOLEAN, ANYCOMPATIBLE), ash_trim_whitespace(text[]), ash_required(ANYCOMPATIBLE, jsonb)\")"
+    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_elixir_and(BOOLEAN, ANYCOMPATIBLE), ash_elixir_and(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(BOOLEAN, ANYCOMPATIBLE), ash_trim_whitespace(text[]), ash_required(ANYCOMPATIBLE, jsonb)\")"
   end
 
   defp ash_required do
