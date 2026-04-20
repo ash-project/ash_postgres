@@ -503,19 +503,34 @@ if Code.ensure_loaded?(Igniter) do
       end
     end
 
+    defp relationship_options(_spec, %{type: :many_to_many} = rel, opts) do
+      default_source_on_join = module_to_id_string(rel.source)
+      default_dest_on_join = module_to_id_string(rel.destination)
+
+      ""
+      |> add_through(rel)
+      |> add_join_relationship(rel)
+      |> add_source_attribute_on_join_resource(rel, default_source_on_join)
+      |> add_destination_attribute_on_join_resource(rel, default_dest_on_join)
+      |> add_public(opts)
+    end
+
     defp relationship_options(_spec, rel, opts) do
-      default_destination_attribute =
-        rel.source
-        |> Module.split()
-        |> List.last()
-        |> Macro.underscore()
-        |> Kernel.<>("_id")
+      default_destination_attribute = module_to_id_string(rel.source)
 
       ""
       |> add_destination_attribute(rel, default_destination_attribute)
       |> add_source_attribute(rel, "id")
       |> add_filter(rel)
       |> add_public(opts)
+    end
+
+    defp module_to_id_string(module) do
+      module
+      |> Module.split()
+      |> List.last()
+      |> Macro.underscore()
+      |> Kernel.<>("_id")
     end
 
     defp add_filter(str, %{match_with: []}), do: str
@@ -527,6 +542,30 @@ if Code.ensure_loaded?(Igniter) do
         end)
 
       "#{str}\n filter expr(#{filter})"
+    end
+
+    defp add_through(str, %{through: through}) do
+      "#{str}\n through #{inspect(through)}"
+    end
+
+    defp add_join_relationship(str, %{join_relationship: name}) do
+      "#{str}\n join_relationship :#{name}"
+    end
+
+    defp add_source_attribute_on_join_resource(str, rel, default) do
+      if rel.source_attribute_on_join_resource == default do
+        str
+      else
+        "#{str}\n source_attribute_on_join_resource :#{rel.source_attribute_on_join_resource}"
+      end
+    end
+
+    defp add_destination_attribute_on_join_resource(str, rel, default) do
+      if rel.destination_attribute_on_join_resource == default do
+        str
+      else
+        "#{str}\n destination_attribute_on_join_resource :#{rel.destination_attribute_on_join_resource}"
+      end
     end
 
     defp add_attribute_type(str, %{attr_type: :uuid}), do: str

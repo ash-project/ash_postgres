@@ -35,6 +35,7 @@ if Code.ensure_loaded?(Igniter) do
     - `no-migrations` - Do not generate snapshots & migrations for the resources. Defaults to `false`.
     - `skip-unknown` - Skip any attributes with types that we don't have a corresponding Elixir type for, and relationships that we can't assume the name of.
     - `fragments` - Generate attributes and relationships in a separate fragment file. This allows the fragment to be regenerated without affecting user customizations in the main resource file. Defaults to `false`.
+    - `skip-many-to-many` - Do not generate `many_to_many` relationships for detected join tables. `has_many` relationships to join tables are still generated. Defaults to `false`.
 
     ## Tables
 
@@ -63,7 +64,8 @@ if Code.ensure_loaded?(Igniter) do
           migrations: :boolean,
           snapshots_only: :boolean,
           domain: :keep,
-          fragments: :boolean
+          fragments: :boolean,
+          skip_many_to_many: :boolean
         ],
         aliases: [
           t: :tables,
@@ -77,7 +79,8 @@ if Code.ensure_loaded?(Igniter) do
           default_actions: true,
           migrations: true,
           public: true,
-          fragments: false
+          fragments: false,
+          skip_many_to_many: false
         ]
       }
     end

@@ -435,4 +435,285 @@ defmodule AshPostgres.ResourceGeenratorTests do
       """)
     end
   end
+
+  defp file_content(igniter, path) do
+    source = igniter.rewrite.sources[path]
+    assert source, "Expected #{inspect(path)} to be created"
+    Rewrite.Source.get(source, :content)
+  end
+
+  describe "many_to_many relationship generation" do
+    setup do
+      AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS article_tags CASCADE")
+      AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS articles CASCADE")
+      AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS topics CASCADE")
+
+      AshPostgres.TestRepo.query!("""
+      CREATE TABLE articles (
+        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        title VARCHAR(255)
+      )
+      """)
+
+      AshPostgres.TestRepo.query!("""
+      CREATE TABLE topics (
+        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        name VARCHAR(255)
+      )
+      """)
+
+      AshPostgres.TestRepo.query!("""
+      CREATE TABLE article_tags (
+        article_id UUID NOT NULL REFERENCES articles(id),
+        topic_id UUID NOT NULL REFERENCES topics(id),
+        PRIMARY KEY (article_id, topic_id)
+      )
+      """)
+
+      :ok
+    end
+
+    test "generates has_many to the join table alongside many_to_many to the destination" do
+      test_project()
+      |> Igniter.compose_task("ash_postgres.gen.resources", [
+        "MyApp.Blog",
+        "--tables",
+        "articles,topics,article_tags",
+        "--yes",
+        "--repo",
+        "AshPostgres.TestRepo"
+      ])
+      |> assert_creates("lib/my_app/blog/article.ex", """
+      defmodule MyApp.Blog.Article do
+        use Ash.Resource,
+          domain: MyApp.Blog,
+          data_layer: AshPostgres.DataLayer
+
+        actions do
+          defaults([:read, :destroy, create: :*, update: :*])
+        end
+
+        postgres do
+          table("articles")
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key :id do
+            public?(true)
+          end
+
+          attribute :title, :string do
+            public?(true)
+          end
+        end
+
+        relationships do
+          has_many :article_tags, MyApp.Blog.ArticleTag do
+            public?(true)
+          end
+
+          many_to_many :topics, MyApp.Blog.Topic do
+            through(MyApp.Blog.ArticleTag)
+            join_relationship(:article_tags)
+            public?(true)
+          end
+        end
+      end
+      """)
+      |> assert_creates("lib/my_app/blog/topic.ex", """
+      defmodule MyApp.Blog.Topic do
+        use Ash.Resource,
+          domain: MyApp.Blog,
+          data_layer: AshPostgres.DataLayer
+
+        actions do
+          defaults([:read, :destroy, create: :*, update: :*])
+        end
+
+        postgres do
+          table("topics")
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key :id do
+            public?(true)
+          end
+
+          attribute :name, :string do
+            public?(true)
+          end
+        end
+
+        relationships do
+          has_many :article_tags, MyApp.Blog.ArticleTag do
+            public?(true)
+          end
+
+          many_to_many :articles, MyApp.Blog.Article do
+            through(MyApp.Blog.ArticleTag)
+            join_relationship(:article_tags)
+            public?(true)
+          end
+        end
+      end
+      """)
+    end
+
+    test "join table resource itself gets only belongs_to relationships" do
+      igniter =
+        test_project()
+        |> Igniter.compose_task("ash_postgres.gen.resources", [
+          "MyApp.Blog",
+          "--tables",
+          "articles,topics,article_tags",
+          "--yes",
+          "--repo",
+          "AshPostgres.TestRepo"
+        ])
+
+      content = file_content(igniter, "lib/my_app/blog/article_tag.ex")
+      assert content =~ "belongs_to :article, MyApp.Blog.Article"
+      assert content =~ "belongs_to :topic, MyApp.Blog.Topic"
+      refute content =~ "many_to_many"
+      refute content =~ "has_many"
+    end
+
+    test "omits source/dest join attributes when they match the module-name defaults" do
+      igniter =
+        test_project()
+        |> Igniter.compose_task("ash_postgres.gen.resources", [
+          "MyApp.Blog",
+          "--tables",
+          "articles,topics,article_tags",
+          "--yes",
+          "--repo",
+          "AshPostgres.TestRepo"
+        ])
+
+      content = file_content(igniter, "lib/my_app/blog/article.ex")
+      # article_id and topic_id match defaults → options omitted
+      refute content =~ "source_attribute_on_join_resource"
+      refute content =~ "destination_attribute_on_join_resource"
+    end
+
+    test "emits source/dest join attributes when FK column names differ from module-name defaults" do
+      AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS article_mappings CASCADE")
+
+      AshPostgres.TestRepo.query!("""
+      CREATE TABLE article_mappings (
+        the_article UUID NOT NULL REFERENCES articles(id),
+        the_topic   UUID NOT NULL REFERENCES topics(id),
+        PRIMARY KEY (the_article, the_topic)
+      )
+      """)
+
+      igniter =
+        test_project()
+        |> Igniter.compose_task("ash_postgres.gen.resources", [
+          "MyApp.Blog",
+          "--tables",
+          "articles,topics,article_mappings",
+          "--yes",
+          "--repo",
+          "AshPostgres.TestRepo"
+        ])
+
+      content = file_content(igniter, "lib/my_app/blog/article.ex")
+      assert content =~ "source_attribute_on_join_resource(:the_article)"
+      assert content =~ "destination_attribute_on_join_resource(:the_topic)"
+    end
+
+    test "does not generate many_to_many when the join table has its own surrogate primary key" do
+      AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS article_labels CASCADE")
+
+      AshPostgres.TestRepo.query!("""
+      CREATE TABLE article_labels (
+        id         UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        article_id UUID NOT NULL REFERENCES articles(id),
+        topic_id   UUID NOT NULL REFERENCES topics(id)
+      )
+      """)
+
+      igniter =
+        test_project()
+        |> Igniter.compose_task("ash_postgres.gen.resources", [
+          "MyApp.Blog",
+          "--tables",
+          "articles,topics,article_labels",
+          "--yes",
+          "--repo",
+          "AshPostgres.TestRepo"
+        ])
+
+      article_content = file_content(igniter, "lib/my_app/blog/article.ex")
+      assert article_content =~ "has_many :article_labels"
+      refute article_content =~ "many_to_many"
+
+      topic_content = file_content(igniter, "lib/my_app/blog/topic.ex")
+      assert topic_content =~ "has_many :article_labels"
+      refute topic_content =~ "many_to_many"
+    end
+
+    test "--skip-many-to-many generates only has_many for detected join tables" do
+      igniter =
+        test_project()
+        |> Igniter.compose_task("ash_postgres.gen.resources", [
+          "MyApp.Blog",
+          "--tables",
+          "articles,topics,article_tags",
+          "--yes",
+          "--repo",
+          "AshPostgres.TestRepo",
+          "--skip-many-to-many"
+        ])
+
+      article_content = file_content(igniter, "lib/my_app/blog/article.ex")
+      assert article_content =~ "has_many :article_tags"
+      refute article_content =~ "many_to_many"
+
+      topic_content = file_content(igniter, "lib/my_app/blog/topic.ex")
+      assert topic_content =~ "has_many :article_tags"
+      refute topic_content =~ "many_to_many"
+    end
+
+    test "falls back to has_many when the destination table is excluded from generation" do
+      # topics excluded → build_many_to_many can't find dest_spec → returns nil
+      igniter =
+        test_project()
+        |> Igniter.compose_task("ash_postgres.gen.resources", [
+          "MyApp.Blog",
+          "--tables",
+          "articles,article_tags",
+          "--yes",
+          "--repo",
+          "AshPostgres.TestRepo"
+        ])
+
+      content = file_content(igniter, "lib/my_app/blog/article.ex")
+      assert content =~ "has_many :article_tags"
+      refute content =~ "many_to_many"
+    end
+
+    test "generates many_to_many correctly in fragment mode" do
+      igniter =
+        test_project()
+        |> Igniter.compose_task("ash_postgres.gen.resources", [
+          "MyApp.Blog",
+          "--tables",
+          "articles,topics,article_tags",
+          "--yes",
+          "--repo",
+          "AshPostgres.TestRepo",
+          "--fragments"
+        ])
+
+      content = file_content(igniter, "lib/my_app/blog/article/model.ex")
+      assert content =~ "has_many :article_tags, MyApp.Blog.ArticleTag"
+      assert content =~ "many_to_many :topics, MyApp.Blog.Topic"
+      assert content =~ "through"
+      assert content =~ "join_relationship"
+    end
+  end
 end

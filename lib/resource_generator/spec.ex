@@ -81,7 +81,11 @@ defmodule AshPostgres.ResourceGenerator.Spec do
       :constraint_name,
       :destination_attribute,
       :allow_nil?,
-      :foreign_key
+      :foreign_key,
+      :through,
+      :source_attribute_on_join_resource,
+      :destination_attribute_on_join_resource,
+      :join_relationship
     ]
   end
 
@@ -675,7 +679,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
               [relationship]
 
             {name, relationships} ->
-              name_all_relationships(:belongs_to, opts, spec, name, relationships)
+              name_all_relationships(opts, spec, name, relationships)
           end)
 
         %{spec | relationships: belongs_to_relationships}
@@ -686,52 +690,21 @@ defmodule AshPostgres.ResourceGenerator.Spec do
         Enum.flat_map(specs, fn other_spec ->
           Enum.flat_map(other_spec.relationships, fn relationship ->
             if relationship.destination == spec.resource do
-              [{other_spec.table_name, other_spec.resource, relationship}]
+              [{other_spec.table_name, other_spec.resource, other_spec, relationship}]
             else
               []
             end
           end)
         end)
-        |> Enum.map(fn {table, resource, relationship} ->
-          destination_field =
-            Enum.find(spec.attributes, fn attribute ->
-              attribute.name == relationship.destination_attribute
-            end).source
+        |> Enum.flat_map(fn {table, resource, other_spec, relationship} ->
+          reverse_rel = build_has_relationship(spec, table, resource, relationship)
 
-          has_unique_index? =
-            Enum.any?(spec.indexes, fn index ->
-              index.unique? and is_nil(index.where_clause) and
-                index.columns == [destination_field]
-            end)
-
-          {name, type} =
-            if has_unique_index? do
-              if Igniter.Inflex.pluralize(table) == table do
-                {Igniter.Inflex.singularize(table), :has_one}
-              else
-                {table, :has_one}
-              end
-            else
-              if Igniter.Inflex.pluralize(table) == table do
-                {table, :has_many}
-              else
-                {Igniter.Inflex.pluralize(table), :has_many}
-              end
+          maybe_m2m =
+            if !opts[:skip_many_to_many] do
+              build_many_to_many(spec, other_spec, relationship, reverse_rel, specs)
             end
 
-          %Relationship{
-            type: type,
-            name: name,
-            destination: resource,
-            source: spec.resource,
-            match_with:
-              Enum.map(relationship.match_with, fn {source, dest} ->
-                {dest, source}
-              end),
-            constraint_name: relationship.constraint_name,
-            source_attribute: relationship.destination_attribute,
-            destination_attribute: relationship.source_attribute
-          }
+          [reverse_rel | List.wrap(maybe_m2m)]
         end)
         |> Enum.group_by(& &1.name)
         |> Enum.flat_map(fn
@@ -739,22 +712,105 @@ defmodule AshPostgres.ResourceGenerator.Spec do
             [relationship]
 
           {name, relationships} ->
-            name_all_relationships(:has, opts, spec, name, relationships)
+            name_all_relationships(opts, spec, name, relationships)
         end)
 
       %{spec | relationships: spec.relationships ++ relationships_to_me}
     end)
   end
 
-  defp name_all_relationships(type, opts, spec, name, relationships, acc \\ [])
-  defp name_all_relationships(_type, _opts, _spec, _name, [], acc), do: acc
+  defp build_many_to_many(spec, other_spec, relationship, reverse_rel, specs) do
+    with true <- join_table?(other_spec),
+         other_fk when not is_nil(other_fk) <-
+           Enum.find(other_spec.foreign_keys, &(&1.references != spec.table_name)),
+         dest_spec when not is_nil(dest_spec) <-
+           Enum.find(specs, &(&1.table_name == other_fk.references)) do
+      %Relationship{
+        type: :many_to_many,
+        name: safe_pluralize(other_fk.references),
+        source: spec.resource,
+        destination: dest_spec.resource,
+        through: other_spec.resource,
+        source_attribute: relationship.destination_attribute,
+        destination_attribute: other_fk.destination_field,
+        source_attribute_on_join_resource: relationship.source_attribute,
+        destination_attribute_on_join_resource: other_fk.column,
+        join_relationship: reverse_rel.name,
+        match_with: []
+      }
+    else
+      _ -> nil
+    end
+  end
 
-  defp name_all_relationships(type, opts, spec, name, [relationship | rest], acc) do
+  defp build_has_relationship(spec, table, resource, relationship) do
+    destination_field =
+      Enum.find(spec.attributes, fn attribute ->
+        attribute.name == relationship.destination_attribute
+      end).source
+
+    has_unique_index? =
+      Enum.any?(spec.indexes, fn index ->
+        index.unique? and is_nil(index.where_clause) and
+          index.columns == [destination_field]
+      end)
+
+    {name, type} =
+      if has_unique_index? do
+        {Igniter.Inflex.singularize(table), :has_one}
+      else
+        {safe_pluralize(table), :has_many}
+      end
+
+    %Relationship{
+      type: type,
+      name: name,
+      destination: resource,
+      source: spec.resource,
+      match_with:
+        Enum.map(relationship.match_with, fn {source, dest} ->
+          {dest, source}
+        end),
+      constraint_name: relationship.constraint_name,
+      source_attribute: relationship.destination_attribute,
+      destination_attribute: relationship.source_attribute
+    }
+  end
+
+  defp safe_pluralize(table) do
+    # handles edge cases when multiple pluralizations are possible like: "person" -> "people" -> "peoples"
+    table
+    |> Igniter.Inflex.singularize()
+    |> Igniter.Inflex.pluralize()
+  end
+
+  defp join_table?(spec) do
+    pk_cols =
+      spec.attributes
+      |> Enum.filter(& &1.primary_key?)
+      |> Enum.map(& &1.source)
+
+    fk_cols = Enum.map(spec.foreign_keys, & &1.column)
+
+    fk_tables =
+      spec.foreign_keys
+      |> Enum.map(& &1.references)
+      |> Enum.uniq()
+
+    length(spec.foreign_keys) == 2 &&
+      length(fk_tables) == 2 &&
+      Enum.sort(pk_cols) == Enum.sort(fk_cols)
+  end
+
+  defp name_all_relationships(opts, spec, name, relationships, acc \\ [])
+  defp name_all_relationships(_opts, _spec, _name, [], acc), do: acc
+
+  defp name_all_relationships(opts, spec, name, [%Relationship{} = relationship | rest], acc) do
     if opts[:yes?] || opts[:skip_unknown] do
-      name_all_relationships(type, opts, spec, name, rest, acc)
+      name_all_relationships(opts, spec, name, rest, acc)
     else
       label =
-        case type do
+        case relationship.type do
           :belongs_to ->
             """
             Multiple foreign keys found from `#{inspect(spec.resource)}` to `#{inspect(relationship.destination)}` with the guessed name `#{name}`.
@@ -765,7 +821,26 @@ defmodule AshPostgres.ResourceGenerator.Spec do
             Relationship Type: :belongs_to
             Guessed Name: `:#{name}`
             Relationship Destination: `#{inspect(relationship.destination)}`
+            Source Attribute (FK): `#{inspect(relationship.source_attribute)}`
             Constraint Name: `#{inspect(relationship.constraint_name)}`.
+
+            Leave empty to skip adding this relationship.
+
+            Name:
+            """
+            |> String.trim_trailing()
+
+          :many_to_many ->
+            """
+            Multiple :many_to_many relationships found between `#{inspect(relationship.source)}` and `#{inspect(relationship.destination)}` with the guessed name `#{name}`.
+
+            Provide a relationship name for the one with the following info:
+
+            Resource: `#{inspect(relationship.source)}`
+            Relationship Type: :many_to_many
+            Guessed Name: `:#{name}`
+            Relationship Destination: `#{inspect(relationship.destination)}`
+            Join Resource (Through): `#{inspect(relationship.through)}`
 
             Leave empty to skip adding this relationship.
 
@@ -783,6 +858,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
             Relationship Type: :#{relationship.type}
             Guessed Name: `:#{name}`
             Relationship Destination: `#{inspect(spec.resource)}`
+            Destination Attribute (FK): `#{inspect(relationship.destination_attribute)}`
             Constraint Name: `#{inspect(relationship.constraint_name)}`.
 
             Leave empty to skip adding this relationship.
@@ -798,10 +874,10 @@ defmodule AshPostgres.ResourceGenerator.Spec do
       |> String.trim_leading(":")
       |> case do
         "" ->
-          name_all_relationships(type, opts, spec, name, rest, acc)
+          name_all_relationships(opts, spec, name, rest, acc)
 
         new_name ->
-          name_all_relationships(type, opts, spec, name, rest, [
+          name_all_relationships(opts, spec, name, rest, [
             %{relationship | name: new_name} | acc
           ])
       end
