@@ -656,6 +656,34 @@ defmodule AshPostgres.ResourceGeenratorTests do
       refute topic_content =~ "many_to_many"
     end
 
+    test "does not generate many_to_many for self-referential join tables" do
+      # Both FKs point to the same table → join_table? returns false because
+      # fk_tables has length 1, not 2
+      AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS article_links CASCADE")
+
+      AshPostgres.TestRepo.query!("""
+      CREATE TABLE article_links (
+        source_id UUID NOT NULL REFERENCES articles(id),
+        target_id UUID NOT NULL REFERENCES articles(id),
+        PRIMARY KEY (source_id, target_id)
+      )
+      """)
+
+      igniter =
+        test_project()
+        |> Igniter.compose_task("ash_postgres.gen.resources", [
+          "MyApp.Blog",
+          "--tables",
+          "articles,article_links",
+          "--yes",
+          "--repo",
+          "AshPostgres.TestRepo"
+        ])
+
+      content = file_content(igniter, "lib/my_app/blog/article.ex")
+      refute content =~ "many_to_many"
+    end
+
     test "--skip-many-to-many generates only has_many for detected join tables" do
       igniter =
         test_project()
@@ -714,6 +742,119 @@ defmodule AshPostgres.ResourceGeenratorTests do
       assert content =~ "many_to_many :topics, MyApp.Blog.Topic"
       assert content =~ "through"
       assert content =~ "join_relationship"
+    end
+  end
+
+  describe "inferring relationship names from foreign keys with _id suffix" do
+    setup do
+      AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS people CASCADE")
+      AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS articles CASCADE")
+
+      AshPostgres.TestRepo.query!("""
+      CREATE TABLE people (
+        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        name VARCHAR(255)
+      )
+      """)
+
+      AshPostgres.TestRepo.query!("""
+      CREATE TABLE articles (
+        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+        title VARCHAR(255),
+        author_id UUID NOT NULL REFERENCES people(id),
+        reviewer_id UUID NOT NULL REFERENCES people(id)
+      )
+      """)
+
+      :ok
+    end
+
+    test "avoids naming collisions by appending table name for has_many relationships when multiple references exist" do
+      test_project()
+      |> Igniter.compose_task("ash_postgres.gen.resources", [
+        "MyApp.Blog",
+        "--tables",
+        "articles,people",
+        "--yes",
+        "--repo",
+        "AshPostgres.TestRepo"
+      ])
+      |> assert_creates("lib/my_app/blog/article.ex", """
+      defmodule MyApp.Blog.Article do
+        use Ash.Resource,
+          domain: MyApp.Blog,
+          data_layer: AshPostgres.DataLayer
+
+        actions do
+          defaults([:read, :destroy, create: :*, update: :*])
+        end
+
+        postgres do
+          table("articles")
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key :id do
+            public?(true)
+          end
+
+          attribute :title, :string do
+            public?(true)
+          end
+        end
+
+        relationships do
+          belongs_to :author, MyApp.Blog.Person do
+            allow_nil?(false)
+            public?(true)
+          end
+
+          belongs_to :reviewer, MyApp.Blog.Person do
+            allow_nil?(false)
+            public?(true)
+          end
+        end
+      end
+      """)
+      |> assert_creates("lib/my_app/blog/person.ex", """
+      defmodule MyApp.Blog.Person do
+        use Ash.Resource,
+          domain: MyApp.Blog,
+          data_layer: AshPostgres.DataLayer
+
+        actions do
+          defaults([:read, :destroy, create: :*, update: :*])
+        end
+
+        postgres do
+          table("people")
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key :id do
+            public?(true)
+          end
+
+          attribute :name, :string do
+            public?(true)
+          end
+        end
+
+        relationships do
+          has_many :reviewer_articles, MyApp.Blog.Article do
+            destination_attribute(:reviewer_id)
+            public?(true)
+          end
+
+          has_many :author_articles, MyApp.Blog.Article do
+            destination_attribute(:author_id)
+            public?(true)
+          end
+        end
+      end
+      """)
     end
   end
 end

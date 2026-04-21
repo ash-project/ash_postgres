@@ -85,7 +85,8 @@ defmodule AshPostgres.ResourceGenerator.Spec do
       :through,
       :source_attribute_on_join_resource,
       :destination_attribute_on_join_resource,
-      :join_relationship
+      :join_relationship,
+      :referenced_table
     ]
   end
 
@@ -631,56 +632,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     specs =
       Enum.map(specs, fn spec ->
         belongs_to_relationships =
-          Enum.flat_map(
-            spec.foreign_keys,
-            fn %ForeignKey{
-                 constraint_name: constraint_name,
-                 column: column_name,
-                 references: references,
-                 destination_field: destination_field,
-                 match_with: match_with
-               } ->
-              case find_destination_and_field(
-                     specs,
-                     spec,
-                     references,
-                     destination_field,
-                     resources,
-                     match_with
-                   ) do
-                nil ->
-                  []
-
-                {destination, destination_attribute, match_with} ->
-                  source_attr =
-                    Enum.find(spec.attributes, fn attribute ->
-                      attribute.source == column_name
-                    end)
-
-                  [
-                    %Relationship{
-                      type: :belongs_to,
-                      name: Igniter.Inflex.singularize(references),
-                      source: spec.resource,
-                      constraint_name: constraint_name,
-                      match_with: match_with,
-                      destination: destination,
-                      source_attribute: source_attr.name,
-                      allow_nil?: source_attr.allow_nil?,
-                      destination_attribute: destination_attribute
-                    }
-                  ]
-              end
-            end
-          )
-          |> Enum.group_by(& &1.name)
-          |> Enum.flat_map(fn
-            {_name, [relationship]} ->
-              [relationship]
-
-            {name, relationships} ->
-              name_all_relationships(opts, spec, name, relationships)
-          end)
+          build_belongs_to_relationships(spec, specs, resources, opts)
 
         %{spec | relationships: belongs_to_relationships}
       end)
@@ -701,7 +653,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
 
           maybe_m2m =
             if !opts[:skip_many_to_many] do
-              build_many_to_many(spec, other_spec, relationship, reverse_rel, specs)
+              build_many_to_many_relationship(spec, other_spec, relationship, reverse_rel, specs)
             end
 
           [reverse_rel | List.wrap(maybe_m2m)]
@@ -719,7 +671,61 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     end)
   end
 
-  defp build_many_to_many(spec, other_spec, relationship, reverse_rel, specs) do
+  defp build_belongs_to_relationships(spec, specs, resources, opts) do
+    Enum.flat_map(
+      spec.foreign_keys,
+      fn %ForeignKey{
+           constraint_name: constraint_name,
+           column: column_name,
+           references: references,
+           destination_field: destination_field,
+           match_with: match_with
+         } ->
+        case find_destination_and_field(
+               specs,
+               spec,
+               references,
+               destination_field,
+               resources,
+               match_with
+             ) do
+          nil ->
+            []
+
+          {destination, destination_attribute, match_with} ->
+            source_attr =
+              Enum.find(spec.attributes, fn attribute ->
+                attribute.source == column_name
+              end)
+
+            [
+              %Relationship{
+                type: :belongs_to,
+                name: default_belongs_to_name(column_name, references),
+                referenced_table: references,
+                source: spec.resource,
+                constraint_name: constraint_name,
+                match_with: match_with,
+                destination: destination,
+                source_attribute: source_attr.name,
+                allow_nil?: source_attr.allow_nil?,
+                destination_attribute: destination_attribute
+              }
+            ]
+        end
+      end
+    )
+    |> Enum.group_by(& &1.name)
+    |> Enum.flat_map(fn
+      {_name, [relationship]} ->
+        [relationship]
+
+      {name, relationships} ->
+        name_all_relationships(opts, spec, name, relationships)
+    end)
+  end
+
+  defp build_many_to_many_relationship(spec, other_spec, relationship, reverse_rel, specs) do
     with true <- join_table?(other_spec),
          other_fk when not is_nil(other_fk) <-
            Enum.find(other_spec.foreign_keys, &(&1.references != spec.table_name)),
@@ -806,82 +812,121 @@ defmodule AshPostgres.ResourceGenerator.Spec do
   defp name_all_relationships(_opts, _spec, _name, [], acc), do: acc
 
   defp name_all_relationships(opts, spec, name, [%Relationship{} = relationship | rest], acc) do
-    if opts[:yes?] || opts[:skip_unknown] do
-      name_all_relationships(opts, spec, name, rest, acc)
-    else
-      label =
-        case relationship.type do
-          :belongs_to ->
-            """
-            Multiple foreign keys found from `#{inspect(spec.resource)}` to `#{inspect(relationship.destination)}` with the guessed name `#{name}`.
+    {label, suggestion} =
+      case relationship.type do
+        :belongs_to ->
+          suggestion =
+            build_alternative_name(relationship.source_attribute, relationship.referenced_table)
 
-            Provide a relationship name for the one with the following info:
+          label = """
+          Multiple foreign keys found from `#{inspect(spec.resource)}` to `#{inspect(relationship.destination)}` with the guessed name `#{name}`.
 
-            Resource: `#{inspect(spec.resource)}`
-            Relationship Type: :belongs_to
-            Guessed Name: `:#{name}`
-            Relationship Destination: `#{inspect(relationship.destination)}`
-            Source Attribute (FK): `#{inspect(relationship.source_attribute)}`
-            Constraint Name: `#{inspect(relationship.constraint_name)}`.
+          Provide a relationship name for the one with the following info:
 
-            Leave empty to skip adding this relationship.
+          Resource: `#{inspect(spec.resource)}`
+          Relationship Type: :belongs_to
+          Guessed Name: `:#{name}`
+          Relationship Destination: `#{inspect(relationship.destination)}`
+          Source Attribute (FK): `#{inspect(relationship.source_attribute)}`
+          Constraint Name: `#{inspect(relationship.constraint_name)}`.
 
-            Name:
-            """
-            |> String.trim_trailing()
+          #{if suggestion == name do
+            "Leave empty to skip adding this relationship."
+          else
+            "Leave empty to use the suggested alternative name `#{suggestion}`."
+          end}
 
-          :many_to_many ->
-            """
-            Multiple :many_to_many relationships found between `#{inspect(relationship.source)}` and `#{inspect(relationship.destination)}` with the guessed name `#{name}`.
+          Name:
+          """
 
-            Provide a relationship name for the one with the following info:
+          {label, suggestion}
 
-            Resource: `#{inspect(relationship.source)}`
-            Relationship Type: :many_to_many
-            Guessed Name: `:#{name}`
-            Relationship Destination: `#{inspect(relationship.destination)}`
-            Join Resource (Through): `#{inspect(relationship.through)}`
+        :many_to_many ->
+          label = """
+          Multiple :many_to_many relationships found between `#{inspect(relationship.source)}` and `#{inspect(relationship.destination)}` with the guessed name `#{name}`.
 
-            Leave empty to skip adding this relationship.
+          Provide a relationship name for the one with the following info:
 
-            Name:
-            """
-            |> String.trim_trailing()
+          Resource: `#{inspect(relationship.source)}`
+          Relationship Type: :many_to_many
+          Guessed Name: `:#{name}`
+          Relationship Destination: `#{inspect(relationship.destination)}`
+          Join Resource (Through): `#{inspect(relationship.through)}`
 
-          _ ->
-            """
-            Multiple foreign keys found from `#{inspect(relationship.source)}` to `#{inspect(spec.resource)}` with the guessed name `#{name}`.
+          Leave empty to skip adding this relationship.
 
-            Provide a relationship name for the one with the following info:
+          Name:
+          """
 
-            Resource: `#{inspect(relationship.source)}`
-            Relationship Type: :#{relationship.type}
-            Guessed Name: `:#{name}`
-            Relationship Destination: `#{inspect(spec.resource)}`
-            Destination Attribute (FK): `#{inspect(relationship.destination_attribute)}`
-            Constraint Name: `#{inspect(relationship.constraint_name)}`.
+          {label, ""}
 
-            Leave empty to skip adding this relationship.
+        _ ->
+          suggestion = build_alternative_name(relationship.destination_attribute, name)
 
-            Name:
-            """
-            |> String.trim_trailing()
-        end
+          label = """
+          Multiple foreign keys found from `#{inspect(relationship.destination)}` to `#{inspect(spec.resource)}` with the guessed name `#{name}`.
 
-      Owl.IO.input(label: label, optional: true)
-      |> Kernel.||("")
-      # common typo
-      |> String.trim_leading(":")
-      |> case do
-        "" ->
-          name_all_relationships(opts, spec, name, rest, acc)
+          Provide a relationship name for the one with the following info:
 
-        new_name ->
-          name_all_relationships(opts, spec, name, rest, [
-            %{relationship | name: new_name} | acc
-          ])
+          Resource: `#{inspect(relationship.source)}`
+          Relationship Type: :#{relationship.type}
+          Guessed Name: `:#{name}`
+          Relationship Destination: `#{inspect(relationship.destination)}`
+          Destination Attribute (FK): `#{inspect(relationship.destination_attribute)}`
+          Constraint Name: `#{inspect(relationship.constraint_name)}`.
+
+          #{if suggestion == name do
+            "Leave empty to skip adding this relationship."
+          else
+            "Leave empty to use the suggested alternative name `#{suggestion}`."
+          end}
+
+          Name:
+          """
+
+          {label, suggestion}
       end
+
+    trimmed_label = String.trim_trailing(label)
+    maybe_suggestion = if suggestion == name, do: nil, else: suggestion
+
+    if opts[:yes] || opts[:skip_unknown] do
+      nil
+    else
+      Owl.IO.input(label: trimmed_label, optional: true)
     end
+    |> Kernel.||(maybe_suggestion)
+    # common typo
+    |> String.trim_leading(":")
+    |> case do
+      "" ->
+        name_all_relationships(opts, spec, name, rest, acc)
+
+      new_name ->
+        name_all_relationships(opts, spec, name, rest, [
+          %{relationship | name: new_name} | acc
+        ])
+    end
+  end
+
+  defp build_alternative_name(attribute, name) do
+    if String.ends_with?(attribute, "_id") do
+      attribute
+      |> String.replace("_id", "")
+      |> Igniter.Inflex.singularize()
+      |> Kernel.<>("_#{name}")
+    else
+      name
+    end
+  end
+
+  defp default_belongs_to_name(column_name, references) do
+    if String.ends_with?(column_name, "_id") and String.length(column_name) > 3 do
+      String.replace_suffix(column_name, "_id", "")
+    else
+      references
+    end
+    |> Igniter.Inflex.singularize()
   end
 
   defp find_destination_and_field(
@@ -983,7 +1028,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
   # sobelow_skip ["RCE.CodeModule", "DOS.StringToAtom"]
   defp get_type(attribute, opts) do
     result =
-      if opts[:yes?] || opts[:skip_unknown] do
+      if opts[:yes] || opts[:skip_unknown] do
         "skip"
       else
         Mix.shell().prompt("""
