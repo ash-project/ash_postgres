@@ -235,14 +235,24 @@ defmodule AshPostgres.MigrationGenerator.Reducer do
         old_attribute: old_attr,
         new_attribute: new_attr
       }) do
-    if old_attr.source != new_attr.source and
-         Enum.any?(state.attributes, &(&1.source == new_attr.source)) do
-      throw_conflict("RenameAttribute: destination #{inspect(new_attr.source)} already exists")
-    end
+    # Preserve the check order from the pre-refactor version: missing source
+    # is reported before existing destination. Callers and error-matching tests
+    # rely on the "source not present" message for the common misuse case of
+    # applying a rename against a mutated state.
+    case Enum.find_index(state.attributes, &(&1.source == old_attr.source)) do
+      nil ->
+        throw_conflict("RenameAttribute: source #{inspect(old_attr.source)} not present")
 
-    replace_in_coll(state, :attributes, &(&1.source == old_attr.source), new_attr, fn ->
-      "RenameAttribute: source #{inspect(old_attr.source)} not present"
-    end)
+      idx ->
+        if old_attr.source != new_attr.source and
+             Enum.any?(state.attributes, &(&1.source == new_attr.source)) do
+          throw_conflict(
+            "RenameAttribute: destination #{inspect(new_attr.source)} already exists"
+          )
+        end
+
+        %{state | attributes: List.replace_at(state.attributes, idx, new_attr)}
+    end
   end
 
   def apply_op(state, %Operation.AddUniqueIndex{identity: identity}),

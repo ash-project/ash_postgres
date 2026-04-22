@@ -318,6 +318,158 @@ defmodule AshPostgres.SnapshotDeltaTest do
 
       assert {:threw, "RemoveAttribute: attribute :email not present"} = caught
     end
+
+    test "RenameAttribute: missing source is reported BEFORE existing destination",
+         %{snapshot: snapshot} do
+      # Regression test for post-refactor check ordering. Before the helper
+      # collapse, the reducer checked "source present" first and "destination
+      # free" second. If both were violated (source missing + destination
+      # present), the old message was "source :x not present". Make sure the
+      # refactor didn't flip the order.
+      state =
+        snapshot
+        |> Reducer.empty_state()
+        |> Reducer.apply_op(%Operation.AddAttribute{
+          table: snapshot.table,
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          attribute: @text_attribute
+        })
+
+      caught =
+        try do
+          # Destination (:email) exists, source (:nonexistent_src) doesn't.
+          Reducer.apply_op(state, %Operation.RenameAttribute{
+            table: snapshot.table,
+            schema: nil,
+            multitenancy: @base_multitenancy,
+            old_multitenancy: @base_multitenancy,
+            old_attribute: %{@text_attribute | source: :nonexistent_src},
+            new_attribute: @text_attribute
+          })
+
+          :no_error
+        catch
+          :throw, {:reducer_error, reason} -> {:threw, reason}
+        end
+
+      assert {:threw, "RenameAttribute: source :nonexistent_src not present"} = caught
+    end
+
+    test "RenameAttribute: existing destination throws after source-found check",
+         %{snapshot: snapshot} do
+      # Separate clause: source exists, but destination collision.
+      other_attr = %{@text_attribute | source: :other_col}
+
+      state =
+        snapshot
+        |> Reducer.empty_state()
+        |> Reducer.apply_op(%Operation.AddAttribute{
+          table: snapshot.table,
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          attribute: @text_attribute
+        })
+        |> Reducer.apply_op(%Operation.AddAttribute{
+          table: snapshot.table,
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          attribute: other_attr
+        })
+
+      caught =
+        try do
+          Reducer.apply_op(state, %Operation.RenameAttribute{
+            table: snapshot.table,
+            schema: nil,
+            multitenancy: @base_multitenancy,
+            old_multitenancy: @base_multitenancy,
+            old_attribute: @text_attribute,
+            new_attribute: other_attr
+          })
+
+          :no_error
+        catch
+          :throw, {:reducer_error, reason} -> {:threw, reason}
+        end
+
+      assert {:threw, "RenameAttribute: destination :other_col already exists"} = caught
+    end
+
+    test "AddCustomStatement / RemoveCustomStatement round-trip through apply_op",
+         %{snapshot: snapshot} do
+      # Apply_op path for these ops wasn't previously exercised by a unit
+      # test. Covering the helper-based add/remove plumbing explicitly.
+      statement = %{name: :enable_trgm, up: "create extension pg_trgm", down: "drop extension pg_trgm"}
+
+      state =
+        snapshot
+        |> Reducer.empty_state()
+        |> Reducer.apply_op(%Operation.AddCustomStatement{
+          table: snapshot.table,
+          statement: statement
+        })
+
+      assert state.empty? == false
+      assert [^statement] = state.custom_statements
+
+      state =
+        Reducer.apply_op(state, %Operation.RemoveCustomStatement{
+          table: snapshot.table,
+          statement: statement
+        })
+
+      assert state.custom_statements == []
+
+      # Remove again should conflict
+      caught =
+        try do
+          Reducer.apply_op(state, %Operation.RemoveCustomStatement{
+            table: snapshot.table,
+            statement: statement
+          })
+
+          :no_error
+        catch
+          :throw, {:reducer_error, reason} -> {:threw, reason}
+        end
+
+      assert {:threw, "RemoveCustomStatement: statement :enable_trgm not present"} = caught
+    end
+
+    test "state.empty? after add-then-remove-all reflects 'state was touched', not 'state is empty now'",
+         %{snapshot: snapshot} do
+      # Intentional post-simplification behavior: dropping the final
+      # state_empty?/1 recomputation means `empty?` tracks "has any op been
+      # applied" (inline per apply_op), not "are all collections empty right
+      # now". For `pkey_operations`' purpose — deciding whether to skip pkey
+      # drops because we're a fresh create — this is more correct: removing
+      # attributes from an existing table is NOT a fresh-create scenario, so
+      # we must keep `empty?=false`.
+      state =
+        snapshot
+        |> Reducer.empty_state()
+        |> Reducer.apply_op(%Operation.AddAttribute{
+          table: snapshot.table,
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          attribute: @text_attribute
+        })
+        |> Reducer.apply_op(%Operation.RemoveAttribute{
+          table: snapshot.table,
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          attribute: @text_attribute
+        })
+
+      assert state.attributes == []
+      refute state.empty?, "empty? must stay false once state has been touched by any op"
+    end
   end
 
   describe "load_reduced_state" do
