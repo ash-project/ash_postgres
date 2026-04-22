@@ -1471,4 +1471,28 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       end
     end
   end
+
+  # Pseudo-operations — persisted in delta snapshots only. They encode
+  # transitions of resource-level metadata that today live as top-level fields
+  # in the full-state snapshot. They do NOT produce migration code: the
+  # migration generator filters them out before `organize_operations/1`.
+  defmodule SetBaseFilter do
+    @moduledoc false
+    defstruct [:table, :schema, :multitenancy, :old_value, :new_value, no_phase: true]
+  end
+
+  defmodule SetHasCreateAction do
+    @moduledoc false
+    defstruct [:table, :schema, :multitenancy, :old_value, :new_value, no_phase: true]
+  end
+
+  defmodule SetCreateTableOptions do
+    @moduledoc false
+    defstruct [:table, :schema, :multitenancy, :old_value, :new_value, no_phase: true]
+  end
+
+  defmodule OptOutDropTable do
+    @moduledoc false
+    defstruct [:table, :schema, :multitenancy, no_phase: true]
+  end
 end
