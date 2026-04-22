@@ -159,11 +159,27 @@ defmodule AshPostgres.MigrationGenerator.Operation.Codec do
   `:previous_hash`, `:resulting_hash`, `:migration`, `:generated_at`,
   `:operations` (list of operation structs).
 
-  Raises `ArgumentError` if the version field is missing or not equal to 2 —
-  legacy full-state files must be migrated via `mix ash_postgres.migrate_snapshots`.
+  Raises `ArgumentError` if:
+    * the JSON is malformed
+    * the top-level value is not a JSON object
+    * the version field is missing or not equal to #{@delta_version}
+      — legacy full-state files must be migrated via
+      `mix ash_postgres.migrate_snapshots`.
   """
   def decode_delta(json) when is_binary(json) do
-    decoded = Jason.decode!(json, keys: :atoms!)
+    decoded =
+      case Jason.decode(json, keys: :atoms!) do
+        {:ok, map} when is_map(map) ->
+          map
+
+        {:ok, other} ->
+          raise ArgumentError,
+                "Expected delta snapshot to be a JSON object, got #{inspect(other, limit: :infinity, printable_limit: 200)}"
+
+        {:error, %Jason.DecodeError{} = err} ->
+          raise ArgumentError,
+                "Could not parse delta snapshot JSON: #{Exception.message(err)}"
+      end
 
     case Map.get(decoded, :version) do
       @delta_version ->
@@ -960,6 +976,9 @@ defmodule AshPostgres.MigrationGenerator.Operation.Codec do
   end
 
   defp maybe_to_atom(value) when is_atom(value), do: value
+  # sobelow_skip ["DOS.StringToAtom"]
+  # Snapshot files are developer-committed and reviewed. This matches the
+  # pattern already skipped in migration_generator.ex.
   defp maybe_to_atom(value), do: String.to_atom(value)
 
   defp iso8601_now do

@@ -58,6 +58,7 @@ defmodule Mix.Tasks.AshPostgres.SquashSnapshots do
   @timestamp_regex ~r/^\d{14}\.json$/
   @dev_regex ~r/^\d{14}_dev\.json$/
 
+  @impl Mix.Task
   def run(args) do
     {opts, []} = OptionParser.parse!(args, strict: @switches)
 
@@ -189,7 +190,7 @@ defmodule Mix.Tasks.AshPostgres.SquashSnapshots do
     """
   end
 
-  defp apply_squash({folder, snapshots, last_snapshot, into_snapshot, :full}, _opts) do
+  defp apply_squash({_folder, snapshots, last_snapshot, into_snapshot, :full}, _opts) do
     for snapshot <- snapshots, snapshot != last_snapshot do
       File.rm!(snapshot)
     end
@@ -198,7 +199,6 @@ defmodule Mix.Tasks.AshPostgres.SquashSnapshots do
       File.rename!(last_snapshot, into_snapshot)
     end
 
-    _ = folder
     :ok
   end
 

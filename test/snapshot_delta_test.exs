@@ -174,6 +174,24 @@ defmodule AshPostgres.SnapshotDeltaTest do
       refute Codec.delta?(legacy_json)
     end
 
+    test "rejects malformed JSON with a parseable error message" do
+      assert_raise ArgumentError, ~r/Could not parse delta snapshot JSON/, fn ->
+        Codec.decode_delta("not valid json {[")
+      end
+
+      refute Codec.delta?("not valid json {[")
+    end
+
+    test "rejects JSON that isn't a top-level object" do
+      assert_raise ArgumentError, ~r/Expected delta snapshot to be a JSON object/, fn ->
+        Codec.decode_delta("[1, 2, 3]")
+      end
+
+      assert_raise ArgumentError, ~r/Expected delta snapshot to be a JSON object/, fn ->
+        Codec.decode_delta("\"a string\"")
+      end
+    end
+
     test "pseudo-ops (SetBaseFilter, OptOutDropTable) round-trip" do
       ops = [
         %Operation.SetBaseFilter{

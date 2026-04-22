@@ -2352,23 +2352,16 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp do_fetch_operations(snapshot, nil, opts, acc) do
     if resource_has_meaningful_content?(snapshot) do
-      empty_snapshot = %{
-        attributes: [],
-        identities: [],
-        schema: nil,
-        custom_indexes: [],
-        custom_statements: [],
-        check_constraints: [],
-        table: snapshot.table,
-        repo: snapshot.repo,
-        base_filter: nil,
-        empty?: true,
-        multitenancy: %{
-          attribute: nil,
-          strategy: nil,
-          global: nil
-        }
-      }
+      # Use the Reducer's canonical empty state so this and delta reduction
+      # share one definition of "empty". `empty_state/1` produces a schema-less
+      # baseline with all the scalar-fields (base_filter, create_table_options,
+      # …) explicitly defaulted.
+      empty_snapshot =
+        AshPostgres.MigrationGenerator.Reducer.empty_state(%{
+          table: snapshot.table,
+          schema: nil,
+          repo: snapshot.repo
+        })
 
       do_fetch_operations(snapshot, empty_snapshot, opts, [
         %Operation.CreateTable{

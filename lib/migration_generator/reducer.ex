@@ -75,19 +75,6 @@ defmodule AshPostgres.MigrationGenerator.Reducer do
     end
   end
 
-  @doc """
-  Produce a list of operation structs that, when reduced from an empty state,
-  reconstruct the given existing state.
-
-  Uses the same machinery the live generator uses for brand-new tables — we
-  invoke the migration generator's empty-snapshot diff branch so the ops are
-  byte-identical with what `do_fetch_operations/4` would emit on first-time
-  table creation.
-  """
-  def state_to_initial_delta(state) do
-    AshPostgres.MigrationGenerator.initial_operations_for_state(state)
-  end
-
   @doc "The empty starting-state for a given snapshot (path + multitenancy context)."
   def empty_state(snapshot) do
     %{
