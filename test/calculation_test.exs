@@ -1810,4 +1810,54 @@ defmodule AshPostgres.CalculationTest do
       assert {:ok, "zach daniel"} = Ash.calculate(author, :non_field_full_name)
     end
   end
+
+  describe "referencing related resource aggregate in calculation with policies" do
+    test "can load a calculation that references an aggregate on a related resource when authorized" do
+      org =
+        AshPostgres.Test.Organization
+        |> Ash.Changeset.for_create(:create, %{name: "The Org"})
+        |> Ash.create!()
+
+      user =
+        User
+        |> Ash.Changeset.for_create(:create, %{})
+        |> Ash.Changeset.manage_relationship(:organization, org, type: :append_and_remove)
+        |> Ash.create!()
+
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "Test Post"})
+        |> Ash.Changeset.manage_relationship(:organization, org, type: :append_and_remove)
+        |> Ash.create!()
+
+      comment =
+        Comment
+        |> Ash.Changeset.for_create(:create, %{title: "Test Comment"})
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "Another Comment"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      # Here without authorization, the calculation is loaded succesfully
+      result =
+        Comment
+        |> Ash.Query.filter(id == ^comment.id)
+        |> Ash.Query.load(:post_count_of_comments)
+        |> Ash.read_one!(actor: user, authorize?: false)
+
+      assert result.post_count_of_comments == 2
+
+      # With authorization enabled the query fails.
+      result =
+        Comment
+        |> Ash.Query.filter(id == ^comment.id)
+        |> Ash.Query.load(:post_count_of_comments)
+        |> Ash.read_one!(actor: user)
+
+      assert result.post_count_of_comments == 2
+    end
+  end
 end
