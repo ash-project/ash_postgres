@@ -153,6 +153,12 @@ defmodule AshPostgres.Test.Comment do
     end)
 
     calculate(:has_rating, :boolean, expr(not is_nil(latest_rating_score)))
+
+    calculate(
+      :post_count_of_comments,
+      :integer,
+      expr(post.count_of_comments)
+    )
   end
 
   relationships do
