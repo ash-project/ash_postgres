@@ -459,6 +459,90 @@ defmodule AshPostgres.DeltaModeIntegrationTest do
                op.old_table == "delta_posts_g_old" and op.new_table == "delta_posts_g_new"
              end)
     end
+
+    test "renaming a table, reducing, and generating a follow-up delta succeeds", %{
+      snapshot_path: sp,
+      migration_path: mp
+    } do
+      # Regression test: the previous `test "renaming a table produces a
+      # RenameTable op"` only asserts the op is written into the new dir. It
+      # never reduces that dir afterwards. Today, reducing fails because the
+      # initial deltas stayed in the OLD dir, so the new dir starts from
+      # `empty_state` with table=new but the first op it sees is
+      # RenameTable{old, new} — state.table ≠ op.old_table → ConflictError.
+      #
+      # This test exercises the full lifecycle: rename → codegen with an
+      # additional attribute → assert the reducer sees the combined state.
+      defresource DeltaRenameRegen do
+        postgres do
+          table("delta_rename_regen_old")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaRenameRegen])
+      run_codegen(Domain, sp, mp)
+
+      defresource DeltaRenameRegen do
+        postgres do
+          table("delta_rename_regen_new")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaRenameRegen])
+      # "Yes" to "Are you renaming delta_rename_regen_old to delta_rename_regen_new?"
+      send(self(), {:mix_shell_input, :yes?, true})
+      run_codegen(Domain, sp, mp)
+
+      # Now add a column. Codegen must reduce the existing deltas — which
+      # today blows up in Reducer.apply_op(%Operation.RenameTable{}, state)
+      # because state.table != op.old_table.
+      defresource DeltaRenameRegen do
+        postgres do
+          table("delta_rename_regen_new")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:body, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaRenameRegen])
+      run_codegen(Domain, sp, mp)
+
+      state = reduce_dir(sp, "delta_rename_regen_new")
+      sources = Enum.map(state.attributes, & &1.source)
+      assert :id in sources
+      assert :title in sources
+      assert :body in sources
+      assert state.table == "delta_rename_regen_new"
+    end
   end
 
   # ===================================================================

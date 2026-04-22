@@ -102,6 +102,7 @@ defmodule AshPostgres.MigrationGenerator.Reducer do
       base_filter: nil,
       has_create_action: true,
       drop_table_opted_out: false,
+      create_table_options: nil,
       empty?: true,
       multitenancy: %{attribute: nil, strategy: nil, global: nil}
     }
@@ -112,8 +113,14 @@ defmodule AshPostgres.MigrationGenerator.Reducer do
   # =================================================================
 
   defp state_empty?(state) do
+    # Any of these indicate non-emptiness:
+    #   - collections: attributes, identities, indexes, statements, constraints
+    #   - scalar pseudo-op fields: base_filter, create_table_options
+    #   - has_create_action flipped off from the default
     state.attributes == [] and state.identities == [] and state.custom_indexes == [] and
-      state.custom_statements == [] and state.check_constraints == []
+      state.custom_statements == [] and state.check_constraints == [] and
+      is_nil(state.base_filter) and is_nil(state.create_table_options) and
+      state.has_create_action == true
   end
 
   defp snapshot_directory(snapshot, opts) do
@@ -208,12 +215,20 @@ defmodule AshPostgres.MigrationGenerator.Reducer do
   def apply_op(state, %Operation.CreateTable{} = op) do
     # Deltas are persisted in migration-emission order, which places CreateTable
     # AFTER the AddAttribute ops that populate the table. Applying it is
-    # therefore a metadata refresh — it sets the schema, multitenancy, and
-    # repo context but does not require the state to be empty.
+    # therefore a metadata refresh — it sets the table, schema, multitenancy,
+    # create_table_options, and repo context but does not require the state
+    # to be empty.
+    #
+    # Setting state.table from op.table is important for the rename chain:
+    # a subsequent RenameTable op compares state.table to op.old_table, so
+    # state.table must start from the delta's original table name (which may
+    # differ from the current resource's table).
     %{
       state
-      | schema: op.schema,
+      | table: op.table,
+        schema: op.schema,
         multitenancy: op.multitenancy,
+        create_table_options: op.create_table_options,
         empty?: false
     }
     |> maybe_put(:repo, op.repo)
@@ -361,12 +376,14 @@ defmodule AshPostgres.MigrationGenerator.Reducer do
     %{state | check_constraints: Enum.reject(state.check_constraints, &(&1.name == c.name))}
   end
 
-  def apply_op(state, %Operation.SetBaseFilter{new_value: v}), do: %{state | base_filter: v}
+  def apply_op(state, %Operation.SetBaseFilter{new_value: v}),
+    do: %{state | base_filter: v, empty?: false}
 
   def apply_op(state, %Operation.SetHasCreateAction{new_value: v}),
-    do: %{state | has_create_action: v}
+    do: %{state | has_create_action: v, empty?: false}
 
-  def apply_op(state, %Operation.SetCreateTableOptions{new_value: _v}), do: state
+  def apply_op(state, %Operation.SetCreateTableOptions{new_value: v}),
+    do: %{state | create_table_options: v, empty?: false}
 
   def apply_op(state, %Operation.OptOutDropTable{}),
     do: %{state | drop_table_opted_out: true}

@@ -566,6 +566,14 @@ defmodule AshPostgres.MigrationGenerator do
             create_new_snapshot(snapshots_with_operations, repo_name(repo), opts, tenant?)
           )
           |> then(fn files ->
+            # In delta mode, a rename must move the OLD table's delta files into
+            # the NEW table's directory so the reducer sees the full history
+            # (initial deltas + RenameTable) when it walks the new dir next
+            # codegen. After this move the old dir is empty and the
+            # subsequent `remove_orphan_snapshots` simply deletes the empty
+            # shell. In full-state mode there's only one snapshot file per
+            # table, so the rename does not require a move.
+            move_rename_snapshots(rename_map, repo, opts)
             remove_orphan_snapshots(orphan_snapshots, opts)
             files
           end)
@@ -3658,6 +3666,56 @@ defmodule AshPostgres.MigrationGenerator do
           File.rm_rf(path)
         end
       end)
+    end
+  end
+
+  defp move_rename_snapshots(rename_map, repo, opts) do
+    if opts.dry_run || opts.check || opts.snapshots_only || rename_map == %{} do
+      :ok
+    else
+      if snapshot_format(opts, repo) == :delta do
+        Enum.each(rename_map, fn {{new_table, new_schema},
+                                  %{old_table: old_table, old_schema: old_schema, snapshot: snap}} ->
+          old_snapshot = %{
+            table: old_table,
+            schema: old_schema,
+            repo: repo,
+            multitenancy: snap.multitenancy
+          }
+
+          new_snapshot = %{
+            table: new_table,
+            schema: new_schema,
+            repo: repo,
+            multitenancy: snap.multitenancy
+          }
+
+          old_folder = get_snapshot_folder(old_snapshot, opts)
+          new_folder = get_snapshot_folder(new_snapshot, opts)
+          old_dir = get_snapshot_path(old_snapshot, old_folder)
+          new_dir = get_snapshot_path(new_snapshot, new_folder)
+
+          if File.exists?(old_dir) do
+            File.mkdir_p!(new_dir)
+
+            old_dir
+            |> File.ls!()
+            |> Enum.each(fn file ->
+              src = Path.join(old_dir, file)
+              dst = Path.join(new_dir, file)
+
+              # Skip if destination already exists — should not happen given
+              # rename detection only fires when the new dir is empty, but be
+              # defensive to avoid clobbering.
+              if !File.exists?(dst) do
+                File.rename!(src, dst)
+              end
+            end)
+          end
+        end)
+      end
+
+      :ok
     end
   end
 

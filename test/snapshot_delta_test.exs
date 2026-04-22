@@ -389,4 +389,146 @@ defmodule AshPostgres.SnapshotDeltaTest do
       assert [%{source: :id}] = state.attributes
     end
   end
+
+  # =================================================================
+  # Regression tests for known data-loss bugs in the Reducer + initial
+  # ops path. These all currently fail — see the /review output.
+  # =================================================================
+
+  describe "create_table_options round-trip" do
+    test "CreateTable#create_table_options encode + decode preserves value" do
+      ops = [
+        %Operation.CreateTable{
+          table: "things",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          repo: AshPostgres.TestRepo,
+          create_table_options: "WITH (fillfactor=70)"
+        }
+      ]
+
+      decoded =
+        ops
+        |> Codec.encode_delta()
+        |> Codec.decode_delta()
+
+      assert [%Operation.CreateTable{create_table_options: "WITH (fillfactor=70)"}] =
+               decoded.operations
+    end
+
+    test "Reducer preserves create_table_options on CreateTable — squash round-trip" do
+      # Simulate a legacy squash: reduce a delta chain to state, then ask the
+      # generator for the initial delta for that state. `create_table_options`
+      # must survive the trip, otherwise squash silently drops user-set
+      # storage parameters like `WITH (fillfactor=70)`.
+      ops = [
+        %Operation.CreateTable{
+          table: "things",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          repo: AshPostgres.TestRepo,
+          create_table_options: "WITH (fillfactor=70)"
+        },
+        %Operation.AddAttribute{
+          table: "things",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          attribute: @base_attribute
+        }
+      ]
+
+      snapshot = %{
+        table: "things",
+        schema: nil,
+        repo: AshPostgres.TestRepo,
+        multitenancy: @base_multitenancy
+      }
+
+      state =
+        Enum.reduce(ops, Reducer.empty_state(snapshot), fn op, s ->
+          Reducer.apply_op(s, op)
+        end)
+
+      # Reduced state must carry create_table_options for squash to re-emit it.
+      assert state.create_table_options == "WITH (fillfactor=70)"
+
+      regenerated =
+        AshPostgres.MigrationGenerator.initial_operations_for_state(state)
+
+      create =
+        Enum.find(regenerated, &match?(%Operation.CreateTable{}, &1))
+
+      assert create != nil, "initial_operations_for_state emitted no CreateTable"
+
+      assert create.create_table_options == "WITH (fillfactor=70)",
+             "create_table_options dropped by squash — got #{inspect(create.create_table_options)}"
+    end
+
+    test "SetCreateTableOptions pseudo-op updates reduced state" do
+      # The pseudo-op is persisted for round-trip fidelity, but today its
+      # apply_op is a no-op — so a delta that changes create_table_options
+      # over time never propagates into state.
+      snapshot = %{
+        table: "things",
+        schema: nil,
+        repo: AshPostgres.TestRepo,
+        multitenancy: @base_multitenancy
+      }
+
+      state =
+        snapshot
+        |> Reducer.empty_state()
+        |> Reducer.apply_op(%Operation.CreateTable{
+          table: "things",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          repo: AshPostgres.TestRepo,
+          create_table_options: nil
+        })
+        |> Reducer.apply_op(%Operation.SetCreateTableOptions{
+          table: "things",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_value: nil,
+          new_value: "WITH (fillfactor=70)"
+        })
+
+      assert state.create_table_options == "WITH (fillfactor=70)"
+    end
+  end
+
+  describe "state_empty? consistency" do
+    test "SetBaseFilter leaves state.empty? reflecting non-emptiness", %{} do
+      # Today `state_empty?` checks only attributes/identities/indexes/
+      # statements/constraints. A state whose only mutation is SetBaseFilter
+      # reads back as empty? true even though base_filter is non-nil.
+      snapshot = %{
+        table: "things",
+        schema: nil,
+        repo: AshPostgres.TestRepo,
+        multitenancy: @base_multitenancy
+      }
+
+      state =
+        snapshot
+        |> Reducer.empty_state()
+        |> Reducer.apply_op(%Operation.SetBaseFilter{
+          table: "things",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_value: nil,
+          new_value: "deleted_at IS NULL"
+        })
+
+      assert state.base_filter == "deleted_at IS NULL"
+
+      # Meaningfully: if base_filter is set, the resource is not empty.
+      refute state.empty?,
+             "state.empty? should be false once SetBaseFilter has mutated state"
+    end
+  end
 end

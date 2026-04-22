@@ -203,22 +203,17 @@ defmodule Mix.Tasks.AshPostgres.SquashSnapshots do
   end
 
   defp apply_squash({_folder, snapshots, _last_snapshot, into_snapshot, :delta}, _opts) do
-    # Reduce all deltas in timestamp order.
-    initial_state = %{
-      attributes: [],
-      identities: [],
-      schema: nil,
-      custom_indexes: [],
-      custom_statements: [],
-      check_constraints: [],
-      table: nil,
-      repo: nil,
-      base_filter: nil,
-      has_create_action: true,
-      drop_table_opted_out: false,
-      empty?: true,
-      multitenancy: %{attribute: nil, strategy: nil, global: nil}
-    }
+    # Reduce all deltas in timestamp order. Start from the canonical empty
+    # state so every field the reducer might touch is pre-populated — in
+    # particular fields like `:create_table_options` that `apply_op` updates
+    # via map-update syntax (`%{state | key: v}`), which would raise KeyError
+    # on a minimal map.
+    initial_state =
+      AshPostgres.MigrationGenerator.Reducer.empty_state(%{
+        table: nil,
+        schema: nil,
+        repo: nil
+      })
 
     state =
       snapshots
