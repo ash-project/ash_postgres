@@ -36,6 +36,7 @@ if Code.ensure_loaded?(Igniter) do
     - `skip-unknown` - Skip any attributes with types that we don't have a corresponding Elixir type for, and relationships that we can't assume the name of.
     - `fragments` - Generate attributes and relationships in a separate fragment file. This allows the fragment to be regenerated without affecting user customizations in the main resource file. Defaults to `false`.
     - `skip-many-to-many` - Do not generate `many_to_many` relationships for detected join tables. `has_many` relationships to join tables are still generated. Defaults to `false`.
+    - `include-views` - Include PostgreSQL VIEWs and MATERIALIZED VIEWs alongside base tables. Generated resources use `migrate? false` and default to `[:read]` actions only. For materialized views, unique indexes are surfaced as Ash identities. Defaults to `false`.
 
     ## Tables
 
@@ -65,7 +66,8 @@ if Code.ensure_loaded?(Igniter) do
           snapshots_only: :boolean,
           domain: :keep,
           fragments: :boolean,
-          skip_many_to_many: :boolean
+          skip_many_to_many: :boolean,
+          include_views: :boolean
         ],
         aliases: [
           t: :tables,
@@ -80,7 +82,8 @@ if Code.ensure_loaded?(Igniter) do
           migrations: true,
           public: true,
           fragments: false,
-          skip_many_to_many: false
+          skip_many_to_many: false,
+          include_views: false
         ]
       }
     end

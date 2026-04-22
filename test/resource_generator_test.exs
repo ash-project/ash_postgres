@@ -120,6 +120,198 @@ defmodule AshPostgres.ResourceGeenratorTests do
     """)
   end
 
+  test "a resource is generated from a VIEW when --include-views is set" do
+    AshPostgres.TestRepo.query!("DROP VIEW IF EXISTS example_view")
+    AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS example_view_source")
+
+    AshPostgres.TestRepo.query!("CREATE TABLE example_view_source (
+      id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+      amount INTEGER NOT NULL
+    )")
+
+    AshPostgres.TestRepo.query!(
+      "CREATE VIEW example_view AS SELECT id, amount * 2 AS doubled FROM example_view_source"
+    )
+
+    test_project()
+    |> Igniter.compose_task("ash_postgres.gen.resources", [
+      "MyApp.Accounts",
+      "--tables",
+      "example_view",
+      "--yes",
+      "--repo",
+      "AshPostgres.TestRepo",
+      "--include-views"
+    ])
+    |> assert_creates("lib/my_app/accounts/example_view.ex", """
+    defmodule MyApp.Accounts.ExampleView do
+      use Ash.Resource,
+        domain: MyApp.Accounts,
+        data_layer: AshPostgres.DataLayer
+
+      resource do
+        # WARNING: Configured to bypass missing primary key.
+        # Add primary_key?: true to your attributes/relationships and remove this block.
+        require_primary_key?(false)
+      end
+
+      actions do
+        # WARNING: Generated from a PostgreSQL VIEW.
+        # Views are read-only; only the :read default action is safe.
+        defaults([:read])
+      end
+
+      postgres do
+        table("example_view")
+        repo(AshPostgres.TestRepo)
+
+        # NOTE: Source is a PostgreSQL VIEW, not a base table.
+        # migrate? false prevents Ash from trying to manage its schema.
+        # TODO: Migrations need to be handled manually for views.
+        migrate?(false)
+      end
+
+      attributes do
+        attribute :id, :uuid do
+          public?(true)
+        end
+
+        attribute :doubled, :integer do
+          public?(true)
+        end
+      end
+    end
+    """)
+  end
+
+  test "a resource is generated from a MATERIALIZED VIEW when --include-views is set" do
+    AshPostgres.TestRepo.query!("DROP MATERIALIZED VIEW IF EXISTS example_mv")
+    AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS example_mv_source")
+
+    AshPostgres.TestRepo.query!("CREATE TABLE example_mv_source (
+      id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+      category VARCHAR(64) NOT NULL,
+      amount INTEGER NOT NULL
+    )")
+
+    AshPostgres.TestRepo.query!("""
+    CREATE MATERIALIZED VIEW example_mv AS
+    SELECT id, category, amount * 2 AS doubled FROM example_mv_source
+    """)
+
+    AshPostgres.TestRepo.query!("CREATE UNIQUE INDEX example_mv_id_unique ON example_mv(id)")
+
+    test_project()
+    |> Igniter.compose_task("ash_postgres.gen.resources", [
+      "MyApp.Accounts",
+      "--tables",
+      "example_mv",
+      "--yes",
+      "--repo",
+      "AshPostgres.TestRepo",
+      "--include-views"
+    ])
+    |> assert_creates("lib/my_app/accounts/example_mv.ex", """
+    defmodule MyApp.Accounts.ExampleMv do
+      use Ash.Resource,
+        domain: MyApp.Accounts,
+        data_layer: AshPostgres.DataLayer
+
+      resource do
+        # WARNING: Configured to bypass missing primary key.
+        # Add primary_key?: true to your attributes/relationships and remove this block.
+        require_primary_key?(false)
+      end
+
+      actions do
+        # WARNING: Generated from a PostgreSQL MATERIALIZED VIEW.
+        # Views are read-only; only the :read default action is safe.
+        defaults([:read])
+      end
+
+      postgres do
+        table("example_mv")
+        repo(AshPostgres.TestRepo)
+
+        # NOTE: Source is a PostgreSQL MATERIALIZED VIEW, not a base table.
+        # migrate? false prevents Ash from trying to manage its schema.
+        # TODO: Migrations need to be handled manually for views.
+        migrate?(false)
+
+        identity_index_names(id_unique: "example_mv_id_unique")
+      end
+
+      attributes do
+        attribute :id, :uuid do
+          public?(true)
+        end
+
+        attribute :category, :string do
+          public?(true)
+        end
+
+        attribute :doubled, :integer do
+          public?(true)
+        end
+      end
+
+      identities do
+        identity(:id_unique, [:id])
+      end
+    end
+    """)
+  end
+
+  test "a MATERIALIZED VIEW is NOT generated without --include-views" do
+    AshPostgres.TestRepo.query!("DROP MATERIALIZED VIEW IF EXISTS skip_mv")
+    AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS skip_mv_source")
+
+    AshPostgres.TestRepo.query!("CREATE TABLE skip_mv_source (
+      id UUID DEFAULT uuid_generate_v4() PRIMARY KEY
+    )")
+
+    AshPostgres.TestRepo.query!(
+      "CREATE MATERIALIZED VIEW skip_mv AS SELECT id FROM skip_mv_source"
+    )
+
+    igniter =
+      test_project()
+      |> Igniter.compose_task("ash_postgres.gen.resources", [
+        "MyApp.Accounts",
+        "--tables",
+        "skip_mv",
+        "--yes",
+        "--repo",
+        "AshPostgres.TestRepo"
+      ])
+
+    refute Rewrite.has_source?(igniter.rewrite, "lib/my_app/accounts/skip_mv.ex")
+  end
+
+  test "a VIEW is NOT generated without --include-views" do
+    AshPostgres.TestRepo.query!("DROP VIEW IF EXISTS skip_view")
+    AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS skip_view_source")
+
+    AshPostgres.TestRepo.query!("CREATE TABLE skip_view_source (
+      id UUID DEFAULT uuid_generate_v4() PRIMARY KEY
+    )")
+
+    AshPostgres.TestRepo.query!("CREATE VIEW skip_view AS SELECT id FROM skip_view_source")
+
+    igniter =
+      test_project()
+      |> Igniter.compose_task("ash_postgres.gen.resources", [
+        "MyApp.Accounts",
+        "--tables",
+        "skip_view",
+        "--yes",
+        "--repo",
+        "AshPostgres.TestRepo"
+      ])
+
+    refute Rewrite.has_source?(igniter.rewrite, "lib/my_app/accounts/skip_view.ex")
+  end
+
   test "a resource is generated from a table in a non-public schema with foreign keys and indexes" do
     AshPostgres.TestRepo.query!("CREATE SCHEMA IF NOT EXISTS inventory")
 
@@ -220,14 +412,6 @@ defmodule AshPostgres.ResourceGeenratorTests do
 
       attributes do
         uuid_primary_key :id do
-          public?(true)
-        end
-
-        uuid_primary_key :id do
-          public?(true)
-        end
-
-        attribute :name, :string do
           public?(true)
         end
 
@@ -368,14 +552,6 @@ defmodule AshPostgres.ResourceGeenratorTests do
             public?(true)
           end
 
-          uuid_primary_key :id do
-            public?(true)
-          end
-
-          attribute :name, :string do
-            public?(true)
-          end
-
           attribute :name, :string do
             allow_nil?(false)
             public?(true)
@@ -399,10 +575,6 @@ defmodule AshPostgres.ResourceGeenratorTests do
             public?(true)
           end
 
-          uuid_primary_key :id do
-            public?(true)
-          end
-
           attribute :total, :integer do
             public?(true)
           end
@@ -410,7 +582,6 @@ defmodule AshPostgres.ResourceGeenratorTests do
 
         relationships do
           belongs_to :customer, MyApp.Sales.Customer do
-            allow_nil?(false)
             public?(true)
           end
         end

@@ -12,6 +12,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     :repo,
     :resource,
     :schema,
+    kind: :table,
     check_constraints: [],
     foreign_keys: [],
     indexes: [],
@@ -93,35 +94,56 @@ defmodule AshPostgres.ResourceGenerator.Spec do
   def tables(repo, opts \\ []) do
     {:ok, result, _} =
       Ecto.Migrator.with_repo(repo, fn repo ->
-        repo
-        |> table_specs(opts)
-        |> Enum.group_by(&Enum.take(&1, 2), fn [_, _, field, type, default, size, allow_nil?] ->
-          name = Macro.underscore(field)
+        rows = table_specs(repo, opts)
 
-          %Attribute{
-            name: name,
-            source: field,
-            type: type,
-            migration_default: default,
-            size: size,
-            allow_nil?: allow_nil?
-          }
-        end)
+        relkinds =
+          Enum.reduce(rows, %{}, fn [table_name, table_schema, _, _, _, _, _, relkind], acc ->
+            Map.put_new(acc, {table_name, table_schema}, relkind_to_kind(relkind))
+          end)
+
+        rows
+        |> Enum.group_by(
+          &Enum.take(&1, 2),
+          fn [_, _, field, type, default, size, allow_nil?, _relkind] ->
+            name = Macro.underscore(field)
+
+            %Attribute{
+              name: name,
+              source: field,
+              type: type,
+              migration_default: default,
+              size: size,
+              allow_nil?: allow_nil?
+            }
+          end
+        )
         |> Enum.map(fn {[table_name, table_schema], attributes} ->
-          attributes = build_attributes(attributes, table_name, table_schema, repo, opts)
+          kind = Map.get(relkinds, {table_name, table_schema}, :table)
+
+          attributes = build_attributes(attributes, table_name, table_schema, repo, opts, kind)
 
           %__MODULE__{
             table_name: table_name,
             schema: table_schema,
             repo: repo,
+            kind: kind,
             attributes: attributes
           }
         end)
         |> Enum.map(fn spec ->
-          spec
-          |> add_foreign_keys()
-          |> add_indexes()
-          |> add_check_constraints()
+          case spec.kind do
+            :table ->
+              spec
+              |> add_foreign_keys()
+              |> add_indexes()
+              |> add_check_constraints()
+
+            :materialized_view ->
+              add_indexes(spec)
+
+            :view ->
+              spec
+          end
         end)
         |> Enum.reject(fn spec ->
           spec.table_name in List.wrap(opts[:skip_tables])
@@ -130,6 +152,11 @@ defmodule AshPostgres.ResourceGenerator.Spec do
 
     result
   end
+
+  defp relkind_to_kind("r"), do: :table
+  defp relkind_to_kind("v"), do: :view
+  defp relkind_to_kind("m"), do: :materialized_view
+  defp relkind_to_kind(_), do: :table
 
   defp qualified_table_name(%{schema: schema, table_name: table_name}) do
     "#{schema}.#{table_name}"
@@ -291,16 +318,16 @@ defmodule AshPostgres.ResourceGenerator.Spec do
           JOIN
               pg_class t ON ix.indrelid = t.oid
           JOIN
+              pg_catalog.pg_namespace tn ON tn.oid = t.relnamespace
+          JOIN
               pg_am am ON i.relam = am.oid
           LEFT JOIN
               pg_constraint c ON c.conindid = ix.indexrelid AND c.contype = 'p'
           JOIN
               pg_indexes idx ON idx.indexname = i.relname AND idx.schemaname = $2
-          JOIN information_schema.tables ta
-              ON ta.table_name = t.relname
           WHERE
               t.relname = $1
-              AND ta.table_schema = $2
+              AND tn.nspname = $2
               AND c.conindid IS NULL
           GROUP BY
               i.relname, ix.indisunique, ix.indnullsnotdistinct, pg_get_expr(ix.indpred, ix.indrelid), am.amname, idx.indexdef;
@@ -325,16 +352,16 @@ defmodule AshPostgres.ResourceGenerator.Spec do
           JOIN
               pg_class t ON ix.indrelid = t.oid
           JOIN
+              pg_catalog.pg_namespace tn ON tn.oid = t.relnamespace
+          JOIN
               pg_am am ON i.relam = am.oid
           LEFT JOIN
               pg_constraint c ON c.conindid = ix.indexrelid AND c.contype = 'p'
           JOIN
               pg_indexes idx ON idx.indexname = i.relname AND idx.schemaname = $2
-          JOIN information_schema.tables ta
-              ON ta.table_name = t.relname
           WHERE
               t.relname = $1
-              AND ta.table_schema = $2
+              AND tn.nspname = $2
               AND c.conindid IS NULL
           GROUP BY
               i.relname, ix.indisunique, pg_get_expr(ix.indpred, ix.indrelid), am.amname, idx.indexdef;
@@ -523,9 +550,9 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     raise "Unexpected character: #{inspect(other)} at #{inspect(stack)} with #{inspect(field)} - #{inspect(acc)}"
   end
 
-  defp build_attributes(attributes, table_name, schema, repo, opts) do
+  defp build_attributes(attributes, table_name, schema, repo, opts, kind) do
     attributes
-    |> set_primary_key(table_name, schema, repo)
+    |> set_primary_key(table_name, schema, repo, kind)
     |> set_sensitive()
     |> set_types(opts)
     |> set_defaults_and_generated()
@@ -1116,7 +1143,11 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     end)
   end
 
-  defp set_primary_key(attributes, table_name, schema, repo) do
+  defp set_primary_key(attributes, _table_name, _schema, _repo, kind) when kind != :table do
+    attributes
+  end
+
+  defp set_primary_key(attributes, table_name, schema, repo, _kind) do
     %Postgrex.Result{rows: pkey_rows} =
       repo.query!(
         """
@@ -1137,6 +1168,13 @@ defmodule AshPostgres.ResourceGenerator.Spec do
   end
 
   defp table_specs(repo, opts) do
+    relkind_filter =
+      if opts[:include_views] do
+        "IN ('r', 'v', 'm')"
+      else
+        "= 'r'"
+      end
+
     Enum.flat_map(opts[:tables] || ["public."], fn table ->
       {schema, table} =
         case String.split(table, ".") do
@@ -1147,95 +1185,54 @@ defmodule AshPostgres.ResourceGenerator.Spec do
             {"public", table}
         end
 
-      %{rows: rows} =
+      {table_filter, params} =
         if table == "" do
-          repo.query!(
-            """
-              SELECT
-                t.table_name,
-                t.table_schema,
-                c.column_name,
-                CASE WHEN c.data_type = 'ARRAY' THEN
-                  repeat('ARRAY of ', a.attndims) || REPLACE(c.udt_name, '_', '')
-                WHEN c.data_type = 'USER-DEFINED' THEN
-                  c.udt_name
-                ELSE
-                  c.data_type
-                END as data_type,
-                c.column_default,
-                c.character_maximum_length,
-                c.is_nullable = 'YES'
-              FROM
-                  information_schema.tables t
-              JOIN
-                  information_schema.columns c
-                  ON t.table_name = c.table_name
-              JOIN pg_attribute a
-                  ON a.attrelid = (
-                      SELECT c.oid
-                      FROM pg_class c
-                      JOIN pg_namespace n ON c.relnamespace = n.oid
-                      WHERE c.relname = t.table_name
-                        AND n.nspname = t.table_schema
-                        AND c.relkind = 'r'
-                    )
-                  AND a.attname = c.column_name
-                  AND a.attnum > 0
-              WHERE
-                  t.table_name NOT LIKE 'pg_%'
-                  AND t.table_name NOT LIKE '_pg_%'
-                  AND t.table_schema = $1
-              ORDER BY
-                  t.table_name,
-                  c.ordinal_position;
-            """,
-            [schema],
-            log: false
-          )
+          {"", [schema]}
         else
-          repo.query!(
-            """
-            SELECT
-              t.table_name,
-              t.table_schema,
-              c.column_name,
-              CASE WHEN c.data_type = 'ARRAY' THEN
-                repeat('ARRAY of ', a.attndims) || REPLACE(c.udt_name, '_', '')
-              WHEN c.data_type = 'USER-DEFINED' THEN
-                c.udt_name
-              ELSE
-                c.data_type
-              END as data_type,
-              c.column_default,
-              c.character_maximum_length,
-              c.is_nullable = 'YES'
-            FROM
-                information_schema.tables t
-            JOIN
-                information_schema.columns c
-                ON t.table_name = c.table_name
-            JOIN pg_attribute a
-                ON a.attrelid = (
-                    SELECT c.oid
-                    FROM pg_class c
-                    JOIN pg_namespace n ON c.relnamespace = n.oid
-                    WHERE c.relname = t.table_name
-                      AND n.nspname = t.table_schema
-                      AND c.relkind = 'r'
-                  )
-                AND a.attname = c.column_name
-                AND a.attnum > 0
-            WHERE
-                t.table_schema = $1
-                AND t.table_name = $2
-            ORDER BY
-                t.table_name,
-                c.ordinal_position;
-            """,
-            [schema, table],
-            log: false
-          )
+          {"AND c.relname = $2", [schema, table]}
         end
+
+      %{rows: rows} =
+        repo.query!(
+          """
+          SELECT
+            c.relname AS table_name,
+            n.nspname AS table_schema,
+            a.attname AS column_name,
+            CASE
+              WHEN t.typcategory = 'A' THEN
+                repeat('ARRAY of ', COALESCE(a.attndims, 1)) || REPLACE(et.typname, '_', '')
+              WHEN t.typtype = 'e' THEN
+                t.typname
+              ELSE
+                format_type(t.oid, NULL)
+            END AS data_type,
+            pg_get_expr(d.adbin, d.adrelid) AS column_default,
+            CASE
+              WHEN t.typname IN ('varchar', 'bpchar') AND a.atttypmod > 4 THEN a.atttypmod - 4
+              ELSE NULL
+            END AS character_maximum_length,
+            NOT a.attnotnull AS is_nullable,
+            c.relkind
+          FROM pg_catalog.pg_class c
+          JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+          JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid
+          JOIN pg_catalog.pg_type t ON t.oid = a.atttypid
+          LEFT JOIN pg_catalog.pg_type et ON et.oid = t.typelem
+          LEFT JOIN pg_catalog.pg_attrdef d
+            ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+          WHERE c.relkind #{relkind_filter}
+            AND n.nspname = $1
+            AND a.attnum > 0
+            AND NOT a.attisdropped
+            AND c.relname NOT LIKE 'pg_%'
+            AND c.relname NOT LIKE '_pg_%'
+            #{table_filter}
+          ORDER BY c.relname, a.attnum;
+          """,
+          params,
+          log: false
+        )
 
       rows
     end)

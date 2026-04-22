@@ -45,7 +45,8 @@ if Code.ensure_loaded?(Igniter) do
           &Spec.tables(&1,
             skip_tables: opts[:skip_tables],
             tables: opts[:tables],
-            skip_unknown: opts[:skip_unknown]
+            skip_unknown: opts[:skip_unknown],
+            include_views: opts[:include_views]
           )
         )
         |> Enum.map(fn %{table_name: table} = spec ->
@@ -107,11 +108,6 @@ if Code.ensure_loaded?(Igniter) do
            domain,
            opts
          ) do
-      no_migrate_flag =
-        if opts[:no_migrations] do
-          "migrate? false"
-        end
-
       resource =
         """
         use Ash.Resource,
@@ -125,7 +121,7 @@ if Code.ensure_loaded?(Igniter) do
           table #{inspect(table_spec.table_name)}
           repo #{inspect(table_spec.repo)}
           #{schema_option(table_spec)}
-          #{no_migrate_flag}
+          #{migrate_option(table_spec, opts)}
           #{references(table_spec, opts[:no_migrations])}
           #{custom_indexes(table_spec, opts[:no_migrations])}
           #{check_constraints(table_spec, opts[:no_migrations])}
@@ -182,12 +178,6 @@ if Code.ensure_loaded?(Igniter) do
         # Only create/update the fragment file
         Igniter.Project.Module.create_module(igniter, fragment_module, fragment_content)
       else
-        # Create both resource and fragment
-        no_migrate_flag =
-          if opts[:no_migrations] do
-            "migrate? false"
-          end
-
         resource_content =
           """
           use Ash.Resource,
@@ -202,7 +192,7 @@ if Code.ensure_loaded?(Igniter) do
             table #{inspect(table_spec.table_name)}
             repo #{inspect(table_spec.repo)}
             #{schema_option(table_spec)}
-            #{no_migrate_flag}
+            #{migrate_option(table_spec, opts)}
             #{references(table_spec, opts[:no_migrations])}
             #{custom_indexes(table_spec, opts[:no_migrations])}
             #{check_constraints(table_spec, opts[:no_migrations])}
@@ -306,6 +296,14 @@ if Code.ensure_loaded?(Igniter) do
       Enum.all?(attributes, &(not &1.primary_key?))
     end
 
+    defp view?(%AshPostgres.ResourceGenerator.Spec{kind: kind}),
+      do: kind in [:view, :materialized_view]
+
+    defp view_kind_label(%AshPostgres.ResourceGenerator.Spec{kind: :view}), do: "VIEW"
+
+    defp view_kind_label(%AshPostgres.ResourceGenerator.Spec{kind: :materialized_view}),
+      do: "MATERIALIZED VIEW"
+
     defp resource_block(table_spec) do
       if no_primary_key?(table_spec) do
         """
@@ -322,6 +320,15 @@ if Code.ensure_loaded?(Igniter) do
 
     defp default_actions(opts, table_spec) do
       cond do
+        view?(table_spec) ->
+          """
+          actions do
+            # WARNING: Generated from a PostgreSQL #{view_kind_label(table_spec)}.
+            # Views are read-only; only the :read default action is safe.
+            defaults [:read]
+          end
+          """
+
         no_primary_key?(table_spec) ->
           """
           actions do
@@ -337,6 +344,24 @@ if Code.ensure_loaded?(Igniter) do
             defaults [:read, :destroy, create: :*, update: :*]
           end
           """
+
+        true ->
+          ""
+      end
+    end
+
+    defp migrate_option(table_spec, opts) do
+      cond do
+        view?(table_spec) ->
+          """
+          # NOTE: Source is a PostgreSQL #{view_kind_label(table_spec)}, not a base table.
+          # migrate? false prevents Ash from trying to manage its schema.
+          # TODO: Migrations need to be handled manually for views.
+          migrate? false
+          """
+
+        opts[:no_migrations] ->
+          "migrate? false"
 
         true ->
           ""
