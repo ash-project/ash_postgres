@@ -46,8 +46,6 @@ defmodule Mix.Tasks.AshPostgres.MigrateSnapshots do
     quiet: :boolean
   ]
 
-  @timestamp_regex ~r/^\d{14}\.json$/
-
   @impl Mix.Task
   def run(args) do
     {opts, _} = OptionParser.parse!(args, strict: @switches)
@@ -68,19 +66,19 @@ defmodule Mix.Tasks.AshPostgres.MigrateSnapshots do
         |> DateTime.to_iso8601(:basic)
         |> String.replace("Z", "")
 
-      candidates = find_legacy_directories(base)
+      case find_legacy_directories(base) do
+        [] ->
+          print(
+            opts,
+            "No legacy snapshots to migrate — all resources already use the delta format."
+          )
 
-      if candidates == [] do
-        print(
-          opts,
-          "No legacy snapshots to migrate — all resources already use the delta format."
-        )
-      else
-        Enum.each(candidates, fn dir ->
-          migrate_directory(dir, base, backup_stamp, opts)
-        end)
+        dirs ->
+          Enum.each(dirs, fn {_dir, all_files, legacy_files} ->
+            migrate_directory(all_files, legacy_files, base, backup_stamp, opts)
+          end)
 
-        print(opts, "Migration complete.")
+          print(opts, "Migration complete.")
       end
     else
       print(opts, "Snapshot directory #{base} does not exist; nothing to migrate.")
@@ -88,21 +86,28 @@ defmodule Mix.Tasks.AshPostgres.MigrateSnapshots do
     end
   end
 
-  # Find directories containing at least one `NNNNNNNNNNNNNN.json` file that is
-  # NOT already a v2 delta.
+  # Returns `[{dir, all_files, legacy_files}]` for every directory containing
+  # at least one non-v2 file. Each file is read exactly once: the contents are
+  # inspected here to classify, and `migrate_directory/6` then uses the
+  # pre-classified list without re-reading.
   defp find_legacy_directories(base) do
     base
     |> Path.join("**/*.json")
     |> Path.wildcard()
     |> Enum.reject(&String.contains?(&1, ".legacy_backup"))
-    |> Enum.filter(&String.match?(Path.basename(&1), @timestamp_regex))
+    |> Enum.filter(&MigrationGenerator.snapshot_filename?(Path.basename(&1)))
     |> Enum.group_by(&Path.dirname/1)
-    |> Enum.reject(fn {_dir, files} ->
-      Enum.all?(files, &v2?/1)
+    |> Enum.reduce([], fn {dir, files}, acc ->
+      files = Enum.sort(files)
+      legacy_files = Enum.reject(files, &v2?/1)
+
+      if legacy_files == [] do
+        acc
+      else
+        [{dir, files, legacy_files} | acc]
+      end
     end)
-    |> Enum.map(fn {dir, _} -> dir end)
-    |> Enum.uniq()
-    |> Enum.sort()
+    |> Enum.sort_by(fn {dir, _, _} -> dir end)
   end
 
   defp v2?(path) do
@@ -112,53 +117,34 @@ defmodule Mix.Tasks.AshPostgres.MigrateSnapshots do
     end
   end
 
-  defp migrate_directory(dir, base, backup_stamp, opts) do
-    files =
-      dir
-      |> File.ls!()
-      |> Enum.filter(&String.match?(&1, @timestamp_regex))
-      |> Enum.sort()
+  defp migrate_directory(all_files, legacy_files, base, backup_stamp, opts) do
+    latest_path = List.last(all_files)
 
-    legacy_files = Enum.reject(files, &v2?(Path.join(dir, &1)))
-
-    if legacy_files == [] do
-      print(opts, "SKIP  #{dir} — already v2")
-      :ok
+    if opts.dry_run do
+      print(opts, "DRY   would convert #{latest_path} into a v2 delta at #{latest_path}")
     else
-      latest = List.last(files)
-      latest_path = Path.join(dir, latest)
+      full_state = latest_path |> File.read!() |> Codec.decode_full_state()
+      operations = MigrationGenerator.initial_operations_for_state(full_state)
 
-      if opts.dry_run do
-        print(opts, "DRY   would convert #{latest_path} into a v2 delta at #{latest_path}")
-      else
-        full_state = latest_path |> File.read!() |> Codec.decode_full_state()
+      delta_json =
+        Codec.encode_delta(operations, %{
+          previous_hash: nil,
+          resulting_hash: Map.get(full_state, :hash),
+          migration: nil
+        })
 
-        operations = MigrationGenerator.initial_operations_for_state(full_state)
+      File.write!(latest_path, delta_json)
 
-        delta_json =
-          Codec.encode_delta(operations, %{
-            previous_hash: nil,
-            resulting_hash: Map.get(full_state, :hash),
-            migration: nil
-          })
-
-        File.write!(latest_path, delta_json)
-
-        Enum.each(legacy_files, fn file ->
-          next_path = Path.join(dir, file)
-
-          if next_path != latest_path do
-            if opts.keep_legacy do
-              :ok
-            else
-              move_to_backup(next_path, base, backup_stamp)
-            end
-          end
+      if !opts.keep_legacy do
+        Enum.each(legacy_files, fn path ->
+          if path != latest_path, do: move_to_backup(path, base, backup_stamp)
         end)
-
-        print(opts, "DONE  #{latest_path}")
       end
+
+      print(opts, "DONE  #{latest_path}")
     end
+
+    :ok
   end
 
   defp move_to_backup(path, base, stamp) do

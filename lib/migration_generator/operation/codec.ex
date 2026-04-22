@@ -935,14 +935,11 @@ defmodule AshPostgres.MigrationGenerator.Operation.Codec do
 
   def decode_multitenancy(mt) do
     %{
-      strategy: mt |> Map.get(:strategy) |> decode_optional_atom(),
-      attribute: mt |> Map.get(:attribute) |> decode_optional_atom(),
+      strategy: mt |> Map.get(:strategy) |> decode_atom(),
+      attribute: mt |> Map.get(:attribute) |> decode_atom(),
       global: Map.get(mt, :global)
     }
   end
-
-  defp decode_optional_atom(nil), do: nil
-  defp decode_optional_atom(value), do: maybe_to_atom(value)
 
   defp decode_atom(nil), do: nil
   defp decode_atom(value), do: maybe_to_atom(value)

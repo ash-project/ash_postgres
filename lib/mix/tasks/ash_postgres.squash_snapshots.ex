@@ -55,9 +55,6 @@ defmodule Mix.Tasks.AshPostgres.SquashSnapshots do
   * `--include-dev` - include `*_dev.json` files in the squash (default: skip them). Delta-mode squash aborts if dev files are present and this flag is not set.
   """
 
-  @timestamp_regex ~r/^\d{14}\.json$/
-  @dev_regex ~r/^\d{14}_dev\.json$/
-
   @impl Mix.Task
   def run(args) do
     {opts, []} = OptionParser.parse!(args, strict: @switches)
@@ -83,7 +80,7 @@ defmodule Mix.Tasks.AshPostgres.SquashSnapshots do
       |> Path.join("**/*.json")
       |> Path.wildcard()
       |> Enum.reject(&String.contains?(&1, ".legacy_backup"))
-      |> Enum.filter(&String.match?(Path.basename(&1), @timestamp_regex))
+      |> Enum.filter(&MigrationGenerator.snapshot_filename?(Path.basename(&1)))
       |> Enum.group_by(&Path.dirname(&1))
       |> Enum.reduce([], fn {folder, snapshots}, acc ->
         case classify_folder(folder, snapshots) do
@@ -142,7 +139,7 @@ defmodule Mix.Tasks.AshPostgres.SquashSnapshots do
     has_dev? =
       folder
       |> File.ls!()
-      |> Enum.any?(&String.match?(&1, @dev_regex))
+      |> Enum.any?(&MigrationGenerator.dev_snapshot_filename?/1)
 
     if has_dev? and not opts.include_dev do
       raise """
@@ -203,34 +200,21 @@ defmodule Mix.Tasks.AshPostgres.SquashSnapshots do
   end
 
   defp apply_squash({_folder, snapshots, _last_snapshot, into_snapshot, :delta}, _opts) do
-    # Reduce all deltas in timestamp order. Start from the canonical empty
-    # state so every field the reducer might touch is pre-populated — in
-    # particular fields like `:create_table_options` that `apply_op` updates
-    # via map-update syntax (`%{state | key: v}`), which would raise KeyError
-    # on a minimal map.
+    # Reduce all deltas in timestamp order. The canonical empty state from
+    # Reducer.empty_state/1 starts with `table/schema/repo = nil`; the first
+    # CreateTable op in the delta chain hydrates those via apply_op.
     initial_state =
-      AshPostgres.MigrationGenerator.Reducer.empty_state(%{
-        table: nil,
-        schema: nil,
-        repo: nil
-      })
+      MigrationGenerator.Reducer.empty_state(%{table: nil, schema: nil, repo: nil})
 
     state =
       snapshots
       |> Enum.sort()
       |> Enum.reduce(initial_state, fn file, acc ->
-        {:ok, decoded} =
-          case File.read(file) do
-            {:ok, contents} -> {:ok, Codec.decode_delta(contents)}
-            err -> err
-          end
-
-        # Hydrate table/schema/repo context from the first meaningful delta.
-        acc = maybe_hydrate_context(acc, decoded.operations)
+        decoded = file |> File.read!() |> Codec.decode_delta()
 
         Enum.reduce(decoded.operations, acc, fn op, state ->
           try do
-            AshPostgres.MigrationGenerator.Reducer.apply_op(state, op)
+            MigrationGenerator.Reducer.apply_op(state, op)
           catch
             :throw, {:reducer_error, reason} ->
               raise "Failed to squash #{file}: #{reason}"
@@ -238,42 +222,14 @@ defmodule Mix.Tasks.AshPostgres.SquashSnapshots do
         end)
       end)
 
-    operations = MigrationGenerator.initial_operations_for_state(state)
-
     delta_json =
-      Codec.encode_delta(operations, %{
-        previous_hash: nil,
-        resulting_hash: nil,
-        migration: nil
-      })
+      state
+      |> MigrationGenerator.initial_operations_for_state()
+      |> Codec.encode_delta(%{previous_hash: nil, resulting_hash: nil, migration: nil})
 
     # Remove all files, then write the squashed one.
     Enum.each(snapshots, &File.rm!/1)
     File.write!(into_snapshot, delta_json)
-  end
-
-  defp maybe_hydrate_context(state, operations) do
-    Enum.reduce(operations, state, fn
-      %{table: table, schema: schema} = op, acc when is_binary(table) ->
-        acc
-        |> Map.put(:table, table)
-        |> Map.put(:schema, schema)
-        |> then(fn s ->
-          case op do
-            %_{multitenancy: mt} when is_map(mt) -> Map.put(s, :multitenancy, mt)
-            _ -> s
-          end
-        end)
-        |> then(fn s ->
-          case op do
-            %_{repo: repo} when not is_nil(repo) -> Map.put(s, :repo, repo)
-            _ -> s
-          end
-        end)
-
-      _, acc ->
-        acc
-    end)
   end
 
   defp print(%{quiet: true}, _message), do: nil

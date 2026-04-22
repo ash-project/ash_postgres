@@ -58,20 +58,15 @@ defmodule AshPostgres.MigrationGenerator.Reducer do
   Raises `ConflictError` if any operation fails to apply cleanly.
   """
   def load_reduced_state(snapshot, opts) do
-    directory = snapshot_directory(snapshot, opts)
+    files = list_delta_files(snapshot_directory(snapshot, opts), opts)
 
-    with {:ok, files} <- list_delta_files(directory, opts),
-         files when files != [] <- files do
-      initial = empty_state(snapshot)
-
-      {state, _last_hash} =
-        Enum.reduce(files, {initial, nil}, fn file_path, acc ->
-          apply_file(file_path, acc)
-        end)
-
-      Map.put(state, :empty?, state_empty?(state))
+    if files == [] do
+      nil
     else
-      _ -> nil
+      {state, _last_hash} =
+        Enum.reduce(files, {empty_state(snapshot), nil}, &apply_file/2)
+
+      state
     end
   end
 
@@ -99,42 +94,23 @@ defmodule AshPostgres.MigrationGenerator.Reducer do
   # Internals
   # =================================================================
 
-  defp state_empty?(state) do
-    # Any of these indicate non-emptiness:
-    #   - collections: attributes, identities, indexes, statements, constraints
-    #   - scalar pseudo-op fields: base_filter, create_table_options
-    #   - has_create_action flipped off from the default
-    state.attributes == [] and state.identities == [] and state.custom_indexes == [] and
-      state.custom_statements == [] and state.check_constraints == [] and
-      is_nil(state.base_filter) and is_nil(state.create_table_options) and
-      state.has_create_action == true
-  end
-
   defp snapshot_directory(snapshot, opts) do
     folder = AshPostgres.MigrationGenerator.get_snapshot_folder(snapshot, opts)
     AshPostgres.MigrationGenerator.get_snapshot_path(snapshot, folder)
   end
 
   defp list_delta_files(directory, opts) do
-    cond do
-      not File.exists?(directory) ->
-        {:ok, []}
+    # One syscall — if the directory doesn't exist or isn't readable, we treat
+    # it the same as "no deltas".
+    case File.ls(directory) do
+      {:ok, names} ->
+        names
+        |> Enum.filter(&AshPostgres.MigrationGenerator.snapshot_filename?(&1, opts.dev))
+        |> Enum.sort()
+        |> Enum.map(&Path.join(directory, &1))
 
-      not File.dir?(directory) ->
-        {:ok, []}
-
-      true ->
-        files =
-          directory
-          |> File.ls!()
-          |> Enum.filter(
-            &(String.match?(&1, ~r/^\d{14}\.json$/) or
-                (opts.dev and String.match?(&1, ~r/^\d{14}_dev\.json$/)))
-          )
-          |> Enum.sort()
-          |> Enum.map(&Path.join(directory, &1))
-
-        {:ok, files}
+      {:error, _} ->
+        []
     end
   end
 
@@ -224,10 +200,7 @@ defmodule AshPostgres.MigrationGenerator.Reducer do
   def apply_op(state, %Operation.DropTable{}) do
     # Reset to a fresh empty state but preserve identity (table/schema/repo)
     # so subsequent deltas in the same file can rebuild on top.
-    %{
-      empty_state(%{table: state.table, schema: state.schema, repo: state.repo})
-      | empty?: true
-    }
+    empty_state(%{table: state.table, schema: state.schema, repo: state.repo})
   end
 
   def apply_op(state, %Operation.RenameTable{} = op) do
@@ -240,128 +213,94 @@ defmodule AshPostgres.MigrationGenerator.Reducer do
     %{state | table: op.new_table}
   end
 
-  def apply_op(state, %Operation.AddAttribute{attribute: attr}) do
-    if Enum.any?(state.attributes, &(&1.source == attr.source)) do
-      throw_conflict("AddAttribute: attribute #{inspect(attr.source)} already exists")
-    end
+  def apply_op(state, %Operation.AddAttribute{attribute: attr}),
+    do:
+      add_to_coll(state, :attributes, attr, &(&1.source == attr.source), fn ->
+        "AddAttribute: attribute #{inspect(attr.source)} already exists"
+      end)
 
-    %{state | attributes: state.attributes ++ [attr], empty?: false}
-  end
+  def apply_op(state, %Operation.RemoveAttribute{attribute: attr}),
+    do:
+      remove_from_coll(state, :attributes, &(&1.source == attr.source), fn ->
+        "RemoveAttribute: attribute #{inspect(attr.source)} not present"
+      end)
 
-  def apply_op(state, %Operation.RemoveAttribute{attribute: attr}) do
-    if not Enum.any?(state.attributes, &(&1.source == attr.source)) do
-      throw_conflict("RemoveAttribute: attribute #{inspect(attr.source)} not present")
-    end
-
-    %{state | attributes: Enum.reject(state.attributes, &(&1.source == attr.source))}
-  end
-
-  def apply_op(state, %Operation.AlterAttribute{old_attribute: old_attr, new_attribute: new_attr}) do
-    case Enum.find_index(state.attributes, &(&1.source == old_attr.source)) do
-      nil ->
-        throw_conflict("AlterAttribute: attribute #{inspect(old_attr.source)} not present")
-
-      idx ->
-        %{state | attributes: List.replace_at(state.attributes, idx, new_attr)}
-    end
-  end
+  def apply_op(state, %Operation.AlterAttribute{old_attribute: old_attr, new_attribute: new_attr}),
+    do:
+      replace_in_coll(state, :attributes, &(&1.source == old_attr.source), new_attr, fn ->
+        "AlterAttribute: attribute #{inspect(old_attr.source)} not present"
+      end)
 
   def apply_op(state, %Operation.RenameAttribute{
         old_attribute: old_attr,
         new_attribute: new_attr
       }) do
-    case Enum.find_index(state.attributes, &(&1.source == old_attr.source)) do
-      nil ->
-        throw_conflict("RenameAttribute: source #{inspect(old_attr.source)} not present")
-
-      idx ->
-        if old_attr.source != new_attr.source and
-             Enum.any?(state.attributes, &(&1.source == new_attr.source)) do
-          throw_conflict(
-            "RenameAttribute: destination #{inspect(new_attr.source)} already exists"
-          )
-        end
-
-        %{state | attributes: List.replace_at(state.attributes, idx, new_attr)}
-    end
-  end
-
-  def apply_op(state, %Operation.AddUniqueIndex{identity: identity}) do
-    if Enum.any?(state.identities, &(&1.name == identity.name)) do
-      throw_conflict("AddUniqueIndex: identity #{inspect(identity.name)} already present")
+    if old_attr.source != new_attr.source and
+         Enum.any?(state.attributes, &(&1.source == new_attr.source)) do
+      throw_conflict("RenameAttribute: destination #{inspect(new_attr.source)} already exists")
     end
 
-    %{state | identities: state.identities ++ [identity], empty?: false}
+    replace_in_coll(state, :attributes, &(&1.source == old_attr.source), new_attr, fn ->
+      "RenameAttribute: source #{inspect(old_attr.source)} not present"
+    end)
   end
 
-  def apply_op(state, %Operation.RemoveUniqueIndex{identity: identity}) do
-    if not Enum.any?(state.identities, &(&1.name == identity.name)) do
-      throw_conflict("RemoveUniqueIndex: identity #{inspect(identity.name)} not present")
-    end
+  def apply_op(state, %Operation.AddUniqueIndex{identity: identity}),
+    do:
+      add_to_coll(state, :identities, identity, &(&1.name == identity.name), fn ->
+        "AddUniqueIndex: identity #{inspect(identity.name)} already present"
+      end)
 
-    %{state | identities: Enum.reject(state.identities, &(&1.name == identity.name))}
-  end
+  def apply_op(state, %Operation.RemoveUniqueIndex{identity: identity}),
+    do:
+      remove_from_coll(state, :identities, &(&1.name == identity.name), fn ->
+        "RemoveUniqueIndex: identity #{inspect(identity.name)} not present"
+      end)
 
   def apply_op(state, %Operation.RenameUniqueIndex{
         old_identity: old_id,
         new_identity: new_id
-      }) do
-    case Enum.find_index(state.identities, &(&1.name == old_id.name)) do
-      nil ->
-        throw_conflict("RenameUniqueIndex: identity #{inspect(old_id.name)} not present")
+      }),
+      do:
+        replace_in_coll(state, :identities, &(&1.name == old_id.name), new_id, fn ->
+          "RenameUniqueIndex: identity #{inspect(old_id.name)} not present"
+        end)
 
-      idx ->
-        %{state | identities: List.replace_at(state.identities, idx, new_id)}
-    end
-  end
+  def apply_op(state, %Operation.AddCustomIndex{index: index}),
+    do:
+      add_to_coll(state, :custom_indexes, index, &same_custom_index?(&1, index), fn ->
+        "AddCustomIndex: index already present"
+      end)
 
-  def apply_op(state, %Operation.AddCustomIndex{index: index}) do
-    if Enum.any?(state.custom_indexes, &same_custom_index?(&1, index)) do
-      throw_conflict("AddCustomIndex: index already present")
-    end
+  def apply_op(state, %Operation.RemoveCustomIndex{index: index}),
+    do:
+      remove_from_coll(state, :custom_indexes, &same_custom_index?(&1, index), fn ->
+        "RemoveCustomIndex: index not present"
+      end)
 
-    %{state | custom_indexes: state.custom_indexes ++ [index], empty?: false}
-  end
+  def apply_op(state, %Operation.AddCustomStatement{statement: stmt}),
+    do:
+      add_to_coll(state, :custom_statements, stmt, &(&1.name == stmt.name), fn ->
+        "AddCustomStatement: statement #{inspect(stmt.name)} already present"
+      end)
 
-  def apply_op(state, %Operation.RemoveCustomIndex{index: index}) do
-    if not Enum.any?(state.custom_indexes, &same_custom_index?(&1, index)) do
-      throw_conflict("RemoveCustomIndex: index not present")
-    end
+  def apply_op(state, %Operation.RemoveCustomStatement{statement: stmt}),
+    do:
+      remove_from_coll(state, :custom_statements, &(&1.name == stmt.name), fn ->
+        "RemoveCustomStatement: statement #{inspect(stmt.name)} not present"
+      end)
 
-    %{state | custom_indexes: Enum.reject(state.custom_indexes, &same_custom_index?(&1, index))}
-  end
+  def apply_op(state, %Operation.AddCheckConstraint{constraint: c}),
+    do:
+      add_to_coll(state, :check_constraints, c, &(&1.name == c.name), fn ->
+        "AddCheckConstraint: constraint #{inspect(c.name)} already present"
+      end)
 
-  def apply_op(state, %Operation.AddCustomStatement{statement: stmt}) do
-    if Enum.any?(state.custom_statements, &(&1.name == stmt.name)) do
-      throw_conflict("AddCustomStatement: statement #{inspect(stmt.name)} already present")
-    end
-
-    %{state | custom_statements: state.custom_statements ++ [stmt], empty?: false}
-  end
-
-  def apply_op(state, %Operation.RemoveCustomStatement{statement: stmt}) do
-    if not Enum.any?(state.custom_statements, &(&1.name == stmt.name)) do
-      throw_conflict("RemoveCustomStatement: statement #{inspect(stmt.name)} not present")
-    end
-
-    %{state | custom_statements: Enum.reject(state.custom_statements, &(&1.name == stmt.name))}
-  end
-
-  def apply_op(state, %Operation.AddCheckConstraint{constraint: c}) do
-    if Enum.any?(state.check_constraints, &(&1.name == c.name)) do
-      throw_conflict("AddCheckConstraint: constraint #{inspect(c.name)} already present")
-    end
-
-    %{state | check_constraints: state.check_constraints ++ [c], empty?: false}
-  end
-
-  def apply_op(state, %Operation.RemoveCheckConstraint{constraint: c}) do
-    if not Enum.any?(state.check_constraints, &(&1.name == c.name)) do
-      throw_conflict("RemoveCheckConstraint: constraint #{inspect(c.name)} not present")
-    end
-
-    %{state | check_constraints: Enum.reject(state.check_constraints, &(&1.name == c.name))}
-  end
+  def apply_op(state, %Operation.RemoveCheckConstraint{constraint: c}),
+    do:
+      remove_from_coll(state, :check_constraints, &(&1.name == c.name), fn ->
+        "RemoveCheckConstraint: constraint #{inspect(c.name)} not present"
+      end)
 
   def apply_op(state, %Operation.SetBaseFilter{new_value: v}),
     do: %{state | base_filter: v, empty?: false}
@@ -386,6 +325,39 @@ defmodule AshPostgres.MigrationGenerator.Reducer do
   def apply_op(state, %Operation.AlterDeferrability{}), do: state
   def apply_op(state, %Operation.AddReferenceIndex{}), do: state
   def apply_op(state, %Operation.RemoveReferenceIndex{}), do: state
+
+  # =================================================================
+  # Collection helpers — `error_msg_fn` is a thunk so we only build the
+  # (inspect-heavy) message when the invariant actually fails.
+  # =================================================================
+
+  defp add_to_coll(state, key, value, match_fn, error_msg_fn) do
+    if Enum.any?(Map.fetch!(state, key), match_fn) do
+      throw_conflict(error_msg_fn.())
+    end
+
+    state
+    |> Map.update!(key, &(&1 ++ [value]))
+    |> Map.put(:empty?, false)
+  end
+
+  defp remove_from_coll(state, key, match_fn, error_msg_fn) do
+    if !Enum.any?(Map.fetch!(state, key), match_fn) do
+      throw_conflict(error_msg_fn.())
+    end
+
+    Map.update!(state, key, &Enum.reject(&1, match_fn))
+  end
+
+  defp replace_in_coll(state, key, match_fn, new_value, error_msg_fn) do
+    case Enum.find_index(Map.fetch!(state, key), match_fn) do
+      nil ->
+        throw_conflict(error_msg_fn.())
+
+      idx ->
+        Map.update!(state, key, &List.replace_at(&1, idx, new_value))
+    end
+  end
 
   defp same_custom_index?(a, b) do
     Map.get(a, :name) == Map.get(b, :name) and Map.get(a, :fields) == Map.get(b, :fields)

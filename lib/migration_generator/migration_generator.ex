@@ -201,6 +201,28 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
+  @snapshot_name_regex ~r/^\d{14}\.json$/
+  @dev_snapshot_name_regex ~r/^\d{14}_dev\.json$/
+
+  @doc false
+  # Does `name` (a basename, not a full path) match the snapshot file
+  # convention `YYYYMMDDHHMMSS.json`? If `include_dev?` is true, also matches
+  # the `*_dev.json` variant.
+  def snapshot_filename?(name, include_dev? \\ false)
+
+  def snapshot_filename?(name, false),
+    do: String.match?(name, @snapshot_name_regex)
+
+  def snapshot_filename?(name, true),
+    do:
+      String.match?(name, @snapshot_name_regex) or
+        String.match?(name, @dev_snapshot_name_regex)
+
+  @doc false
+  # Does `name` (a basename, not a full path) match a *_dev.json snapshot?
+  def dev_snapshot_filename?(name),
+    do: String.match?(name, @dev_snapshot_name_regex)
+
   defp snapshot_path(%{snapshot_path: snapshot_path}, _) when not is_nil(snapshot_path),
     do: snapshot_path
 
@@ -3252,10 +3274,7 @@ defmodule AshPostgres.MigrationGenerator do
     if File.exists?(snapshot_path) do
       snapshot_path
       |> File.ls!()
-      |> Enum.filter(
-        &(String.match?(&1, ~r/^\d{14}\.json$/) or
-            (opts.dev and String.match?(&1, ~r/^\d{14}\_dev.json$/)))
-      )
+      |> Enum.filter(&snapshot_filename?(&1, opts.dev))
       |> case do
         [] ->
           get_old_snapshot(folder, snapshot)
@@ -3306,11 +3325,9 @@ defmodule AshPostgres.MigrationGenerator do
 
     if File.exists?(snapshot_dir) do
       snapshot_files =
-        File.ls!(snapshot_dir)
-        |> Enum.filter(
-          &(String.match?(&1, ~r/^\d{14}\.json$/) or
-              (opts.dev and String.match?(&1, ~r/^\d{14}\_dev\.json$/)))
-        )
+        snapshot_dir
+        |> File.ls!()
+        |> Enum.filter(&snapshot_filename?(&1, opts.dev))
 
       case snapshot_files do
         [] ->
@@ -3683,27 +3700,22 @@ defmodule AshPostgres.MigrationGenerator do
             multitenancy: snap.multitenancy
           }
 
-          old_folder = get_snapshot_folder(old_snapshot, opts)
-          new_folder = get_snapshot_folder(new_snapshot, opts)
-          old_dir = get_snapshot_path(old_snapshot, old_folder)
-          new_dir = get_snapshot_path(new_snapshot, new_folder)
+          old_dir = get_snapshot_path(old_snapshot, get_snapshot_folder(old_snapshot, opts))
+          new_dir = get_snapshot_path(new_snapshot, get_snapshot_folder(new_snapshot, opts))
 
-          if File.exists?(old_dir) do
-            File.mkdir_p!(new_dir)
+          # Single File.ls — if old_dir is missing/unreadable we treat it as
+          # "nothing to move". Rename detection guarantees new_dir is empty,
+          # so no defensive per-file existence check is needed.
+          case File.ls(old_dir) do
+            {:ok, files} ->
+              File.mkdir_p!(new_dir)
 
-            old_dir
-            |> File.ls!()
-            |> Enum.each(fn file ->
-              src = Path.join(old_dir, file)
-              dst = Path.join(new_dir, file)
+              Enum.each(files, fn file ->
+                File.rename!(Path.join(old_dir, file), Path.join(new_dir, file))
+              end)
 
-              # Skip if destination already exists — should not happen given
-              # rename detection only fires when the new dir is empty, but be
-              # defensive to avoid clobbering.
-              if !File.exists?(dst) do
-                File.rename!(src, dst)
-              end
-            end)
+            {:error, _} ->
+              :ok
           end
         end)
       end
