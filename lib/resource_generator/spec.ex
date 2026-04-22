@@ -685,14 +685,11 @@ defmodule AshPostgres.ResourceGenerator.Spec do
 
           [reverse_rel | List.wrap(maybe_m2m)]
         end)
-        |> Enum.group_by(& &1.name)
-        |> Enum.flat_map(fn
-          {_name, [relationship]} ->
-            [relationship]
-
-          {name, relationships} ->
-            name_all_relationships(opts, spec, name, relationships)
-        end)
+        |> resolve_name_collisions(
+          opts,
+          spec,
+          Enum.map(spec.attributes, & &1.name) ++ Enum.map(spec.relationships, & &1.name)
+        )
 
       %{spec | relationships: spec.relationships ++ relationships_to_me}
     end)
@@ -742,14 +739,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
         end
       end
     )
-    |> Enum.group_by(& &1.name)
-    |> Enum.flat_map(fn
-      {_name, [relationship]} ->
-        [relationship]
-
-      {name, relationships} ->
-        name_all_relationships(opts, spec, name, relationships)
-    end)
+    |> resolve_name_collisions(opts, spec, Enum.map(spec.attributes, & &1.name))
   end
 
   defp build_many_to_many_relationship(spec, other_spec, relationship, reverse_rel, specs) do
@@ -764,6 +754,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
         source: spec.resource,
         destination: dest_spec.resource,
         through: other_spec.resource,
+        referenced_table: other_fk.references,
         source_attribute: relationship.destination_attribute,
         destination_attribute: other_fk.destination_field,
         source_attribute_on_join_resource: relationship.source_attribute,
@@ -835,98 +826,38 @@ defmodule AshPostgres.ResourceGenerator.Spec do
       Enum.sort(pk_cols) == Enum.sort(fk_cols)
   end
 
+  defp resolve_name_collisions(relationships, opts, spec, reserved_names) do
+    resolved =
+      relationships
+      |> Enum.group_by(& &1.name)
+      |> Enum.flat_map(fn {name, rels} ->
+        if length(rels) > 1 or name in reserved_names do
+          name_all_relationships(opts, spec, name, rels)
+        else
+          rels
+        end
+      end)
+
+    if same_relationship_names?(relationships, resolved) do
+      resolved
+    else
+      resolve_name_collisions(resolved, opts, spec, reserved_names)
+    end
+  end
+
+  defp same_relationship_names?(a, b) do
+    Enum.sort(Enum.map(a, & &1.name)) == Enum.sort(Enum.map(b, & &1.name))
+  end
+
   defp name_all_relationships(opts, spec, name, relationships, acc \\ [])
   defp name_all_relationships(_opts, _spec, _name, [], acc), do: acc
 
   defp name_all_relationships(opts, spec, name, [%Relationship{} = relationship | rest], acc) do
-    {label, suggestion} =
-      case relationship.type do
-        :belongs_to ->
-          suggestion =
-            build_alternative_name(relationship.source_attribute, relationship.referenced_table)
-
-          label = """
-          Multiple foreign keys found from `#{inspect(spec.resource)}` to `#{inspect(relationship.destination)}` with the guessed name `#{name}`.
-
-          Provide a relationship name for the one with the following info:
-
-          Resource: `#{inspect(spec.resource)}`
-          Relationship Type: :belongs_to
-          Guessed Name: `:#{name}`
-          Relationship Destination: `#{inspect(relationship.destination)}`
-          Source Attribute (FK): `#{inspect(relationship.source_attribute)}`
-          Constraint Name: `#{inspect(relationship.constraint_name)}`.
-
-          #{if suggestion == name do
-            "Leave empty to skip adding this relationship."
-          else
-            "Leave empty to use the suggested alternative name `#{suggestion}`."
-          end}
-
-          Name:
-          """
-
-          {label, suggestion}
-
-        :many_to_many ->
-          label = """
-          Multiple :many_to_many relationships found between `#{inspect(relationship.source)}` and `#{inspect(relationship.destination)}` with the guessed name `#{name}`.
-
-          Provide a relationship name for the one with the following info:
-
-          Resource: `#{inspect(relationship.source)}`
-          Relationship Type: :many_to_many
-          Guessed Name: `:#{name}`
-          Relationship Destination: `#{inspect(relationship.destination)}`
-          Join Resource (Through): `#{inspect(relationship.through)}`
-
-          Leave empty to skip adding this relationship.
-
-          Name:
-          """
-
-          {label, ""}
-
-        _ ->
-          suggestion = build_alternative_name(relationship.destination_attribute, name)
-
-          label = """
-          Multiple foreign keys found from `#{inspect(relationship.destination)}` to `#{inspect(spec.resource)}` with the guessed name `#{name}`.
-
-          Provide a relationship name for the one with the following info:
-
-          Resource: `#{inspect(relationship.source)}`
-          Relationship Type: :#{relationship.type}
-          Guessed Name: `:#{name}`
-          Relationship Destination: `#{inspect(relationship.destination)}`
-          Destination Attribute (FK): `#{inspect(relationship.destination_attribute)}`
-          Constraint Name: `#{inspect(relationship.constraint_name)}`.
-
-          #{if suggestion == name do
-            "Leave empty to skip adding this relationship."
-          else
-            "Leave empty to use the suggested alternative name `#{suggestion}`."
-          end}
-
-          Name:
-          """
-
-          {label, suggestion}
-      end
-
-    trimmed_label = String.trim_trailing(label)
+    {info, suggestion} = relationship_conflict_info(spec, name, relationship)
     maybe_suggestion = if suggestion == name, do: nil, else: suggestion
 
-    if opts[:yes] || opts[:skip_unknown] do
-      nil
-    else
-      Owl.IO.input(label: trimmed_label, optional: true)
-    end
-    |> Kernel.||(maybe_suggestion)
-    # common typo
-    |> String.trim_leading(":")
-    |> case do
-      "" ->
+    case choose_relationship_name(opts, name, maybe_suggestion, info) do
+      :skip ->
         name_all_relationships(opts, spec, name, rest, acc)
 
       new_name ->
@@ -936,12 +867,136 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     end
   end
 
+  defp relationship_conflict_info(spec, name, %Relationship{type: :belongs_to} = relationship) do
+    suggestion =
+      build_alternative_name(relationship.source_attribute, relationship.referenced_table)
+
+    info = """
+    The guessed relationship name `:#{name}` on `#{inspect(spec.resource)}` conflicts with another name on this resource.
+
+    Relationship info:
+      Resource:                 #{inspect(spec.resource)}
+      Relationship Type:        :belongs_to
+      Guessed Name:             :#{name}
+      Relationship Destination: #{inspect(relationship.destination)}
+      Source Attribute (FK):    #{inspect(relationship.source_attribute)}
+      Constraint Name:          #{inspect(relationship.constraint_name)}
+    """
+
+    {info, suggestion}
+  end
+
+  defp relationship_conflict_info(_spec, name, %Relationship{type: :many_to_many} = relationship) do
+    suggestion =
+      build_alternative_name(relationship.source_attribute_on_join_resource, name)
+
+    info = """
+    The guessed relationship name `:#{name}` on `#{inspect(relationship.source)}` conflicts with another name on this resource.
+
+    Relationship info:
+      Resource:                      #{inspect(relationship.source)}
+      Relationship Type:             :many_to_many
+      Guessed Name:                  :#{name}
+      Relationship Destination:      #{inspect(relationship.destination)}
+      Destination Attribute on Join: #{inspect(relationship.destination_attribute_on_join_resource)}
+      Source Attribute on Join:      #{inspect(relationship.source_attribute_on_join_resource)}
+      Join Resource (Through):       #{inspect(relationship.through)}
+    """
+
+    {info, suggestion}
+  end
+
+  defp relationship_conflict_info(_spec, name, %Relationship{} = relationship) do
+    suggestion = build_alternative_name(relationship.destination_attribute, name)
+
+    info = """
+    The guessed relationship name `:#{name}` on `#{inspect(relationship.source)}` conflicts with another name on this resource.
+
+    Relationship info:
+      Resource:                   #{inspect(relationship.source)}
+      Relationship Type:          :#{relationship.type}
+      Guessed Name:               :#{name}
+      Relationship Destination:   #{inspect(relationship.destination)}
+      Destination Attribute (FK): #{inspect(relationship.destination_attribute)}
+      Constraint Name:            #{inspect(relationship.constraint_name)}
+    """
+
+    {info, suggestion}
+  end
+
+  defp choose_relationship_name(opts, name, maybe_suggestion, info) do
+    if opts[:yes] || opts[:skip_unknown] do
+      maybe_suggestion || :skip
+    else
+      prompt_relationship_name(name, maybe_suggestion, info)
+    end
+  end
+
+  defp prompt_relationship_name(name, maybe_suggestion, info) do
+    Owl.IO.puts(info)
+
+    options =
+      [
+        maybe_suggestion && {:suggest, "Use suggested name `:#{maybe_suggestion}`"},
+        {:skip, "Skip this relationship"}
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    menu =
+      options
+      |> Enum.with_index(1)
+      |> Enum.map_join("\n", fn {{_action, label}, idx} -> "  #{idx}. #{label}" end)
+
+    prompt_label =
+      "How would you like to resolve the conflict for `:#{name}`?\n" <>
+        menu <> "\n  Or enter a custom name."
+
+    Owl.IO.input(
+      label: prompt_label,
+      optional: true,
+      cast: &parse_relationship_name_input(&1, options)
+    )
+    |> case do
+      :suggest -> maybe_suggestion || :skip
+      :skip -> :skip
+      nil -> maybe_suggestion || :skip
+      new_name -> new_name
+    end
+  end
+
+  defp parse_relationship_name_input(nil, _options), do: {:ok, nil}
+
+  defp parse_relationship_name_input(value, options) when is_binary(value) do
+    # common typo
+    trimmed = value |> String.trim() |> String.trim_leading(":")
+
+    case Integer.parse(trimmed) do
+      {idx, ""} when idx >= 1 ->
+        case Enum.at(options, idx - 1) do
+          {action, _label} -> {:ok, action}
+          nil -> {:error, "please choose a listed option or enter a custom name"}
+        end
+
+      _ ->
+        case trimmed do
+          "" -> {:ok, nil}
+          new_name -> {:ok, new_name}
+        end
+    end
+  end
+
   defp build_alternative_name(attribute, name) do
     if String.ends_with?(attribute, "_id") do
-      attribute
-      |> String.replace("_id", "")
-      |> Igniter.Inflex.singularize()
-      |> Kernel.<>("_#{name}")
+      stripped =
+        attribute
+        |> String.replace("_id", "")
+        |> Igniter.Inflex.singularize()
+
+      if stripped == Igniter.Inflex.singularize(to_string(name)) do
+        name
+      else
+        "#{stripped}_#{name}"
+      end
     else
       name
     end

@@ -1067,13 +1067,13 @@ defmodule AshPostgres.ResourceGeenratorTests do
         end
 
         relationships do
-          has_many :reviewer_articles, MyApp.Blog.Article do
-            destination_attribute(:reviewer_id)
+          has_many :author_articles, MyApp.Blog.Article do
+            destination_attribute(:author_id)
             public?(true)
           end
 
-          has_many :author_articles, MyApp.Blog.Article do
-            destination_attribute(:author_id)
+          has_many :reviewer_articles, MyApp.Blog.Article do
+            destination_attribute(:reviewer_id)
             public?(true)
           end
         end
