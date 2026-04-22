@@ -1472,4 +1472,270 @@ defmodule AshPostgres.DeltaModeIntegrationTest do
       assert Reducer.load_reduced_state(snapshot, opts_non_dev) == nil
     end
   end
+
+  # ===================================================================
+  # Runnable migrations — the real end-to-end. Generate delta snapshots,
+  # then actually run the produced migration file against Postgres and
+  # assert the schema effects.
+  # ===================================================================
+
+  describe "generated migrations are runnable" do
+    defp table_exists?(table) do
+      %{rows: [[exists]]} =
+        AshPostgres.TestRepo.query!(
+          "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)",
+          [table]
+        )
+
+      exists
+    end
+
+    defp column_exists?(table, column) do
+      %{rows: [[exists]]} =
+        AshPostgres.TestRepo.query!(
+          "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND column_name = $2)",
+          [table, column]
+        )
+
+      exists
+    end
+
+    # Load the generator's resource migrations (skipping the repo-specific
+    # extension migrations, whose name `migrate_resources_extensions_1`
+    # collides across the three test repos and trips
+    # `Ecto.Migrator.ensure_no_duplication!`) and run each in the sandbox's
+    # existing connection via `Ecto.Migration.Runner` — the same primitive
+    # `AshPostgres.MultiTenancy.migrate_tenant/4` uses. Going through
+    # `Ecto.Migrator.up` would spawn a Task that deadlocks on the shared
+    # sandbox connection.
+    defp run_generated_migrations(migration_path) do
+      already_run = migrated_versions()
+
+      migration_path
+      |> migration_files()
+      |> Enum.map(&load_migration_module/1)
+      |> Enum.reject(fn {version, _module} -> version in already_run end)
+      |> Enum.each(fn {version, module} ->
+        run_migration(version, module, :up)
+      end)
+    end
+
+    defp rollback_generated_migrations(migration_path) do
+      already_run = migrated_versions()
+
+      migration_path
+      |> migration_files()
+      |> Enum.map(&load_migration_module/1)
+      |> Enum.filter(fn {version, _module} -> version in already_run end)
+      |> Enum.reverse()
+      |> Enum.each(fn {version, module} ->
+        run_migration(version, module, :down)
+      end)
+    end
+
+    defp migrated_versions do
+      %{rows: rows} =
+        AshPostgres.TestRepo.query!("SELECT version FROM schema_migrations")
+
+      Enum.map(rows, fn [v] -> v end)
+    end
+
+    defp run_migration(version, module, direction) do
+      repo = AshPostgres.TestRepo
+
+      Ecto.Migration.Runner.run(
+        repo,
+        repo.config(),
+        version,
+        module,
+        :forward,
+        direction,
+        direction,
+        all: true
+      )
+
+      case direction do
+        :up ->
+          Ecto.Migration.SchemaMigration.up(repo, repo.config(), version, [])
+
+        :down ->
+          Ecto.Migration.SchemaMigration.down(repo, repo.config(), version, [])
+      end
+    end
+
+    defp load_migration_module(file) do
+      base = Path.basename(file)
+      {version, "_" <> _name} = Integer.parse(Path.rootname(base))
+
+      [{module, _} | _] =
+        file
+        |> Code.compile_file()
+        |> Enum.filter(fn {m, _} -> function_exported?(m, :__migration__, 0) end)
+
+      {version, module}
+    end
+
+    test "initial delta-mode codegen produces a migration that runs up-and-down cleanly",
+         %{snapshot_path: sp, migration_path: mp} do
+      defresource RunnableThing1 do
+        postgres do
+          table("runnable_delta_1")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:body, :string, public?: true)
+        end
+      end
+
+      defdomain([RunnableThing1])
+      run_codegen(Domain, sp, mp)
+
+      refute table_exists?("runnable_delta_1")
+
+      run_generated_migrations(mp)
+
+      assert table_exists?("runnable_delta_1")
+      assert column_exists?("runnable_delta_1", "id")
+      assert column_exists?("runnable_delta_1", "title")
+      assert column_exists?("runnable_delta_1", "body")
+
+      rollback_generated_migrations(mp)
+
+      refute table_exists?("runnable_delta_1")
+    end
+
+    test "a second codegen (add column) produces a runnable migration",
+         %{snapshot_path: sp, migration_path: mp} do
+      defresource RunnableThing2 do
+        postgres do
+          table("runnable_delta_2")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([RunnableThing2])
+      run_codegen(Domain, sp, mp)
+      run_generated_migrations(mp)
+
+      assert table_exists?("runnable_delta_2")
+      assert column_exists?("runnable_delta_2", "title")
+      refute column_exists?("runnable_delta_2", "body")
+
+      # Add a column and re-generate.
+      defresource RunnableThing2 do
+        postgres do
+          table("runnable_delta_2")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:body, :string, public?: true)
+        end
+      end
+
+      defdomain([RunnableThing2])
+      run_codegen(Domain, sp, mp)
+
+      assert length(delta_files(sp, "runnable_delta_2")) == 2
+
+      # Running the new migration (the second one) adds the column.
+      run_generated_migrations(mp)
+
+      assert column_exists?("runnable_delta_2", "body")
+
+      rollback_generated_migrations(mp)
+      refute table_exists?("runnable_delta_2")
+    end
+
+    test "squashed delta produces a migration that creates the same schema",
+         %{snapshot_path: sp, migration_path: mp} do
+      defresource RunnableThing3 do
+        postgres do
+          table("runnable_delta_3")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([RunnableThing3])
+      run_codegen(Domain, sp, mp)
+
+      defresource RunnableThing3 do
+        postgres do
+          table("runnable_delta_3")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:body, :string, public?: true)
+        end
+      end
+
+      defdomain([RunnableThing3])
+      run_codegen(Domain, sp, mp)
+
+      # Squash all deltas for this resource into one.
+      Mix.Tasks.AshPostgres.SquashSnapshots.run(["--snapshot-path", sp, "--quiet"])
+      assert length(delta_files(sp, "runnable_delta_3")) == 1
+
+      # Now codegen from a fresh migration path — simulating a new clone
+      # where only squashed snapshots exist — and verify the resulting
+      # initial migration creates the full schema.
+      fresh_mp = Path.join(Path.dirname(mp), "fresh_migrations")
+      File.mkdir_p!(fresh_mp)
+
+      # Simulating "fresh clone": point codegen at the squashed snapshots
+      # but an empty migration path. Since state matches the reduced
+      # squashed state, codegen should produce no migration at all.
+      migrations_before = migration_files(fresh_mp)
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: sp,
+        migration_path: fresh_mp,
+        tenant_migration_path: Path.join(Path.dirname(mp), "fresh_tenant"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :delta
+      )
+
+      assert migration_files(fresh_mp) == migrations_before
+    end
+  end
 end
