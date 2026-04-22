@@ -447,7 +447,7 @@ defmodule AshPostgres.DeltaModeIntegrationTest do
       # The rename is emitted against the NEW table directory, with ops
       # containing a RenameTable for old→new.
       new_files = delta_files(sp, "delta_posts_g_new")
-      assert length(new_files) >= 1
+      assert new_files != []
 
       all_ops =
         new_files
@@ -1101,7 +1101,7 @@ defmodule AshPostgres.DeltaModeIntegrationTest do
         |> Enum.flat_map(fn f -> read_delta(f).operations end)
         |> Enum.filter(&match?(%Operation.OptOutDropTable{}, &1))
 
-      assert length(opt_outs) >= 1
+      assert opt_outs != []
 
       state = reduce_dir(sp, "delta_droppable")
       assert state.drop_table_opted_out == true

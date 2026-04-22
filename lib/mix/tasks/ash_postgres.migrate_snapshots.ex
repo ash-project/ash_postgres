@@ -62,10 +62,7 @@ defmodule Mix.Tasks.AshPostgres.MigrateSnapshots do
 
     base = opts.snapshot_path
 
-    if !File.dir?(base) do
-      print(opts, "Snapshot directory #{base} does not exist; nothing to migrate.")
-      :ok
-    else
+    if File.dir?(base) do
       backup_stamp =
         DateTime.utc_now()
         |> DateTime.to_iso8601(:basic)
@@ -85,6 +82,9 @@ defmodule Mix.Tasks.AshPostgres.MigrateSnapshots do
 
         print(opts, "Migration complete.")
       end
+    else
+      print(opts, "Snapshot directory #{base} does not exist; nothing to migrate.")
+      :ok
     end
   end
 

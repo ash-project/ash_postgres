@@ -176,11 +176,13 @@ defmodule AshPostgres.MigrationGenerator.Reducer do
             reraise err, __STACKTRACE__
 
           err ->
-            raise ConflictError,
-              file: file_path,
-              op_index: idx,
-              op_type: op_type_string(op),
-              reason: Exception.message(err)
+            reraise ConflictError.exception(
+                      file: file_path,
+                      op_index: idx,
+                      op_type: op_type_string(op),
+                      reason: Exception.message(err)
+                    ),
+                    __STACKTRACE__
         catch
           :throw, {:reducer_error, reason} ->
             raise ConflictError,
