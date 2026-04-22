@@ -67,6 +67,59 @@ defmodule AshPostgres.ResourceGeenratorTests do
     """)
   end
 
+  test "a resource is generated from a table without a primary key" do
+    AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS pk_less_table")
+
+    AshPostgres.TestRepo.query!("CREATE TABLE pk_less_table (
+      name VARCHAR(255),
+      value INTEGER
+    )")
+
+    test_project()
+    |> Igniter.compose_task("ash_postgres.gen.resources", [
+      "MyApp.Accounts",
+      "--tables",
+      "pk_less_table",
+      "--yes",
+      "--repo",
+      "AshPostgres.TestRepo"
+    ])
+    |> assert_creates("lib/my_app/accounts/pk_less_table.ex", """
+    defmodule MyApp.Accounts.PkLessTable do
+      use Ash.Resource,
+        domain: MyApp.Accounts,
+        data_layer: AshPostgres.DataLayer
+
+      resource do
+        # WARNING: Configured to bypass missing primary key.
+        # Add primary_key?: true to your attributes/relationships and remove this block.
+        require_primary_key?(false)
+      end
+
+      actions do
+        # WARNING: No primary key detected.
+        # :update and :destroy actions require a primary key to safely identify records.
+        defaults([:read, create: :*])
+      end
+
+      postgres do
+        table("pk_less_table")
+        repo(AshPostgres.TestRepo)
+      end
+
+      attributes do
+        attribute :name, :string do
+          public?(true)
+        end
+
+        attribute :value, :integer do
+          public?(true)
+        end
+      end
+    end
+    """)
+  end
+
   test "a resource is generated from a table in a non-public schema with foreign keys and indexes" do
     AshPostgres.TestRepo.query!("CREATE SCHEMA IF NOT EXISTS inventory")
 

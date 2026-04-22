@@ -118,7 +118,8 @@ if Code.ensure_loaded?(Igniter) do
           domain: #{inspect(domain)},
           data_layer: AshPostgres.DataLayer
 
-        #{default_actions(opts)}
+        #{resource_block(table_spec)}
+        #{default_actions(opts, table_spec)}
 
         postgres do
           table #{inspect(table_spec.table_name)}
@@ -194,7 +195,8 @@ if Code.ensure_loaded?(Igniter) do
             data_layer: AshPostgres.DataLayer,
             fragments: [#{inspect(fragment_module)}]
 
-          #{default_actions(opts)}
+          #{resource_block(table_spec)}
+          #{default_actions(opts, table_spec)}
 
           postgres do
             table #{inspect(table_spec.table_name)}
@@ -300,12 +302,32 @@ if Code.ensure_loaded?(Igniter) do
 
     defp schema_option(_), do: ""
 
-    defp default_actions(opts) do
+    defp no_primary_key?(%AshPostgres.ResourceGenerator.Spec{attributes: attributes}) do
+      Enum.all?(attributes, &(not &1.primary_key?))
+    end
+
+    defp resource_block(table_spec) do
+      if no_primary_key?(table_spec) do
+        """
+        resource do
+          # WARNING: Configured to bypass missing primary key.
+          # Add primary_key?: true to your attributes/relationships and remove this block.
+          require_primary_key? false
+        end
+        """
+      else
+        ""
+      end
+    end
+
+    defp default_actions(opts, table_spec) do
       cond do
-        opts[:default_actions] && opts[:public] ->
+        no_primary_key?(table_spec) ->
           """
           actions do
-            defaults [:read, :destroy, create: :*, update: :*]
+            # WARNING: No primary key detected.
+            # :update and :destroy actions require a primary key to safely identify records.
+            defaults [:read, create: :*]
           end
           """
 
