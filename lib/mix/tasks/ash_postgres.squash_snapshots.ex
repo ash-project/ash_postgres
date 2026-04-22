@@ -55,7 +55,7 @@ defmodule Mix.Tasks.AshPostgres.SquashSnapshots do
   * `--include-dev` - include `*_dev.json` files in the squash (default: skip them). Delta-mode squash aborts if dev files are present and this flag is not set.
   """
 
-  @impl Mix.Task
+  @impl true
   def run(args) do
     {opts, []} = OptionParser.parse!(args, strict: @switches)
 

@@ -46,7 +46,7 @@ defmodule Mix.Tasks.AshPostgres.MigrateSnapshots do
     quiet: :boolean
   ]
 
-  @impl Mix.Task
+  @impl true
   def run(args) do
     {opts, _} = OptionParser.parse!(args, strict: @switches)
 
