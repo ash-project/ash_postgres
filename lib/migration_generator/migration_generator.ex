@@ -8,6 +8,7 @@ defmodule AshPostgres.MigrationGenerator do
   require Logger
 
   alias AshPostgres.MigrationGenerator.{Operation, Phase}
+  alias AshPostgres.MigrationGenerator.Operation.Codec
 
   defstruct snapshot_path: nil,
             migration_path: nil,
@@ -24,7 +25,8 @@ defmodule AshPostgres.MigrationGenerator do
             dev: false,
             snapshots_only: false,
             auto_name: false,
-            dont_drop_columns: false
+            dont_drop_columns: false,
+            snapshot_format: nil
 
   def generate(domains, opts \\ []) do
     domains = List.wrap(domains)
@@ -131,7 +133,7 @@ defmodule AshPostgres.MigrationGenerator do
 
     old_snapshots =
       old_snapshots
-      |> Enum.map(&sanitize_snapshot/1)
+      |> Enum.map(&Codec.sanitize_snapshot/1)
 
     new_snapshots
     |> deduplicate_snapshots(opts, [], old_snapshots)
@@ -184,6 +186,42 @@ defmodule AshPostgres.MigrationGenerator do
   defp opts(opts) do
     struct(__MODULE__, opts)
   end
+
+  @doc false
+  # Effective snapshot format for a given repo: honors a CLI override on the
+  # generator struct; otherwise falls back to the repo's `snapshot_format/0`
+  # callback (default `:full`).
+  def snapshot_format(%{snapshot_format: format}, _repo) when not is_nil(format), do: format
+
+  def snapshot_format(_opts, repo) do
+    if function_exported?(repo, :snapshot_format, 0) do
+      repo.snapshot_format()
+    else
+      :full
+    end
+  end
+
+  @snapshot_name_regex ~r/^\d{14}\.json$/
+  @dev_snapshot_name_regex ~r/^\d{14}_dev\.json$/
+
+  @doc false
+  # Does `name` (a basename, not a full path) match the snapshot file
+  # convention `YYYYMMDDHHMMSS.json`? If `include_dev?` is true, also matches
+  # the `*_dev.json` variant.
+  def snapshot_filename?(name, include_dev? \\ false)
+
+  def snapshot_filename?(name, false),
+    do: String.match?(name, @snapshot_name_regex)
+
+  def snapshot_filename?(name, true),
+    do:
+      String.match?(name, @snapshot_name_regex) or
+        String.match?(name, @dev_snapshot_name_regex)
+
+  @doc false
+  # Does `name` (a basename, not a full path) match a *_dev.json snapshot?
+  def dev_snapshot_filename?(name),
+    do: String.match?(name, @dev_snapshot_name_regex)
 
   defp snapshot_path(%{snapshot_path: snapshot_path}, _) when not is_nil(snapshot_path),
     do: snapshot_path
@@ -408,7 +446,7 @@ defmodule AshPostgres.MigrationGenerator do
         snapshot_contents =
           %{installed: installed}
           |> set_ash_functions(installed)
-          |> to_ordered_object()
+          |> Codec.to_ordered_object()
           |> Jason.encode!(pretty: true)
 
         contents = format(migration_file, contents, opts)
@@ -464,8 +502,6 @@ defmodule AshPostgres.MigrationGenerator do
         |> fetch_operations(opts)
         |> Enum.map(&add_order_to_operations/1)
 
-      snapshots = Enum.map(snapshots_with_operations, &elem(&1, 0))
-
       rename_operations =
         Enum.map(rename_map, fn {{new_table, schema}, %{old_table: old_table, snapshot: snapshot}} ->
           %Operation.RenameTable{
@@ -476,6 +512,19 @@ defmodule AshPostgres.MigrationGenerator do
             repo: repo
           }
         end)
+
+      # Fold RenameTable ops into the matching new-snapshot's tuple so that the
+      # delta writer (in :delta mode) persists them alongside the rest. The
+      # migration emission path still sees them below via `operations` and
+      # dedupes via `Enum.uniq()`, so no double-emission.
+      snapshots_with_operations =
+        attach_rename_ops_to_snapshots(
+          snapshots_with_operations,
+          rename_operations,
+          deduped_with_renames
+        )
+
+      snapshots = Enum.map(snapshots_with_operations, &elem(&1, 0))
 
       operations =
         snapshots_with_operations
@@ -535,8 +584,18 @@ defmodule AshPostgres.MigrationGenerator do
               |> migration(repo, opts, tenant?, run_without_transaction?, split_index)
             end)
           end
-          |> Enum.concat(create_new_snapshot(snapshots, repo_name(repo), opts, tenant?))
+          |> Enum.concat(
+            create_new_snapshot(snapshots_with_operations, repo_name(repo), opts, tenant?)
+          )
           |> then(fn files ->
+            # In delta mode, a rename must move the OLD table's delta files into
+            # the NEW table's directory so the reducer sees the full history
+            # (initial deltas + RenameTable) when it walks the new dir next
+            # codegen. After this move the old dir is empty and the
+            # subsequent `remove_orphan_snapshots` simply deletes the empty
+            # shell. In full-state mode there's only one snapshot file per
+            # table, so the rename does not require a move.
+            move_rename_snapshots(rename_map, repo, opts)
             remove_orphan_snapshots(orphan_snapshots, opts)
             files
           end)
@@ -1333,22 +1392,33 @@ defmodule AshPostgres.MigrationGenerator do
     end)
   end
 
-  defp create_new_snapshot(snapshots, repo_name, opts, tenant?) do
-    Enum.map(snapshots, fn snapshot ->
-      snapshot_binary = snapshot_to_binary(snapshot)
+  defp attach_rename_ops_to_snapshots(snapshots_with_operations, rename_ops, deduped_with_renames) do
+    Enum.reduce(rename_ops, snapshots_with_operations, fn
+      %Operation.RenameTable{new_table: table, schema: schema} = rename_op, acc ->
+        case Enum.find_index(acc, fn {%{table: t, schema: s}, _} ->
+               t == table and s == schema
+             end) do
+          nil ->
+            new_snapshot_tuple =
+              Enum.find(deduped_with_renames, fn {%{table: t, schema: s}, _} ->
+                t == table and s == schema
+              end)
 
-      snapshot_folder =
-        if tenant? do
-          opts
-          |> snapshot_path(snapshot.repo)
-          |> Path.join(repo_name)
-          |> Path.join("tenants")
-        else
-          opts
-          |> snapshot_path(snapshot.repo)
-          |> Path.join(repo_name)
+            case new_snapshot_tuple do
+              {snap, _} -> acc ++ [{snap, [rename_op]}]
+              nil -> acc
+            end
+
+          idx ->
+            {snap, existing_ops} = Enum.at(acc, idx)
+            List.replace_at(acc, idx, {snap, [rename_op | existing_ops]})
         end
+    end)
+  end
 
+  defp create_new_snapshot(snapshots_with_operations, repo_name, opts, tenant?) do
+    Enum.map(snapshots_with_operations, fn {snapshot, operations} ->
+      snapshot_folder = snapshot_root_folder(snapshot, repo_name, opts, tenant?)
       dev = if opts.dev, do: "_dev"
 
       snapshot_file =
@@ -1370,8 +1440,34 @@ defmodule AshPostgres.MigrationGenerator do
         File.rename(old_snapshot_folder, new_snapshot_folder)
       end
 
+      snapshot_binary =
+        case snapshot_format(opts, snapshot.repo) do
+          :delta ->
+            Codec.encode_delta(operations, %{
+              previous_hash: nil,
+              resulting_hash: Map.get(snapshot, :hash),
+              migration: nil
+            })
+
+          _ ->
+            Codec.encode_full_state(snapshot)
+        end
+
       {snapshot_file, snapshot_binary}
     end)
+  end
+
+  defp snapshot_root_folder(snapshot, repo_name, opts, tenant?) do
+    if tenant? do
+      opts
+      |> snapshot_path(snapshot.repo)
+      |> Path.join(repo_name)
+      |> Path.join("tenants")
+    else
+      opts
+      |> snapshot_path(snapshot.repo)
+      |> Path.join(repo_name)
+    end
   end
 
   @doc false
@@ -2248,6 +2344,22 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.any?(&Enum.any?/1)
   end
 
+  @doc """
+  Return the list of operation structs that would be produced by diffing the
+  given state against an empty table. Used by the Reducer + migrate tasks to
+  go in reverse: state → initial-delta ops.
+  """
+  def initial_operations_for_state(state) do
+    opts = %__MODULE__{quiet: true}
+
+    state
+    |> Map.put_new(:has_create_action, true)
+    |> Map.put_new(:drop_table_opted_out, false)
+    |> Map.put_new(:base_filter, nil)
+    |> Map.put_new(:create_table_options, nil)
+    |> do_fetch_operations(nil, opts, [])
+  end
+
   defp do_fetch_operations(snapshot, existing_snapshot, opts, acc \\ [])
 
   defp do_fetch_operations(
@@ -2262,23 +2374,16 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp do_fetch_operations(snapshot, nil, opts, acc) do
     if resource_has_meaningful_content?(snapshot) do
-      empty_snapshot = %{
-        attributes: [],
-        identities: [],
-        schema: nil,
-        custom_indexes: [],
-        custom_statements: [],
-        check_constraints: [],
-        table: snapshot.table,
-        repo: snapshot.repo,
-        base_filter: nil,
-        empty?: true,
-        multitenancy: %{
-          attribute: nil,
-          strategy: nil,
-          global: nil
-        }
-      }
+      # Use the Reducer's canonical empty state so this and delta reduction
+      # share one definition of "empty". `empty_state/1` produces a schema-less
+      # baseline with all the scalar-fields (base_filter, create_table_options,
+      # …) explicitly defaulted.
+      empty_snapshot =
+        AshPostgres.MigrationGenerator.Reducer.empty_state(%{
+          table: snapshot.table,
+          schema: nil,
+          repo: snapshot.repo
+        })
 
       do_fetch_operations(snapshot, empty_snapshot, opts, [
         %Operation.CreateTable{
@@ -2287,7 +2392,9 @@ defmodule AshPostgres.MigrationGenerator do
           repo: snapshot.repo,
           multitenancy: snapshot.multitenancy,
           old_multitenancy: empty_snapshot.multitenancy,
-          create_table_options: snapshot.create_table_options
+          create_table_options: snapshot.create_table_options,
+          base_filter: Map.get(snapshot, :base_filter),
+          has_create_action: Map.get(snapshot, :has_create_action, true)
         }
         | acc
       ])
@@ -3153,16 +3260,23 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   def get_existing_snapshot(snapshot, opts) do
+    case snapshot_format(opts, snapshot.repo) do
+      :delta ->
+        AshPostgres.MigrationGenerator.Reducer.load_reduced_state(snapshot, opts)
+
+      _ ->
+        get_existing_full_state_snapshot(snapshot, opts)
+    end
+  end
+
+  defp get_existing_full_state_snapshot(snapshot, opts) do
     folder = get_snapshot_folder(snapshot, opts)
     snapshot_path = get_snapshot_path(snapshot, folder)
 
     if File.exists?(snapshot_path) do
       snapshot_path
       |> File.ls!()
-      |> Enum.filter(
-        &(String.match?(&1, ~r/^\d{14}\.json$/) or
-            (opts.dev and String.match?(&1, ~r/^\d{14}\_dev.json$/)))
-      )
+      |> Enum.filter(&snapshot_filename?(&1, opts.dev))
       |> case do
         [] ->
           get_old_snapshot(folder, snapshot)
@@ -3171,14 +3285,15 @@ defmodule AshPostgres.MigrationGenerator do
           snapshot_path
           |> Path.join(Enum.max(snapshot_files))
           |> File.read!()
-          |> load_snapshot()
+          |> Codec.decode_full_state()
       end
     else
       get_old_snapshot(folder, snapshot)
     end
   end
 
-  defp get_snapshot_folder(snapshot, opts) do
+  @doc false
+  def get_snapshot_folder(snapshot, opts) do
     if snapshot.multitenancy.strategy == :context do
       opts
       |> snapshot_path(snapshot.repo)
@@ -3191,7 +3306,8 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  defp get_snapshot_path(snapshot, folder) do
+  @doc false
+  def get_snapshot_path(snapshot, folder) do
     if snapshot.schema do
       schema_dir = Path.join(folder, "#{snapshot.schema}.#{snapshot.table}")
 
@@ -3211,11 +3327,9 @@ defmodule AshPostgres.MigrationGenerator do
 
     if File.exists?(snapshot_dir) do
       snapshot_files =
-        File.ls!(snapshot_dir)
-        |> Enum.filter(
-          &(String.match?(&1, ~r/^\d{14}\.json$/) or
-              (opts.dev and String.match?(&1, ~r/^\d{14}\_dev\.json$/)))
-        )
+        snapshot_dir
+        |> File.ls!()
+        |> Enum.filter(&snapshot_filename?(&1, opts.dev))
 
       case snapshot_files do
         [] ->
@@ -3239,20 +3353,54 @@ defmodule AshPostgres.MigrationGenerator do
     if opts.dry_run || opts.check || opts.snapshots_only do
       :ok
     else
-      case get_latest_snapshot_file_path(snapshot, opts) do
-        nil ->
-          :ok
+      case snapshot_format(opts, snapshot.repo) do
+        :delta ->
+          record_drop_table_opt_out_delta(snapshot, opts)
 
-        path ->
-          path
-          |> File.read!()
-          |> Jason.decode!(keys: :atoms!)
-          |> Map.put(:drop_table_opted_out, true)
-          |> to_ordered_object()
-          |> Jason.encode!(pretty: true)
-          |> then(&File.write!(path, &1))
+        _ ->
+          record_drop_table_opt_out_full(snapshot, opts)
       end
     end
+  end
+
+  defp record_drop_table_opt_out_full(snapshot, opts) do
+    case get_latest_snapshot_file_path(snapshot, opts) do
+      nil ->
+        :ok
+
+      path ->
+        path
+        |> File.read!()
+        |> Jason.decode!(keys: :atoms!)
+        |> Map.put(:drop_table_opted_out, true)
+        |> Codec.to_ordered_object()
+        |> Jason.encode!(pretty: true)
+        |> then(&File.write!(path, &1))
+    end
+  end
+
+  defp record_drop_table_opt_out_delta(snapshot, opts) do
+    folder = get_snapshot_folder(snapshot, opts)
+    dir = get_snapshot_path(snapshot, folder)
+    File.mkdir_p!(dir)
+
+    dev = if opts.dev, do: "_dev"
+    file = Path.join(dir, "#{timestamp()}#{dev}.json")
+
+    op = %Operation.OptOutDropTable{
+      table: snapshot.table,
+      schema: snapshot.schema,
+      multitenancy: snapshot.multitenancy
+    }
+
+    File.write!(
+      file,
+      Codec.encode_delta([op], %{
+        previous_hash: nil,
+        resulting_hash: Map.get(snapshot, :hash),
+        migration: nil
+      })
+    )
   end
 
   defp get_old_snapshot(folder, snapshot) do
@@ -3263,7 +3411,7 @@ defmodule AshPostgres.MigrationGenerator do
         if File.exists?(old_snapshot_file) do
           old_snapshot_file
           |> File.read!()
-          |> load_snapshot()
+          |> Codec.decode_full_state()
         end
       end
 
@@ -3275,7 +3423,7 @@ defmodule AshPostgres.MigrationGenerator do
       if File.exists?(old_snapshot_file) do
         old_snapshot_file
         |> File.read!()
-        |> load_snapshot()
+        |> Codec.decode_full_state()
       end
     end
   end
@@ -3530,6 +3678,51 @@ defmodule AshPostgres.MigrationGenerator do
           File.rm_rf(path)
         end
       end)
+    end
+  end
+
+  defp move_rename_snapshots(rename_map, repo, opts) do
+    if opts.dry_run || opts.check || opts.snapshots_only || rename_map == %{} do
+      :ok
+    else
+      if snapshot_format(opts, repo) == :delta do
+        Enum.each(rename_map, fn {{new_table, new_schema},
+                                  %{old_table: old_table, old_schema: old_schema, snapshot: snap}} ->
+          old_snapshot = %{
+            table: old_table,
+            schema: old_schema,
+            repo: repo,
+            multitenancy: snap.multitenancy
+          }
+
+          new_snapshot = %{
+            table: new_table,
+            schema: new_schema,
+            repo: repo,
+            multitenancy: snap.multitenancy
+          }
+
+          old_dir = get_snapshot_path(old_snapshot, get_snapshot_folder(old_snapshot, opts))
+          new_dir = get_snapshot_path(new_snapshot, get_snapshot_folder(new_snapshot, opts))
+
+          # Single File.ls — if old_dir is missing/unreadable we treat it as
+          # "nothing to move". Rename detection guarantees new_dir is empty,
+          # so no defensive per-file existence check is needed.
+          case File.ls(old_dir) do
+            {:ok, files} ->
+              File.mkdir_p!(new_dir)
+
+              Enum.each(files, fn file ->
+                File.rename!(Path.join(old_dir, file), Path.join(new_dir, file))
+              end)
+
+            {:error, _} ->
+              :ok
+          end
+        end)
+      end
+
+      :ok
     end
   end
 
@@ -4216,299 +4409,4 @@ defmodule AshPostgres.MigrationGenerator do
   defp configured_default(resource, attribute) do
     AshPostgres.DataLayer.Info.migration_defaults(resource)[attribute]
   end
-
-  defp snapshot_to_binary(snapshot) do
-    snapshot
-    |> Map.update!(:attributes, fn attributes ->
-      Enum.map(attributes, &attribute_to_binary/1)
-    end)
-    |> Map.update!(:custom_indexes, fn indexes ->
-      Enum.map(indexes, fn index ->
-        fields =
-          Enum.map(index.fields, fn
-            field when is_atom(field) -> %{type: "atom", value: field}
-            field when is_binary(field) -> %{type: "string", value: field}
-          end)
-
-        %{index | fields: fields}
-        |> Map.delete(:__spark_metadata__)
-      end)
-    end)
-    |> Map.update!(:identities, fn identities ->
-      Enum.map(identities, fn identity ->
-        keys =
-          Enum.map(identity.keys, fn
-            value when is_binary(value) -> %{"type" => "string", "value" => value}
-            value when is_atom(value) -> %{"type" => "atom", "value" => value}
-          end)
-
-        %{identity | keys: keys}
-        |> Map.delete(:__spark_metadata__)
-      end)
-    end)
-    |> to_ordered_object()
-    |> Jason.encode!(pretty: true)
-  end
-
-  defp attribute_to_binary(attribute) do
-    attribute
-    |> Map.update!(:references, fn
-      nil ->
-        nil
-
-      references ->
-        references
-        |> Map.update!(:on_delete, &(&1 && references_on_delete_to_binary(&1)))
-    end)
-    |> Map.update!(:type, fn type ->
-      sanitize_type(type, attribute[:size], attribute[:precision], attribute[:scale])
-    end)
-    |> Map.delete(:__spark_metadata__)
-  end
-
-  defp references_on_delete_to_binary(value) when is_atom(value), do: value
-  defp references_on_delete_to_binary({:nilify, columns}), do: [:nilify, columns]
-
-  defp sanitize_type({:array, type}, size, scale, precision) do
-    ["array", sanitize_type(type, size, scale, precision)]
-  end
-
-  defp sanitize_type(type, _, _, _) do
-    type
-  end
-
-  defp load_snapshot(json) do
-    json
-    |> Jason.decode!(keys: :atoms!)
-    |> sanitize_snapshot()
-  end
-
-  defp sanitize_snapshot(snapshot) do
-    snapshot
-    |> Map.put_new(:has_create_action, true)
-    |> Map.put_new(:schema, nil)
-    |> Map.update!(:identities, fn identities ->
-      Enum.map(identities, &load_identity(&1, snapshot.table))
-    end)
-    |> Map.update!(:attributes, fn attributes ->
-      Enum.map(attributes, fn attribute ->
-        attribute = load_attribute(attribute, snapshot.table)
-
-        if is_map(Map.get(attribute, :references)) do
-          %{
-            attribute
-            | references: rewrite(attribute.references, :ignore, :ignore?)
-          }
-        else
-          attribute
-        end
-      end)
-    end)
-    |> Map.put_new(:custom_indexes, [])
-    |> Map.update!(:custom_indexes, &load_custom_indexes/1)
-    |> Map.put_new(:custom_statements, [])
-    |> Map.update!(:custom_statements, &load_custom_statements/1)
-    |> Map.put_new(:check_constraints, [])
-    |> Map.update!(:check_constraints, &load_check_constraints/1)
-    |> Map.update!(:repo, &maybe_to_atom/1)
-    |> Map.put_new(:multitenancy, %{
-      attribute: nil,
-      strategy: nil,
-      global: nil
-    })
-    |> Map.update!(:multitenancy, &load_multitenancy/1)
-    |> Map.put_new(:base_filter, nil)
-    |> Map.put_new(:drop_table_opted_out, false)
-  end
-
-  defp load_check_constraints(constraints) do
-    Enum.map(constraints, fn constraint ->
-      Map.update!(constraint, :attribute, fn attribute ->
-        attribute
-        |> List.wrap()
-        |> Enum.map(&maybe_to_atom/1)
-      end)
-    end)
-  end
-
-  defp load_custom_indexes(custom_indexes) do
-    Enum.map(custom_indexes || [], fn custom_index ->
-      custom_index
-      |> Map.update(:fields, [], fn fields ->
-        Enum.map(fields, fn
-          %{type: "atom", value: field} -> maybe_to_atom(field)
-          %{type: "string", value: field} -> field
-          field -> field
-        end)
-      end)
-      |> Map.put_new(:include, [])
-      |> Map.put_new(:nulls_distinct, true)
-      |> Map.put_new(:message, nil)
-      |> Map.put_new(:all_tenants?, false)
-    end)
-  end
-
-  defp load_custom_statements(statements) do
-    Enum.map(statements || [], fn statement ->
-      Map.update!(statement, :name, &maybe_to_atom/1)
-    end)
-  end
-
-  defp load_multitenancy(multitenancy) do
-    multitenancy
-    |> Map.update!(:strategy, fn strategy -> strategy && maybe_to_atom(strategy) end)
-    |> Map.update!(:attribute, fn attribute -> attribute && maybe_to_atom(attribute) end)
-  end
-
-  defp load_attribute(attribute, table) do
-    type = load_type(attribute.type)
-
-    attribute =
-      if Map.has_key?(attribute, :name) do
-        Map.put(attribute, :source, maybe_to_atom(attribute.name))
-      else
-        Map.update!(attribute, :source, &maybe_to_atom/1)
-      end
-
-    attribute
-    |> Map.put(:type, type)
-    |> Map.put_new(:size, nil)
-    |> Map.put_new(:precision, nil)
-    |> Map.put_new(:scale, nil)
-    |> Map.put_new(:default, "nil")
-    |> Map.update!(:default, &(&1 || "nil"))
-    |> Map.update!(:references, fn
-      nil ->
-        nil
-
-      references ->
-        references
-        |> rewrite(
-          destination_field: :destination_attribute,
-          destination_field_default: :destination_attribute_default,
-          destination_field_generated: :destination_attribute_generated
-        )
-        |> Map.delete(:ignore)
-        |> rewrite(:ignore?, :ignore)
-        |> Map.update!(:destination_attribute, &maybe_to_atom/1)
-        |> Map.put_new(:deferrable, false)
-        |> Map.update!(:deferrable, fn
-          "initially" -> :initially
-          other -> other
-        end)
-        |> Map.put_new(:schema, nil)
-        |> Map.put_new(:destination_attribute_default, "nil")
-        |> Map.put_new(:destination_attribute_generated, false)
-        |> Map.put_new(:on_delete, nil)
-        |> Map.put_new(:on_update, nil)
-        |> Map.update!(:on_delete, &(&1 && load_references_on_delete(&1)))
-        |> Map.update!(:on_update, &(&1 && maybe_to_atom(&1)))
-        |> Map.put_new(:index?, false)
-        |> Map.put_new(:match_with, nil)
-        |> Map.put_new(:match_type, nil)
-        |> Map.update!(
-          :match_with,
-          &(&1 && Enum.into(&1, %{}, fn {k, v} -> {maybe_to_atom(k), maybe_to_atom(v)} end))
-        )
-        |> Map.update!(:match_type, &(&1 && maybe_to_atom(&1)))
-        |> Map.put(
-          :name,
-          Map.get(references, :name) || "#{table}_#{attribute.source}_fkey"
-        )
-        |> Map.put_new(:multitenancy, %{
-          attribute: nil,
-          strategy: nil,
-          global: nil
-        })
-        |> Map.update!(:multitenancy, &load_multitenancy/1)
-        |> sanitize_name(table)
-    end)
-  end
-
-  defp rewrite(map, keys) do
-    Enum.reduce(keys, map, fn {key, to}, map ->
-      rewrite(map, key, to)
-    end)
-  end
-
-  defp rewrite(map, key, to) do
-    if Map.has_key?(map, key) do
-      map
-      |> Map.put(to, Map.get(map, key))
-      |> Map.delete(key)
-    else
-      map
-    end
-  end
-
-  defp sanitize_name(reference, table) do
-    if String.starts_with?(reference.name, "_") do
-      Map.put(reference, :name, "#{table}#{reference.name}")
-    else
-      reference
-    end
-  end
-
-  defp load_type(["array", type]) do
-    {:array, load_type(type)}
-  end
-
-  defp load_type([type | _]), do: String.to_existing_atom(type)
-
-  defp load_type(type) do
-    maybe_to_atom(type)
-  end
-
-  defp load_identity(identity, table) do
-    identity
-    |> Map.update!(:name, &maybe_to_atom/1)
-    |> add_index_name(table)
-    |> Map.put_new(:base_filter, nil)
-    |> Map.put_new(:all_tenants?, false)
-    |> Map.put_new(:where, nil)
-    |> Map.put_new(:nils_distinct?, true)
-    |> Map.update!(
-      :keys,
-      &Enum.map(&1, fn
-        %{type: "atom", value: value} ->
-          maybe_to_atom(value)
-
-        %{type: "string", value: value} ->
-          value
-
-        value ->
-          if String.contains?(value, "(") do
-            value
-          else
-            maybe_to_atom(value)
-          end
-      end)
-    )
-  end
-
-  defp add_index_name(%{name: name} = index, table) do
-    Map.put_new(index, :index_name, "#{table}_#{name}_unique_index")
-  end
-
-  defp load_references_on_delete(["nilify", columns]) when is_list(columns) do
-    {:nilify, Enum.map(columns, &maybe_to_atom/1)}
-  end
-
-  defp load_references_on_delete(value) do
-    maybe_to_atom(value)
-  end
-
-  defp maybe_to_atom(value) when is_atom(value), do: value
-  defp maybe_to_atom(value), do: String.to_atom(value)
-
-  defp to_ordered_object(value) when is_map(value) do
-    value
-    |> Map.to_list()
-    |> List.keysort(0)
-    |> Enum.map(fn {key, value} -> {key, to_ordered_object(value)} end)
-    |> Jason.OrderedObject.new()
-  end
-
-  defp to_ordered_object(value) when is_list(value), do: Enum.map(value, &to_ordered_object/1)
-  defp to_ordered_object(value), do: value
 end
