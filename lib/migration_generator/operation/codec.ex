@@ -34,9 +34,6 @@ defmodule AshPostgres.MigrationGenerator.Operation.Codec do
     Operation.RemoveCustomStatement => "remove_custom_statement",
     Operation.AddCheckConstraint => "add_check_constraint",
     Operation.RemoveCheckConstraint => "remove_check_constraint",
-    Operation.SetBaseFilter => "set_base_filter",
-    Operation.SetHasCreateAction => "set_has_create_action",
-    Operation.SetCreateTableOptions => "set_create_table_options",
     Operation.OptOutDropTable => "opt_out_drop_table"
   }
 
@@ -217,7 +214,9 @@ defmodule AshPostgres.MigrationGenerator.Operation.Codec do
     base_op_json("create_table", op.table, op.schema, op.multitenancy, %{
       "old_multitenancy" => encode_multitenancy(op.old_multitenancy),
       "repo" => op.repo,
-      "create_table_options" => op.create_table_options
+      "create_table_options" => op.create_table_options,
+      "base_filter" => op.base_filter,
+      "has_create_action" => op.has_create_action
     })
   end
 
@@ -398,27 +397,6 @@ defmodule AshPostgres.MigrationGenerator.Operation.Codec do
     })
   end
 
-  def encode_op(%Operation.SetBaseFilter{} = op) do
-    base_op_json("set_base_filter", op.table, op.schema, op.multitenancy, %{
-      "old_value" => op.old_value,
-      "new_value" => op.new_value
-    })
-  end
-
-  def encode_op(%Operation.SetHasCreateAction{} = op) do
-    base_op_json("set_has_create_action", op.table, op.schema, op.multitenancy, %{
-      "old_value" => op.old_value,
-      "new_value" => op.new_value
-    })
-  end
-
-  def encode_op(%Operation.SetCreateTableOptions{} = op) do
-    base_op_json("set_create_table_options", op.table, op.schema, op.multitenancy, %{
-      "old_value" => op.old_value,
-      "new_value" => op.new_value
-    })
-  end
-
   def encode_op(%Operation.OptOutDropTable{} = op) do
     base_op_json("opt_out_drop_table", op.table, op.schema, op.multitenancy, %{})
   end
@@ -452,7 +430,11 @@ defmodule AshPostgres.MigrationGenerator.Operation.Codec do
       multitenancy: decode_multitenancy(m.multitenancy),
       old_multitenancy: decode_multitenancy(Map.get(m, :old_multitenancy)),
       repo: decode_atom(m.repo),
-      create_table_options: Map.get(m, :create_table_options)
+      create_table_options: Map.get(m, :create_table_options),
+      base_filter: Map.get(m, :base_filter),
+      # has_create_action defaults to true — the full-state historical default
+      # for resources that have a create action, which is the vast majority.
+      has_create_action: Map.get(m, :has_create_action, true)
     }
   end
 
@@ -667,36 +649,6 @@ defmodule AshPostgres.MigrationGenerator.Operation.Codec do
       multitenancy: decode_multitenancy(m.multitenancy),
       old_multitenancy: decode_multitenancy(Map.get(m, :old_multitenancy)),
       constraint: decode_check_constraint(m.constraint)
-    }
-  end
-
-  defp decode_op(Operation.SetBaseFilter, m) do
-    %Operation.SetBaseFilter{
-      table: m.table,
-      schema: m.schema,
-      multitenancy: decode_multitenancy(m.multitenancy),
-      old_value: Map.get(m, :old_value),
-      new_value: Map.get(m, :new_value)
-    }
-  end
-
-  defp decode_op(Operation.SetHasCreateAction, m) do
-    %Operation.SetHasCreateAction{
-      table: m.table,
-      schema: m.schema,
-      multitenancy: decode_multitenancy(m.multitenancy),
-      old_value: Map.get(m, :old_value),
-      new_value: Map.get(m, :new_value)
-    }
-  end
-
-  defp decode_op(Operation.SetCreateTableOptions, m) do
-    %Operation.SetCreateTableOptions{
-      table: m.table,
-      schema: m.schema,
-      multitenancy: decode_multitenancy(m.multitenancy),
-      old_value: Map.get(m, :old_value),
-      new_value: Map.get(m, :new_value)
     }
   end
 

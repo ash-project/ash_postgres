@@ -192,15 +192,8 @@ defmodule AshPostgres.SnapshotDeltaTest do
       end
     end
 
-    test "pseudo-ops (SetBaseFilter, OptOutDropTable) round-trip" do
+    test "OptOutDropTable round-trips" do
       ops = [
-        %Operation.SetBaseFilter{
-          table: "things",
-          schema: nil,
-          multitenancy: @base_multitenancy,
-          old_value: nil,
-          new_value: "deleted_at IS NULL"
-        },
         %Operation.OptOutDropTable{
           table: "things",
           schema: nil,
@@ -213,11 +206,58 @@ defmodule AshPostgres.SnapshotDeltaTest do
         |> Codec.encode_delta()
         |> Codec.decode_delta()
 
+      assert [%Operation.OptOutDropTable{}] = decoded.operations
+    end
+
+    test "CreateTable carries base_filter and has_create_action through round-trip" do
+      op = %Operation.CreateTable{
+        table: "things",
+        schema: nil,
+        multitenancy: @base_multitenancy,
+        old_multitenancy: @base_multitenancy,
+        repo: AshPostgres.TestRepo,
+        create_table_options: "WITH (fillfactor=70)",
+        base_filter: "deleted_at IS NULL",
+        has_create_action: false
+      }
+
+      decoded =
+        [op]
+        |> Codec.encode_delta()
+        |> Codec.decode_delta()
+
       assert [
-               %Operation.SetBaseFilter{new_value: "deleted_at IS NULL"},
-               %Operation.OptOutDropTable{}
-             ] =
-               decoded.operations
+               %Operation.CreateTable{
+                 base_filter: "deleted_at IS NULL",
+                 has_create_action: false,
+                 create_table_options: "WITH (fillfactor=70)"
+               }
+             ] = decoded.operations
+    end
+
+    test "CreateTable.has_create_action defaults to true when absent from a decoded op" do
+      # Forward-compat: if a delta written before has_create_action was added
+      # is decoded, we default to Ash's historical true so downstream doesn't
+      # see nil-vs-false ambiguity.
+      json =
+        Jason.encode!(%{
+          version: 2,
+          operations: [
+            %{
+              type: "create_table",
+              table: "legacy",
+              schema: nil,
+              multitenancy: Codec.encode_multitenancy(@base_multitenancy),
+              old_multitenancy: Codec.encode_multitenancy(@base_multitenancy),
+              repo: "Elixir.AshPostgres.TestRepo",
+              create_table_options: nil
+              # base_filter and has_create_action intentionally absent
+            }
+          ]
+        })
+
+      decoded = Codec.decode_delta(json)
+      assert [%Operation.CreateTable{has_create_action: true, base_filter: nil}] = decoded.operations
     end
   end
 
@@ -637,10 +677,11 @@ defmodule AshPostgres.SnapshotDeltaTest do
              "create_table_options dropped by squash — got #{inspect(create.create_table_options)}"
     end
 
-    test "SetCreateTableOptions pseudo-op updates reduced state" do
-      # The pseudo-op is persisted for round-trip fidelity, but today its
-      # apply_op is a no-op — so a delta that changes create_table_options
-      # over time never propagates into state.
+    test "CreateTable hydrates base_filter and has_create_action on the reduced state" do
+      # After the pseudo-op collapse, these scalars are carried on CreateTable
+      # itself. Reducing a delta that starts with CreateTable must propagate
+      # them into state so downstream consumers (e.g. identity regen via
+      # `changing_multitenancy_affects_identities?`) see the correct old value.
       snapshot = %{
         table: "things",
         schema: nil,
@@ -657,25 +698,24 @@ defmodule AshPostgres.SnapshotDeltaTest do
           multitenancy: @base_multitenancy,
           old_multitenancy: @base_multitenancy,
           repo: AshPostgres.TestRepo,
-          create_table_options: nil
-        })
-        |> Reducer.apply_op(%Operation.SetCreateTableOptions{
-          table: "things",
-          schema: nil,
-          multitenancy: @base_multitenancy,
-          old_value: nil,
-          new_value: "WITH (fillfactor=70)"
+          create_table_options: "WITH (fillfactor=70)",
+          base_filter: "deleted_at IS NULL",
+          has_create_action: false
         })
 
       assert state.create_table_options == "WITH (fillfactor=70)"
+      assert state.base_filter == "deleted_at IS NULL"
+      assert state.has_create_action == false
     end
   end
 
   describe "state_empty? consistency" do
-    test "SetBaseFilter leaves state.empty? reflecting non-emptiness", %{} do
-      # Today `state_empty?` checks only attributes/identities/indexes/
-      # statements/constraints. A state whose only mutation is SetBaseFilter
-      # reads back as empty? true even though base_filter is non-nil.
+    test "CreateTable flips empty? to false even before any attribute ops", %{} do
+      # Invariant: the Reducer treats any mutation of a scalar state field
+      # (base_filter via CreateTable, has_create_action via CreateTable,
+      # drop_table_opted_out via OptOutDropTable) as non-emptiness, not just
+      # collection additions. Without this, `pkey_operations/4` would treat a
+      # post-CreateTable state as if it were a fresh-create snapshot.
       snapshot = %{
         table: "things",
         schema: nil,
@@ -686,19 +726,19 @@ defmodule AshPostgres.SnapshotDeltaTest do
       state =
         snapshot
         |> Reducer.empty_state()
-        |> Reducer.apply_op(%Operation.SetBaseFilter{
+        |> Reducer.apply_op(%Operation.CreateTable{
           table: "things",
           schema: nil,
           multitenancy: @base_multitenancy,
-          old_value: nil,
-          new_value: "deleted_at IS NULL"
+          old_multitenancy: @base_multitenancy,
+          repo: AshPostgres.TestRepo,
+          create_table_options: nil,
+          base_filter: "deleted_at IS NULL",
+          has_create_action: true
         })
 
       assert state.base_filter == "deleted_at IS NULL"
-
-      # Meaningfully: if base_filter is set, the resource is not empty.
-      refute state.empty?,
-             "state.empty? should be false once SetBaseFilter has mutated state"
+      refute state.empty?
     end
   end
 end

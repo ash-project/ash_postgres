@@ -179,8 +179,8 @@ defmodule AshPostgres.MigrationGenerator.Reducer do
     # Deltas are persisted in migration-emission order, which places CreateTable
     # AFTER the AddAttribute ops that populate the table. Applying it is
     # therefore a metadata refresh — it sets the table, schema, multitenancy,
-    # create_table_options, and repo context but does not require the state
-    # to be empty.
+    # scalar fields (create_table_options / base_filter / has_create_action),
+    # and repo context but does not require the state to be empty.
     #
     # Setting state.table from op.table is important for the rename chain:
     # a subsequent RenameTable op compares state.table to op.old_table, so
@@ -192,6 +192,8 @@ defmodule AshPostgres.MigrationGenerator.Reducer do
         schema: op.schema,
         multitenancy: op.multitenancy,
         create_table_options: op.create_table_options,
+        base_filter: op.base_filter,
+        has_create_action: op.has_create_action,
         empty?: false
     }
     |> maybe_put(:repo, op.repo)
@@ -311,15 +313,6 @@ defmodule AshPostgres.MigrationGenerator.Reducer do
       remove_from_coll(state, :check_constraints, &(&1.name == c.name), fn ->
         "RemoveCheckConstraint: constraint #{inspect(c.name)} not present"
       end)
-
-  def apply_op(state, %Operation.SetBaseFilter{new_value: v}),
-    do: %{state | base_filter: v, empty?: false}
-
-  def apply_op(state, %Operation.SetHasCreateAction{new_value: v}),
-    do: %{state | has_create_action: v, empty?: false}
-
-  def apply_op(state, %Operation.SetCreateTableOptions{new_value: v}),
-    do: %{state | create_table_options: v, empty?: false}
 
   def apply_op(state, %Operation.OptOutDropTable{}),
     do: %{state | drop_table_opted_out: true}
