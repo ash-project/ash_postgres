@@ -2710,6 +2710,457 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S{create unique_index(:users, [:name], name: "users_unique_name_index")}
     end
 
+    test "when base_filter changes, `all_tenants?: true` identity is dropped and recreated",
+         %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defresource Org, "orgs" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:id)
+        end
+      end
+
+      defresource User, "users" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
+          attribute(:archived, :boolean, public?: true, default: false)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        identities do
+          identity(:unique_name, [:name], all_tenants?: true)
+        end
+
+        resource do
+          base_filter(expr(archived == false))
+        end
+
+        postgres do
+          base_filter_sql "archived = false"
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+        end
+      end
+
+      defdomain([Org, User])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      defresource User, "users" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
+          attribute(:archived, :boolean, public?: true, default: false)
+          attribute(:hidden, :boolean, public?: true, default: false)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        identities do
+          identity(:unique_name, [:name], all_tenants?: true)
+        end
+
+        resource do
+          base_filter(expr(archived == false and hidden == false))
+        end
+
+        postgres do
+          base_filter_sql "archived = false AND hidden = false"
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+        end
+      end
+
+      defdomain([Org, User])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      [_first_file, second_file] =
+        Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      second_contents = File.read!(second_file)
+
+      assert [up_code, _down_code] = String.split(second_contents, "def down do")
+
+      assert up_code =~
+               ~S{drop_if_exists unique_index(:users, [:name], name: "users_unique_name_index")}
+
+      assert up_code =~
+               ~S{create unique_index(:users, [:name], where: "(archived = false AND hidden = false)"}
+    end
+
+    test "when base_filter changes, `all_tenants?: true` custom index is dropped and recreated",
+         %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defresource Org, "orgs" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:id)
+        end
+      end
+
+      defresource User, "users" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
+          attribute(:archived, :boolean, public?: true, default: false)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        resource do
+          base_filter(expr(archived == false))
+        end
+
+        postgres do
+          base_filter_sql "archived = false"
+
+          custom_indexes do
+            index([:name], all_tenants?: true, unique: true, name: "users_active_name_index")
+          end
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+        end
+      end
+
+      defdomain([Org, User])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      defresource User, "users" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
+          attribute(:archived, :boolean, public?: true, default: false)
+          attribute(:hidden, :boolean, public?: true, default: false)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        resource do
+          base_filter(expr(archived == false and hidden == false))
+        end
+
+        postgres do
+          base_filter_sql "archived = false AND hidden = false"
+
+          custom_indexes do
+            index([:name], all_tenants?: true, unique: true, name: "users_active_name_index")
+          end
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+        end
+      end
+
+      defdomain([Org, User])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      [_first_file, second_file] =
+        Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      second_contents = File.read!(second_file)
+
+      assert [up_code, _down_code] = String.split(second_contents, "def down do")
+
+      assert up_code =~
+               ~S{drop_if_exists index(:users, [:name], name: "users_active_name_index")}
+
+      assert up_code =~
+               ~S{create index(:users, [:name], name: "users_active_name_index", unique: true, where: "archived = false AND hidden = false")}
+    end
+
+    test "when multitenancy changes, `all_tenants?: true` indexes are not rewritten",
+         %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defresource Org, "orgs" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+        end
+      end
+
+      defresource User, "users" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:email, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
+          attribute(:account_id, :uuid, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        identities do
+          identity(:scoped_name, [:name])
+          identity(:global_email, [:email], all_tenants?: true)
+        end
+
+        postgres do
+          custom_indexes do
+            index([:email], all_tenants?: true, name: "users_global_email_index")
+          end
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+        end
+      end
+
+      defdomain([Org, User])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      defresource User, "users" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:email, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
+          attribute(:account_id, :uuid, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:account_id)
+        end
+
+        identities do
+          identity(:scoped_name, [:name])
+          identity(:global_email, [:email], all_tenants?: true)
+        end
+
+        postgres do
+          custom_indexes do
+            index([:email], all_tenants?: true, name: "users_global_email_index")
+          end
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+        end
+      end
+
+      defdomain([Org, User])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      [_first_file, second_file] =
+        Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      second_contents = File.read!(second_file)
+
+      assert second_contents =~
+               ~S{drop_if_exists unique_index(:users, [:org_id, :name], name: "users_scoped_name_index")}
+
+      refute second_contents =~ ~S{users_global_email_index}
+      refute second_contents =~ ~S{users_global_email_unique_index}
+    end
+
+    test "when base_filter and identity index_name change together, only drop and create are emitted",
+         %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defresource Org, "orgs" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:id)
+        end
+      end
+
+      defresource User, "users" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
+          attribute(:archived, :boolean, public?: true, default: false)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        identities do
+          identity(:unique_name, [:name], all_tenants?: true)
+        end
+
+        resource do
+          base_filter(expr(archived == false))
+        end
+
+        postgres do
+          base_filter_sql "archived = false"
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+        end
+      end
+
+      defdomain([Org, User])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      defresource User, "users" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
+          attribute(:archived, :boolean, public?: true, default: false)
+          attribute(:hidden, :boolean, public?: true, default: false)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        identities do
+          identity(:unique_name, [:name], all_tenants?: true)
+        end
+
+        resource do
+          base_filter(expr(archived == false and hidden == false))
+        end
+
+        postgres do
+          base_filter_sql "archived = false AND hidden = false"
+          identity_index_names(unique_name: "renamed_users_unique_name_index")
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+        end
+      end
+
+      defdomain([Org, User])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      [_first_file, second_file] =
+        Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      second_contents = File.read!(second_file)
+
+      assert [up_code, _down_code] = String.split(second_contents, "def down do")
+
+      assert up_code =~
+               ~S{drop_if_exists unique_index(:users, [:name], name: "users_unique_name_index")}
+
+      assert up_code =~
+               ~S{create unique_index(:users, [:name], where: "(archived = false AND hidden = false)", name: "renamed_users_unique_name_index")}
+
+      refute up_code =~ "ALTER INDEX"
+    end
+
     test "when modified, the foreign key is dropped before modification", %{
       snapshot_path: snapshot_path,
       migration_path: migration_path
