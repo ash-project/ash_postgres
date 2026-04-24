@@ -2936,6 +2936,20 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert up_code =~
                ~S{create index(:users, [:name], name: "users_active_name_index", unique: true, where: "archived = false AND hidden = false")}
+
+      {drop_index, _drop_length} =
+        :binary.match(
+          up_code,
+          ~S{drop_if_exists index(:users, [:name], name: "users_active_name_index")}
+        )
+
+      {create_index, _create_length} =
+        :binary.match(
+          up_code,
+          ~S{create index(:users, [:name], name: "users_active_name_index", unique: true, where: "archived = false AND hidden = false")}
+        )
+
+      assert drop_index < create_index
     end
 
     test "when multitenancy changes, `all_tenants?: true` indexes are not rewritten",

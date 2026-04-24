@@ -1891,6 +1891,13 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp after?(
+         %Operation.RemoveCustomIndex{table: table, schema: schema},
+         %Operation.AddCustomIndex{table: table, schema: schema}
+       ) do
+    false
+  end
+
+  defp after?(
          %Operation.RenameAttribute{
            old_attribute: %{source: source},
            table: table,
