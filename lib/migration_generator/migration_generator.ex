@@ -1891,6 +1891,13 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp after?(
+         %Operation.RemoveCustomIndex{table: table, schema: schema},
+         %Operation.AddCustomIndex{table: table, schema: schema}
+       ) do
+    false
+  end
+
+  defp after?(
          %Operation.RenameAttribute{
            old_attribute: %{source: source},
            table: table,
@@ -2308,7 +2315,8 @@ defmodule AshPostgres.MigrationGenerator do
     {pkey_operations, attribute_operations} =
       pkey_operations(snapshot, old_snapshot, attribute_operations, opts)
 
-    rewrite_all_identities? = changing_multitenancy_affects_identities?(snapshot, old_snapshot)
+    multitenancy_changed? =
+      Map.delete(snapshot.multitenancy, :global) != Map.delete(old_snapshot.multitenancy, :global)
 
     custom_statements_to_add =
       snapshot.custom_statements
@@ -2343,9 +2351,9 @@ defmodule AshPostgres.MigrationGenerator do
 
     custom_indexes_to_add =
       Enum.filter(snapshot.custom_indexes, fn index ->
-        (rewrite_all_identities? && !index.all_tenants?) ||
+        rewrite_for_multitenancy_change?(index, multitenancy_changed?) ||
           !Enum.find(old_snapshot.custom_indexes, fn old_custom_index ->
-            indexes_match?(snapshot.table, old_custom_index, index)
+            indexes_match?(old_custom_index, old_snapshot, index, snapshot)
           end)
       end)
       |> Enum.map(fn custom_index ->
@@ -2406,9 +2414,9 @@ defmodule AshPostgres.MigrationGenerator do
 
     custom_indexes_to_remove =
       Enum.filter(old_snapshot.custom_indexes, fn old_custom_index ->
-        (rewrite_all_identities? && !old_custom_index.all_tenants?) ||
+        rewrite_for_multitenancy_change?(old_custom_index, multitenancy_changed?) ||
           !Enum.find(snapshot.custom_indexes, fn index ->
-            indexes_match?(snapshot.table, old_custom_index, index)
+            indexes_match?(old_custom_index, old_snapshot, index, snapshot)
           end)
       end)
       |> Enum.map(fn custom_index ->
@@ -2422,20 +2430,10 @@ defmodule AshPostgres.MigrationGenerator do
       end)
 
     unique_indexes_to_remove =
-      if rewrite_all_identities? do
-        Enum.reject(old_snapshot.identities, & &1.all_tenants?)
-      else
-        Enum.reject(old_snapshot.identities, fn old_identity ->
-          Enum.find(snapshot.identities, fn identity ->
-            identity.name == old_identity.name &&
-              old_identity.keys == identity.keys &&
-              old_identity.base_filter == identity.base_filter &&
-              old_identity.all_tenants? == identity.all_tenants? &&
-              old_identity.nils_distinct? == identity.nils_distinct? &&
-              old_identity.where == identity.where
-          end)
-        end)
-      end
+      Enum.filter(old_snapshot.identities, fn old_identity ->
+        rewrite_for_multitenancy_change?(old_identity, multitenancy_changed?) ||
+          !Enum.find(snapshot.identities, &identities_match?(&1, old_identity))
+      end)
       |> Enum.map(fn identity ->
         %Operation.RemoveUniqueIndex{
           identity: identity,
@@ -2445,30 +2443,17 @@ defmodule AshPostgres.MigrationGenerator do
       end)
 
     unique_indexes_to_rename =
-      if rewrite_all_identities? do
-        snapshot.identities
-        |> Enum.filter(& &1.all_tenants?)
-        |> Enum.map(fn identity ->
-          Enum.find_value(old_snapshot.identities, fn old_identity ->
-            if old_identity.name == identity.name &&
-                 old_identity.index_name != identity.index_name do
-              {old_identity, identity}
-            end
-          end)
+      snapshot.identities
+      |> Enum.reject(&rewrite_for_multitenancy_change?(&1, multitenancy_changed?))
+      |> Enum.map(fn identity ->
+        Enum.find_value(old_snapshot.identities, fn old_identity ->
+          if identities_match?(old_identity, identity) &&
+               old_identity.index_name != identity.index_name do
+            {old_identity, identity}
+          end
         end)
-        |> Enum.filter(& &1)
-      else
-        snapshot.identities
-        |> Enum.map(fn identity ->
-          Enum.find_value(old_snapshot.identities, fn old_identity ->
-            if old_identity.name == identity.name &&
-                 old_identity.index_name != identity.index_name do
-              {old_identity, identity}
-            end
-          end)
-        end)
-        |> Enum.filter(& &1)
-      end
+      end)
+      |> Enum.filter(& &1)
       |> Enum.map(fn {old_identity, new_identity} ->
         %Operation.RenameUniqueIndex{
           old_identity: old_identity,
@@ -2479,34 +2464,10 @@ defmodule AshPostgres.MigrationGenerator do
       end)
 
     unique_indexes_to_add =
-      if rewrite_all_identities? do
-        snapshot.identities
-        |> Enum.reject(fn identity ->
-          if identity.all_tenants? do
-            Enum.find(old_snapshot.identities, fn old_identity ->
-              old_identity.name == identity.name &&
-                old_identity.keys == identity.keys &&
-                old_identity.base_filter == identity.base_filter &&
-                old_identity.all_tenants? == identity.all_tenants? &&
-                old_identity.nils_distinct? == identity.nils_distinct? &&
-                old_identity.where == identity.where
-            end)
-          else
-            false
-          end
-        end)
-      else
-        Enum.reject(snapshot.identities, fn identity ->
-          Enum.find(old_snapshot.identities, fn old_identity ->
-            old_identity.name == identity.name &&
-              old_identity.keys == identity.keys &&
-              old_identity.base_filter == identity.base_filter &&
-              old_identity.all_tenants? == identity.all_tenants? &&
-              old_identity.nils_distinct? == identity.nils_distinct? &&
-              old_identity.where == identity.where
-          end)
-        end)
-      end
+      Enum.filter(snapshot.identities, fn identity ->
+        rewrite_for_multitenancy_change?(identity, multitenancy_changed?) ||
+          !Enum.find(old_snapshot.identities, &identities_match?(&1, identity))
+      end)
       |> Enum.map(fn identity ->
         {insert_after_attribute_source, _best_index} =
           identity.keys
@@ -2593,24 +2554,28 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.map(&Map.put(&1, :old_multitenancy, old_snapshot.multitenancy))
   end
 
-  defp indexes_match?(table, left, right) do
-    left =
-      left
-      |> Map.update!(:fields, fn fields ->
-        Enum.map(fields, &to_string/1)
-      end)
-      |> add_custom_index_name(table)
-      |> Map.delete(:error_fields)
+  defp indexes_match?(left_index, left_snapshot, right_index, right_snapshot) do
+    custom_index_comparison_key(left_index, left_snapshot) ==
+      custom_index_comparison_key(right_index, right_snapshot)
+  end
 
-    right =
-      right
-      |> Map.update!(:fields, fn fields ->
-        Enum.map(fields, &to_string/1)
-      end)
-      |> add_custom_index_name(table)
-      |> Map.delete(:error_fields)
+  defp custom_index_comparison_key(index, snapshot) do
+    index
+    |> Map.update!(:fields, fn fields ->
+      Enum.map(fields, &to_string/1)
+    end)
+    |> add_custom_index_name(snapshot.table)
+    |> Map.put(:where, {snapshot.base_filter, index.where})
+    |> Map.delete(:error_fields)
+  end
 
-    left == right
+  @identity_match_keys [:name, :keys, :base_filter, :all_tenants?, :nils_distinct?, :where]
+  defp identities_match?(left, right) do
+    Map.take(left, @identity_match_keys) == Map.take(right, @identity_match_keys)
+  end
+
+  defp rewrite_for_multitenancy_change?(index, multitenancy_changed?) do
+    !index.all_tenants? && multitenancy_changed?
   end
 
   defp add_custom_index_name(custom_index, table) do
@@ -3138,11 +3103,6 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp add_schema(attribute, _) do
     attribute
-  end
-
-  def changing_multitenancy_affects_identities?(snapshot, old_snapshot) do
-    Map.delete(snapshot.multitenancy, :global) != Map.delete(old_snapshot.multitenancy, :global) ||
-      snapshot.base_filter != old_snapshot.base_filter
   end
 
   def has_reference?(multitenancy, attribute) do
