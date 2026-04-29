@@ -257,7 +257,9 @@ defmodule AshPostgres.SnapshotDeltaTest do
         })
 
       decoded = Codec.decode_delta(json)
-      assert [%Operation.CreateTable{has_create_action: true, base_filter: nil}] = decoded.operations
+
+      assert [%Operation.CreateTable{has_create_action: true, base_filter: nil}] =
+               decoded.operations
     end
   end
 
@@ -443,7 +445,11 @@ defmodule AshPostgres.SnapshotDeltaTest do
          %{snapshot: snapshot} do
       # Apply_op path for these ops wasn't previously exercised by a unit
       # test. Covering the helper-based add/remove plumbing explicitly.
-      statement = %{name: :enable_trgm, up: "create extension pg_trgm", down: "drop extension pg_trgm"}
+      statement = %{
+        name: :enable_trgm,
+        up: "create extension pg_trgm",
+        down: "drop extension pg_trgm"
+      }
 
       state =
         snapshot
@@ -1385,6 +1391,389 @@ defmodule AshPostgres.SnapshotDeltaTest do
 
       assert state.base_filter == "deleted_at IS NULL"
       refute state.empty?
+    end
+  end
+
+  # =================================================================
+  # Long delta chain — proves the reducer's invariants hold under
+  # arbitrary sequences of ops, not just the 1-3 deltas the integration
+  # tests exercise. Uses a simple oscillating add/remove/add cycle to
+  # produce 100+ ops and asserts the final state matches the expected
+  # set of attributes.
+  # =================================================================
+
+  describe "long delta chain" do
+    @moduletag :tmp_dir
+
+    test "reducing 100+ ops via direct apply_op yields the expected final state" do
+      snapshot = %{
+        table: "long_chain",
+        schema: nil,
+        repo: AshPostgres.TestRepo,
+        multitenancy: @base_multitenancy
+      }
+
+      mk_attr = fn name ->
+        %{
+          source: name,
+          type: :text,
+          default: "nil",
+          size: nil,
+          precision: nil,
+          scale: nil,
+          primary_key?: false,
+          allow_nil?: true,
+          generated?: false,
+          references: nil
+        }
+      end
+
+      add = fn s, a ->
+        Reducer.apply_op(s, %Operation.AddAttribute{
+          table: "long_chain",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          attribute: a
+        })
+      end
+
+      remove = fn s, a ->
+        Reducer.apply_op(s, %Operation.RemoveAttribute{
+          table: "long_chain",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          attribute: a
+        })
+      end
+
+      alter = fn s, old, new ->
+        Reducer.apply_op(s, %Operation.AlterAttribute{
+          table: "long_chain",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          old_attribute: old,
+          new_attribute: new
+        })
+      end
+
+      # Build up 50 attributes one by one, alter each one to flip allow_nil?,
+      # remove half of them, then re-add them with a different default. That's
+      # 50 + 50 + 25 + 25 = 150 ops total.
+      state = Reducer.empty_state(snapshot)
+
+      attrs = for i <- 1..50, do: mk_attr.(:"col_#{i}")
+
+      state = Enum.reduce(attrs, state, fn a, s -> add.(s, a) end)
+      assert length(state.attributes) == 50
+
+      altered_attrs =
+        Enum.map(attrs, fn a -> %{a | allow_nil?: false} end)
+
+      state =
+        Enum.reduce(Enum.zip(attrs, altered_attrs), state, fn {old, new}, s ->
+          alter.(s, old, new)
+        end)
+
+      assert Enum.all?(state.attributes, &(&1.allow_nil? == false))
+
+      to_remove = Enum.take_every(altered_attrs, 2)
+
+      state = Enum.reduce(to_remove, state, fn a, s -> remove.(s, a) end)
+      assert length(state.attributes) == 25
+
+      readded =
+        Enum.map(to_remove, fn a -> %{a | default: "''"} end)
+
+      state = Enum.reduce(readded, state, fn a, s -> add.(s, a) end)
+      assert length(state.attributes) == 50
+
+      # Final state: all 50 columns present. The 25 re-added ones retain
+      # allow_nil? = false (carried over from the altered attribute they
+      # were constructed from) and have default "''". The 25 untouched
+      # ones also have allow_nil? = false from the original alter.
+      readded_sources = MapSet.new(readded, & &1.source)
+
+      Enum.each(state.attributes, fn attr ->
+        assert attr.allow_nil? == false
+
+        if MapSet.member?(readded_sources, attr.source) do
+          assert attr.default == "''"
+        else
+          assert attr.default == "nil"
+        end
+      end)
+    end
+
+    test "reducing 60 delta files from disk in timestamp order yields the same state",
+         %{tmp_dir: tmp_dir} do
+      # Fans out the long-chain test across the on-disk path that codegen
+      # actually exercises: 60 separate JSON files, sorted by timestamp,
+      # each a single-op delta. Catches any edge cases the file-loop
+      # has that direct apply_op doesn't (sort order, file IO, hash
+      # chain validation falls back to nil so this is fine).
+      snapshot = %{
+        table: "long_disk_chain",
+        schema: nil,
+        repo: AshPostgres.TestRepo,
+        multitenancy: @base_multitenancy
+      }
+
+      folder = Path.join([tmp_dir, "test_repo", "long_disk_chain"])
+      File.mkdir_p!(folder)
+
+      # CreateTable as the first delta. Subsequent deltas each add one column.
+      File.write!(
+        Path.join(folder, "20260101000000.json"),
+        Codec.encode_delta([
+          %Operation.CreateTable{
+            table: "long_disk_chain",
+            schema: nil,
+            multitenancy: @base_multitenancy,
+            old_multitenancy: @base_multitenancy,
+            repo: AshPostgres.TestRepo,
+            create_table_options: nil
+          }
+        ])
+      )
+
+      for i <- 1..60 do
+        # 14-digit timestamps: 20260101 (date) + 6-digit zero-padded seq.
+        ts = "20260101" <> String.pad_leading("#{i}", 6, "0")
+
+        attr = %{
+          source: :"col_#{i}",
+          type: :text,
+          default: "nil",
+          size: nil,
+          precision: nil,
+          scale: nil,
+          primary_key?: false,
+          allow_nil?: true,
+          generated?: false,
+          references: nil
+        }
+
+        File.write!(
+          Path.join(folder, "#{ts}.json"),
+          Codec.encode_delta([
+            %Operation.AddAttribute{
+              table: "long_disk_chain",
+              schema: nil,
+              multitenancy: @base_multitenancy,
+              old_multitenancy: @base_multitenancy,
+              attribute: attr
+            }
+          ])
+        )
+      end
+
+      opts = %AshPostgres.MigrationGenerator{snapshot_path: tmp_dir, dev: false, quiet: true}
+      state = Reducer.load_reduced_state(snapshot, opts)
+
+      assert length(state.attributes) == 60
+
+      # Order: insertion order matters for downstream migration emission.
+      # Reducer preserves insertion order via state.attributes ++ [attr].
+      sources = Enum.map(state.attributes, & &1.source)
+      expected = for i <- 1..60, do: :"col_#{i}"
+      assert sources == expected
+    end
+  end
+
+  # =================================================================
+  # Robustness: hash stability + filename ordering. Cheap unit tests
+  # for two failure modes that would silently corrupt state if they
+  # ever broke.
+  # =================================================================
+
+  describe "robustness" do
+    @moduletag :tmp_dir
+
+    test "encoding the same op list with different map key orders produces the same JSON" do
+      # The reducer uses `to_ordered_object/1` to sort keys before encoding.
+      # If that ever regressed, two runs of the generator producing
+      # logically-identical state could write different bytes — and
+      # downstream tooling (migrate / squash / hash chain) would silently
+      # diverge.
+      mt = %{strategy: nil, attribute: nil, global: nil}
+      mt_reordered = %{global: nil, strategy: nil, attribute: nil}
+
+      attr_a = %{
+        source: :id,
+        type: :uuid,
+        default: "fragment(\"gen_random_uuid()\")",
+        size: nil,
+        precision: nil,
+        scale: nil,
+        primary_key?: true,
+        allow_nil?: false,
+        generated?: false,
+        references: nil
+      }
+
+      # Same fields inserted in a different literal order.
+      attr_b = %{
+        references: nil,
+        generated?: false,
+        allow_nil?: false,
+        primary_key?: true,
+        scale: nil,
+        precision: nil,
+        size: nil,
+        default: "fragment(\"gen_random_uuid()\")",
+        type: :uuid,
+        source: :id
+      }
+
+      op_a = %Operation.AddAttribute{
+        table: "things",
+        schema: nil,
+        multitenancy: mt,
+        old_multitenancy: mt,
+        attribute: attr_a
+      }
+
+      op_b = %Operation.AddAttribute{
+        table: "things",
+        schema: nil,
+        multitenancy: mt_reordered,
+        old_multitenancy: mt_reordered,
+        attribute: attr_b
+      }
+
+      json_a = Codec.encode_delta([op_a], %{generated_at: "2026-01-01T00:00:00Z"})
+      json_b = Codec.encode_delta([op_b], %{generated_at: "2026-01-01T00:00:00Z"})
+
+      assert json_a == json_b,
+             "encode_delta produced different bytes for logically-identical ops — to_ordered_object regressed"
+    end
+
+    test "reducer applies deltas in timestamp order regardless of write order",
+         %{tmp_dir: tmp_dir} do
+      # File systems (especially macOS HFS+, NTFS, network filesystems)
+      # do NOT guarantee that File.ls! returns entries in any particular
+      # order. The reducer relies on Enum.sort to canonicalize. This test
+      # writes deltas in REVERSE timestamp order to verify the reducer
+      # still applies them oldest→newest.
+      snapshot = %{
+        table: "out_of_order",
+        schema: nil,
+        repo: AshPostgres.TestRepo,
+        multitenancy: @base_multitenancy
+      }
+
+      folder = Path.join([tmp_dir, "test_repo", "out_of_order"])
+      File.mkdir_p!(folder)
+
+      ts1 = "20260101000000"
+      ts2 = "20260101000001"
+      ts3 = "20260101000002"
+
+      # Write in REVERSE order — the file system may serve them this way.
+      File.write!(
+        Path.join(folder, "#{ts3}.json"),
+        Codec.encode_delta([
+          %Operation.AddAttribute{
+            table: "out_of_order",
+            schema: nil,
+            multitenancy: @base_multitenancy,
+            old_multitenancy: @base_multitenancy,
+            attribute: %{@text_attribute | source: :third}
+          }
+        ])
+      )
+
+      File.write!(
+        Path.join(folder, "#{ts2}.json"),
+        Codec.encode_delta([
+          %Operation.AddAttribute{
+            table: "out_of_order",
+            schema: nil,
+            multitenancy: @base_multitenancy,
+            old_multitenancy: @base_multitenancy,
+            attribute: %{@text_attribute | source: :second}
+          }
+        ])
+      )
+
+      File.write!(
+        Path.join(folder, "#{ts1}.json"),
+        Codec.encode_delta([
+          %Operation.CreateTable{
+            table: "out_of_order",
+            schema: nil,
+            multitenancy: @base_multitenancy,
+            old_multitenancy: @base_multitenancy,
+            repo: AshPostgres.TestRepo,
+            create_table_options: nil
+          }
+        ])
+      )
+
+      opts = %AshPostgres.MigrationGenerator{snapshot_path: tmp_dir, dev: false, quiet: true}
+      state = Reducer.load_reduced_state(snapshot, opts)
+
+      # Insertion order on state.attributes reflects the order ops were applied.
+      # If sorting regressed, we'd see the AddAttribute applied BEFORE
+      # CreateTable, causing some other state corruption — but the
+      # reducer's CreateTable apply is intentionally lenient about
+      # collection state, so we check that all three attributes ended up
+      # present in the right SEQUENCE.
+      sources = Enum.map(state.attributes, & &1.source)
+
+      assert sources == [:second, :third],
+             "Reducer applied deltas out of timestamp order. Got #{inspect(sources)}"
+    end
+
+    test "reducer ignores non-delta files in the snapshot directory", %{tmp_dir: tmp_dir} do
+      # Generators or VCS tools can drop garbage into the directory
+      # (.gitkeep, .DS_Store, README.md, backup files). The reducer must
+      # only consider strict NNNNNNNNNNNNNN.json filenames.
+      snapshot = %{
+        table: "with_garbage",
+        schema: nil,
+        repo: AshPostgres.TestRepo,
+        multitenancy: @base_multitenancy
+      }
+
+      folder = Path.join([tmp_dir, "test_repo", "with_garbage"])
+      File.mkdir_p!(folder)
+
+      # Real delta.
+      File.write!(
+        Path.join(folder, "20260101000000.json"),
+        Codec.encode_delta([
+          %Operation.CreateTable{
+            table: "with_garbage",
+            schema: nil,
+            multitenancy: @base_multitenancy,
+            old_multitenancy: @base_multitenancy,
+            repo: AshPostgres.TestRepo,
+            create_table_options: nil
+          },
+          %Operation.AddAttribute{
+            table: "with_garbage",
+            schema: nil,
+            multitenancy: @base_multitenancy,
+            old_multitenancy: @base_multitenancy,
+            attribute: @text_attribute
+          }
+        ])
+      )
+
+      # Non-delta files that would explode if the reducer tried to read them.
+      File.write!(Path.join(folder, ".DS_Store"), <<0, 0, 0, 1, 0, 0>>)
+      File.write!(Path.join(folder, "README.md"), "# notes")
+      File.write!(Path.join(folder, "backup.json.bak"), "{}")
+      File.write!(Path.join(folder, "20260101.json"), "not a 14-digit timestamp")
+
+      opts = %AshPostgres.MigrationGenerator{snapshot_path: tmp_dir, dev: false, quiet: true}
+      state = Reducer.load_reduced_state(snapshot, opts)
+
+      assert [%{source: :email}] = state.attributes
     end
   end
 end

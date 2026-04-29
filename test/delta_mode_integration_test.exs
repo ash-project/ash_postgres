@@ -1028,6 +1028,220 @@ defmodule AshPostgres.DeltaModeIntegrationTest do
                      reduce_dir(sp, "delta_branch_2")
                    end
     end
+
+    test "real sequential codegen on diverged branches produces deltas that merge cleanly",
+         %{snapshot_path: sp, migration_path: mp, tmp_dir: tmp_dir} do
+      # The fabricated-JSON test above proves the reducer can fold two
+      # parallel deltas. This test goes further: it actually invokes
+      # `MigrationGenerator.generate/2` independently on two diverged
+      # snapshot directories (simulating two branches running codegen),
+      # then physically merges the directories and runs codegen again,
+      # checking that no extra migration is emitted. No JSON is hand-rolled.
+
+      sp_a = Path.join(tmp_dir, "branch_a_snapshots")
+      sp_b = Path.join(tmp_dir, "branch_b_snapshots")
+      mp_a = Path.join(tmp_dir, "branch_a_migrations")
+      mp_b = Path.join(tmp_dir, "branch_b_migrations")
+
+      # ---- main: define resource, generate initial state ----
+      defresource DeltaRealMerge do
+        postgres do
+          table("delta_real_merge")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaRealMerge])
+      run_codegen(Domain, sp, mp)
+
+      # Sanity: only the initial delta file exists.
+      assert length(delta_files(sp, "delta_real_merge")) == 1
+
+      # ---- branch A: fork BOTH the snapshot dir and the migration dir from
+      # the post-main state. A real `git checkout -b` on a working repo
+      # carries both directories along. ----
+      File.cp_r!(sp, sp_a)
+      File.cp_r!(mp, mp_a)
+
+      defresource DeltaRealMerge do
+        postgres do
+          table("delta_real_merge")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:body, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaRealMerge])
+      run_codegen(Domain, sp_a, mp_a)
+
+      # ---- branch B: fork from the SAME pre-divergence point, add :tags ----
+      File.cp_r!(sp, sp_b)
+      File.cp_r!(mp, mp_b)
+
+      defresource DeltaRealMerge do
+        postgres do
+          table("delta_real_merge")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:tags, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaRealMerge])
+      run_codegen(Domain, sp_b, mp_b)
+
+      # Each branch has its own (initial + new) deltas.
+      branch_a_files = delta_files(sp_a, "delta_real_merge")
+      branch_b_files = delta_files(sp_b, "delta_real_merge")
+      assert length(branch_a_files) == 2
+      assert length(branch_b_files) == 2
+
+      # The new delta in branch B carries an `:tags` AddAttribute.
+      branch_b_new = List.last(branch_b_files)
+      decoded_b = read_delta(branch_b_new)
+
+      assert Enum.any?(
+               decoded_b.operations,
+               &match?(
+                 %Operation.AddAttribute{attribute: %{source: :tags}},
+                 &1
+               )
+             )
+
+      # ---- simulate `git merge`: copy branch B's *new* delta into branch A's
+      # snapshot directory and migration directory. The shared initial files
+      # are already in branch A, so this lands branch B's NEW delta + new
+      # migration alongside.
+      branch_b_resource_dir =
+        Path.dirname(List.first(Path.wildcard("#{sp_b}/**/delta_real_merge/*.json")))
+
+      branch_a_resource_dir =
+        Path.dirname(List.first(Path.wildcard("#{sp_a}/**/delta_real_merge/*.json")))
+
+      branch_b_initial_basename = branch_b_files |> List.first() |> Path.basename()
+
+      branch_b_resource_dir
+      |> File.ls!()
+      |> Enum.reject(&(&1 == branch_b_initial_basename))
+      |> Enum.each(fn f ->
+        File.cp!(
+          Path.join(branch_b_resource_dir, f),
+          Path.join(branch_a_resource_dir, f)
+        )
+      end)
+
+      # Same merge for migration files: copy branch B's NEW migration files
+      # into branch A's migration tree.
+      branch_a_initial_migrations =
+        migration_files(mp_a) |> Enum.map(&Path.basename/1) |> MapSet.new()
+
+      branch_b_migration_files = migration_files(mp_b)
+
+      Enum.each(branch_b_migration_files, fn b_file ->
+        if !MapSet.member?(branch_a_initial_migrations, Path.basename(b_file)) do
+          rel = Path.relative_to(b_file, mp_b)
+          dest = Path.join(mp_a, rel)
+          File.mkdir_p!(Path.dirname(dest))
+          File.cp!(b_file, dest)
+        end
+      end)
+
+      # Branch A folder now has 3 files: shared initial + branch_a's new + branch_b's new
+      assert length(delta_files(sp_a, "delta_real_merge")) == 3
+
+      # The reducer state combines all three.
+      merged_state =
+        Reducer.load_reduced_state(
+          %{
+            table: "delta_real_merge",
+            schema: nil,
+            repo: AshPostgres.TestRepo,
+            multitenancy: @mt
+          },
+          %MigrationGenerator{snapshot_path: sp_a, dev: false, quiet: true}
+        )
+
+      sources = merged_state.attributes |> Enum.map(& &1.source) |> Enum.sort()
+      assert :id in sources
+      assert :title in sources
+      assert :body in sources
+      assert :tags in sources
+
+      # ---- post-merge codegen: resource reflects both new attributes,
+      # so the next codegen must NOT emit a new delta or migration.
+      defresource DeltaRealMerge do
+        postgres do
+          table("delta_real_merge")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:body, :string, public?: true)
+          attribute(:tags, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaRealMerge])
+
+      files_before = delta_files(sp_a, "delta_real_merge")
+      migrations_before = migration_files(mp_a)
+
+      run_codegen(Domain, sp_a, mp_a)
+
+      assert delta_files(sp_a, "delta_real_merge") == files_before,
+             "Codegen on the merged branch produced a spurious delta — the reducer's state did not match the resource definition."
+
+      assert migration_files(mp_a) == migrations_before,
+             "Codegen on the merged branch produced a spurious migration."
+
+      # ---- run the merged migrations end-to-end against a real DB and assert
+      # the resulting schema has all four columns. This proves not only that
+      # the deltas merged cleanly but that the migration files produced from
+      # diverged branches are mutually compatible when applied in order.
+      refute table_exists?("delta_real_merge")
+      run_generated_migrations(mp_a)
+
+      assert table_exists?("delta_real_merge")
+      assert column_exists?("delta_real_merge", "id")
+      assert column_exists?("delta_real_merge", "title")
+      assert column_exists?("delta_real_merge", "body")
+      assert column_exists?("delta_real_merge", "tags")
+
+      rollback_generated_migrations(mp_a)
+      refute table_exists?("delta_real_merge")
+    end
   end
 
   # ===================================================================
@@ -1121,6 +1335,167 @@ defmodule AshPostgres.DeltaModeIntegrationTest do
 
       assert delta_files(sp, "delta_squash_thing") == files_after
       assert migration_files(mp) == migrations_before
+    end
+
+    test "post-squash incremental codegen emits the same migration as the no-squash baseline",
+         %{tmp_dir: tmp_dir} do
+      # Two parallel timelines: path A never squashes, path B squashes after
+      # the second codegen. Both end with the same resource definition and a
+      # final codegen that adds :tags. The third migration's content must be
+      # identical between A and B — squash must not perturb the diff engine.
+      sp_a = Path.join(tmp_dir, "noop_squash_a_sp")
+      mp_a = Path.join(tmp_dir, "noop_squash_a_mp")
+      sp_b = Path.join(tmp_dir, "noop_squash_b_sp")
+      mp_b = Path.join(tmp_dir, "noop_squash_b_mp")
+
+      # ---- Path A: never squash. ----
+      defresource DeltaSquashIncr do
+        postgres do
+          table("delta_squash_incr")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaSquashIncr])
+      run_codegen(Domain, sp_a, mp_a)
+
+      defresource DeltaSquashIncr do
+        postgres do
+          table("delta_squash_incr")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:body, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaSquashIncr])
+      run_codegen(Domain, sp_a, mp_a)
+
+      defresource DeltaSquashIncr do
+        postgres do
+          table("delta_squash_incr")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:body, :string, public?: true)
+          attribute(:tags, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaSquashIncr])
+      run_codegen(Domain, sp_a, mp_a)
+
+      # ---- Path B: squash mid-way. Re-establish state from scratch in a
+      # second snapshot/migration tree. ----
+      defresource DeltaSquashIncr do
+        postgres do
+          table("delta_squash_incr")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaSquashIncr])
+      run_codegen(Domain, sp_b, mp_b)
+
+      defresource DeltaSquashIncr do
+        postgres do
+          table("delta_squash_incr")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:body, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaSquashIncr])
+      run_codegen(Domain, sp_b, mp_b)
+
+      Mix.Tasks.AshPostgres.SquashSnapshots.run(["--snapshot-path", sp_b, "--quiet"])
+
+      defresource DeltaSquashIncr do
+        postgres do
+          table("delta_squash_incr")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:body, :string, public?: true)
+          attribute(:tags, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaSquashIncr])
+      run_codegen(Domain, sp_b, mp_b)
+
+      # The final migration in each path is the "add tags" change. It must be
+      # the same between paths — squash must NOT rewrite the diff.
+      [_, _, last_a] = migration_files(mp_a)
+      [_, _, last_b] = migration_files(mp_b)
+
+      a_body = migration_body_only(last_a)
+      b_body = migration_body_only(last_b)
+
+      assert a_body == b_body,
+             "Post-squash incremental migration diverged from the no-squash baseline.\n\nA:\n#{a_body}\n\nB:\n#{b_body}"
+
+      # Stronger: run both chains against fresh DB and assert the resulting
+      # schemas are identical.
+      run_generated_migrations(mp_a)
+      schema_a = capture_table_schema("delta_squash_incr")
+      rollback_generated_migrations(mp_a)
+
+      run_generated_migrations(mp_b)
+      schema_b = capture_table_schema("delta_squash_incr")
+      rollback_generated_migrations(mp_b)
+
+      assert schema_a == schema_b,
+             "Post-squash chain yielded a different DB schema than the un-squashed chain"
     end
   end
 
@@ -1246,6 +1621,227 @@ defmodule AshPostgres.DeltaModeIntegrationTest do
 
       assert delta_files(sp, "delta_migrated") == post_migrate
       assert migration_files(mp) == migrations_before
+    end
+
+    test "post-migrate incremental codegen emits the same migration as the no-migrate baseline",
+         %{tmp_dir: tmp_dir} do
+      # Two parallel timelines for an upgrade-path safety net:
+      #   A) stays in :full mode the whole time and adds :tags
+      #   B) does the same first two codegens in :full, then runs
+      #      mix ash_postgres.migrate_snapshots, then adds :tags in :delta
+      # The migration emitted for adding :tags must be identical between A
+      # and B. Otherwise the migrate task is silently rewriting the diff
+      # the user sees post-upgrade.
+      sp_a = Path.join(tmp_dir, "no_migrate_sp")
+      mp_a = Path.join(tmp_dir, "no_migrate_mp")
+      sp_b = Path.join(tmp_dir, "with_migrate_sp")
+      mp_b = Path.join(tmp_dir, "with_migrate_mp")
+
+      tenant_a = Path.join(tmp_dir, "no_migrate_tenant")
+      tenant_b = Path.join(tmp_dir, "with_migrate_tenant")
+
+      # ---- Path A: stay in :full mode through all 3 codegens. ----
+      defresource DeltaMigrateIncr do
+        postgres do
+          table("delta_migrate_incr")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaMigrateIncr])
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: sp_a,
+        migration_path: mp_a,
+        tenant_migration_path: tenant_a,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :full
+      )
+
+      defresource DeltaMigrateIncr do
+        postgres do
+          table("delta_migrate_incr")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:body, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaMigrateIncr])
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: sp_a,
+        migration_path: mp_a,
+        tenant_migration_path: tenant_a,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :full
+      )
+
+      defresource DeltaMigrateIncr do
+        postgres do
+          table("delta_migrate_incr")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:body, :string, public?: true)
+          attribute(:tags, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaMigrateIncr])
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: sp_a,
+        migration_path: mp_a,
+        tenant_migration_path: tenant_a,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :full
+      )
+
+      # ---- Path B: same first two codegens, then migrate, then :delta. ----
+      defresource DeltaMigrateIncr do
+        postgres do
+          table("delta_migrate_incr")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaMigrateIncr])
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: sp_b,
+        migration_path: mp_b,
+        tenant_migration_path: tenant_b,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :full
+      )
+
+      defresource DeltaMigrateIncr do
+        postgres do
+          table("delta_migrate_incr")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:body, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaMigrateIncr])
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: sp_b,
+        migration_path: mp_b,
+        tenant_migration_path: tenant_b,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :full
+      )
+
+      # Migrate snapshots to v2.
+      Mix.Tasks.AshPostgres.MigrateSnapshots.run(["--snapshot-path", sp_b, "--quiet"])
+
+      defresource DeltaMigrateIncr do
+        postgres do
+          table("delta_migrate_incr")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:body, :string, public?: true)
+          attribute(:tags, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaMigrateIncr])
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: sp_b,
+        migration_path: mp_b,
+        tenant_migration_path: tenant_b,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :delta
+      )
+
+      # The third migration in each path is the "add tags" change. Their
+      # bodies must match.
+      [_, _, last_a] = migration_files(mp_a)
+      [_, _, last_b] = migration_files(mp_b)
+
+      a_body = migration_body_only(last_a)
+      b_body = migration_body_only(last_b)
+
+      assert a_body == b_body,
+             "Post-migrate incremental migration diverged from the no-migrate baseline.\n\nA:\n#{a_body}\n\nB:\n#{b_body}"
+
+      # Run both chains end-to-end and assert the resulting DB schema is
+      # identical between the modes.
+      run_generated_migrations(mp_a)
+      schema_a = capture_table_schema("delta_migrate_incr")
+      rollback_generated_migrations(mp_a)
+
+      run_generated_migrations(mp_b)
+      schema_b = capture_table_schema("delta_migrate_incr")
+      rollback_generated_migrations(mp_b)
+
+      assert schema_a == schema_b,
+             "Post-migrate chain yielded a different DB schema than the no-migrate chain"
     end
   end
 
@@ -1442,6 +2038,493 @@ defmodule AshPostgres.DeltaModeIntegrationTest do
       assert resource_migration_content(full_mp) == resource_migration_content(delta_mp),
              "Migration content diverged between full and delta modes after resource evolution"
     end
+
+    # The remaining parity tests follow the pattern: define a resource,
+    # generate in both modes, assert migration content matches. Each one
+    # exercises a different DDL surface (DROP COLUMN, CHECK, custom index,
+    # FK references, multitenancy, schema prefix, rename) that the diff
+    # engine has to produce identically regardless of how the prior state
+    # is stored.
+
+    test "removing an attribute produces identical DROP COLUMN migration in both modes",
+         %{
+           full_sp: full_sp,
+           full_mp: full_mp,
+           delta_sp: delta_sp,
+           delta_mp: delta_mp,
+           tmp_dir: tmp_dir
+         } do
+      defresource DeltaParityRemove do
+        postgres do
+          table("delta_parity_remove")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:body, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaParityRemove])
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: full_sp,
+        migration_path: full_mp,
+        tenant_migration_path: Path.join(tmp_dir, "ft1"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :full
+      )
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: delta_sp,
+        migration_path: delta_mp,
+        tenant_migration_path: Path.join(tmp_dir, "dt1"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :delta
+      )
+
+      defresource DeltaParityRemove do
+        postgres do
+          table("delta_parity_remove")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          # :body removed
+        end
+      end
+
+      defdomain([DeltaParityRemove])
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: full_sp,
+        migration_path: full_mp,
+        tenant_migration_path: Path.join(tmp_dir, "ft1"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :full
+      )
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: delta_sp,
+        migration_path: delta_mp,
+        tenant_migration_path: Path.join(tmp_dir, "dt1"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :delta
+      )
+
+      assert resource_migration_content(full_mp) == resource_migration_content(delta_mp)
+    end
+
+    test "custom index produces identical CREATE INDEX migration in both modes",
+         %{
+           full_sp: full_sp,
+           full_mp: full_mp,
+           delta_sp: delta_sp,
+           delta_mp: delta_mp,
+           tmp_dir: tmp_dir
+         } do
+      defresource DeltaParityCustomIdx do
+        postgres do
+          table("delta_parity_custom_idx")
+          repo(AshPostgres.TestRepo)
+
+          custom_indexes do
+            index(["title"], name: "delta_parity_custom_idx_title")
+            index(["body"], unique: true, name: "delta_parity_custom_idx_body_uniq")
+          end
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:body, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaParityCustomIdx])
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: full_sp,
+        migration_path: full_mp,
+        tenant_migration_path: Path.join(tmp_dir, "ft2"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :full
+      )
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: delta_sp,
+        migration_path: delta_mp,
+        tenant_migration_path: Path.join(tmp_dir, "dt2"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :delta
+      )
+
+      assert resource_migration_content(full_mp) == resource_migration_content(delta_mp)
+    end
+
+    test "check constraint produces identical migration in both modes",
+         %{
+           full_sp: full_sp,
+           full_mp: full_mp,
+           delta_sp: delta_sp,
+           delta_mp: delta_mp,
+           tmp_dir: tmp_dir
+         } do
+      defresource DeltaParityCheck do
+        postgres do
+          table("delta_parity_check")
+          repo(AshPostgres.TestRepo)
+
+          check_constraints do
+            check_constraint(:amount, "positive_amount", check: "amount > 0")
+          end
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:amount, :integer, public?: true)
+        end
+      end
+
+      defdomain([DeltaParityCheck])
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: full_sp,
+        migration_path: full_mp,
+        tenant_migration_path: Path.join(tmp_dir, "ft3"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :full
+      )
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: delta_sp,
+        migration_path: delta_mp,
+        tenant_migration_path: Path.join(tmp_dir, "dt3"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :delta
+      )
+
+      assert resource_migration_content(full_mp) == resource_migration_content(delta_mp)
+    end
+
+    test "belongs_to references produce identical FK migration in both modes",
+         %{
+           full_sp: full_sp,
+           full_mp: full_mp,
+           delta_sp: delta_sp,
+           delta_mp: delta_mp,
+           tmp_dir: tmp_dir
+         } do
+      defresource DeltaParityAuthor do
+        postgres do
+          table("delta_parity_authors")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defresource DeltaParityPostFK do
+        postgres do
+          table("delta_parity_posts_fk")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        relationships do
+          belongs_to(:author, DeltaParityAuthor, public?: true, allow_nil?: false)
+        end
+      end
+
+      defdomain([DeltaParityAuthor, DeltaParityPostFK])
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: full_sp,
+        migration_path: full_mp,
+        tenant_migration_path: Path.join(tmp_dir, "ft4"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :full
+      )
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: delta_sp,
+        migration_path: delta_mp,
+        tenant_migration_path: Path.join(tmp_dir, "dt4"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :delta
+      )
+
+      assert resource_migration_content(full_mp) == resource_migration_content(delta_mp)
+    end
+
+    test "attribute multitenancy produces identical migration in both modes",
+         %{
+           full_sp: full_sp,
+           full_mp: full_mp,
+           delta_sp: delta_sp,
+           delta_mp: delta_mp,
+           tmp_dir: tmp_dir
+         } do
+      defresource DeltaParityOrg do
+        postgres do
+          table("delta_parity_orgs")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defresource DeltaParityMember do
+        postgres do
+          table("delta_parity_members")
+          repo(AshPostgres.TestRepo)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:organization_id)
+          global?(false)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string, public?: true)
+        end
+
+        relationships do
+          belongs_to(:organization, DeltaParityOrg, public?: true, allow_nil?: false)
+        end
+      end
+
+      defdomain([DeltaParityOrg, DeltaParityMember])
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: full_sp,
+        migration_path: full_mp,
+        tenant_migration_path: Path.join(tmp_dir, "ft5"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :full
+      )
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: delta_sp,
+        migration_path: delta_mp,
+        tenant_migration_path: Path.join(tmp_dir, "dt5"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :delta
+      )
+
+      assert resource_migration_content(full_mp) == resource_migration_content(delta_mp)
+    end
+
+    test "schema-prefixed table produces identical migration in both modes",
+         %{
+           full_sp: full_sp,
+           full_mp: full_mp,
+           delta_sp: delta_sp,
+           delta_mp: delta_mp,
+           tmp_dir: tmp_dir
+         } do
+      defresource DeltaParitySchema do
+        postgres do
+          table("delta_parity_schema")
+          schema("example")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaParitySchema])
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: full_sp,
+        migration_path: full_mp,
+        tenant_migration_path: Path.join(tmp_dir, "ft6"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :full
+      )
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: delta_sp,
+        migration_path: delta_mp,
+        tenant_migration_path: Path.join(tmp_dir, "dt6"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :delta
+      )
+
+      assert resource_migration_content(full_mp) == resource_migration_content(delta_mp)
+    end
+
+    test "renaming an attribute produces identical RENAME migration in both modes",
+         %{
+           full_sp: full_sp,
+           full_mp: full_mp,
+           delta_sp: delta_sp,
+           delta_mp: delta_mp,
+           tmp_dir: tmp_dir
+         } do
+      defresource DeltaParityRename do
+        postgres do
+          table("delta_parity_rename")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaParityRename])
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: full_sp,
+        migration_path: full_mp,
+        tenant_migration_path: Path.join(tmp_dir, "ft7"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :full
+      )
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: delta_sp,
+        migration_path: delta_mp,
+        tenant_migration_path: Path.join(tmp_dir, "dt7"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :delta
+      )
+
+      defresource DeltaParityRename do
+        postgres do
+          table("delta_parity_rename")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaParityRename])
+
+      # The generator asks "Are you renaming :title to :name?" — answer YES.
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: full_sp,
+        migration_path: full_mp,
+        tenant_migration_path: Path.join(tmp_dir, "ft7"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :full
+      )
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: delta_sp,
+        migration_path: delta_mp,
+        tenant_migration_path: Path.join(tmp_dir, "dt7"),
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :delta
+      )
+
+      assert resource_migration_content(full_mp) == resource_migration_content(delta_mp)
+    end
   end
 
   # ===================================================================
@@ -1584,6 +2667,194 @@ defmodule AshPostgres.DeltaModeIntegrationTest do
       exists
     end
 
+    test "polymorphic resources land in concrete-table snapshot dirs and produce runnable migrations",
+         %{snapshot_path: sp, migration_path: mp} do
+      defresource DeltaPolyComment do
+        postgres do
+          polymorphic?(true)
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:resource_id, :uuid, public?: true)
+          attribute(:body, :string, public?: true)
+        end
+      end
+
+      defresource DeltaPolyPost do
+        postgres do
+          table("delta_poly_posts")
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        relationships do
+          has_many(:comments, DeltaPolyComment,
+            public?: true,
+            destination_attribute: :resource_id,
+            relationship_context: %{data_layer: %{table: "delta_poly_post_comments"}}
+          )
+        end
+      end
+
+      defdomain([DeltaPolyPost, DeltaPolyComment])
+      run_codegen(Domain, sp, mp)
+
+      # Polymorphic placement: the comment resource lands in the concrete
+      # table folder named after the relationship_context, NOT in a
+      # comment-named folder.
+      poly_files = Path.wildcard("#{sp}/**/delta_poly_post_comments/*.json")
+      assert length(poly_files) == 1
+      assert Codec.delta?(File.read!(List.first(poly_files)))
+
+      # The post table also gets its own delta folder.
+      post_files = Path.wildcard("#{sp}/**/delta_poly_posts/*.json")
+      assert length(post_files) == 1
+
+      # Reducer reads the polymorphic concrete-table folder cleanly.
+      poly_state =
+        Reducer.load_reduced_state(
+          %{
+            table: "delta_poly_post_comments",
+            schema: nil,
+            repo: AshPostgres.TestRepo,
+            multitenancy: @mt
+          },
+          %MigrationGenerator{snapshot_path: sp, dev: false, quiet: true}
+        )
+
+      sources = Enum.map(poly_state.attributes, & &1.source)
+      assert :id in sources
+      assert :resource_id in sources
+      assert :body in sources
+
+      # End-to-end: run the migrations and verify both tables materialize.
+      refute table_exists?("delta_poly_posts")
+      refute table_exists?("delta_poly_post_comments")
+
+      run_generated_migrations(mp)
+
+      assert table_exists?("delta_poly_posts")
+      assert table_exists?("delta_poly_post_comments")
+      assert column_exists?("delta_poly_post_comments", "body")
+
+      rollback_generated_migrations(mp)
+      refute table_exists?("delta_poly_posts")
+      refute table_exists?("delta_poly_post_comments")
+    end
+
+    test "context multitenancy in delta mode produces a tenant migration that runs via migrate_tenant",
+         %{snapshot_path: sp, migration_path: mp, tmp_dir: tmp_dir} do
+      tenant_mp = Path.join(tmp_dir, "tenant_migrations_runnable")
+
+      defresource DeltaTenantRunnable do
+        postgres do
+          table("delta_tenant_runnable")
+          repo(AshPostgres.TestRepo)
+        end
+
+        multitenancy do
+          strategy(:context)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:label, :string, public?: true)
+        end
+      end
+
+      defdomain([DeltaTenantRunnable])
+
+      MigrationGenerator.generate(Domain,
+        snapshot_path: sp,
+        migration_path: mp,
+        tenant_migration_path: tenant_mp,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        snapshot_format: :delta
+      )
+
+      tenant_migration_files =
+        "#{tenant_mp}/**/*_migrate_resources*.exs"
+        |> Path.wildcard()
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      assert tenant_migration_files != [], "no tenant migration was generated"
+
+      # Create a real schema and run the tenant migration end-to-end.
+      tenant_name = "delta_test_tenant_#{:rand.uniform(1_000_000)}"
+
+      # Sandbox transactions don't include CREATE SCHEMA usefully — it's
+      # a DDL operation. Use the transaction explicitly.
+      AshPostgres.TestRepo.query!(~s|CREATE SCHEMA "#{tenant_name}"|, [])
+
+      try do
+        AshPostgres.MultiTenancy.migrate_tenant(
+          tenant_name,
+          AshPostgres.TestRepo,
+          tenant_mp
+        )
+
+        # Assert the table was created INSIDE the tenant's schema.
+        %{rows: [[exists]]} =
+          AshPostgres.TestRepo.query!(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = $1 AND table_name = 'delta_tenant_runnable')",
+            [tenant_name]
+          )
+
+        assert exists,
+               "tenant migration ran but `#{tenant_name}.delta_tenant_runnable` does not exist"
+
+        # And the column.
+        %{rows: [[col_exists]]} =
+          AshPostgres.TestRepo.query!(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = $1 AND table_name = 'delta_tenant_runnable' AND column_name = 'label')",
+            [tenant_name]
+          )
+
+        assert col_exists
+      after
+        AshPostgres.TestRepo.query!(~s|DROP SCHEMA IF EXISTS "#{tenant_name}" CASCADE|, [])
+      end
+    end
+
+    # Captures a sortable, comparable representation of every column in a
+    # table — column name, data type, nullability, default. Used by the
+    # post-squash and post-migrate parity tests to assert that the resulting
+    # schema is byte-identical between two paths that should converge.
+    defp capture_table_schema(table) do
+      %{rows: rows} =
+        AshPostgres.TestRepo.query!(
+          """
+          SELECT column_name, data_type, is_nullable, column_default
+          FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = $1
+          ORDER BY column_name
+          """,
+          [table]
+        )
+
+      rows
+    end
+
     # Load the generator's resource migrations (skipping the repo-specific
     # extension migrations, whose name `migrate_resources_extensions_1`
     # collides across the three test repos and trips
@@ -1592,15 +2863,23 @@ defmodule AshPostgres.DeltaModeIntegrationTest do
     # `AshPostgres.MultiTenancy.migrate_tenant/4` uses. Going through
     # `Ecto.Migrator.up` would spawn a Task that deadlocks on the shared
     # sandbox connection.
+    # IMPORTANT: load + run ONE FILE AT A TIME. The generator always names
+    # migration modules `MigrateResources1`, `MigrateResources2`, etc. starting
+    # from 1 within a given migration_path, so two diverged branches each
+    # produce their own `MigrateResources1`. Compiling all files up-front
+    # would clobber the first module with the second's body before either
+    # was run. Interleaving load + run side-steps this.
     defp run_generated_migrations(migration_path) do
       already_run = migrated_versions()
 
       migration_path
       |> migration_files()
-      |> Enum.map(&load_migration_module/1)
-      |> Enum.reject(fn {version, _module} -> version in already_run end)
-      |> Enum.each(fn {version, module} ->
-        run_migration(version, module, :up)
+      |> Enum.each(fn file ->
+        {version, module} = load_migration_module(file)
+
+        if version not in already_run do
+          run_migration(version, module, :up)
+        end
       end)
     end
 
@@ -1609,11 +2888,13 @@ defmodule AshPostgres.DeltaModeIntegrationTest do
 
       migration_path
       |> migration_files()
-      |> Enum.map(&load_migration_module/1)
-      |> Enum.filter(fn {version, _module} -> version in already_run end)
       |> Enum.reverse()
-      |> Enum.each(fn {version, module} ->
-        run_migration(version, module, :down)
+      |> Enum.each(fn file ->
+        {version, module} = load_migration_module(file)
+
+        if version in already_run do
+          run_migration(version, module, :down)
+        end
       end)
     end
 
