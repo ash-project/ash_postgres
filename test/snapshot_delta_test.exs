@@ -709,6 +709,652 @@ defmodule AshPostgres.SnapshotDeltaTest do
     end
   end
 
+  # =================================================================
+  # Reduction sequence coverage — exhaustive add/alter/remove/rename
+  # cycles per op family, plus the cross-family conflict cases.
+  # =================================================================
+
+  describe "attribute reduction sequences" do
+    setup do
+      snapshot = %{
+        table: "authors",
+        schema: nil,
+        repo: AshPostgres.TestRepo,
+        multitenancy: @base_multitenancy
+      }
+
+      %{
+        snapshot: snapshot,
+        empty: Reducer.empty_state(snapshot)
+      }
+    end
+
+    defp throw_reason(fun) do
+      fun.()
+      :no_error
+    catch
+      :throw, {:reducer_error, reason} -> {:threw, reason}
+    end
+
+    defp add_attr(state, attr) do
+      Reducer.apply_op(state, %Operation.AddAttribute{
+        table: state.table,
+        schema: state.schema,
+        multitenancy: @base_multitenancy,
+        old_multitenancy: @base_multitenancy,
+        attribute: attr
+      })
+    end
+
+    defp remove_attr(state, attr) do
+      Reducer.apply_op(state, %Operation.RemoveAttribute{
+        table: state.table,
+        schema: state.schema,
+        multitenancy: @base_multitenancy,
+        old_multitenancy: @base_multitenancy,
+        attribute: attr
+      })
+    end
+
+    defp alter_attr(state, old_attr, new_attr) do
+      Reducer.apply_op(state, %Operation.AlterAttribute{
+        table: state.table,
+        schema: state.schema,
+        multitenancy: @base_multitenancy,
+        old_multitenancy: @base_multitenancy,
+        old_attribute: old_attr,
+        new_attribute: new_attr
+      })
+    end
+
+    defp rename_attr(state, old_attr, new_attr) do
+      Reducer.apply_op(state, %Operation.RenameAttribute{
+        table: state.table,
+        schema: state.schema,
+        multitenancy: @base_multitenancy,
+        old_multitenancy: @base_multitenancy,
+        old_attribute: old_attr,
+        new_attribute: new_attr
+      })
+    end
+
+    test "Add → Alter → Remove full lifecycle leaves attributes empty", %{empty: empty} do
+      altered = %{@text_attribute | allow_nil?: false, default: "''"}
+
+      state =
+        empty
+        |> add_attr(@text_attribute)
+        |> alter_attr(@text_attribute, altered)
+
+      assert [%{source: :email, allow_nil?: false, default: "''"}] = state.attributes
+
+      state = remove_attr(state, altered)
+      assert state.attributes == []
+    end
+
+    test "Add → Rename → Remove (by new name) succeeds", %{empty: empty} do
+      renamed = %{@text_attribute | source: :primary_email}
+
+      state =
+        empty
+        |> add_attr(@text_attribute)
+        |> rename_attr(@text_attribute, renamed)
+
+      assert [%{source: :primary_email}] = state.attributes
+
+      state = remove_attr(state, renamed)
+      assert state.attributes == []
+    end
+
+    test "Add → Rename → Rename again (chained renames) follows the new identity",
+         %{empty: empty} do
+      r1 = %{@text_attribute | source: :primary_email}
+      r2 = %{r1 | source: :contact_email}
+
+      state =
+        empty
+        |> add_attr(@text_attribute)
+        |> rename_attr(@text_attribute, r1)
+        |> rename_attr(r1, r2)
+
+      assert [%{source: :contact_email}] = state.attributes
+    end
+
+    test "AlterAttribute on missing source raises conflict", %{empty: empty} do
+      altered = %{@text_attribute | allow_nil?: false}
+
+      assert {:threw, "AlterAttribute: attribute :email not present"} =
+               throw_reason(fn -> alter_attr(empty, @text_attribute, altered) end)
+    end
+
+    test "RenameAttribute where destination matches source (no-op rename) is allowed",
+         %{empty: empty} do
+      # When old.source == new.source the rename is logically a metadata
+      # update — should not trigger the destination-collision check.
+      state = add_attr(empty, @text_attribute)
+      altered = %{@text_attribute | allow_nil?: false}
+
+      state = rename_attr(state, @text_attribute, altered)
+      assert [%{source: :email, allow_nil?: false}] = state.attributes
+    end
+
+    test "Remove → Add at the same source is allowed (re-add cycle)", %{empty: empty} do
+      state =
+        empty
+        |> add_attr(@text_attribute)
+        |> remove_attr(@text_attribute)
+        |> add_attr(%{@text_attribute | type: :string})
+
+      assert [%{source: :email, type: :string}] = state.attributes
+    end
+  end
+
+  describe "identity / unique index reduction sequences" do
+    setup do
+      snapshot = %{
+        table: "authors",
+        schema: nil,
+        repo: AshPostgres.TestRepo,
+        multitenancy: @base_multitenancy
+      }
+
+      %{empty: Reducer.empty_state(snapshot)}
+    end
+
+    defp add_unique_index(state, identity) do
+      Reducer.apply_op(state, %Operation.AddUniqueIndex{
+        identity: identity,
+        table: state.table,
+        schema: state.schema,
+        multitenancy: @base_multitenancy,
+        old_multitenancy: @base_multitenancy,
+        concurrently: false
+      })
+    end
+
+    defp remove_unique_index(state, identity) do
+      Reducer.apply_op(state, %Operation.RemoveUniqueIndex{
+        identity: identity,
+        table: state.table,
+        schema: state.schema,
+        multitenancy: @base_multitenancy,
+        old_multitenancy: @base_multitenancy
+      })
+    end
+
+    defp rename_unique_index(state, old_id, new_id) do
+      Reducer.apply_op(state, %Operation.RenameUniqueIndex{
+        old_identity: old_id,
+        new_identity: new_id,
+        table: state.table,
+        schema: state.schema,
+        multitenancy: @base_multitenancy,
+        old_multitenancy: @base_multitenancy
+      })
+    end
+
+    test "Add → Remove leaves identities empty", %{empty: empty} do
+      state =
+        empty
+        |> add_unique_index(@base_identity)
+        |> remove_unique_index(@base_identity)
+
+      assert state.identities == []
+    end
+
+    test "Add same identity twice raises conflict", %{empty: empty} do
+      state = add_unique_index(empty, @base_identity)
+
+      assert {:threw, reason} =
+               throw_reason(fn -> add_unique_index(state, @base_identity) end)
+
+      assert reason =~ "AddUniqueIndex"
+      assert reason =~ "unique_email"
+    end
+
+    test "Remove non-existent identity raises conflict", %{empty: empty} do
+      assert {:threw, reason} =
+               throw_reason(fn -> remove_unique_index(empty, @base_identity) end)
+
+      assert reason =~ "RemoveUniqueIndex"
+      assert reason =~ "unique_email"
+    end
+
+    test "Add → Rename to a different name succeeds and updates state", %{empty: empty} do
+      renamed = %{@base_identity | name: :unique_primary_email}
+
+      state =
+        empty
+        |> add_unique_index(@base_identity)
+        |> rename_unique_index(@base_identity, renamed)
+
+      assert [%{name: :unique_primary_email}] = state.identities
+    end
+
+    test "Rename non-existent identity raises conflict", %{empty: empty} do
+      assert {:threw, _} =
+               throw_reason(fn ->
+                 rename_unique_index(empty, @base_identity, %{
+                   @base_identity
+                   | name: :other
+                 })
+               end)
+    end
+  end
+
+  describe "check constraint reduction sequences" do
+    setup do
+      snapshot = %{
+        table: "invoices",
+        schema: nil,
+        repo: AshPostgres.TestRepo,
+        multitenancy: @base_multitenancy
+      }
+
+      %{
+        empty: Reducer.empty_state(snapshot),
+        constraint: %{name: "positive_amount", check: "amount > 0", attribute: [:amount]}
+      }
+    end
+
+    test "Add → Remove leaves check_constraints empty", %{empty: empty, constraint: c} do
+      state =
+        empty
+        |> Reducer.apply_op(%Operation.AddCheckConstraint{
+          table: empty.table,
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          constraint: c
+        })
+        |> Reducer.apply_op(%Operation.RemoveCheckConstraint{
+          table: empty.table,
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          constraint: c
+        })
+
+      assert state.check_constraints == []
+    end
+
+    test "Add same constraint twice raises conflict", %{empty: empty, constraint: c} do
+      state =
+        Reducer.apply_op(empty, %Operation.AddCheckConstraint{
+          table: empty.table,
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          constraint: c
+        })
+
+      assert {:threw, reason} =
+               throw_reason(fn ->
+                 Reducer.apply_op(state, %Operation.AddCheckConstraint{
+                   table: empty.table,
+                   schema: nil,
+                   multitenancy: @base_multitenancy,
+                   old_multitenancy: @base_multitenancy,
+                   constraint: c
+                 })
+               end)
+
+      assert reason =~ "AddCheckConstraint"
+    end
+
+    test "Remove non-existent constraint raises conflict", %{empty: empty, constraint: c} do
+      assert {:threw, reason} =
+               throw_reason(fn ->
+                 Reducer.apply_op(empty, %Operation.RemoveCheckConstraint{
+                   table: empty.table,
+                   schema: nil,
+                   multitenancy: @base_multitenancy,
+                   old_multitenancy: @base_multitenancy,
+                   constraint: c
+                 })
+               end)
+
+      assert reason =~ "RemoveCheckConstraint"
+    end
+  end
+
+  describe "custom index reduction sequences" do
+    setup do
+      snapshot = %{
+        table: "products",
+        schema: nil,
+        repo: AshPostgres.TestRepo,
+        multitenancy: @base_multitenancy
+      }
+
+      idx = %{
+        name: "products_title_idx",
+        fields: [:title],
+        include: [],
+        nulls_distinct: true,
+        message: nil,
+        all_tenants?: false
+      }
+
+      %{empty: Reducer.empty_state(snapshot), index: idx}
+    end
+
+    test "Add → Remove cycles cleanly", %{empty: empty, index: idx} do
+      state =
+        empty
+        |> Reducer.apply_op(%Operation.AddCustomIndex{
+          table: empty.table,
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          index: idx
+        })
+        |> Reducer.apply_op(%Operation.RemoveCustomIndex{
+          table: empty.table,
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          index: idx
+        })
+
+      assert state.custom_indexes == []
+    end
+
+    test "Add same custom index twice raises conflict", %{empty: empty, index: idx} do
+      state =
+        Reducer.apply_op(empty, %Operation.AddCustomIndex{
+          table: empty.table,
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          index: idx
+        })
+
+      assert {:threw, _} =
+               throw_reason(fn ->
+                 Reducer.apply_op(state, %Operation.AddCustomIndex{
+                   table: empty.table,
+                   schema: nil,
+                   multitenancy: @base_multitenancy,
+                   index: idx
+                 })
+               end)
+    end
+  end
+
+  describe "table-level reduction sequences" do
+    setup do
+      snapshot = %{
+        table: "things",
+        schema: nil,
+        repo: AshPostgres.TestRepo,
+        multitenancy: @base_multitenancy
+      }
+
+      create = fn ->
+        %Operation.CreateTable{
+          table: "things",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          repo: AshPostgres.TestRepo,
+          create_table_options: nil
+        }
+      end
+
+      %{empty: Reducer.empty_state(snapshot), create: create}
+    end
+
+    test "CreateTable → DropTable resets to empty state", %{empty: empty, create: create} do
+      state =
+        empty
+        |> Reducer.apply_op(create.())
+        |> Reducer.apply_op(%Operation.AddAttribute{
+          table: "things",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          attribute: @text_attribute
+        })
+
+      assert [_] = state.attributes
+      refute state.empty?
+
+      state =
+        Reducer.apply_op(state, %Operation.DropTable{
+          table: "things",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          repo: AshPostgres.TestRepo
+        })
+
+      assert state.attributes == []
+      assert state.empty?
+    end
+
+    test "CreateTable → DropTable → CreateTable can rebuild after a drop",
+         %{empty: empty, create: create} do
+      state =
+        empty
+        |> Reducer.apply_op(create.())
+        |> Reducer.apply_op(%Operation.DropTable{
+          table: "things",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          repo: AshPostgres.TestRepo
+        })
+        |> Reducer.apply_op(create.())
+        |> Reducer.apply_op(%Operation.AddAttribute{
+          table: "things",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          attribute: @text_attribute
+        })
+
+      assert [%{source: :email}] = state.attributes
+      refute state.empty?
+    end
+
+    test "RenameTable updates state.table and rejects mismatched old_table",
+         %{empty: empty, create: create} do
+      state =
+        empty
+        |> Reducer.apply_op(create.())
+        |> Reducer.apply_op(%Operation.RenameTable{
+          old_table: "things",
+          new_table: "things_v2",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          repo: AshPostgres.TestRepo
+        })
+
+      assert state.table == "things_v2"
+
+      assert {:threw, reason} =
+               throw_reason(fn ->
+                 Reducer.apply_op(state, %Operation.RenameTable{
+                   old_table: "wrong",
+                   new_table: "another",
+                   schema: nil,
+                   multitenancy: @base_multitenancy,
+                   repo: AshPostgres.TestRepo
+                 })
+               end)
+
+      assert reason =~ "RenameTable expected old_table=\"wrong\""
+    end
+
+    test "OptOutDropTable sets the flag without otherwise mutating state",
+         %{empty: empty, create: create} do
+      state =
+        empty
+        |> Reducer.apply_op(create.())
+        |> Reducer.apply_op(%Operation.AddAttribute{
+          table: "things",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          attribute: @text_attribute
+        })
+
+      refute state.drop_table_opted_out
+
+      state =
+        Reducer.apply_op(state, %Operation.OptOutDropTable{
+          table: "things",
+          schema: nil,
+          multitenancy: @base_multitenancy
+        })
+
+      assert state.drop_table_opted_out
+      # Other state untouched
+      assert [%{source: :email}] = state.attributes
+    end
+  end
+
+  describe "previous_hash chain validation" do
+    @moduletag :tmp_dir
+
+    test "two deltas with matching previous→resulting hashes reduce cleanly",
+         %{tmp_dir: tmp_dir} do
+      snapshot = %{
+        table: "chained",
+        schema: nil,
+        repo: AshPostgres.TestRepo,
+        multitenancy: @base_multitenancy
+      }
+
+      folder = Path.join([tmp_dir, "test_repo", "chained"])
+      File.mkdir_p!(folder)
+
+      ops1 = [
+        %Operation.CreateTable{
+          table: "chained",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          repo: AshPostgres.TestRepo,
+          create_table_options: nil
+        }
+      ]
+
+      ops2 = [
+        %Operation.AddAttribute{
+          table: "chained",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          attribute: @text_attribute
+        }
+      ]
+
+      File.write!(
+        Path.join(folder, "20260101000000.json"),
+        Codec.encode_delta(ops1, %{previous_hash: nil, resulting_hash: "AAAA"})
+      )
+
+      File.write!(
+        Path.join(folder, "20260101000001.json"),
+        Codec.encode_delta(ops2, %{previous_hash: "AAAA", resulting_hash: "BBBB"})
+      )
+
+      opts = %AshPostgres.MigrationGenerator{snapshot_path: tmp_dir, dev: false, quiet: true}
+      state = Reducer.load_reduced_state(snapshot, opts)
+      assert [%{source: :email}] = state.attributes
+    end
+
+    test "previous_hash that doesn't match prior resulting_hash raises ConflictError",
+         %{tmp_dir: tmp_dir} do
+      snapshot = %{
+        table: "broken",
+        schema: nil,
+        repo: AshPostgres.TestRepo,
+        multitenancy: @base_multitenancy
+      }
+
+      folder = Path.join([tmp_dir, "test_repo", "broken"])
+      File.mkdir_p!(folder)
+
+      ops1 = [
+        %Operation.CreateTable{
+          table: "broken",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          repo: AshPostgres.TestRepo,
+          create_table_options: nil
+        }
+      ]
+
+      ops2 = [
+        %Operation.AddAttribute{
+          table: "broken",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          attribute: @text_attribute
+        }
+      ]
+
+      File.write!(
+        Path.join(folder, "20260101000000.json"),
+        Codec.encode_delta(ops1, %{previous_hash: nil, resulting_hash: "AAAA"})
+      )
+
+      # second delta claims previous_hash WRONG_HASH which doesn't match AAAA
+      File.write!(
+        Path.join(folder, "20260101000001.json"),
+        Codec.encode_delta(ops2, %{previous_hash: "WRONG_HASH", resulting_hash: "BBBB"})
+      )
+
+      opts = %AshPostgres.MigrationGenerator{snapshot_path: tmp_dir, dev: false, quiet: true}
+
+      assert_raise Reducer.ConflictError, ~r/previous_hash.*does not match/, fn ->
+        Reducer.load_reduced_state(snapshot, opts)
+      end
+    end
+
+    test "deltas without hash metadata still reduce — chain validation is opt-in",
+         %{tmp_dir: tmp_dir} do
+      snapshot = %{
+        table: "no_hash",
+        schema: nil,
+        repo: AshPostgres.TestRepo,
+        multitenancy: @base_multitenancy
+      }
+
+      folder = Path.join([tmp_dir, "test_repo", "no_hash"])
+      File.mkdir_p!(folder)
+
+      ops = [
+        %Operation.CreateTable{
+          table: "no_hash",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          repo: AshPostgres.TestRepo,
+          create_table_options: nil
+        },
+        %Operation.AddAttribute{
+          table: "no_hash",
+          schema: nil,
+          multitenancy: @base_multitenancy,
+          old_multitenancy: @base_multitenancy,
+          attribute: @text_attribute
+        }
+      ]
+
+      # Deltas with no hash metadata at all — both prev_hash and result_hash nil.
+      File.write!(
+        Path.join(folder, "20260101000000.json"),
+        Codec.encode_delta(ops)
+      )
+
+      opts = %AshPostgres.MigrationGenerator{snapshot_path: tmp_dir, dev: false, quiet: true}
+      state = Reducer.load_reduced_state(snapshot, opts)
+      assert [%{source: :email}] = state.attributes
+    end
+  end
+
   describe "state_empty? consistency" do
     test "CreateTable flips empty? to false even before any attribute ops", %{} do
       # Invariant: the Reducer treats any mutation of a scalar state field
