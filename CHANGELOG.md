@@ -11,6 +11,21 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.9.1](https://github.com/ash-project/ash_postgres/compare/v2.9.0...v2.9.1) (2026-05-01)
+
+
+
+
+### Bug Fixes:
+
+* handle base filter index rewrite detection (#742) by Minsub Kim
+
+* failing test for calculation loading on relationships in policies (#741) by Rutgerdj
+
+* immutable_expr_error support for newly added required expr (#737) by adamtharani
+
+* correct prefix name when loading many_to_many relationships (#736) by gcugnet
+
 ## [v2.9.0](https://github.com/ash-project/ash_postgres/compare/v2.8.0...v2.9.0) (2026-04-12)
 
 
