@@ -586,6 +586,99 @@ defmodule AshPostgres.FilterTest do
     end
   end
 
+  describe "string_starts_with?/2" do
+    test "it works when it matches" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "bazbuz"})
+      |> Ash.create!()
+
+      assert [%{title: "match"}] =
+               Post
+               |> Ash.Query.filter(string_starts_with?(title, "mat"))
+               |> Ash.read!()
+    end
+
+    test "it does not match when prefix is not at the start" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "amatch"})
+      |> Ash.create!()
+
+      assert [] =
+               Post
+               |> Ash.Query.filter(string_starts_with?(title, "mat"))
+               |> Ash.read!()
+    end
+
+    test "it works on a case insensitive column" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{category: "Match"})
+      |> Ash.create!()
+
+      assert [%{category: %Ash.CiString{string: "Match"}}] =
+               Post
+               |> Ash.Query.filter(string_starts_with?(category, ^"mat"))
+               |> Ash.read!()
+    end
+
+    test "it escapes wildcard characters in the prefix" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "100%-off"})
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "100abc-off"})
+      |> Ash.create!()
+
+      assert [%{title: "100%-off"}] =
+               Post
+               |> Ash.Query.filter(string_starts_with?(title, "100%"))
+               |> Ash.read!()
+    end
+  end
+
+  describe "string_ends_with?/2" do
+    test "it works when it matches" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "bazbuz"})
+      |> Ash.create!()
+
+      assert [%{title: "match"}] =
+               Post
+               |> Ash.Query.filter(string_ends_with?(title, "tch"))
+               |> Ash.read!()
+    end
+
+    test "it does not match when suffix is not at the end" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "matcha"})
+      |> Ash.create!()
+
+      assert [] =
+               Post
+               |> Ash.Query.filter(string_ends_with?(title, "tch"))
+               |> Ash.read!()
+    end
+
+    test "it works on a case insensitive column" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{category: "Match"})
+      |> Ash.create!()
+
+      assert [%{category: %Ash.CiString{string: "Match"}}] =
+               Post
+               |> Ash.Query.filter(string_ends_with?(category, ^"TCH"))
+               |> Ash.read!()
+    end
+  end
+
   describe "length/1" do
     test "it works with a list attribute" do
       author1 =
