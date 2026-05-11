@@ -1994,8 +1994,9 @@ defmodule AshPostgres.DataLayer do
 
                 faked_query =
                   from(row in query.from.source,
-                    inner_join: limiter in ^root_query,
                     as: ^0,
+                    inner_join: limiter in ^root_query,
+                    as: ^1,
                     on: ^dynamic
                   )
                   |> AshSql.Bindings.default_bindings(
@@ -2006,7 +2007,7 @@ defmodule AshPostgres.DataLayer do
                   |> AshSql.Bindings.merge_expr_accumulator(acc)
                   |> then(fn query ->
                     if selected_atomics? do
-                      Map.update!(query, :__ash_bindings__, &Map.put(&1, :atomics_in_binding, 0))
+                      Map.update!(query, :__ash_bindings__, &Map.put(&1, :atomics_in_binding, 1))
                     else
                       query
                     end

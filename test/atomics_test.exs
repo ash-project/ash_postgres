@@ -421,6 +421,64 @@ defmodule AshPostgres.AtomicsTest do
     end
   )
 
+  test "changeset filter combined with relationship-using atomic refs to outer table (issue #747)" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "foo", price: 1, public: true})
+      |> Ash.create!()
+
+    # The data layer's atomic update builds a "faked_query" (subquery in FROM)
+    # when the atomic expression touches a relationship. A non-nil
+    # `changeset.filter` at that stage must resolve to the outer table (s0),
+    # not the limiter subquery (s1) which only exposes id + __new_* columns.
+    #
+    # We construct that scenario by handing the data layer's update_query a
+    # changeset with a filter directly, matching the conditions of issue #747.
+    changeset =
+      post
+      |> Ash.Changeset.new()
+      |> Ash.Changeset.put_context(:aggregate, :exists)
+      |> Ash.Changeset.for_update(:update_if_no_comments, %{title: "bar"})
+
+    # Build a fully-prepared atomic changeset (this is what gets passed to
+    # update_query in the bulk-atomic flow) and then attach the change filter
+    # to `changeset.filter` to exercise the outer-WHERE code path.
+    {:atomic_changeset, atomic_changeset} =
+      {:atomic_changeset,
+       Ash.Changeset.fully_atomic_changeset(
+         Post,
+         :update_if_no_comments,
+         %{title: "bar"},
+         context: changeset.context,
+         data: post
+       )}
+
+    atomic_changeset = %{
+      atomic_changeset
+      | filter: Ash.Filter.parse!(Post, expr(public == true)),
+        data: post
+    }
+
+    {:ok, data_layer_query} =
+      Post
+      |> Ash.Query.set_context(%{private: %{internal?: true}})
+      |> Ash.Query.data_layer_query()
+
+    options = %{
+      return_records?: true,
+      calculations: [],
+      action_select: Ash.Resource.Info.attribute_names(Post) |> MapSet.to_list()
+    }
+
+    assert {:ok, [_]} =
+             AshPostgres.DataLayer.update_query(
+               data_layer_query,
+               atomic_changeset,
+               Post,
+               options
+             )
+  end
+
   describe "atomic create (create_atomics)" do
     # Tests for atomic_set on create actions - supported in Ash 3.14+
 
