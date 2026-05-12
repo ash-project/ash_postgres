@@ -5,6 +5,9 @@
 defmodule Mix.Tasks.AshPostgres.SquashSnapshots do
   use Mix.Task
 
+  alias AshPostgres.MigrationGenerator
+  alias AshPostgres.MigrationGenerator.Operation.Codec
+
   @shortdoc "Cleans snapshots folder, leaving only one snapshot per resource"
 
   @switches [
@@ -12,11 +15,25 @@ defmodule Mix.Tasks.AshPostgres.SquashSnapshots do
     snapshot_path: :string,
     quiet: :boolean,
     dry_run: :boolean,
-    check: :boolean
+    check: :boolean,
+    include_dev: :boolean
   ]
 
   @moduledoc """
   Cleans snapshots folder, leaving only one snapshot per resource.
+
+  Works for both the legacy full-state snapshot format and the new delta
+  snapshot format:
+
+  * **Full-state folders** — older snapshots are deleted and the newest is
+    renamed per the `--into` flag.
+  * **Delta folders** — all deltas are reduced to a single state, then
+    re-emitted as one `initial` v2 delta whose ops reconstruct the full
+    current state from empty. Preserves round-trip fidelity with the live
+    generator.
+
+  Mixed folders (both formats present) are an error — run
+  `mix ash_postgres.migrate_snapshots` first.
 
   ## Examples
 
@@ -35,8 +52,10 @@ defmodule Mix.Tasks.AshPostgres.SquashSnapshots do
   * `--quiet` - no messages will be printed.
   * `--dry-run` - no files are touched, instead prints folders that have snapshots to squash.
   * `--check` - no files are touched, instead returns an exit(1) code if there are snapshots to squash.
+  * `--include-dev` - include `*_dev.json` files in the squash (default: skip them). Delta-mode squash aborts if dev files are present and this flag is not set.
   """
 
+  @impl true
   def run(args) do
     {opts, []} = OptionParser.parse!(args, strict: @switches)
 
@@ -48,6 +67,7 @@ defmodule Mix.Tasks.AshPostgres.SquashSnapshots do
       |> Map.put_new(:quiet, false)
       |> Map.put_new(:dry_run, false)
       |> Map.put_new(:check, false)
+      |> Map.put_new(:include_dev, false)
       |> Map.update!(:into, fn
         "last" -> :last
         "first" -> :first
@@ -59,39 +79,36 @@ defmodule Mix.Tasks.AshPostgres.SquashSnapshots do
       opts.snapshot_path
       |> Path.join("**/*.json")
       |> Path.wildcard()
-      |> Enum.filter(&String.match?(Path.basename(&1), ~r/^\d{14}\.json$/))
+      |> Enum.reject(&String.contains?(&1, ".legacy_backup"))
+      |> Enum.filter(&MigrationGenerator.snapshot_filename?(Path.basename(&1)))
       |> Enum.group_by(&Path.dirname(&1))
-      |> Enum.reduce([], fn {folder, snapshots}, squashable ->
-        last_snapshot = Enum.max(snapshots)
+      |> Enum.reduce([], fn {folder, snapshots}, acc ->
+        case classify_folder(folder, snapshots) do
+          {:delta, delta_files} ->
+            build_squashable_for_delta(folder, delta_files, opts, acc)
 
-        into_snapshot =
-          case opts.into do
-            :last -> last_snapshot
-            :first -> Enum.min(snapshots)
-            :zero -> Path.join(folder, "00000000000000.json")
-          end
+          {:full, full_files} ->
+            build_squashable_for_full(folder, full_files, opts, acc)
 
-        if length(snapshots) > 1 or last_snapshot != into_snapshot do
-          [{folder, snapshots, last_snapshot, into_snapshot} | squashable]
-        else
-          squashable
+          {:mixed, _} ->
+            abort_mixed(folder)
         end
       end)
       |> Enum.reverse()
 
-    if Enum.empty?(squashable) do
-      print(opts, "No snapshots to squash.")
-    else
-      if opts.dry_run do
+    cond do
+      Enum.empty?(squashable) ->
+        print(opts, "No snapshots to squash.")
+
+      opts.dry_run ->
         print(opts, "Snapshots in following folders would have been squashed in non-dry run:")
-        print(opts, Enum.map_join(squashable, "\n", fn {folder, _, _, _} -> folder end))
+        print(opts, Enum.map_join(squashable, "\n", fn {folder, _, _, _, _} -> folder end))
 
         if opts.check do
           exit({:shutdown, 1})
         end
-      end
 
-      if opts.check do
+      opts.check ->
         print(opts, """
         Snapshots would have been squashed, but the --check flag was provided.
 
@@ -100,20 +117,119 @@ defmodule Mix.Tasks.AshPostgres.SquashSnapshots do
         """)
 
         exit({:shutdown, 1})
-      end
 
-      if not opts.dry_run do
-        for {_folder, snapshots, last_snapshot, into_snapshot} <- squashable do
-          for snapshot <- snapshots, snapshot != last_snapshot do
-            File.rm!(snapshot)
-          end
-
-          if last_snapshot != into_snapshot do
-            File.rename!(last_snapshot, into_snapshot)
-          end
-        end
-      end
+      true ->
+        Enum.each(squashable, &apply_squash(&1, opts))
     end
+  end
+
+  # Each squashable entry: {folder, all_files, last_file, into_path, format}
+  defp build_squashable_for_full(folder, snapshots, opts, acc) do
+    last_snapshot = Enum.max(snapshots)
+    into_snapshot = into_path(opts.into, folder, snapshots)
+
+    if length(snapshots) > 1 or last_snapshot != into_snapshot do
+      [{folder, snapshots, last_snapshot, into_snapshot, :full} | acc]
+    else
+      acc
+    end
+  end
+
+  defp build_squashable_for_delta(folder, snapshots, opts, acc) do
+    has_dev? =
+      folder
+      |> File.ls!()
+      |> Enum.any?(&MigrationGenerator.dev_snapshot_filename?/1)
+
+    if has_dev? and not opts.include_dev do
+      raise """
+      Delta folder #{folder} contains *_dev.json files. Refusing to squash without
+      `--include-dev`. Either commit the dev deltas via `mix ash.codegen <name>`
+      first, or re-run this task with `--include-dev` to squash them together.
+      """
+    end
+
+    last_snapshot = Enum.max(snapshots)
+    into_snapshot = into_path(opts.into, folder, snapshots)
+
+    if length(snapshots) > 1 or last_snapshot != into_snapshot do
+      [{folder, snapshots, last_snapshot, into_snapshot, :delta} | acc]
+    else
+      acc
+    end
+  end
+
+  defp into_path(:last, _folder, snapshots), do: Enum.max(snapshots)
+  defp into_path(:first, _folder, snapshots), do: Enum.min(snapshots)
+  defp into_path(:zero, folder, _snapshots), do: Path.join(folder, "00000000000000.json")
+
+  defp classify_folder(folder, files) do
+    {deltas, fulls} =
+      Enum.split_with(files, fn path ->
+        case File.read(path) do
+          {:ok, contents} -> Codec.delta?(contents)
+          _ -> false
+        end
+      end)
+
+    cond do
+      fulls == [] and deltas != [] -> {:delta, deltas}
+      deltas == [] and fulls != [] -> {:full, fulls}
+      true -> {:mixed, folder}
+    end
+  end
+
+  defp abort_mixed(folder) do
+    raise """
+    Folder #{folder} contains a mix of legacy full-state and v2 delta snapshots.
+    Run `mix ash_postgres.migrate_snapshots` first, or clean up the directory
+    manually before running squash.
+    """
+  end
+
+  defp apply_squash({_folder, snapshots, last_snapshot, into_snapshot, :full}, _opts) do
+    for snapshot <- snapshots, snapshot != last_snapshot do
+      File.rm!(snapshot)
+    end
+
+    if last_snapshot != into_snapshot do
+      File.rename!(last_snapshot, into_snapshot)
+    end
+
+    :ok
+  end
+
+  defp apply_squash({_folder, snapshots, _last_snapshot, into_snapshot, :delta}, _opts) do
+    # Reduce all deltas in timestamp order. The canonical empty state from
+    # Reducer.empty_state/1 starts with `table/schema/repo = nil`; the first
+    # CreateTable op in the delta chain hydrates those via apply_op.
+    initial_state =
+      MigrationGenerator.Reducer.empty_state(%{table: nil, schema: nil, repo: nil})
+
+    state =
+      snapshots
+      |> Enum.sort()
+      |> Enum.reduce(initial_state, fn file, acc ->
+        decoded = file |> File.read!() |> Codec.decode_delta()
+
+        Enum.reduce(decoded.operations, acc, fn op, state ->
+          try do
+            MigrationGenerator.Reducer.apply_op(state, op)
+          catch
+            :throw, {:reducer_error, reason} ->
+              raise "Failed to squash #{file}: #{reason}"
+          end
+        end)
+      end)
+
+    delta_json =
+      state
+      |> MigrationGenerator.initial_operations_for_state()
+      |> Codec.encode_delta(%{previous_hash: nil, resulting_hash: nil, migration: nil})
+
+    # Remove all files, then write the squashed one.
+    Enum.each(snapshots, &File.rm!/1)
+    File.write!(into_snapshot, delta_json)
   end
 
   defp print(%{quiet: true}, _message), do: nil

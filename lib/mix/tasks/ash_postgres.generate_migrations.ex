@@ -113,7 +113,8 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
           check: :boolean,
           dev: :boolean,
           dont_drop_columns: :boolean,
-          concurrent_indexes: :boolean
+          concurrent_indexes: :boolean,
+          snapshot_format: :string
         ]
       )
 
@@ -124,6 +125,12 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
       |> Keyword.put(:format, !opts[:no_format])
       |> Keyword.delete(:no_format)
       |> Keyword.put_new(:name, name)
+      |> Keyword.update(:snapshot_format, nil, fn
+        nil -> nil
+        "delta" -> :delta
+        "full" -> :full
+        other -> raise "Unknown --snapshot-format #{inspect(other)}. Expected `full` or `delta`."
+      end)
 
     AshPostgres.MigrationGenerator.generate(domains, opts)
   end

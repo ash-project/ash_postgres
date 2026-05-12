@@ -147,7 +147,22 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule CreateTable do
     @moduledoc false
-    defstruct [:table, :schema, :multitenancy, :old_multitenancy, :repo, :create_table_options]
+    # base_filter and has_create_action are carried on CreateTable so the
+    # delta format captures them on initial table creation. The full-state
+    # generator never emits a "these scalars changed" op — the fields
+    # influence other ops (e.g. index WHERE clauses) rather than diffing
+    # themselves — so a one-shot capture on CREATE is sufficient fidelity
+    # and matches the behavior of the full-state path.
+    defstruct [
+      :table,
+      :schema,
+      :multitenancy,
+      :old_multitenancy,
+      :repo,
+      :create_table_options,
+      :base_filter,
+      has_create_action: true
+    ]
   end
 
   defmodule DropTable do
@@ -1470,5 +1485,21 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         '''
       end
     end
+  end
+
+  # Pseudo-operation — persisted in delta snapshots only. Encodes a
+  # transition of resource-level metadata (the "no, don't drop this orphan
+  # table" decision) that today lives as a top-level field in the full-state
+  # snapshot. Does NOT produce migration code: the migration generator
+  # filters it out before `organize_operations/1`.
+  #
+  # Note: scalar fields like `base_filter`, `has_create_action`, and
+  # `create_table_options` are carried on `CreateTable` directly, not as
+  # separate Set* ops. The generator never emits delta ops for their
+  # changes (it regenerates affected indexes/constraints instead), so a
+  # one-shot capture on initial CREATE is the right granularity.
+  defmodule OptOutDropTable do
+    @moduledoc false
+    defstruct [:table, :schema, :multitenancy, no_phase: true]
   end
 end

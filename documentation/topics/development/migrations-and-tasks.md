@@ -130,3 +130,62 @@ end
 - `mix ash_postgres.drop`
 - `mix ash_postgres.migrate` (use `mix ash_postgres.migrate --tenants` to run tenant migrations)
 - `mix ash_postgres.rollback` (use `mix ash_postgres.rollback --tenants` to rollback tenant migrations)
+- `mix ash_postgres.squash_snapshots` (collapse all snapshots for each resource into one)
+- `mix ash_postgres.migrate_snapshots` (convert legacy full-state snapshots to the delta format — only needed when opting in to `snapshot_format: :delta`)
+
+## Delta snapshots (opt-in)
+
+By default, each resource's snapshot is a single JSON file capturing its
+*entire* current state. When two branches independently regenerate migrations
+they each rewrite that file, so a git merge produces a real JSON conflict.
+
+You can opt a repo into a **delta snapshot** format where each codegen writes
+a small file containing only the new operations (add-attribute, add-index,
+etc.) for that run. Reducing all deltas in timestamp order gives you the
+current state. Two parallel branches each produce a distinct file, so git
+merges them cleanly and the next codegen folds both without any manual
+intervention.
+
+### Enabling delta snapshots
+
+Set `snapshot_format: :delta` on the repo:
+
+```elixir
+defmodule MyApp.Repo do
+  use AshPostgres.Repo,
+    otp_app: :my_app,
+    snapshot_format: :delta
+end
+```
+
+If the repo already has legacy full-state snapshots on disk, run:
+
+```
+mix ash_postgres.migrate_snapshots
+```
+
+Once. This rewrites each resource's snapshot directory so the newest file is
+a v2 delta that reconstructs the full current state from empty. Existing
+legacy files are moved into `priv/resource_snapshots/.legacy_backup/` (pass
+`--keep-legacy` to preserve them in place instead).
+
+You can also pass `--snapshot-format delta` or `--snapshot-format full` to
+`mix ash_postgres.generate_migrations` / `mix ash.codegen` for one-off
+overrides without changing the repo config.
+
+### Squash behavior with deltas
+
+`mix ash_postgres.squash_snapshots` automatically detects the per-resource
+format. For delta directories it reduces all deltas to a single state, then
+re-emits them as one "initial state" delta (round-trip identical with what
+the live generator would produce for a fresh table). The `--into last|first|zero`
+flag controls the surviving filename as before. If the directory contains
+`*_dev.json` files, squash aborts unless you pass `--include-dev`.
+
+### Conflict detection
+
+When two branches touch the same attribute in incompatible ways (e.g. both
+rename it to different names, or both add the same column name), the
+reducer aborts on the next codegen with a `ConflictError` naming the exact
+delta file and operation index. Resolve manually — typically by editing or
+deleting one of the deltas — then re-run codegen.

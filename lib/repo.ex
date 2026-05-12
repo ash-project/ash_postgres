@@ -126,6 +126,22 @@ defmodule AshPostgres.Repo do
   """
   @callback immutable_expr_error?() :: boolean
 
+  @doc """
+  The format to use when writing resource snapshots. `:full` (default) writes
+  the full-state JSON blob per resource (historical behavior). `:delta` writes
+  one small JSON file per codegen containing just the operations produced by
+  the diff — merge-friendly across branches, reducible to the current state,
+  and squashable back into a single initial-state file.
+
+  Flip this on a per-repo basis via:
+
+      use AshPostgres.Repo, otp_app: :my_app, snapshot_format: :delta
+
+  You must run `mix ash_postgres.migrate_snapshots` once to convert existing
+  legacy full-state files before the generator can read them.
+  """
+  @callback snapshot_format() :: :full | :delta
+
   defmacro __using__(opts) do
     quote bind_quoted: [opts: opts] do
       if Keyword.get(opts, :define_ecto_repo?, true) do
@@ -165,6 +181,7 @@ defmodule AshPostgres.Repo do
       def disable_atomic_actions?, do: false
       def disable_expr_error?, do: false
       def immutable_expr_error?, do: false
+      def snapshot_format, do: unquote(Keyword.get(opts, :snapshot_format, :full))
 
       # default to false in 4.0
       def prefer_transaction?, do: true
@@ -337,7 +354,8 @@ defmodule AshPostgres.Repo do
                      disable_atomic_actions?: 0,
                      disable_expr_error?: 0,
                      immutable_expr_error?: 0,
-                     use_builtin_uuidv7_function?: 0
+                     use_builtin_uuidv7_function?: 0,
+                     snapshot_format: 0
 
       # We do this switch because `!@warn_on_missing_ash_functions` in the function body triggers
       # a dialyzer error
