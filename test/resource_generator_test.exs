@@ -841,6 +841,9 @@ defmodule AshPostgres.ResourceGeenratorTests do
       content = file_content(igniter, "lib/my_app/blog/article_tag.ex")
       assert content =~ "belongs_to :article, MyApp.Blog.Article"
       assert content =~ "belongs_to :topic, MyApp.Blog.Topic"
+      # Composite PK lives on the FK columns; each belongs_to must declare primary_key? true
+      # so Ash recognizes the composite PK and does not raise VerifyPrimaryKeyPresent.
+      assert content =~ "primary_key?(true)"
       refute content =~ "many_to_many"
       refute content =~ "has_many"
     end

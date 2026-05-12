@@ -550,7 +550,7 @@ if Code.ensure_loaded?(Igniter) do
           |> add_destination_attribute(rel, "id")
           |> add_source_attribute(rel, "#{rel.name}_id")
           |> add_allow_nil(rel)
-          |> add_primary_key(attribute.primary_key?)
+          |> add_primary_key(attribute)
           |> add_attribute_type(attribute)
           |> add_filter(rel)
           |> add_public(opts)
