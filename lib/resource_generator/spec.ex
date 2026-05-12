@@ -809,11 +809,6 @@ defmodule AshPostgres.ResourceGenerator.Spec do
   end
 
   defp join_table?(spec) do
-    pk_cols =
-      spec.attributes
-      |> Enum.filter(& &1.primary_key?)
-      |> Enum.map(& &1.source)
-
     fk_cols = Enum.map(spec.foreign_keys, & &1.column)
 
     fk_tables =
@@ -823,7 +818,23 @@ defmodule AshPostgres.ResourceGenerator.Spec do
 
     length(spec.foreign_keys) == 2 &&
       length(fk_tables) == 2 &&
-      Enum.sort(pk_cols) == Enum.sort(fk_cols)
+      (pk_matches_fks?(spec, fk_cols) or unique_index_matches_fks?(spec, fk_cols))
+  end
+
+  defp pk_matches_fks?(spec, fk_cols) do
+    pk_cols =
+      spec.attributes
+      |> Enum.filter(& &1.primary_key?)
+      |> Enum.map(& &1.source)
+
+    pk_cols != [] and Enum.sort(pk_cols) == Enum.sort(fk_cols)
+  end
+
+  defp unique_index_matches_fks?(spec, fk_cols) do
+    Enum.any?(spec.indexes, fn idx ->
+      idx.unique? and is_nil(idx.where_clause) and
+        Enum.sort(idx.columns) == Enum.sort(fk_cols)
+    end)
   end
 
   defp resolve_name_collisions(relationships, opts, spec, reserved_names, initial_auto? \\ false) do

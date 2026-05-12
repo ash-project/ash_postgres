@@ -893,6 +893,41 @@ defmodule AshPostgres.ResourceGeenratorTests do
       assert content =~ "destination_attribute_on_join_resource(:the_topic)"
     end
 
+    test "detects many_to_many when the join table has a unique index over the FK columns instead of a composite primary key" do
+      # Hibernate / legacy schemas often use UNIQUE(a, b) instead of PRIMARY KEY (a, b).
+      AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS article_uq_tags CASCADE")
+
+      AshPostgres.TestRepo.query!("""
+      CREATE TABLE article_uq_tags (
+        article_id UUID NOT NULL REFERENCES articles(id),
+        topic_id   UUID NOT NULL REFERENCES topics(id)
+      )
+      """)
+
+      AshPostgres.TestRepo.query!(
+        "CREATE UNIQUE INDEX article_uq_tags_uniq ON article_uq_tags (article_id, topic_id)"
+      )
+
+      igniter =
+        test_project()
+        |> Igniter.compose_task("ash_postgres.gen.resources", [
+          "MyApp.Blog",
+          "--tables",
+          "articles,topics,article_uq_tags",
+          "--yes",
+          "--repo",
+          "AshPostgres.TestRepo"
+        ])
+
+      article_content = file_content(igniter, "lib/my_app/blog/article.ex")
+      assert article_content =~ "many_to_many :topics, MyApp.Blog.Topic"
+      assert article_content =~ "has_many :article_uq_tags"
+
+      topic_content = file_content(igniter, "lib/my_app/blog/topic.ex")
+      assert topic_content =~ "many_to_many :articles, MyApp.Blog.Article"
+      assert topic_content =~ "has_many :article_uq_tags"
+    end
+
     test "does not generate many_to_many when the join table has its own surrogate primary key" do
       AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS article_labels CASCADE")
 
