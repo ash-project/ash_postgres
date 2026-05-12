@@ -826,22 +826,30 @@ defmodule AshPostgres.ResourceGenerator.Spec do
       Enum.sort(pk_cols) == Enum.sort(fk_cols)
   end
 
-  defp resolve_name_collisions(relationships, opts, spec, reserved_names) do
-    resolved =
-      relationships
-      |> Enum.group_by(& &1.name)
-      |> Enum.flat_map(fn {name, rels} ->
+  defp resolve_name_collisions(relationships, opts, spec, reserved_names, initial_auto? \\ false) do
+    groups = Enum.group_by(relationships, & &1.name)
+
+    total =
+      Enum.reduce(groups, 0, fn {name, rels}, acc ->
+        if length(rels) > 1 or name in reserved_names, do: acc + length(rels), else: acc
+      end)
+
+    {resolved, _seen, auto?} =
+      Enum.reduce(groups, {[], 0, initial_auto?}, fn {name, rels}, {acc, seen, auto?} ->
         if length(rels) > 1 or name in reserved_names do
-          name_all_relationships(opts, spec, name, rels)
+          {new_rels, seen, auto?} =
+            name_all_relationships(opts, spec, name, rels, {seen, total}, auto?)
+
+          {acc ++ new_rels, seen, auto?}
         else
-          rels
+          {acc ++ rels, seen, auto?}
         end
       end)
 
     if same_relationship_names?(relationships, resolved) do
       resolved
     else
-      resolve_name_collisions(resolved, opts, spec, reserved_names)
+      resolve_name_collisions(resolved, opts, spec, reserved_names, auto?)
     end
   end
 
@@ -849,19 +857,33 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     Enum.sort(Enum.map(a, & &1.name)) == Enum.sort(Enum.map(b, & &1.name))
   end
 
-  defp name_all_relationships(opts, spec, name, relationships, acc \\ [])
-  defp name_all_relationships(_opts, _spec, _name, [], acc), do: acc
+  defp name_all_relationships(opts, spec, name, relationships, progress, auto?, acc \\ [])
 
-  defp name_all_relationships(opts, spec, name, [%Relationship{} = relationship | rest], acc) do
+  defp name_all_relationships(_opts, _spec, _name, [], {seen, _total}, auto?, acc),
+    do: {acc, seen, auto?}
+
+  defp name_all_relationships(
+         opts,
+         spec,
+         name,
+         [%Relationship{} = relationship | rest],
+         {seen, total},
+         auto?,
+         acc
+       ) do
     {info, suggestion} = relationship_conflict_info(spec, name, relationship)
     maybe_suggestion = if suggestion == name, do: nil, else: suggestion
+    progress = {seen + 1, total}
 
-    case choose_relationship_name(opts, name, maybe_suggestion, info) do
+    {choice, auto?} =
+      choose_relationship_name(opts, name, maybe_suggestion, info, progress, auto?)
+
+    case choice do
       :skip ->
-        name_all_relationships(opts, spec, name, rest, acc)
+        name_all_relationships(opts, spec, name, rest, {seen + 1, total}, auto?, acc)
 
       new_name ->
-        name_all_relationships(opts, spec, name, rest, [
+        name_all_relationships(opts, spec, name, rest, {seen + 1, total}, auto?, [
           %{relationship | name: new_name} | acc
         ])
     end
@@ -924,31 +946,41 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     {info, suggestion}
   end
 
-  defp choose_relationship_name(opts, name, maybe_suggestion, info) do
-    if opts[:yes] || opts[:skip_unknown] do
-      maybe_suggestion || :skip
-    else
-      prompt_relationship_name(name, maybe_suggestion, info)
+  defp choose_relationship_name(opts, name, maybe_suggestion, info, progress, auto?) do
+    cond do
+      auto? ->
+        {maybe_suggestion || :skip, true}
+
+      opts[:yes] || opts[:skip_unknown] ->
+        {maybe_suggestion || :skip, false}
+
+      true ->
+        prompt_relationship_name(name, maybe_suggestion, info, progress)
     end
   end
 
-  defp prompt_relationship_name(name, maybe_suggestion, info) do
+  defp prompt_relationship_name(name, maybe_suggestion, info, {seen, total}) do
     Owl.IO.puts(info)
 
+    # Slot numbers are fixed so a given action always lives at the same digit,
+    # even when an option is absent (e.g. no suggestion available).
     options =
       [
-        maybe_suggestion && {:suggest, "Use suggested name `:#{maybe_suggestion}`"},
-        {:skip, "Skip this relationship"}
+        maybe_suggestion && {1, :suggest, "Use suggested name `:#{maybe_suggestion}`"},
+        seen < total &&
+          {2, :auto,
+           "Auto-resolve remaining conflicts on this resource (use suggestion when available, otherwise skip)"},
+        {3, :skip, "Skip this relationship"}
       ]
-      |> Enum.reject(&is_nil/1)
+      |> Enum.reject(&(&1 in [nil, false]))
 
     menu =
-      options
-      |> Enum.with_index(1)
-      |> Enum.map_join("\n", fn {{_action, label}, idx} -> "  #{idx}. #{label}" end)
+      Enum.map_join(options, "\n", fn {slot, _action, label} -> "  #{slot}. #{label}" end)
+
+    progress_tag = if total > 1, do: " [#{seen}/#{total}]", else: ""
 
     prompt_label =
-      "How would you like to resolve the conflict for `:#{name}`?\n" <>
+      "How would you like to resolve the conflict for `:#{name}`?#{progress_tag}\n" <>
         menu <> "\n  Or enter a custom name."
 
     Owl.IO.input(
@@ -957,10 +989,11 @@ defmodule AshPostgres.ResourceGenerator.Spec do
       cast: &parse_relationship_name_input(&1, options)
     )
     |> case do
-      :suggest -> maybe_suggestion || :skip
-      :skip -> :skip
-      nil -> maybe_suggestion || :skip
-      new_name -> new_name
+      :suggest -> {maybe_suggestion || :skip, false}
+      :skip -> {:skip, false}
+      :auto -> {maybe_suggestion || :skip, true}
+      nil -> {maybe_suggestion || :skip, false}
+      new_name -> {new_name, false}
     end
   end
 
@@ -971,9 +1004,9 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     trimmed = value |> String.trim() |> String.trim_leading(":")
 
     case Integer.parse(trimmed) do
-      {idx, ""} when idx >= 1 ->
-        case Enum.at(options, idx - 1) do
-          {action, _label} -> {:ok, action}
+      {slot, ""} when slot >= 1 ->
+        case Enum.find(options, fn {s, _action, _label} -> s == slot end) do
+          {_slot, action, _label} -> {:ok, action}
           nil -> {:error, "please choose a listed option or enter a custom name"}
         end
 
@@ -992,10 +1025,12 @@ defmodule AshPostgres.ResourceGenerator.Spec do
         |> String.replace("_id", "")
         |> Igniter.Inflex.singularize()
 
-      if stripped == Igniter.Inflex.singularize(to_string(name)) do
-        name
-      else
-        "#{stripped}_#{name}"
+      name_str = to_string(name)
+
+      cond do
+        stripped == Igniter.Inflex.singularize(name_str) -> name
+        String.contains?(name_str, stripped) -> name
+        true -> "#{stripped}_#{name_str}"
       end
     else
       name

@@ -264,6 +264,7 @@ if Code.ensure_loaded?(Igniter) do
 
     defp relationships_block(%{relationships: relationships} = spec, opts) do
       relationships
+      |> Enum.sort_by(&relationship_sort_key/1)
       |> Enum.map_join("\n", fn relationship ->
         case relationship_options(spec, relationship, opts) do
           "" ->
@@ -285,6 +286,11 @@ if Code.ensure_loaded?(Igniter) do
         """
       end)
     end
+
+    defp relationship_sort_key(%{type: :belongs_to, name: name}), do: {0, name}
+    defp relationship_sort_key(%{type: :has_one, name: name}), do: {1, name}
+    defp relationship_sort_key(%{type: :has_many, name: name}), do: {2, name}
+    defp relationship_sort_key(%{type: :many_to_many, name: name}), do: {3, name}
 
     defp schema_option(%{schema: schema}) when schema != "public" do
       "schema #{inspect(schema)}"
@@ -496,6 +502,7 @@ if Code.ensure_loaded?(Igniter) do
 
     defp add_relationships(str, %{relationships: relationships} = spec, opts) do
       relationships
+      |> Enum.sort_by(&relationship_sort_key/1)
       |> Enum.map_join("\n", fn relationship ->
         case relationship_options(spec, relationship, opts) do
           "" ->
@@ -659,7 +666,7 @@ if Code.ensure_loaded?(Igniter) do
             end)
 
           if relationship do
-            relationship = relationship.name
+            name = relationship.name
 
             options =
               ""
@@ -669,17 +676,20 @@ if Code.ensure_loaded?(Igniter) do
               |> add_match_type(foreign_key.match_type)
 
             [
-              """
-              reference :#{relationship} do
-                #{options}
-              end
-              """
+              {name,
+               """
+               reference :#{name} do
+                 #{options}
+               end
+               """}
             ]
           else
             []
           end
         end
       end)
+      |> Enum.sort_by(fn {name, _ref} -> name end)
+      |> Enum.map(fn {_name, ref} -> ref end)
       |> case do
         [] ->
           []

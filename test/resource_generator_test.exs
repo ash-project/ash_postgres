@@ -434,6 +434,47 @@ defmodule AshPostgres.ResourceGeenratorTests do
     """)
   end
 
+  test "resolves has_many name conflicts using suggested names when --yes is set" do
+    AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS conflict_posts CASCADE")
+    AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS conflict_authors CASCADE")
+
+    AshPostgres.TestRepo.query!("""
+    CREATE TABLE conflict_authors (
+      id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+      name VARCHAR(255)
+    )
+    """)
+
+    AshPostgres.TestRepo.query!("""
+    CREATE TABLE conflict_posts (
+      id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+      title VARCHAR(255),
+      created_by_id UUID REFERENCES conflict_authors(id),
+      updated_by_id UUID REFERENCES conflict_authors(id)
+    )
+    """)
+
+    igniter =
+      test_project()
+      |> Igniter.compose_task("ash_postgres.gen.resources", [
+        "MyApp.Accounts",
+        "--tables",
+        "conflict_authors,conflict_posts",
+        "--yes",
+        "--repo",
+        "AshPostgres.TestRepo"
+      ])
+
+    author_source =
+      Rewrite.source!(igniter.rewrite, "lib/my_app/accounts/conflict_author.ex")
+
+    author_content = Rewrite.Source.get(author_source, :content)
+
+    assert author_content =~ ":created_by_conflict_posts"
+    assert author_content =~ ":updated_by_conflict_posts"
+    refute author_content =~ "has_many :conflict_posts,"
+  end
+
   describe "--fragments option" do
     @describetag :fragments
 
