@@ -196,6 +196,7 @@ end
 | [`up`](#postgres-custom_statements-statement-up){: #postgres-custom_statements-statement-up .spark-required} | `String.t` |  | How to create the structure of the statement |
 | [`down`](#postgres-custom_statements-statement-down){: #postgres-custom_statements-statement-down .spark-required} | `String.t` |  | How to tear down the structure of the statement |
 | [`code?`](#postgres-custom_statements-statement-code?){: #postgres-custom_statements-statement-code? } | `boolean` | `false` | By default, we place the strings inside of ecto migration's `execute/1` function and assume they are sql. Use this option if you want to provide custom elixir code to be placed directly in the migrations |
+| [`global?`](#postgres-custom_statements-statement-global?){: #postgres-custom_statements-statement-global? } | `boolean` | `false` | By default, a multi-tenant resource's custom statements will be written into the tenant migration folder. Set this to true for statements that create global, shared structures so they are written into the public migration folder even when defined on a tenant resource. |
 
 
 

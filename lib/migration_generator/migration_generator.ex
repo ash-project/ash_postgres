@@ -510,31 +510,24 @@ defmodule AshPostgres.MigrationGenerator do
             end
           end
 
-          if opts.snapshots_only do
-            []
-          else
-            operations
-            |> split_into_migrations()
-            |> Enum.with_index()
-            |> Enum.map(fn {operations, split_index} ->
-              run_without_transaction? =
-                Enum.any?(operations, fn
-                  %Operation.AddCustomIndex{index: %{concurrently: true}} ->
-                    true
+          {tenant_operations, public_operations} =
+            if tenant? do
+              public_ops = Enum.filter(operations, &public_custom_statement_operation?/1)
+              tenant_ops = Enum.reject(operations, &public_custom_statement_operation?/1)
+              {tenant_ops, public_ops}
+            else
+              {operations, []}
+            end
 
-                  %Operation.AddUniqueIndex{concurrently: true} ->
-                    true
+          migrations =
+            if opts.snapshots_only do
+              []
+            else
+              operations_to_migrations(tenant_operations, repo, opts, tenant?) ++
+                operations_to_migrations(public_operations, repo, opts, false)
+            end
 
-                  _ ->
-                    false
-                end)
-
-              operations
-              |> organize_operations()
-              |> build_up_and_down()
-              |> migration(repo, opts, tenant?, run_without_transaction?, split_index)
-            end)
-          end
+          migrations
           |> Enum.concat(create_new_snapshot(snapshots, repo_name(repo), opts, tenant?))
           |> then(fn files ->
             remove_orphan_snapshots(orphan_snapshots, opts)
@@ -543,6 +536,44 @@ defmodule AshPostgres.MigrationGenerator do
       end
     end)
   end
+
+  defp operations_to_migrations([], _repo, _opts, _tenant?), do: []
+
+  defp operations_to_migrations(operations, repo, opts, tenant?) do
+    operations
+    |> split_into_migrations()
+    |> Enum.with_index()
+    |> Enum.map(fn {operations, split_index} ->
+      run_without_transaction? =
+        Enum.any?(operations, fn
+          %Operation.AddCustomIndex{index: %{concurrently: true}} ->
+            true
+
+          %Operation.AddUniqueIndex{concurrently: true} ->
+            true
+
+          _ ->
+            false
+        end)
+
+      operations
+      |> organize_operations()
+      |> build_up_and_down()
+      |> migration(repo, opts, tenant?, run_without_transaction?, split_index)
+    end)
+  end
+
+  defp public_custom_statement_operation?(%Operation.AddCustomStatement{
+         statement: %{global?: true}
+       }),
+       do: true
+
+  defp public_custom_statement_operation?(%Operation.RemoveCustomStatement{
+         statement: %{global?: true}
+       }),
+       do: true
+
+  defp public_custom_statement_operation?(_), do: false
 
   defp get_dev_migrations(opts, tenant?, repo) do
     opts
@@ -4310,7 +4341,9 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp load_custom_statements(statements) do
     Enum.map(statements || [], fn statement ->
-      Map.update!(statement, :name, &maybe_to_atom/1)
+      statement
+      |> Map.update!(:name, &maybe_to_atom/1)
+      |> Map.put_new(:global?, false)
     end)
   end
 

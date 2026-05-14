@@ -9,7 +9,8 @@ defmodule AshPostgres.Statement do
     :name,
     :up,
     :down,
-    :code?
+    :code?,
+    :global?
   ]
 
   defstruct @fields ++ [:__spark_metadata__]
@@ -29,6 +30,13 @@ defmodule AshPostgres.Statement do
       default: false,
       doc: """
       By default, we place the strings inside of ecto migration's `execute/1` function and assume they are sql. Use this option if you want to provide custom elixir code to be placed directly in the migrations
+      """
+    ],
+    global?: [
+      type: :boolean,
+      default: false,
+      doc: """
+      By default, a multi-tenant resource's custom statements will be written into the tenant migration folder. Set this to true for statements that create global, shared structures so they are written into the public migration folder even when defined on a tenant resource.
       """
     ],
     up: [
