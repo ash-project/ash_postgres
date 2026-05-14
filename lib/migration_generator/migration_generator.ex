@@ -3109,32 +3109,22 @@ defmodule AshPostgres.MigrationGenerator do
     not is_nil(Map.get(attribute, :references)) and
       !(attribute.references.multitenancy &&
           attribute.references.multitenancy.strategy == :context &&
-          (is_nil(multitenancy) || multitenancy.strategy == :attribute))
+          (is_nil(multitenancy) || multitenancy.strategy == :attribute)) and
+      !(multitenancy && multitenancy.strategy == :context &&
+          attribute.references.multitenancy &&
+          attribute.references.multitenancy.strategy == :context)
   end
 
-  def get_existing_snapshot(snapshot, opts) do
-    folder = get_snapshot_folder(snapshot, opts)
-    snapshot_path = get_snapshot_path(snapshot, folder)
-
-    if File.exists?(snapshot_path) do
-      snapshot_path
-      |> File.ls!()
-      |> Enum.filter(
-        &(String.match?(&1, ~r/^\d{14}\.json$/) or
-            (opts.dev and String.match?(&1, ~r/^\d{14}\_dev.json$/)))
-      )
-      |> case do
-        [] ->
-          get_old_snapshot(folder, snapshot)
-
-        snapshot_files ->
-          snapshot_path
-          |> Path.join(Enum.max(snapshot_files))
-          |> File.read!()
-          |> load_snapshot()
-      end
+  defp get_alternate_snapshot_folder(snapshot, opts) do
+    if snapshot.multitenancy.strategy == :context do
+      opts
+      |> snapshot_path(snapshot.repo)
+      |> Path.join(repo_name(snapshot.repo))
     else
-      get_old_snapshot(folder, snapshot)
+      opts
+      |> snapshot_path(snapshot.repo)
+      |> Path.join(repo_name(snapshot.repo))
+      |> Path.join("tenants")
     end
   end
 
@@ -3148,6 +3138,64 @@ defmodule AshPostgres.MigrationGenerator do
       opts
       |> snapshot_path(snapshot.repo)
       |> Path.join(repo_name(snapshot.repo))
+    end
+  end
+
+  def get_existing_snapshot(snapshot, opts) do
+    folder = get_snapshot_folder(snapshot, opts)
+    snapshot_path = get_snapshot_path(snapshot, folder)
+
+    result =
+      if File.exists?(snapshot_path) do
+        snapshot_path
+        |> File.ls!()
+        |> Enum.filter(
+          &(String.match?(&1, ~r/^\d{14}\.json$/) or
+              (opts.dev and String.match?(&1, ~r/^\d{14}\_dev.json$/)))
+        )
+        |> case do
+          [] ->
+            get_old_snapshot(folder, snapshot)
+
+          snapshot_files ->
+            snapshot_path
+            |> Path.join(Enum.max(snapshot_files))
+            |> File.read!()
+            |> load_snapshot()
+        end
+      else
+        get_old_snapshot(folder, snapshot)
+      end
+
+    # If no snapshot was found in the primary folder, check the alternate folder.
+    # This handles the case where multitenancy strategy has changed (e.g. :context
+    # to nil/global), which causes the snapshot to be stored in a different folder.
+    if is_nil(result) do
+      alternate_folder = get_alternate_snapshot_folder(snapshot, opts)
+      alternate_path = get_snapshot_path(snapshot, alternate_folder)
+
+      if File.exists?(alternate_path) do
+        alternate_path
+        |> File.ls!()
+        |> Enum.filter(
+          &(String.match?(&1, ~r/^\d{14}\.json$/) or
+              (opts.dev and String.match?(&1, ~r/^\d{14}\_dev.json$/)))
+        )
+        |> case do
+          [] ->
+            get_old_snapshot(alternate_folder, snapshot)
+
+          snapshot_files ->
+            alternate_path
+            |> Path.join(Enum.max(snapshot_files))
+            |> File.read!()
+            |> load_snapshot()
+        end
+      else
+        get_old_snapshot(alternate_folder, snapshot)
+      end
+    else
+      result
     end
   end
 
