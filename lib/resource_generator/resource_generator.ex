@@ -45,7 +45,8 @@ if Code.ensure_loaded?(Igniter) do
           &Spec.tables(&1,
             skip_tables: opts[:skip_tables],
             tables: opts[:tables],
-            skip_unknown: opts[:skip_unknown]
+            skip_unknown: opts[:skip_unknown],
+            include_views: opts[:include_views]
           )
         )
         |> Enum.map(fn %{table_name: table} = spec ->
@@ -107,24 +108,20 @@ if Code.ensure_loaded?(Igniter) do
            domain,
            opts
          ) do
-      no_migrate_flag =
-        if opts[:no_migrations] do
-          "migrate? false"
-        end
-
       resource =
         """
         use Ash.Resource,
           domain: #{inspect(domain)},
           data_layer: AshPostgres.DataLayer
 
-        #{default_actions(opts)}
+        #{resource_block(table_spec)}
+        #{default_actions(opts, table_spec)}
 
         postgres do
           table #{inspect(table_spec.table_name)}
           repo #{inspect(table_spec.repo)}
           #{schema_option(table_spec)}
-          #{no_migrate_flag}
+          #{migrate_option(table_spec, opts)}
           #{references(table_spec, opts[:no_migrations])}
           #{custom_indexes(table_spec, opts[:no_migrations])}
           #{check_constraints(table_spec, opts[:no_migrations])}
@@ -181,12 +178,6 @@ if Code.ensure_loaded?(Igniter) do
         # Only create/update the fragment file
         Igniter.Project.Module.create_module(igniter, fragment_module, fragment_content)
       else
-        # Create both resource and fragment
-        no_migrate_flag =
-          if opts[:no_migrations] do
-            "migrate? false"
-          end
-
         resource_content =
           """
           use Ash.Resource,
@@ -194,13 +185,14 @@ if Code.ensure_loaded?(Igniter) do
             data_layer: AshPostgres.DataLayer,
             fragments: [#{inspect(fragment_module)}]
 
-          #{default_actions(opts)}
+          #{resource_block(table_spec)}
+          #{default_actions(opts, table_spec)}
 
           postgres do
             table #{inspect(table_spec.table_name)}
             repo #{inspect(table_spec.repo)}
             #{schema_option(table_spec)}
-            #{no_migrate_flag}
+            #{migrate_option(table_spec, opts)}
             #{references(table_spec, opts[:no_migrations])}
             #{custom_indexes(table_spec, opts[:no_migrations])}
             #{check_constraints(table_spec, opts[:no_migrations])}
@@ -272,6 +264,7 @@ if Code.ensure_loaded?(Igniter) do
 
     defp relationships_block(%{relationships: relationships} = spec, opts) do
       relationships
+      |> Enum.sort_by(&relationship_sort_key/1)
       |> Enum.map_join("\n", fn relationship ->
         case relationship_options(spec, relationship, opts) do
           "" ->
@@ -294,18 +287,60 @@ if Code.ensure_loaded?(Igniter) do
       end)
     end
 
+    defp relationship_sort_key(%{type: :belongs_to, name: name}), do: {0, name}
+    defp relationship_sort_key(%{type: :has_one, name: name}), do: {1, name}
+    defp relationship_sort_key(%{type: :has_many, name: name}), do: {2, name}
+    defp relationship_sort_key(%{type: :many_to_many, name: name}), do: {3, name}
+
     defp schema_option(%{schema: schema}) when schema != "public" do
       "schema #{inspect(schema)}"
     end
 
     defp schema_option(_), do: ""
 
-    defp default_actions(opts) do
+    defp no_primary_key?(%AshPostgres.ResourceGenerator.Spec{attributes: attributes}) do
+      Enum.all?(attributes, &(not &1.primary_key?))
+    end
+
+    defp view?(%AshPostgres.ResourceGenerator.Spec{kind: kind}),
+      do: kind in [:view, :materialized_view]
+
+    defp view_kind_label(%AshPostgres.ResourceGenerator.Spec{kind: :view}), do: "VIEW"
+
+    defp view_kind_label(%AshPostgres.ResourceGenerator.Spec{kind: :materialized_view}),
+      do: "MATERIALIZED VIEW"
+
+    defp resource_block(table_spec) do
+      if no_primary_key?(table_spec) do
+        """
+        resource do
+          # WARNING: Configured to bypass missing primary key.
+          # Add primary_key?: true to your attributes/relationships and remove this block.
+          require_primary_key? false
+        end
+        """
+      else
+        ""
+      end
+    end
+
+    defp default_actions(opts, table_spec) do
       cond do
-        opts[:default_actions] && opts[:public] ->
+        view?(table_spec) ->
           """
           actions do
-            defaults [:read, :destroy, create: :*, update: :*]
+            # WARNING: Generated from a PostgreSQL #{view_kind_label(table_spec)}.
+            # Views are read-only; only the :read default action is safe.
+            defaults [:read]
+          end
+          """
+
+        no_primary_key?(table_spec) ->
+          """
+          actions do
+            # WARNING: No primary key detected.
+            # :update and :destroy actions require a primary key to safely identify records.
+            defaults [:read, create: :*]
           end
           """
 
@@ -315,6 +350,24 @@ if Code.ensure_loaded?(Igniter) do
             defaults [:read, :destroy, create: :*, update: :*]
           end
           """
+
+        true ->
+          ""
+      end
+    end
+
+    defp migrate_option(table_spec, opts) do
+      cond do
+        view?(table_spec) ->
+          """
+          # NOTE: Source is a PostgreSQL #{view_kind_label(table_spec)}, not a base table.
+          # migrate? false prevents Ash from trying to manage its schema.
+          # TODO: Migrations need to be handled manually for views.
+          migrate? false
+          """
+
+        opts[:no_migrations] ->
+          "migrate? false"
 
         true ->
           ""
@@ -449,6 +502,7 @@ if Code.ensure_loaded?(Igniter) do
 
     defp add_relationships(str, %{relationships: relationships} = spec, opts) do
       relationships
+      |> Enum.sort_by(&relationship_sort_key/1)
       |> Enum.map_join("\n", fn relationship ->
         case relationship_options(spec, relationship, opts) do
           "" ->
@@ -496,26 +550,41 @@ if Code.ensure_loaded?(Igniter) do
           |> add_destination_attribute(rel, "id")
           |> add_source_attribute(rel, "#{rel.name}_id")
           |> add_allow_nil(rel)
-          |> add_primary_key(attribute.primary_key?)
+          |> add_primary_key(attribute)
           |> add_attribute_type(attribute)
           |> add_filter(rel)
           |> add_public(opts)
       end
     end
 
+    defp relationship_options(_spec, %{type: :many_to_many} = rel, opts) do
+      default_source_on_join = module_to_id_string(rel.source)
+      default_dest_on_join = module_to_id_string(rel.destination)
+
+      ""
+      |> add_through(rel)
+      |> add_join_relationship(rel)
+      |> add_source_attribute_on_join_resource(rel, default_source_on_join)
+      |> add_destination_attribute_on_join_resource(rel, default_dest_on_join)
+      |> add_public(opts)
+    end
+
     defp relationship_options(_spec, rel, opts) do
-      default_destination_attribute =
-        rel.source
-        |> Module.split()
-        |> List.last()
-        |> Macro.underscore()
-        |> Kernel.<>("_id")
+      default_destination_attribute = module_to_id_string(rel.source)
 
       ""
       |> add_destination_attribute(rel, default_destination_attribute)
       |> add_source_attribute(rel, "id")
       |> add_filter(rel)
       |> add_public(opts)
+    end
+
+    defp module_to_id_string(module) do
+      module
+      |> Module.split()
+      |> List.last()
+      |> Macro.underscore()
+      |> Kernel.<>("_id")
     end
 
     defp add_filter(str, %{match_with: []}), do: str
@@ -527,6 +596,30 @@ if Code.ensure_loaded?(Igniter) do
         end)
 
       "#{str}\n filter expr(#{filter})"
+    end
+
+    defp add_through(str, %{through: through}) do
+      "#{str}\n through #{inspect(through)}"
+    end
+
+    defp add_join_relationship(str, %{join_relationship: name}) do
+      "#{str}\n join_relationship :#{name}"
+    end
+
+    defp add_source_attribute_on_join_resource(str, rel, default) do
+      if rel.source_attribute_on_join_resource == default do
+        str
+      else
+        "#{str}\n source_attribute_on_join_resource :#{rel.source_attribute_on_join_resource}"
+      end
+    end
+
+    defp add_destination_attribute_on_join_resource(str, rel, default) do
+      if rel.destination_attribute_on_join_resource == default do
+        str
+      else
+        "#{str}\n destination_attribute_on_join_resource :#{rel.destination_attribute_on_join_resource}"
+      end
     end
 
     defp add_attribute_type(str, %{attr_type: :uuid}), do: str
@@ -573,7 +666,7 @@ if Code.ensure_loaded?(Igniter) do
             end)
 
           if relationship do
-            relationship = relationship.name
+            name = relationship.name
 
             options =
               ""
@@ -583,17 +676,20 @@ if Code.ensure_loaded?(Igniter) do
               |> add_match_type(foreign_key.match_type)
 
             [
-              """
-              reference :#{relationship} do
-                #{options}
-              end
-              """
+              {name,
+               """
+               reference :#{name} do
+                 #{options}
+               end
+               """}
             ]
           else
             []
           end
         end
       end)
+      |> Enum.sort_by(fn {name, _ref} -> name end)
+      |> Enum.map(fn {_name, ref} -> ref end)
       |> case do
         [] ->
           []

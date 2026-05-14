@@ -12,6 +12,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     :repo,
     :resource,
     :schema,
+    kind: :table,
     check_constraints: [],
     foreign_keys: [],
     indexes: [],
@@ -81,42 +82,68 @@ defmodule AshPostgres.ResourceGenerator.Spec do
       :constraint_name,
       :destination_attribute,
       :allow_nil?,
-      :foreign_key
+      :foreign_key,
+      :through,
+      :source_attribute_on_join_resource,
+      :destination_attribute_on_join_resource,
+      :join_relationship,
+      :referenced_table
     ]
   end
 
   def tables(repo, opts \\ []) do
     {:ok, result, _} =
       Ecto.Migrator.with_repo(repo, fn repo ->
-        repo
-        |> table_specs(opts)
-        |> Enum.group_by(&Enum.take(&1, 2), fn [_, _, field, type, default, size, allow_nil?] ->
-          name = Macro.underscore(field)
+        rows = table_specs(repo, opts)
 
-          %Attribute{
-            name: name,
-            source: field,
-            type: type,
-            migration_default: default,
-            size: size,
-            allow_nil?: allow_nil?
-          }
-        end)
+        relkinds =
+          Enum.reduce(rows, %{}, fn [table_name, table_schema, _, _, _, _, _, relkind], acc ->
+            Map.put_new(acc, {table_name, table_schema}, relkind_to_kind(relkind))
+          end)
+
+        rows
+        |> Enum.group_by(
+          &Enum.take(&1, 2),
+          fn [_, _, field, type, default, size, allow_nil?, _relkind] ->
+            name = Macro.underscore(field)
+
+            %Attribute{
+              name: name,
+              source: field,
+              type: type,
+              migration_default: default,
+              size: size,
+              allow_nil?: allow_nil?
+            }
+          end
+        )
         |> Enum.map(fn {[table_name, table_schema], attributes} ->
-          attributes = build_attributes(attributes, table_name, table_schema, repo, opts)
+          kind = Map.get(relkinds, {table_name, table_schema}, :table)
+
+          attributes = build_attributes(attributes, table_name, table_schema, repo, opts, kind)
 
           %__MODULE__{
             table_name: table_name,
             schema: table_schema,
             repo: repo,
+            kind: kind,
             attributes: attributes
           }
         end)
         |> Enum.map(fn spec ->
-          spec
-          |> add_foreign_keys()
-          |> add_indexes()
-          |> add_check_constraints()
+          case spec.kind do
+            :table ->
+              spec
+              |> add_foreign_keys()
+              |> add_indexes()
+              |> add_check_constraints()
+
+            :materialized_view ->
+              add_indexes(spec)
+
+            :view ->
+              spec
+          end
         end)
         |> Enum.reject(fn spec ->
           spec.table_name in List.wrap(opts[:skip_tables])
@@ -125,6 +152,11 @@ defmodule AshPostgres.ResourceGenerator.Spec do
 
     result
   end
+
+  defp relkind_to_kind("r"), do: :table
+  defp relkind_to_kind("v"), do: :view
+  defp relkind_to_kind("m"), do: :materialized_view
+  defp relkind_to_kind(_), do: :table
 
   defp qualified_table_name(%{schema: schema, table_name: table_name}) do
     "#{schema}.#{table_name}"
@@ -286,16 +318,16 @@ defmodule AshPostgres.ResourceGenerator.Spec do
           JOIN
               pg_class t ON ix.indrelid = t.oid
           JOIN
+              pg_catalog.pg_namespace tn ON tn.oid = t.relnamespace
+          JOIN
               pg_am am ON i.relam = am.oid
           LEFT JOIN
               pg_constraint c ON c.conindid = ix.indexrelid AND c.contype = 'p'
           JOIN
               pg_indexes idx ON idx.indexname = i.relname AND idx.schemaname = $2
-          JOIN information_schema.tables ta
-              ON ta.table_name = t.relname
           WHERE
               t.relname = $1
-              AND ta.table_schema = $2
+              AND tn.nspname = $2
               AND c.conindid IS NULL
           GROUP BY
               i.relname, ix.indisunique, ix.indnullsnotdistinct, pg_get_expr(ix.indpred, ix.indrelid), am.amname, idx.indexdef;
@@ -320,16 +352,16 @@ defmodule AshPostgres.ResourceGenerator.Spec do
           JOIN
               pg_class t ON ix.indrelid = t.oid
           JOIN
+              pg_catalog.pg_namespace tn ON tn.oid = t.relnamespace
+          JOIN
               pg_am am ON i.relam = am.oid
           LEFT JOIN
               pg_constraint c ON c.conindid = ix.indexrelid AND c.contype = 'p'
           JOIN
               pg_indexes idx ON idx.indexname = i.relname AND idx.schemaname = $2
-          JOIN information_schema.tables ta
-              ON ta.table_name = t.relname
           WHERE
               t.relname = $1
-              AND ta.table_schema = $2
+              AND tn.nspname = $2
               AND c.conindid IS NULL
           GROUP BY
               i.relname, ix.indisunique, pg_get_expr(ix.indpred, ix.indrelid), am.amname, idx.indexdef;
@@ -518,9 +550,9 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     raise "Unexpected character: #{inspect(other)} at #{inspect(stack)} with #{inspect(field)} - #{inspect(acc)}"
   end
 
-  defp build_attributes(attributes, table_name, schema, repo, opts) do
+  defp build_attributes(attributes, table_name, schema, repo, opts, kind) do
     attributes
-    |> set_primary_key(table_name, schema, repo)
+    |> set_primary_key(table_name, schema, repo, kind)
     |> set_sensitive()
     |> set_types(opts)
     |> set_defaults_and_generated()
@@ -627,56 +659,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     specs =
       Enum.map(specs, fn spec ->
         belongs_to_relationships =
-          Enum.flat_map(
-            spec.foreign_keys,
-            fn %ForeignKey{
-                 constraint_name: constraint_name,
-                 column: column_name,
-                 references: references,
-                 destination_field: destination_field,
-                 match_with: match_with
-               } ->
-              case find_destination_and_field(
-                     specs,
-                     spec,
-                     references,
-                     destination_field,
-                     resources,
-                     match_with
-                   ) do
-                nil ->
-                  []
-
-                {destination, destination_attribute, match_with} ->
-                  source_attr =
-                    Enum.find(spec.attributes, fn attribute ->
-                      attribute.source == column_name
-                    end)
-
-                  [
-                    %Relationship{
-                      type: :belongs_to,
-                      name: Igniter.Inflex.singularize(references),
-                      source: spec.resource,
-                      constraint_name: constraint_name,
-                      match_with: match_with,
-                      destination: destination,
-                      source_attribute: source_attr.name,
-                      allow_nil?: source_attr.allow_nil?,
-                      destination_attribute: destination_attribute
-                    }
-                  ]
-              end
-            end
-          )
-          |> Enum.group_by(& &1.name)
-          |> Enum.flat_map(fn
-            {_name, [relationship]} ->
-              [relationship]
-
-            {name, relationships} ->
-              name_all_relationships(:belongs_to, opts, spec, name, relationships)
-          end)
+          build_belongs_to_relationships(spec, specs, resources, opts)
 
         %{spec | relationships: belongs_to_relationships}
       end)
@@ -686,126 +669,392 @@ defmodule AshPostgres.ResourceGenerator.Spec do
         Enum.flat_map(specs, fn other_spec ->
           Enum.flat_map(other_spec.relationships, fn relationship ->
             if relationship.destination == spec.resource do
-              [{other_spec.table_name, other_spec.resource, relationship}]
+              [{other_spec.table_name, other_spec.resource, other_spec, relationship}]
             else
               []
             end
           end)
         end)
-        |> Enum.map(fn {table, resource, relationship} ->
-          destination_field =
-            Enum.find(spec.attributes, fn attribute ->
-              attribute.name == relationship.destination_attribute
-            end).source
+        |> Enum.flat_map(fn {table, resource, other_spec, relationship} ->
+          reverse_rel = build_has_relationship(spec, table, resource, relationship)
 
-          has_unique_index? =
-            Enum.any?(spec.indexes, fn index ->
-              index.unique? and is_nil(index.where_clause) and
-                index.columns == [destination_field]
-            end)
-
-          {name, type} =
-            if has_unique_index? do
-              if Igniter.Inflex.pluralize(table) == table do
-                {Igniter.Inflex.singularize(table), :has_one}
-              else
-                {table, :has_one}
-              end
-            else
-              if Igniter.Inflex.pluralize(table) == table do
-                {table, :has_many}
-              else
-                {Igniter.Inflex.pluralize(table), :has_many}
-              end
+          maybe_m2m =
+            if !opts[:skip_many_to_many] do
+              build_many_to_many_relationship(spec, other_spec, relationship, reverse_rel, specs)
             end
 
-          %Relationship{
-            type: type,
-            name: name,
-            destination: resource,
-            source: spec.resource,
-            match_with:
-              Enum.map(relationship.match_with, fn {source, dest} ->
-                {dest, source}
-              end),
-            constraint_name: relationship.constraint_name,
-            source_attribute: relationship.destination_attribute,
-            destination_attribute: relationship.source_attribute
-          }
+          [reverse_rel | List.wrap(maybe_m2m)]
         end)
-        |> Enum.group_by(& &1.name)
-        |> Enum.flat_map(fn
-          {_name, [relationship]} ->
-            [relationship]
-
-          {name, relationships} ->
-            name_all_relationships(:has, opts, spec, name, relationships)
-        end)
+        |> resolve_name_collisions(
+          opts,
+          spec,
+          Enum.map(spec.attributes, & &1.name) ++ Enum.map(spec.relationships, & &1.name)
+        )
 
       %{spec | relationships: spec.relationships ++ relationships_to_me}
     end)
   end
 
-  defp name_all_relationships(type, opts, spec, name, relationships, acc \\ [])
-  defp name_all_relationships(_type, _opts, _spec, _name, [], acc), do: acc
+  defp build_belongs_to_relationships(spec, specs, resources, opts) do
+    Enum.flat_map(
+      spec.foreign_keys,
+      fn %ForeignKey{
+           constraint_name: constraint_name,
+           column: column_name,
+           references: references,
+           destination_field: destination_field,
+           match_with: match_with
+         } ->
+        case find_destination_and_field(
+               specs,
+               spec,
+               references,
+               destination_field,
+               resources,
+               match_with
+             ) do
+          nil ->
+            []
 
-  defp name_all_relationships(type, opts, spec, name, [relationship | rest], acc) do
-    if opts[:yes?] || opts[:skip_unknown] do
-      name_all_relationships(type, opts, spec, name, rest, acc)
+          {destination, destination_attribute, match_with} ->
+            source_attr =
+              Enum.find(spec.attributes, fn attribute ->
+                attribute.source == column_name
+              end)
+
+            [
+              %Relationship{
+                type: :belongs_to,
+                name: default_belongs_to_name(column_name, references),
+                referenced_table: references,
+                source: spec.resource,
+                constraint_name: constraint_name,
+                match_with: match_with,
+                destination: destination,
+                source_attribute: source_attr.name,
+                allow_nil?: source_attr.allow_nil?,
+                destination_attribute: destination_attribute
+              }
+            ]
+        end
+      end
+    )
+    |> resolve_name_collisions(opts, spec, Enum.map(spec.attributes, & &1.name))
+  end
+
+  defp build_many_to_many_relationship(spec, other_spec, relationship, reverse_rel, specs) do
+    with true <- join_table?(other_spec),
+         other_fk when not is_nil(other_fk) <-
+           Enum.find(other_spec.foreign_keys, &(&1.references != spec.table_name)),
+         dest_spec when not is_nil(dest_spec) <-
+           Enum.find(specs, &(&1.table_name == other_fk.references)) do
+      %Relationship{
+        type: :many_to_many,
+        name: safe_pluralize(other_fk.references),
+        source: spec.resource,
+        destination: dest_spec.resource,
+        through: other_spec.resource,
+        referenced_table: other_fk.references,
+        source_attribute: relationship.destination_attribute,
+        destination_attribute: other_fk.destination_field,
+        source_attribute_on_join_resource: relationship.source_attribute,
+        destination_attribute_on_join_resource: other_fk.column,
+        join_relationship: reverse_rel.name,
+        match_with: []
+      }
     else
-      label =
-        case type do
-          :belongs_to ->
-            """
-            Multiple foreign keys found from `#{inspect(spec.resource)}` to `#{inspect(relationship.destination)}` with the guessed name `#{name}`.
+      _ -> nil
+    end
+  end
 
-            Provide a relationship name for the one with the following info:
+  defp build_has_relationship(spec, table, resource, relationship) do
+    destination_field =
+      Enum.find(spec.attributes, fn attribute ->
+        attribute.name == relationship.destination_attribute
+      end).source
 
-            Resource: `#{inspect(spec.resource)}`
-            Relationship Type: :belongs_to
-            Guessed Name: `:#{name}`
-            Relationship Destination: `#{inspect(relationship.destination)}`
-            Constraint Name: `#{inspect(relationship.constraint_name)}`.
+    has_unique_index? =
+      Enum.any?(spec.indexes, fn index ->
+        index.unique? and is_nil(index.where_clause) and
+          index.columns == [destination_field]
+      end)
 
-            Leave empty to skip adding this relationship.
+    {name, type} =
+      if has_unique_index? do
+        {Igniter.Inflex.singularize(table), :has_one}
+      else
+        {safe_pluralize(table), :has_many}
+      end
 
-            Name:
-            """
-            |> String.trim_trailing()
+    %Relationship{
+      type: type,
+      name: name,
+      destination: resource,
+      source: spec.resource,
+      match_with:
+        Enum.map(relationship.match_with, fn {source, dest} ->
+          {dest, source}
+        end),
+      constraint_name: relationship.constraint_name,
+      source_attribute: relationship.destination_attribute,
+      destination_attribute: relationship.source_attribute
+    }
+  end
 
-          _ ->
-            """
-            Multiple foreign keys found from `#{inspect(relationship.source)}` to `#{inspect(spec.resource)}` with the guessed name `#{name}`.
+  defp safe_pluralize(table) do
+    # handles edge cases when multiple pluralizations are possible like: "person" -> "people" -> "peoples"
+    table
+    |> Igniter.Inflex.singularize()
+    |> Igniter.Inflex.pluralize()
+  end
 
-            Provide a relationship name for the one with the following info:
+  defp join_table?(spec) do
+    fk_cols = Enum.map(spec.foreign_keys, & &1.column)
 
-            Resource: `#{inspect(relationship.source)}`
-            Relationship Type: :#{relationship.type}
-            Guessed Name: `:#{name}`
-            Relationship Destination: `#{inspect(spec.resource)}`
-            Constraint Name: `#{inspect(relationship.constraint_name)}`.
+    fk_tables =
+      spec.foreign_keys
+      |> Enum.map(& &1.references)
+      |> Enum.uniq()
 
-            Leave empty to skip adding this relationship.
+    length(spec.foreign_keys) == 2 &&
+      length(fk_tables) == 2 &&
+      (pk_matches_fks?(spec, fk_cols) or unique_index_matches_fks?(spec, fk_cols))
+  end
 
-            Name:
-            """
-            |> String.trim_trailing()
+  defp pk_matches_fks?(spec, fk_cols) do
+    pk_cols =
+      spec.attributes
+      |> Enum.filter(& &1.primary_key?)
+      |> Enum.map(& &1.source)
+
+    pk_cols != [] and Enum.sort(pk_cols) == Enum.sort(fk_cols)
+  end
+
+  defp unique_index_matches_fks?(spec, fk_cols) do
+    Enum.any?(spec.indexes, fn idx ->
+      idx.unique? and is_nil(idx.where_clause) and
+        Enum.sort(idx.columns) == Enum.sort(fk_cols)
+    end)
+  end
+
+  defp resolve_name_collisions(relationships, opts, spec, reserved_names, initial_auto? \\ false) do
+    groups = Enum.group_by(relationships, & &1.name)
+
+    total =
+      Enum.reduce(groups, 0, fn {name, rels}, acc ->
+        if length(rels) > 1 or name in reserved_names, do: acc + length(rels), else: acc
+      end)
+
+    {resolved, _seen, auto?} =
+      Enum.reduce(groups, {[], 0, initial_auto?}, fn {name, rels}, {acc, seen, auto?} ->
+        if length(rels) > 1 or name in reserved_names do
+          {new_rels, seen, auto?} =
+            name_all_relationships(opts, spec, name, rels, {seen, total}, auto?)
+
+          {acc ++ new_rels, seen, auto?}
+        else
+          {acc ++ rels, seen, auto?}
+        end
+      end)
+
+    if same_relationship_names?(relationships, resolved) do
+      resolved
+    else
+      resolve_name_collisions(resolved, opts, spec, reserved_names, auto?)
+    end
+  end
+
+  defp same_relationship_names?(a, b) do
+    Enum.sort(Enum.map(a, & &1.name)) == Enum.sort(Enum.map(b, & &1.name))
+  end
+
+  defp name_all_relationships(opts, spec, name, relationships, progress, auto?, acc \\ [])
+
+  defp name_all_relationships(_opts, _spec, _name, [], {seen, _total}, auto?, acc),
+    do: {acc, seen, auto?}
+
+  defp name_all_relationships(
+         opts,
+         spec,
+         name,
+         [%Relationship{} = relationship | rest],
+         {seen, total},
+         auto?,
+         acc
+       ) do
+    {info, suggestion} = relationship_conflict_info(spec, name, relationship)
+    maybe_suggestion = if suggestion == name, do: nil, else: suggestion
+    progress = {seen + 1, total}
+
+    {choice, auto?} =
+      choose_relationship_name(opts, name, maybe_suggestion, info, progress, auto?)
+
+    case choice do
+      :skip ->
+        name_all_relationships(opts, spec, name, rest, {seen + 1, total}, auto?, acc)
+
+      new_name ->
+        name_all_relationships(opts, spec, name, rest, {seen + 1, total}, auto?, [
+          %{relationship | name: new_name} | acc
+        ])
+    end
+  end
+
+  defp relationship_conflict_info(spec, name, %Relationship{type: :belongs_to} = relationship) do
+    suggestion =
+      build_alternative_name(relationship.source_attribute, relationship.referenced_table)
+
+    info = """
+    The guessed relationship name `:#{name}` on `#{inspect(spec.resource)}` conflicts with another name on this resource.
+
+    Relationship info:
+      Resource:                 #{inspect(spec.resource)}
+      Relationship Type:        :belongs_to
+      Guessed Name:             :#{name}
+      Relationship Destination: #{inspect(relationship.destination)}
+      Source Attribute (FK):    #{inspect(relationship.source_attribute)}
+      Constraint Name:          #{inspect(relationship.constraint_name)}
+    """
+
+    {info, suggestion}
+  end
+
+  defp relationship_conflict_info(_spec, name, %Relationship{type: :many_to_many} = relationship) do
+    suggestion =
+      build_alternative_name(relationship.source_attribute_on_join_resource, name)
+
+    info = """
+    The guessed relationship name `:#{name}` on `#{inspect(relationship.source)}` conflicts with another name on this resource.
+
+    Relationship info:
+      Resource:                      #{inspect(relationship.source)}
+      Relationship Type:             :many_to_many
+      Guessed Name:                  :#{name}
+      Relationship Destination:      #{inspect(relationship.destination)}
+      Destination Attribute on Join: #{inspect(relationship.destination_attribute_on_join_resource)}
+      Source Attribute on Join:      #{inspect(relationship.source_attribute_on_join_resource)}
+      Join Resource (Through):       #{inspect(relationship.through)}
+    """
+
+    {info, suggestion}
+  end
+
+  defp relationship_conflict_info(_spec, name, %Relationship{} = relationship) do
+    suggestion = build_alternative_name(relationship.destination_attribute, name)
+
+    info = """
+    The guessed relationship name `:#{name}` on `#{inspect(relationship.source)}` conflicts with another name on this resource.
+
+    Relationship info:
+      Resource:                   #{inspect(relationship.source)}
+      Relationship Type:          :#{relationship.type}
+      Guessed Name:               :#{name}
+      Relationship Destination:   #{inspect(relationship.destination)}
+      Destination Attribute (FK): #{inspect(relationship.destination_attribute)}
+      Constraint Name:            #{inspect(relationship.constraint_name)}
+    """
+
+    {info, suggestion}
+  end
+
+  defp choose_relationship_name(opts, name, maybe_suggestion, info, progress, auto?) do
+    cond do
+      auto? ->
+        {maybe_suggestion || :skip, true}
+
+      opts[:yes] || opts[:skip_unknown] ->
+        {maybe_suggestion || :skip, false}
+
+      true ->
+        prompt_relationship_name(name, maybe_suggestion, info, progress)
+    end
+  end
+
+  defp prompt_relationship_name(name, maybe_suggestion, info, {seen, total}) do
+    Owl.IO.puts(info)
+
+    # Slot numbers are fixed so a given action always lives at the same digit,
+    # even when an option is absent (e.g. no suggestion available).
+    options =
+      [
+        maybe_suggestion && {1, :suggest, "Use suggested name `:#{maybe_suggestion}`"},
+        seen < total &&
+          {2, :auto,
+           "Auto-resolve remaining conflicts on this resource (use suggestion when available, otherwise skip)"},
+        {3, :skip, "Skip this relationship"}
+      ]
+      |> Enum.reject(&(&1 in [nil, false]))
+
+    menu =
+      Enum.map_join(options, "\n", fn {slot, _action, label} -> "  #{slot}. #{label}" end)
+
+    progress_tag = if total > 1, do: " [#{seen}/#{total}]", else: ""
+
+    prompt_label =
+      "How would you like to resolve the conflict for `:#{name}`?#{progress_tag}\n" <>
+        menu <> "\n  Or enter a custom name."
+
+    Owl.IO.input(
+      label: prompt_label,
+      optional: true,
+      cast: &parse_relationship_name_input(&1, options)
+    )
+    |> case do
+      :suggest -> {maybe_suggestion || :skip, false}
+      :skip -> {:skip, false}
+      :auto -> {maybe_suggestion || :skip, true}
+      nil -> {maybe_suggestion || :skip, false}
+      new_name -> {new_name, false}
+    end
+  end
+
+  defp parse_relationship_name_input(nil, _options), do: {:ok, nil}
+
+  defp parse_relationship_name_input(value, options) when is_binary(value) do
+    # common typo
+    trimmed = value |> String.trim() |> String.trim_leading(":")
+
+    case Integer.parse(trimmed) do
+      {slot, ""} when slot >= 1 ->
+        case Enum.find(options, fn {s, _action, _label} -> s == slot end) do
+          {_slot, action, _label} -> {:ok, action}
+          nil -> {:error, "please choose a listed option or enter a custom name"}
         end
 
-      Owl.IO.input(label: label, optional: true)
-      |> Kernel.||("")
-      # common typo
-      |> String.trim_leading(":")
-      |> case do
-        "" ->
-          name_all_relationships(type, opts, spec, name, rest, acc)
-
-        new_name ->
-          name_all_relationships(type, opts, spec, name, rest, [
-            %{relationship | name: new_name} | acc
-          ])
-      end
+      _ ->
+        case trimmed do
+          "" -> {:ok, nil}
+          new_name -> {:ok, new_name}
+        end
     end
+  end
+
+  defp build_alternative_name(attribute, name) do
+    if String.ends_with?(attribute, "_id") do
+      stripped =
+        attribute
+        |> String.replace("_id", "")
+        |> Igniter.Inflex.singularize()
+
+      name_str = to_string(name)
+
+      cond do
+        stripped == Igniter.Inflex.singularize(name_str) -> name
+        String.contains?(name_str, stripped) -> name
+        true -> "#{stripped}_#{name_str}"
+      end
+    else
+      name
+    end
+  end
+
+  defp default_belongs_to_name(column_name, references) do
+    if String.ends_with?(column_name, "_id") and String.length(column_name) > 3 do
+      String.replace_suffix(column_name, "_id", "")
+    else
+      references
+    end
+    |> Igniter.Inflex.singularize()
   end
 
   defp find_destination_and_field(
@@ -907,7 +1156,7 @@ defmodule AshPostgres.ResourceGenerator.Spec do
   # sobelow_skip ["RCE.CodeModule", "DOS.StringToAtom"]
   defp get_type(attribute, opts) do
     result =
-      if opts[:yes?] || opts[:skip_unknown] do
+      if opts[:yes] || opts[:skip_unknown] do
         "skip"
       else
         Mix.shell().prompt("""
@@ -995,7 +1244,11 @@ defmodule AshPostgres.ResourceGenerator.Spec do
     end)
   end
 
-  defp set_primary_key(attributes, table_name, schema, repo) do
+  defp set_primary_key(attributes, _table_name, _schema, _repo, kind) when kind != :table do
+    attributes
+  end
+
+  defp set_primary_key(attributes, table_name, schema, repo, _kind) do
     %Postgrex.Result{rows: pkey_rows} =
       repo.query!(
         """
@@ -1016,6 +1269,13 @@ defmodule AshPostgres.ResourceGenerator.Spec do
   end
 
   defp table_specs(repo, opts) do
+    relkind_filter =
+      if opts[:include_views] do
+        "IN ('r', 'v', 'm')"
+      else
+        "= 'r'"
+      end
+
     Enum.flat_map(opts[:tables] || ["public."], fn table ->
       {schema, table} =
         case String.split(table, ".") do
@@ -1026,95 +1286,54 @@ defmodule AshPostgres.ResourceGenerator.Spec do
             {"public", table}
         end
 
-      %{rows: rows} =
+      {table_filter, params} =
         if table == "" do
-          repo.query!(
-            """
-              SELECT
-                t.table_name,
-                t.table_schema,
-                c.column_name,
-                CASE WHEN c.data_type = 'ARRAY' THEN
-                  repeat('ARRAY of ', a.attndims) || REPLACE(c.udt_name, '_', '')
-                WHEN c.data_type = 'USER-DEFINED' THEN
-                  c.udt_name
-                ELSE
-                  c.data_type
-                END as data_type,
-                c.column_default,
-                c.character_maximum_length,
-                c.is_nullable = 'YES'
-              FROM
-                  information_schema.tables t
-              JOIN
-                  information_schema.columns c
-                  ON t.table_name = c.table_name
-              JOIN pg_attribute a
-                  ON a.attrelid = (
-                      SELECT c.oid
-                      FROM pg_class c
-                      JOIN pg_namespace n ON c.relnamespace = n.oid
-                      WHERE c.relname = t.table_name
-                        AND n.nspname = t.table_schema
-                        AND c.relkind = 'r'
-                    )
-                  AND a.attname = c.column_name
-                  AND a.attnum > 0
-              WHERE
-                  t.table_name NOT LIKE 'pg_%'
-                  AND t.table_name NOT LIKE '_pg_%'
-                  AND t.table_schema = $1
-              ORDER BY
-                  t.table_name,
-                  c.ordinal_position;
-            """,
-            [schema],
-            log: false
-          )
+          {"", [schema]}
         else
-          repo.query!(
-            """
-            SELECT
-              t.table_name,
-              t.table_schema,
-              c.column_name,
-              CASE WHEN c.data_type = 'ARRAY' THEN
-                repeat('ARRAY of ', a.attndims) || REPLACE(c.udt_name, '_', '')
-              WHEN c.data_type = 'USER-DEFINED' THEN
-                c.udt_name
-              ELSE
-                c.data_type
-              END as data_type,
-              c.column_default,
-              c.character_maximum_length,
-              c.is_nullable = 'YES'
-            FROM
-                information_schema.tables t
-            JOIN
-                information_schema.columns c
-                ON t.table_name = c.table_name
-            JOIN pg_attribute a
-                ON a.attrelid = (
-                    SELECT c.oid
-                    FROM pg_class c
-                    JOIN pg_namespace n ON c.relnamespace = n.oid
-                    WHERE c.relname = t.table_name
-                      AND n.nspname = t.table_schema
-                      AND c.relkind = 'r'
-                  )
-                AND a.attname = c.column_name
-                AND a.attnum > 0
-            WHERE
-                t.table_schema = $1
-                AND t.table_name = $2
-            ORDER BY
-                t.table_name,
-                c.ordinal_position;
-            """,
-            [schema, table],
-            log: false
-          )
+          {"AND c.relname = $2", [schema, table]}
         end
+
+      %{rows: rows} =
+        repo.query!(
+          """
+          SELECT
+            c.relname AS table_name,
+            n.nspname AS table_schema,
+            a.attname AS column_name,
+            CASE
+              WHEN t.typcategory = 'A' THEN
+                repeat('ARRAY of ', COALESCE(a.attndims, 1)) || REPLACE(et.typname, '_', '')
+              WHEN t.typtype = 'e' THEN
+                t.typname
+              ELSE
+                format_type(t.oid, NULL)
+            END AS data_type,
+            pg_get_expr(d.adbin, d.adrelid) AS column_default,
+            CASE
+              WHEN t.typname IN ('varchar', 'bpchar') AND a.atttypmod > 4 THEN a.atttypmod - 4
+              ELSE NULL
+            END AS character_maximum_length,
+            NOT a.attnotnull AS is_nullable,
+            c.relkind
+          FROM pg_catalog.pg_class c
+          JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+          JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid
+          JOIN pg_catalog.pg_type t ON t.oid = a.atttypid
+          LEFT JOIN pg_catalog.pg_type et ON et.oid = t.typelem
+          LEFT JOIN pg_catalog.pg_attrdef d
+            ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+          WHERE c.relkind #{relkind_filter}
+            AND n.nspname = $1
+            AND a.attnum > 0
+            AND NOT a.attisdropped
+            AND c.relname NOT LIKE 'pg_%'
+            AND c.relname NOT LIKE '_pg_%'
+            #{table_filter}
+          ORDER BY c.relname, a.attnum;
+          """,
+          params,
+          log: false
+        )
 
       rows
     end)
