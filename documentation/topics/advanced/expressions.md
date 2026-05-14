@@ -54,6 +54,42 @@ create table(:managers, primary_key: false) do
 end
 ```
 
+#### Escaping question marks
+
+In fragments, `?` is a placeholder for an interpolated argument. If your SQL needs a literal `?` — for example, the JSONB key-exists operator `?` or the `jsonb_path_exists` `?` pattern — escape it as `\\?`:
+
+```elixir
+# JSONB key-exists: does `data` have key "foo"?
+fragment("? \\? 'foo'", data)
+
+# jsonb_path_exists with `?` filter
+fragment("jsonb_path_exists(plan_snapshot->'steps', '$ \\? (@.role == \"coach\")')")
+```
+
+An unescaped `?` that has no matching argument produces the error `fragment(...) expects extra arguments in the same amount of question marks in string`.
+
+## JSONB
+
+You can combine multiple `fragment/1` calls with boolean operators in a single `expr`:
+
+```elixir
+Ash.Query.filter(
+  Plan,
+  expr(
+    fragment("plan_snapshot->'states'->-1->>'state' = 'read_only'")
+    and fragment("jsonb_path_exists(plan_snapshot->'steps', '$ \\? (@.role == \"coach\" && @.state == \"ready\")')")
+  )
+)
+```
+
+Remember to escape any literal `?` as `\\?` (see [Escaping question marks](#escaping-question-marks) above) — this is the most common source of confusion when filtering JSONB.
+
+For accessing JSONB fields with the `->` and `->>` operators, interpolate the column with `?`:
+
+```elixir
+fragment("?->>'name' = ?", data, ^name)
+```
+
 ## Like and ILike
 
 These wrap the postgres builtin like and ilike operators.
