@@ -4,7 +4,7 @@
 
 defmodule AshPostgres.PolymorphismTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.{Post, Rating}
+  alias AshPostgres.Test.{Label, Post, Rating}
 
   require Ash.Query
 
@@ -29,5 +29,30 @@ defmodule AshPostgres.PolymorphismTest do
              |> Ash.Query.load(:ratings)
              |> Ash.read_one!()
              |> Map.get(:ratings)
+  end
+
+  test "can update related data" do
+    %{id: post_id} = post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{})
+      |> Ash.create!()
+
+    label =
+      Label
+      |> Ash.Changeset.for_create(:create, %{value: "a_label"})
+      |> Ash.create!()
+
+    label_1 =
+      Label
+      |> Ash.Changeset.for_create(:create, %{value: "another_label"})
+      |> Ash.create!()
+
+    assert %{id: ^post_id} = post
+      |> Ash.Changeset.for_update(:set_labels, labels: [label])
+      |> Ash.update!()
+
+    assert %{id: ^post_id} = post
+      |> Ash.Changeset.for_update(:set_labels, labels: [label_1])
+      |> Ash.update!()
   end
 end

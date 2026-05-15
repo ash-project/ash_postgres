@@ -74,6 +74,8 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.Through.Student)
     resource(AshPostgres.Test.Interest)
     resource(AshPostgres.Test.ProfileInterest)
+    resource(AshPostgres.Test.Label)
+    resource(AshPostgres.Test.LabelledContent)
   end
 
   authorization do
