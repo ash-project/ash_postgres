@@ -173,4 +173,93 @@ defmodule AshPostgres.EmbeddedArrayExistsTest do
       assert expensive.id in results
     end
   end
+
+  describe "Phase 3 — nested exists/2 over embedded arrays" do
+    setup do
+      with_tea =
+        Estimate
+        |> Ash.Changeset.for_create(:create, %{
+          title: "drinks",
+          options: [
+            %{
+              name: "tea-bundle",
+              total_amt: Decimal.new("30"),
+              tier: :basic,
+              line_items: [
+                %{name: "tea", quantity: 1, unit_price: Decimal.new("3")},
+                %{name: "biscuit", quantity: 2, unit_price: Decimal.new("2")}
+              ]
+            }
+          ]
+        })
+        |> Ash.create!()
+
+      with_coffee =
+        Estimate
+        |> Ash.Changeset.for_create(:create, %{
+          title: "drinks",
+          options: [
+            %{
+              name: "coffee-bundle",
+              total_amt: Decimal.new("80"),
+              tier: :premium,
+              line_items: [
+                %{name: "coffee", quantity: 1, unit_price: Decimal.new("4")},
+                %{name: "muffin", quantity: 1, unit_price: Decimal.new("5")}
+              ]
+            }
+          ]
+        })
+        |> Ash.create!()
+
+      %{with_tea: with_tea, with_coffee: with_coffee}
+    end
+
+    test "dotted nested path: exists(options.line_items, name == \"tea\")",
+         %{with_tea: tea, with_coffee: coffee} do
+      results =
+        Estimate
+        |> Ash.Query.filter(exists(options.line_items, name == "tea"))
+        |> Ash.read!()
+        |> Enum.map(& &1.id)
+
+      assert tea.id in results
+      refute coffee.id in results
+    end
+
+    test "innermost predicate combines fields of innermost element", %{with_coffee: coffee} do
+      results =
+        Estimate
+        |> Ash.Query.filter(exists(options.line_items, name == "muffin" and quantity == 1))
+        |> Ash.read!()
+        |> Enum.map(& &1.id)
+
+      assert coffee.id in results
+    end
+
+    test "explicit nested form auto-flattens to dotted form", %{with_tea: tea, with_coffee: coffee} do
+      results =
+        Estimate
+        |> Ash.Query.filter(exists(options, exists(line_items, name == "tea")))
+        |> Ash.read!()
+        |> Enum.map(& &1.id)
+
+      assert tea.id in results
+      refute coffee.id in results
+    end
+
+    test "parent(...) reaches the calling Estimate scope", %{with_tea: tea, with_coffee: coffee} do
+      # Both rows have title "drinks" — only tea has a line item named "tea".
+      results =
+        Estimate
+        |> Ash.Query.filter(
+          exists(options.line_items, name == "tea" and parent(title) == "drinks")
+        )
+        |> Ash.read!()
+        |> Enum.map(& &1.id)
+
+      assert tea.id in results
+      refute coffee.id in results
+    end
+  end
 end
