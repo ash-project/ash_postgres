@@ -642,7 +642,7 @@ defmodule AshPostgres.FilterTest do
 
       assert [%{title: "match"}] =
                Post
-               |> Ash.Query.filter(string_starts_with?(title, "mat"))
+               |> Ash.Query.filter(string_starts_with(title, "mat"))
                |> Ash.read!()
     end
 
@@ -653,7 +653,7 @@ defmodule AshPostgres.FilterTest do
 
       assert [] =
                Post
-               |> Ash.Query.filter(string_starts_with?(title, "mat"))
+               |> Ash.Query.filter(string_starts_with(title, "mat"))
                |> Ash.read!()
     end
 
@@ -664,7 +664,7 @@ defmodule AshPostgres.FilterTest do
 
       assert [%{category: %Ash.CiString{string: "Match"}}] =
                Post
-               |> Ash.Query.filter(string_starts_with?(category, ^"mat"))
+               |> Ash.Query.filter(string_starts_with(category, ^"mat"))
                |> Ash.read!()
     end
 
@@ -679,7 +679,7 @@ defmodule AshPostgres.FilterTest do
 
       assert [%{title: "100%-off"}] =
                Post
-               |> Ash.Query.filter(string_starts_with?(title, "100%"))
+               |> Ash.Query.filter(string_starts_with(title, "100%"))
                |> Ash.read!()
     end
   end
