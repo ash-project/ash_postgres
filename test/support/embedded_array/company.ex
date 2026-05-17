@@ -2,28 +2,20 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshPostgres.Test.EmbeddedArray.Estimate do
+defmodule AshPostgres.Test.EmbeddedArray.Company do
   @moduledoc false
   use Ash.Resource,
     domain: AshPostgres.Test.Domain,
     data_layer: AshPostgres.DataLayer
 
-  alias AshPostgres.Test.EmbeddedArray.Option
-
   postgres do
-    table("embedded_array_estimates")
+    table("embedded_array_companies")
     repo(AshPostgres.TestRepo)
-
-    migration_types options: :jsonb
-    storage_types options: :jsonb
   end
 
   attributes do
     uuid_primary_key :id, writable?: true
-    attribute :title, :string, public?: true
-    attribute :active, :boolean, public?: true, default: true
-    attribute :options, {:array, Option}, public?: true
-    attribute :company_id, :uuid, public?: true
+    attribute :name, :string, public?: true
   end
 
   actions do
@@ -32,8 +24,9 @@ defmodule AshPostgres.Test.EmbeddedArray.Estimate do
   end
 
   relationships do
-    belongs_to :company, AshPostgres.Test.EmbeddedArray.Company do
+    has_many :estimates, AshPostgres.Test.EmbeddedArray.Estimate do
       public? true
+      destination_attribute :company_id
     end
   end
 end

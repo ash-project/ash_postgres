@@ -262,4 +262,75 @@ defmodule AshPostgres.EmbeddedArrayExistsTest do
       refute coffee.id in results
     end
   end
+
+  describe "Phase 4 — mixed paths (relationship → embedded array)" do
+    alias AshPostgres.Test.EmbeddedArray.Company
+
+    setup do
+      cheap_company =
+        Company
+        |> Ash.Changeset.for_create(:create, %{name: "CheapCo"})
+        |> Ash.create!()
+
+      pricey_company =
+        Company
+        |> Ash.Changeset.for_create(:create, %{name: "PriceyCo"})
+        |> Ash.create!()
+
+      Estimate
+      |> Ash.Changeset.for_create(:create, %{
+        title: "for cheap",
+        company_id: cheap_company.id,
+        options: [%{name: "basic", total_amt: Decimal.new("50")}]
+      })
+      |> Ash.create!()
+
+      Estimate
+      |> Ash.Changeset.for_create(:create, %{
+        title: "for pricey",
+        company_id: pricey_company.id,
+        options: [%{name: "premium", total_amt: Decimal.new("150")}]
+      })
+      |> Ash.create!()
+
+      %{cheap_company: cheap_company, pricey_company: pricey_company}
+    end
+
+    test "exists(estimates.options, total_amt > 100) on Company", %{
+      cheap_company: cheap,
+      pricey_company: pricey
+    } do
+      results =
+        Company
+        |> Ash.Query.filter(exists(estimates.options, total_amt > 100))
+        |> Ash.read!()
+        |> Enum.map(& &1.id)
+
+      assert pricey.id in results
+      refute cheap.id in results
+    end
+
+    test "string equality through mixed path", %{cheap_company: cheap, pricey_company: pricey} do
+      results =
+        Company
+        |> Ash.Query.filter(exists(estimates.options, name == "basic"))
+        |> Ash.read!()
+        |> Enum.map(& &1.id)
+
+      assert cheap.id in results
+      refute pricey.id in results
+    end
+
+    test "parent(...) reaches the calling Company scope", %{pricey_company: pricey} do
+      results =
+        Company
+        |> Ash.Query.filter(
+          exists(estimates.options, total_amt > 100 and parent(name) == "PriceyCo")
+        )
+        |> Ash.read!()
+        |> Enum.map(& &1.id)
+
+      assert pricey.id in results
+    end
+  end
 end
