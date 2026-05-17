@@ -490,7 +490,7 @@ defmodule AshPostgres.Test.Post do
 
     update :set_labels do
       require_atomic?(false)
-      argument :labels, {:array, :map}
+      argument(:labels, {:array, :map})
 
       change(manage_relationship(:labels, type: :append_and_remove))
     end
@@ -943,14 +943,15 @@ defmodule AshPostgres.Test.Post do
     end
 
     many_to_many :labels, AshPostgres.Test.Label do
-      source_attribute_on_join_resource :content_id
-      destination_attribute_on_join_resource :label_id
-      join_relationship :label_entries
+      source_attribute_on_join_resource(:content_id)
+      destination_attribute_on_join_resource(:label_id)
+      join_relationship(:label_entries)
     end
 
-    has_many :label_entries, AshPostgres.Test.LabelledContent,
+    has_many(:label_entries, AshPostgres.Test.LabelledContent,
       relationship_context: %{data_layer: %{table: "post_labels"}},
       destination_attribute: :content_id
+    )
   end
 
   validations do

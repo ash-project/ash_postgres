@@ -11,7 +11,7 @@ defmodule AshPostgres.Test.Label do
   attributes do
     uuid_primary_key(:id)
 
-    attribute :value, :string, allow_nil?: false, public?: true
+    attribute(:value, :string, allow_nil?: false, public?: true)
   end
 
   postgres do
@@ -24,11 +24,11 @@ defmodule AshPostgres.Test.Label do
   end
 
   actions do
-    default_accept :*
-    defaults [:create, :update, :read, :destroy]
+    default_accept(:*)
+    defaults([:create, :update, :read, :destroy])
   end
 
   identities do
-    identity :unique_value, [:value]
+    identity(:unique_value, [:value])
   end
 end

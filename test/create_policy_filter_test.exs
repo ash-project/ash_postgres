@@ -25,7 +25,7 @@ defmodule AshPostgres.Test.CreatePolicyFilterTest do
     use Ash.Domain
 
     resources do
-      allow_unregistered? true
+      allow_unregistered?(true)
     end
   end
 
@@ -40,13 +40,13 @@ defmodule AshPostgres.Test.CreatePolicyFilterTest do
     end
 
     attributes do
-      uuid_primary_key :id
-      attribute :owner_id, :uuid, public?: true, allow_nil?: false
+      uuid_primary_key(:id)
+      attribute(:owner_id, :uuid, public?: true, allow_nil?: false)
     end
 
     actions do
-      default_accept :*
-      defaults [:read, :destroy, create: :*, update: :*]
+      default_accept(:*)
+      defaults([:read, :destroy, create: :*, update: :*])
     end
   end
 
@@ -62,30 +62,31 @@ defmodule AshPostgres.Test.CreatePolicyFilterTest do
     end
 
     attributes do
-      uuid_primary_key :id
-      attribute :text, :string, public?: true, allow_nil?: false
+      uuid_primary_key(:id)
+      attribute(:text, :string, public?: true, allow_nil?: false)
     end
 
     relationships do
-      belongs_to :organization, Organization,
+      belongs_to(:organization, Organization,
         public?: true,
         attribute_writable?: true,
         allow_nil?: false
+      )
     end
 
     policies do
       policy action_type(:create) do
-        authorize_if expr(organization.owner_id == ^actor(:id))
+        authorize_if(expr(organization.owner_id == ^actor(:id)))
       end
 
       policy action_type(:read) do
-        authorize_if always()
+        authorize_if(always())
       end
     end
 
     actions do
-      default_accept :*
-      defaults [:read, :destroy, create: :*]
+      default_accept(:*)
+      defaults([:read, :destroy, create: :*])
     end
   end
 
@@ -131,30 +132,31 @@ defmodule AshPostgres.Test.CreatePolicyFilterTest do
     end
 
     attributes do
-      uuid_primary_key :id
-      attribute :text, :string, public?: true, allow_nil?: false
+      uuid_primary_key(:id)
+      attribute(:text, :string, public?: true, allow_nil?: false)
     end
 
     relationships do
-      belongs_to :organization, Organization,
+      belongs_to(:organization, Organization,
         public?: true,
         attribute_writable?: true,
         allow_nil?: false
+      )
     end
 
     policies do
       policy action_type(:create) do
-        authorize_if {CustomCheck, []}
+        authorize_if({CustomCheck, []})
       end
 
       policy action_type(:read) do
-        authorize_if always()
+        authorize_if(always())
       end
     end
 
     actions do
-      default_accept :*
-      defaults [:read, :destroy, create: :*]
+      default_accept(:*)
+      defaults([:read, :destroy, create: :*])
     end
   end
 
@@ -181,31 +183,32 @@ defmodule AshPostgres.Test.CreatePolicyFilterTest do
     end
 
     attributes do
-      uuid_primary_key :id
-      attribute :text, :string, public?: true, allow_nil?: false
+      uuid_primary_key(:id)
+      attribute(:text, :string, public?: true, allow_nil?: false)
     end
 
     relationships do
-      belongs_to :organization, Organization,
+      belongs_to(:organization, Organization,
         public?: true,
         attribute_writable?: true,
         allow_nil?: false
+      )
     end
 
     policies do
       policy action_type(:create) do
-        forbid_unless expr(organization.owner_id == ^actor(:id))
-        authorize_if {CustomCheck, []}
+        forbid_unless(expr(organization.owner_id == ^actor(:id)))
+        authorize_if({CustomCheck, []})
       end
 
       policy action_type(:read) do
-        authorize_if always()
+        authorize_if(always())
       end
     end
 
     actions do
-      default_accept :*
-      defaults [:read, :destroy, create: :*]
+      default_accept(:*)
+      defaults([:read, :destroy, create: :*])
     end
   end
 

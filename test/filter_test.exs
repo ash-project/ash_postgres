@@ -684,7 +684,7 @@ defmodule AshPostgres.FilterTest do
     end
   end
 
-  describe "string_ends_with?/2" do
+  describe "string_ends_with/2" do
     test "it works when it matches" do
       Post
       |> Ash.Changeset.for_create(:create, %{title: "match"})
@@ -696,7 +696,7 @@ defmodule AshPostgres.FilterTest do
 
       assert [%{title: "match"}] =
                Post
-               |> Ash.Query.filter(string_ends_with?(title, "tch"))
+               |> Ash.Query.filter(string_ends_with(title, "tch"))
                |> Ash.read!()
     end
 
@@ -707,7 +707,7 @@ defmodule AshPostgres.FilterTest do
 
       assert [] =
                Post
-               |> Ash.Query.filter(string_ends_with?(title, "tch"))
+               |> Ash.Query.filter(string_ends_with(title, "tch"))
                |> Ash.read!()
     end
 
@@ -718,7 +718,7 @@ defmodule AshPostgres.FilterTest do
 
       assert [%{category: %Ash.CiString{string: "Match"}}] =
                Post
-               |> Ash.Query.filter(string_ends_with?(category, ^"TCH"))
+               |> Ash.Query.filter(string_ends_with(category, ^"TCH"))
                |> Ash.read!()
     end
   end

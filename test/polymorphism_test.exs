@@ -32,7 +32,8 @@ defmodule AshPostgres.PolymorphismTest do
   end
 
   test "can update related data" do
-    %{id: post_id} = post =
+    %{id: post_id} =
+      post =
       Post
       |> Ash.Changeset.for_create(:create, %{})
       |> Ash.create!()
@@ -47,12 +48,14 @@ defmodule AshPostgres.PolymorphismTest do
       |> Ash.Changeset.for_create(:create, %{value: "another_label"})
       |> Ash.create!()
 
-    assert %{id: ^post_id} = post
-      |> Ash.Changeset.for_update(:set_labels, labels: [label])
-      |> Ash.update!()
+    assert %{id: ^post_id} =
+             post
+             |> Ash.Changeset.for_update(:set_labels, labels: [label])
+             |> Ash.update!()
 
-    assert %{id: ^post_id} = post
-      |> Ash.Changeset.for_update(:set_labels, labels: [label_1])
-      |> Ash.update!()
+    assert %{id: ^post_id} =
+             post
+             |> Ash.Changeset.for_update(:set_labels, labels: [label_1])
+             |> Ash.update!()
   end
 end

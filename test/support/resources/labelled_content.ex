@@ -13,11 +13,11 @@ defmodule AshPostgres.Test.LabelledContent do
   attributes do
     uuid_primary_key(:id)
 
-    attribute :content_id, :uuid, allow_nil?: false, public?: true
+    attribute(:content_id, :uuid, allow_nil?: false, public?: true)
   end
 
   relationships do
-    belongs_to :label, Label, allow_nil?: false
+    belongs_to(:label, Label, allow_nil?: false)
   end
 
   postgres do
@@ -36,25 +36,25 @@ defmodule AshPostgres.Test.LabelledContent do
   end
 
   actions do
-    default_accept :*
-    defaults [:read, :destroy]
+    default_accept(:*)
+    defaults([:read, :destroy])
 
     create :create do
-      primary? true
-      argument :label, :map
-      argument :label_id, :integer
+      primary?(true)
+      argument(:label, :map)
+      argument(:label_id, :integer)
     end
   end
 
   identities do
-    identity :unique_content_id_and_label_id, [
+    identity(:unique_content_id_and_label_id, [
       :content_id,
       :label_id
-    ]
+    ])
   end
 
   changes do
-    change manage_relationship(:label, type: :append)
-    change manage_relationship(:label_id, :label, type: :append)
+    change(manage_relationship(:label, type: :append))
+    change(manage_relationship(:label_id, :label, type: :append))
   end
 end
