@@ -333,4 +333,75 @@ defmodule AshPostgres.EmbeddedArrayExistsTest do
       assert pricey.id in results
     end
   end
+
+  describe "Phase 5 — SQL edge cases" do
+    setup do
+      empty =
+        Estimate
+        |> Ash.Changeset.for_create(:create, %{title: "empty", options: []})
+        |> Ash.create!()
+
+      nil_options =
+        Estimate
+        |> Ash.Changeset.for_create(:create, %{title: "nil_options"})
+        |> Ash.create!()
+
+      populated =
+        Estimate
+        |> Ash.Changeset.for_create(:create, %{
+          title: "populated",
+          options: [%{name: "x", total_amt: Decimal.new("10")}]
+        })
+        |> Ash.create!()
+
+      %{empty: empty, nil_options: nil_options, populated: populated}
+    end
+
+    test "exists/2 returns false for empty array", %{empty: empty} do
+      results =
+        Estimate
+        |> Ash.Query.filter(exists(options, total_amt > 0))
+        |> Ash.read!()
+        |> Enum.map(& &1.id)
+
+      refute empty.id in results
+    end
+
+    test "exists/2 returns false for nil array (jsonb_array_elements(NULL) yields no rows)",
+         %{nil_options: nil_opts} do
+      results =
+        Estimate
+        |> Ash.Query.filter(exists(options, total_amt > 0))
+        |> Ash.read!()
+        |> Enum.map(& &1.id)
+
+      refute nil_opts.id in results
+    end
+
+    test "not exists/2 includes empty and nil arrays", %{
+      empty: empty,
+      nil_options: nil_opts,
+      populated: populated
+    } do
+      results =
+        Estimate
+        |> Ash.Query.filter(not exists(options, total_amt > 0))
+        |> Ash.read!()
+        |> Enum.map(& &1.id)
+
+      assert empty.id in results
+      assert nil_opts.id in results
+      refute populated.id in results
+    end
+
+    test "same field referenced twice in predicate", %{populated: populated} do
+      results =
+        Estimate
+        |> Ash.Query.filter(exists(options, total_amt > 0 and total_amt < 1000))
+        |> Ash.read!()
+        |> Enum.map(& &1.id)
+
+      assert populated.id in results
+    end
+  end
 end
