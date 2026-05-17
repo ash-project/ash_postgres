@@ -76,6 +76,50 @@ defmodule AshPostgres.FilterTest do
     end
   end
 
+  describe "type() cast with date comparisons" do
+    test "type(datetime_field, :date) can be compared with date_add(today(), ...)" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{
+        title: "old post",
+        created_at: DateTime.add(DateTime.utc_now(), -60, :day)
+      })
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{
+        title: "recent post",
+        created_at: DateTime.utc_now()
+      })
+      |> Ash.create!()
+
+      assert [%Post{title: "recent post"}] =
+               Post
+               |> Ash.Query.filter(type(created_at, :date) >= date_add(today(), -30, :day))
+               |> Ash.read!()
+    end
+
+    test "type(datetime_field, :date) can be compared with today()" do
+      Post
+      |> Ash.Changeset.for_create(:create, %{
+        title: "today post",
+        created_at: DateTime.utc_now()
+      })
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{
+        title: "old post",
+        created_at: DateTime.add(DateTime.utc_now(), -5, :day)
+      })
+      |> Ash.create!()
+
+      assert [%Post{title: "today post"}] =
+               Post
+               |> Ash.Query.filter(type(created_at, :date) == today())
+               |> Ash.read!()
+    end
+  end
+
   describe "ci_string argument casting" do
     test "it properly casts" do
       Post
