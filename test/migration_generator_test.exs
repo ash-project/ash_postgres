@@ -1264,6 +1264,90 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "removing :context multitenancy" do
+    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defposts do
+        multitenancy do
+          strategy(:context)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defcomments do
+        multitenancy do
+          strategy(:context)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:post_id, :uuid, public?: true)
+        end
+
+        relationships do
+          belongs_to(:post, Post, public?: true)
+        end
+      end
+
+      defdomain([Post, Comment])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      :ok
+    end
+
+    test "when removing :context multitenancy, no invalid drop constraint is generated", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defcomments do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:post_id, :uuid, public?: true)
+        end
+
+        relationships do
+          belongs_to(:post, Post, public?: true)
+        end
+      end
+
+      defdomain([Post, Comment])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      migration_files = Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")) |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      all_contents = Enum.map_join(migration_files, "", &File.read!/1)
+
+      [up_contents] =Regex.run(~r/def up do(.+)def down do/s, all_contents, capture: :all_but_first)
+
+
+      refute up_contents =~ ~S{drop constraint(:comments, "comments_post_id_fkey")}
+    end
+  end
+  
   describe "creating follow up migrations" do
     setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
       :ok
