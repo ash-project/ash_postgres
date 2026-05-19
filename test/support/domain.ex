@@ -76,6 +76,8 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.ProfileInterest)
     resource(AshPostgres.Test.Label)
     resource(AshPostgres.Test.LabelledContent)
+    resource(AshPostgres.Test.EmbeddedArray.Company)
+    resource(AshPostgres.Test.EmbeddedArray.Estimate)
   end
 
   authorization do
