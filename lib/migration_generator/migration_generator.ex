@@ -201,7 +201,7 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp create_extension_migrations(repos, opts) do
-    for repo <- repos do
+    for repo <- repos, repo.migrate_extensions?() do
       snapshot_path = snapshot_path(opts, repo)
       repo_name = repo_name(repo)
 
