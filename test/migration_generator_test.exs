@@ -5364,5 +5364,348 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert latest =~
                ~S[rename table(:schema_messages_rename, prefix: "my_schema_rename"), to: table(:schema_messages_rename_new, prefix: "my_schema_rename")]
     end
+
+    test "generates alter table set schema when a resource schema is added", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource SchemaMoveMessage, "schema_move_messages" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([SchemaMoveMessage])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "add_schema_move_messages"
+      )
+
+      defresource SchemaMoveMessage, "schema_move_messages" do
+        postgres do
+          table "schema_move_messages"
+          schema "moved_messages"
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([SchemaMoveMessage])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "move_messages_schema"
+      )
+
+      migration_files =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      latest =
+        migration_files
+        |> List.last()
+        |> File.read!()
+
+      assert latest =~ ~S[execute("CREATE SCHEMA IF NOT EXISTS moved_messages")]
+
+      assert latest =~
+               ~S[execute("ALTER TABLE \"schema_move_messages\" SET SCHEMA \"moved_messages\"")]
+
+      assert latest =~
+               ~S[execute("ALTER TABLE \"moved_messages\".\"schema_move_messages\" SET SCHEMA \"public\"")]
+
+      refute latest =~ "create table(:schema_move_messages"
+      refute latest =~ "drop table(:schema_move_messages"
+    end
+
+    test "schema move runs before table changes that use the new schema", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource SchemaMoveColumnMessage, "schema_move_column_messages" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([SchemaMoveColumnMessage])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "add_schema_move_column_messages"
+      )
+
+      defresource SchemaMoveColumnMessage, "schema_move_column_messages" do
+        postgres do
+          table "schema_move_column_messages"
+          schema "moved_messages_with_column"
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+          attribute(:subject, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([SchemaMoveColumnMessage])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "move_messages_schema_and_add_column"
+      )
+
+      migration_files =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      latest =
+        migration_files
+        |> List.last()
+        |> File.read!()
+
+      move_pos =
+        position_of_substring(
+          latest,
+          ~S[execute("ALTER TABLE \"schema_move_column_messages\" SET SCHEMA \"moved_messages_with_column\"")]
+        )
+
+      alter_pos =
+        position_of_substring(
+          latest,
+          ~S[alter table(:schema_move_column_messages, prefix: "moved_messages_with_column") do]
+        )
+
+      assert is_integer(move_pos)
+      assert is_integer(alter_pos)
+      assert move_pos < alter_pos
+      assert latest =~ "add :subject, :text"
+      refute latest =~ "create table(:schema_move_column_messages"
+      refute latest =~ "drop table(:schema_move_column_messages"
+    end
+
+    test "generates alter table set schema when a resource schema changes", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource SchemaChangeMessage, "schema_change_messages" do
+        postgres do
+          table "schema_change_messages"
+          schema "old_message_schema"
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([SchemaChangeMessage])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "add_schema_change_messages"
+      )
+
+      defresource SchemaChangeMessage, "schema_change_messages" do
+        postgres do
+          table "schema_change_messages"
+          schema "new_message_schema"
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([SchemaChangeMessage])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "change_messages_schema"
+      )
+
+      migration_files =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      latest =
+        migration_files
+        |> List.last()
+        |> File.read!()
+
+      assert latest =~ ~S[execute("CREATE SCHEMA IF NOT EXISTS new_message_schema")]
+
+      assert latest =~
+               ~S[execute("ALTER TABLE \"old_message_schema\".\"schema_change_messages\" SET SCHEMA \"new_message_schema\"")]
+
+      assert latest =~
+               ~S[execute("ALTER TABLE \"new_message_schema\".\"schema_change_messages\" SET SCHEMA \"old_message_schema\"")]
+
+      refute latest =~ "create table(:schema_change_messages"
+      refute latest =~ "drop table(:schema_change_messages"
+    end
+
+    test "moving a referenced table schema does not drop or recreate tables or foreign keys" do
+      defresource ReferencedSchemaMoveAuthorBefore, "referenced_schema_move_authors" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defresource ReferencingSchemaMovePostBefore, "referencing_schema_move_posts" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+
+        relationships do
+          belongs_to(:author, ReferencedSchemaMoveAuthorBefore) do
+            public?(true)
+            allow_nil?(false)
+          end
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      before_resources = [ReferencedSchemaMoveAuthorBefore, ReferencingSchemaMovePostBefore]
+
+      before_snapshots =
+        Enum.flat_map(
+          before_resources,
+          &AshPostgres.MigrationGenerator.get_snapshots(&1, before_resources)
+        )
+
+      defresource ReferencedSchemaMoveAuthorAfter, "referenced_schema_move_authors" do
+        postgres do
+          table "referenced_schema_move_authors"
+          schema "referenced_schema_move"
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defresource ReferencingSchemaMovePostAfter, "referencing_schema_move_posts" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+
+        relationships do
+          belongs_to(:author, ReferencedSchemaMoveAuthorAfter) do
+            public?(true)
+            allow_nil?(false)
+          end
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      after_resources = [ReferencedSchemaMoveAuthorAfter, ReferencingSchemaMovePostAfter]
+
+      after_snapshots =
+        Enum.flat_map(
+          after_resources,
+          &AshPostgres.MigrationGenerator.get_snapshots(&1, after_resources)
+        )
+
+      {up, down} =
+        before_snapshots
+        |> AshPostgres.MigrationGenerator.get_operations_from_snapshots(after_snapshots)
+        |> AshPostgres.MigrationGenerator.build_up_and_down()
+
+      assert up =~
+               ~S[execute("ALTER TABLE \"referenced_schema_move_authors\" SET SCHEMA \"referenced_schema_move\"")]
+
+      assert down =~
+               ~S[execute("ALTER TABLE \"referenced_schema_move\".\"referenced_schema_move_authors\" SET SCHEMA \"public\"")]
+
+      refute up =~ "create table(:referenced_schema_move_authors"
+      refute up =~ "drop table(:referenced_schema_move_authors"
+      refute up =~ "create table(:referencing_schema_move_posts"
+      refute up =~ "drop table(:referencing_schema_move_posts"
+      refute up =~ "drop constraint"
+      refute up =~ "references(:referenced_schema_move_authors"
+    end
   end
 end
