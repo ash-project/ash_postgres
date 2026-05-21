@@ -3177,11 +3177,39 @@ defmodule AshPostgres.MigrationGenerator do
     not is_nil(Map.get(attribute, :references)) and
       !(attribute.references.multitenancy &&
           attribute.references.multitenancy.strategy == :context &&
-          (is_nil(multitenancy) || multitenancy.strategy == :attribute))
+          (is_nil(multitenancy) || multitenancy.strategy == :attribute)) and
+      !(multitenancy && multitenancy.strategy == :context &&
+          attribute.references.multitenancy &&
+          attribute.references.multitenancy.strategy == :context)
   end
 
-  def get_existing_snapshot(snapshot, opts) do
-    folder = get_snapshot_folder(snapshot, opts)
+  defp get_snapshot_folder(snapshot, opts) do
+    base =
+      opts
+      |> snapshot_path(snapshot.repo)
+      |> Path.join(repo_name(snapshot.repo))
+
+    if snapshot.multitenancy.strategy == :context do
+      Path.join(base, "tenants")
+    else
+      base
+    end
+  end
+
+  defp get_alternate_snapshot_folder(snapshot, opts) do
+    base =
+      opts
+      |> snapshot_path(snapshot.repo)
+      |> Path.join(repo_name(snapshot.repo))
+
+    if snapshot.multitenancy.strategy == :context do
+      base
+    else
+      Path.join(base, "tenants")
+    end
+  end
+
+  defp load_snapshot_from_folder(folder, snapshot, opts) do
     snapshot_path = get_snapshot_path(snapshot, folder)
 
     if File.exists?(snapshot_path) do
@@ -3206,16 +3234,13 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  defp get_snapshot_folder(snapshot, opts) do
-    if snapshot.multitenancy.strategy == :context do
-      opts
-      |> snapshot_path(snapshot.repo)
-      |> Path.join(repo_name(snapshot.repo))
-      |> Path.join("tenants")
+  def get_existing_snapshot(snapshot, opts) do
+    result = load_snapshot_from_folder(get_snapshot_folder(snapshot, opts), snapshot, opts)
+
+    if is_nil(result) do
+      load_snapshot_from_folder(get_alternate_snapshot_folder(snapshot, opts), snapshot, opts)
     else
-      opts
-      |> snapshot_path(snapshot.repo)
-      |> Path.join(repo_name(snapshot.repo))
+      result
     end
   end
 
