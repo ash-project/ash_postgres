@@ -4953,6 +4953,84 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert File.exists?(Path.join(snapshot_path, "test_repo/opt_out_messages"))
     end
 
+    test "does not prompt to drop tables for existing resources with migrate? false", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource ManagedPost, "managed_posts" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defresource ExternallyManagedStatus, "externally_managed_statuses" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defdomain([ManagedPost, ExternallyManagedStatus])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "add_managed_resources"
+      )
+
+      migration_count =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> length()
+
+      assert File.exists?(Path.join(snapshot_path, "test_repo/externally_managed_statuses"))
+      assert File.exists?(Path.join(snapshot_path, "test_repo/managed_posts"))
+
+      defresource ExternallyManagedStatus, "externally_managed_statuses" do
+        postgres do
+          table "externally_managed_statuses"
+          repo(AshPostgres.TestRepo)
+          migrate?(false)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defdomain([ManagedPost, ExternallyManagedStatus])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "ignore_unmanaged_resource"
+      )
+
+      migration_count_after =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> length()
+
+      latest_migration =
+        migration_path
+        |> Path.join("**/*.exs")
+        |> Path.wildcard()
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+        |> List.last()
+        |> File.read!()
+
+      assert migration_count_after == migration_count, latest_migration
+      assert File.exists?(Path.join(snapshot_path, "test_repo/externally_managed_statuses"))
+    end
+
     test "drop table migration uses correct prefix when resource has schema", %{
       snapshot_path: snapshot_path,
       migration_path: migration_path

@@ -32,12 +32,22 @@ defmodule AshPostgres.MigrationGenerator do
 
     all_resources = Enum.uniq(Enum.flat_map(domains, &Ash.Domain.Info.resources/1))
 
-    {tenant_snapshots, snapshots} =
+    postgres_resources =
       all_resources
       |> Enum.filter(fn resource ->
-        Ash.DataLayer.data_layer(resource) == AshPostgres.DataLayer &&
-          AshPostgres.DataLayer.Info.migrate?(resource)
+        Ash.DataLayer.data_layer(resource) == AshPostgres.DataLayer
       end)
+
+    {managed_resources, unmanaged_resources} =
+      Enum.split_with(postgres_resources, &AshPostgres.DataLayer.Info.migrate?/1)
+
+    {tenant_snapshots, snapshots} =
+      managed_resources
+      |> Enum.flat_map(&get_snapshots(&1, all_resources))
+      |> Enum.split_with(&(&1.multitenancy.strategy == :context))
+
+    {unmanaged_tenant_snapshots, unmanaged_snapshots} =
+      unmanaged_resources
       |> Enum.flat_map(&get_snapshots(&1, all_resources))
       |> Enum.split_with(&(&1.multitenancy.strategy == :context))
 
@@ -47,6 +57,13 @@ defmodule AshPostgres.MigrationGenerator do
       |> Enum.map(&Map.put(&1, :multitenancy, %{strategy: nil, attribute: nil, global: nil}))
 
     snapshots = snapshots ++ tenant_snapshots_to_include_in_global
+
+    unmanaged_tenant_snapshots_to_include_in_global =
+      unmanaged_tenant_snapshots
+      |> Enum.filter(& &1.multitenancy.global)
+      |> Enum.map(&Map.put(&1, :multitenancy, %{strategy: nil, attribute: nil, global: nil}))
+
+    unmanaged_snapshots = unmanaged_snapshots ++ unmanaged_tenant_snapshots_to_include_in_global
 
     repos =
       (snapshots ++ tenant_snapshots)
@@ -58,10 +75,10 @@ defmodule AshPostgres.MigrationGenerator do
       create_extension_migrations(repos, opts)
 
     tenant_migration_files =
-      create_migrations(tenant_snapshots, opts, true, snapshots)
+      create_migrations(tenant_snapshots, opts, true, snapshots, unmanaged_tenant_snapshots)
 
     migration_files =
-      create_migrations(snapshots, opts, false)
+      create_migrations(snapshots, opts, false, [], unmanaged_snapshots)
 
     case extension_migration_files ++ tenant_migration_files ++ migration_files do
       [] ->
@@ -434,19 +451,39 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  defp create_migrations(snapshots, opts, tenant?, non_tenant_snapshots \\ []) do
+  defp create_migrations(
+         snapshots,
+         opts,
+         tenant?,
+         non_tenant_snapshots,
+         unmanaged_snapshots
+       ) do
     snapshots
     |> Enum.group_by(& &1.repo)
     |> Enum.flat_map(fn {repo, snapshots} ->
       deduped = deduplicate_snapshots(snapshots, opts, non_tenant_snapshots)
 
-      current_table_keys =
+      managed_table_keys =
         deduped
         |> Enum.map(fn {%{table: t, schema: s}, _} -> {t, s} end)
         |> MapSet.new()
 
+      unmanaged_table_keys =
+        unmanaged_snapshots
+        |> Enum.filter(&(&1.repo == repo))
+        |> Enum.map(fn %{table: t, schema: s} -> {t, s} end)
+        |> MapSet.new()
+
+      current_table_keys = MapSet.union(managed_table_keys, unmanaged_table_keys)
+
       {drop_operations, orphan_snapshots, rename_map} =
-        drop_operations_for_orphan_tables(repo, current_table_keys, opts, tenant?)
+        drop_operations_for_orphan_tables(
+          repo,
+          current_table_keys,
+          managed_table_keys,
+          opts,
+          tenant?
+        )
 
       deduped_with_renames =
         Enum.map(deduped, fn {%{table: table, schema: schema} = snapshot, existing_snapshot} ->
@@ -3304,13 +3341,19 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  defp drop_operations_for_orphan_tables(repo, current_table_keys, opts, tenant?) do
+  defp drop_operations_for_orphan_tables(
+         repo,
+         current_table_keys,
+         managed_table_keys,
+         opts,
+         tenant?
+       ) do
     snapshot_table_keys =
       list_snapshot_tables(repo, opts, tenant?)
       |> MapSet.new()
 
     orphan_keys = MapSet.difference(snapshot_table_keys, current_table_keys)
-    added_keys = MapSet.difference(current_table_keys, snapshot_table_keys)
+    added_keys = MapSet.difference(managed_table_keys, snapshot_table_keys)
 
     added_keys_list = MapSet.to_list(added_keys)
 
