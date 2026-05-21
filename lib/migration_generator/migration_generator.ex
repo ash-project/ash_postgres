@@ -476,7 +476,7 @@ defmodule AshPostgres.MigrationGenerator do
 
       current_table_keys = MapSet.union(managed_table_keys, unmanaged_table_keys)
 
-      {drop_operations, orphan_snapshots, rename_map} =
+      {drop_operations, orphan_snapshots, rename_map, schema_move_map} =
         drop_operations_for_orphan_tables(
           repo,
           current_table_keys,
@@ -485,19 +485,22 @@ defmodule AshPostgres.MigrationGenerator do
           tenant?
         )
 
-      deduped_with_renames =
+      deduped_with_snapshot_matches =
         Enum.map(deduped, fn {%{table: table, schema: schema} = snapshot, existing_snapshot} ->
-          case Map.get(rename_map, {table, schema}) do
-            nil ->
-              {snapshot, existing_snapshot}
+          cond do
+            move_info = Map.get(schema_move_map, {table, schema}) ->
+              {snapshot, move_info.snapshot}
 
-            %{snapshot: old_snapshot} ->
-              {snapshot, old_snapshot}
+            rename_info = Map.get(rename_map, {table, schema}) ->
+              {snapshot, rename_info.snapshot}
+
+            true ->
+              {snapshot, existing_snapshot}
           end
         end)
 
       snapshots_with_operations =
-        deduped_with_renames
+        deduped_with_snapshot_matches
         |> fetch_operations(opts)
         |> Enum.map(&add_order_to_operations/1)
 
@@ -2300,17 +2303,42 @@ defmodule AshPostgres.MigrationGenerator do
   defp after?(_, %Operation.DropTable{}), do: true
   defp after?(%Operation.DropTable{}, _), do: false
 
+  defp after?(
+         %{table: table, schema: schema},
+         %Operation.MoveTableSchema{table: table, schema: schema}
+       ),
+       do: true
+
+  defp after?(%Operation.MoveTableSchema{}, _), do: false
+
   defp after?(_, _), do: false
 
   defp fetch_operations(snapshots, opts) do
+    # Reference diffs need to know when a prefix change is caused by moving
+    # the referenced table instead of by changing the foreign key itself.
+    schema_moves =
+      snapshots
+      |> Enum.flat_map(fn
+        {%{table: table, schema: new_schema}, %{schema: old_schema}}
+        when new_schema != old_schema ->
+          [{table, schema_key(old_schema), schema_key(new_schema)}]
+
+        _ ->
+          []
+      end)
+      |> MapSet.new()
+
     snapshots
     |> Enum.map(fn {snapshot, existing_snapshot} ->
-      {snapshot, do_fetch_operations(snapshot, existing_snapshot, opts)}
+      {snapshot, do_fetch_operations(snapshot, existing_snapshot, opts, [], schema_moves)}
     end)
     |> Enum.reject(fn {_, ops} ->
       Enum.empty?(ops)
     end)
   end
+
+  defp schema_key(nil), do: "public"
+  defp schema_key(schema), do: schema
 
   defp resource_has_meaningful_content?(snapshot) do
     [
@@ -2323,19 +2351,42 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.any?(&Enum.any?/1)
   end
 
-  defp do_fetch_operations(snapshot, existing_snapshot, opts, acc \\ [])
+  defp do_fetch_operations(
+         snapshot,
+         existing_snapshot,
+         opts,
+         acc,
+         schema_moves
+       )
 
   defp do_fetch_operations(
          %{schema: new_schema} = snapshot,
-         %{schema: old_schema},
+         %{schema: old_schema} = old_snapshot,
          opts,
-         []
+         [],
+         schema_moves
        )
        when new_schema != old_schema do
-    do_fetch_operations(snapshot, nil, opts, [])
+    # Preserve the old snapshot so schema changes become ALTER TABLE SET SCHEMA
+    # plus any real diffs, instead of create-table from an empty snapshot.
+    do_fetch_operations(
+      snapshot,
+      old_snapshot,
+      opts,
+      [
+        %Operation.MoveTableSchema{
+          table: snapshot.table,
+          schema: new_schema,
+          old_schema: old_schema,
+          new_schema: new_schema,
+          repo: snapshot.repo
+        }
+      ],
+      schema_moves
+    )
   end
 
-  defp do_fetch_operations(snapshot, nil, opts, acc) do
+  defp do_fetch_operations(snapshot, nil, opts, acc, schema_moves) do
     if resource_has_meaningful_content?(snapshot) do
       empty_snapshot = %{
         attributes: [],
@@ -2355,17 +2406,23 @@ defmodule AshPostgres.MigrationGenerator do
         }
       }
 
-      do_fetch_operations(snapshot, empty_snapshot, opts, [
-        %Operation.CreateTable{
-          table: snapshot.table,
-          schema: snapshot.schema,
-          repo: snapshot.repo,
-          multitenancy: snapshot.multitenancy,
-          old_multitenancy: empty_snapshot.multitenancy,
-          create_table_options: snapshot.create_table_options
-        }
-        | acc
-      ])
+      do_fetch_operations(
+        snapshot,
+        empty_snapshot,
+        opts,
+        [
+          %Operation.CreateTable{
+            table: snapshot.table,
+            schema: snapshot.schema,
+            repo: snapshot.repo,
+            multitenancy: snapshot.multitenancy,
+            old_multitenancy: empty_snapshot.multitenancy,
+            create_table_options: snapshot.create_table_options
+          }
+          | acc
+        ],
+        schema_moves
+      )
     else
       if !opts.quiet do
         Logger.info(
@@ -2377,8 +2434,8 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  defp do_fetch_operations(snapshot, old_snapshot, opts, acc) do
-    attribute_operations = attribute_operations(snapshot, old_snapshot, opts)
+  defp do_fetch_operations(snapshot, old_snapshot, opts, acc, schema_moves) do
+    attribute_operations = attribute_operations(snapshot, old_snapshot, opts, schema_moves)
 
     {pkey_operations, attribute_operations} =
       pkey_operations(snapshot, old_snapshot, attribute_operations, opts)
@@ -2599,7 +2656,9 @@ defmodule AshPostgres.MigrationGenerator do
         _ -> true
       end)
 
+    # Schema moves must run before operations rendered against the new schema.
     [
+      acc,
       pkey_operations,
       unique_indexes_to_remove,
       creates_and_adds,
@@ -2614,8 +2673,7 @@ defmodule AshPostgres.MigrationGenerator do
       custom_indexes_to_remove,
       custom_statements_to_add,
       custom_statements_to_remove,
-      custom_statements_to_alter,
-      acc
+      custom_statements_to_alter
     ]
     |> Enum.concat()
     |> Enum.map(&Map.put(&1, :multitenancy, snapshot.multitenancy))
@@ -2838,7 +2896,7 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
-  defp attribute_operations(snapshot, old_snapshot, opts) do
+  defp attribute_operations(snapshot, old_snapshot, opts, schema_moves) do
     attributes_to_add =
       Enum.reject(snapshot.attributes, fn attribute ->
         Enum.find(old_snapshot.attributes, &(&1.source == attribute.source))
@@ -2873,7 +2931,8 @@ defmodule AshPostgres.MigrationGenerator do
                  snapshot.repo,
                  old_snapshot,
                  snapshot,
-                 not is_nil(renaming_to_source)
+                 not is_nil(renaming_to_source),
+                 schema_moves
                )
              end
            end
@@ -2968,7 +3027,7 @@ defmodule AshPostgres.MigrationGenerator do
           end
 
         if Map.get(old_attribute, :references) != Map.get(new_attribute, :references) and
-             references_differ_beyond_index?(old_attribute, new_attribute) do
+             references_differ_beyond_index?(old_attribute, new_attribute, schema_moves) do
           redo_deferrability =
             if has_reference?(old_snapshot.multitenancy, old_attribute) and
                  differently_deferrable?(new_attribute, old_attribute) do
@@ -3079,7 +3138,7 @@ defmodule AshPostgres.MigrationGenerator do
   # When the only reference change is index? (add/remove index), we should not emit
   # DropForeignKey + AlterAttribute; the separate AddReferenceIndex/RemoveReferenceIndex
   # operations handle it. This avoids migrations that drop and re-add the same FK.
-  defp references_differ_beyond_index?(old_attr, new_attr) do
+  defp references_differ_beyond_index?(old_attr, new_attr, schema_moves) do
     old_refs = Map.get(old_attr, :references)
     new_refs = Map.get(new_attr, :references)
 
@@ -3091,18 +3150,48 @@ defmodule AshPostgres.MigrationGenerator do
         true
 
       true ->
-        old_without_index = Map.delete(old_refs, :index?)
-        new_without_index = Map.delete(new_refs, :index?)
+        # Ignore the reference prefix when it only changed because the target
+        # table moved schemas; Postgres keeps the FK attached to that table.
+        {old_refs, new_refs} =
+          normalize_reference_schema_move(old_refs, new_refs, schema_moves)
+
+        old_without_index =
+          old_refs
+          |> clean_references_for_comparison()
+          |> Map.delete(:index?)
+
+        new_without_index =
+          new_refs
+          |> clean_references_for_comparison()
+          |> Map.delete(:index?)
+
         old_without_index != new_without_index
     end
   end
 
+  defp clean_references_for_comparison(references) do
+    Map.drop(references, [:destination_attribute_default, :destination_attribute_generated])
+  end
+
   # This exists to handle the fact that the remapping of the key name -> source caused attributes
   # to be considered unequal. We ignore things that only differ in that way using this function.
-  defp attributes_unequal?(left, right, repo, _old_snapshot, _new_snapshot, ignore_names?) do
+  defp attributes_unequal?(
+         left,
+         right,
+         repo,
+         _old_snapshot,
+         _new_snapshot,
+         ignore_names?,
+         schema_moves
+       ) do
     left = clean_for_equality(left, repo)
 
     right = clean_for_equality(right, repo)
+
+    # A relationship field should not look altered just because the referenced
+    # table moved schemas in the same migration.
+    {left, right} =
+      normalize_attribute_reference_schema_move(left, right, schema_moves)
 
     left =
       if ignore_names? do
@@ -3120,6 +3209,43 @@ defmodule AshPostgres.MigrationGenerator do
 
     left != right
   end
+
+  defp normalize_attribute_reference_schema_move(left, right, schema_moves) do
+    old_refs = Map.get(left, :references)
+    new_refs = Map.get(right, :references)
+
+    if reference_schema_move?(old_refs, new_refs, schema_moves) do
+      {
+        Map.update!(left, :references, &Map.delete(&1, :schema)),
+        Map.update!(right, :references, &Map.delete(&1, :schema))
+      }
+    else
+      {left, right}
+    end
+  end
+
+  defp normalize_reference_schema_move(old_refs, new_refs, schema_moves) do
+    if reference_schema_move?(old_refs, new_refs, schema_moves) do
+      {Map.delete(old_refs, :schema), Map.delete(new_refs, :schema)}
+    else
+      {old_refs, new_refs}
+    end
+  end
+
+  defp reference_schema_move?(
+         %{table: table, schema: old_schema},
+         %{table: table, schema: new_schema},
+         schema_moves
+       ) do
+    old_schema = schema_key(old_schema)
+    new_schema = schema_key(new_schema)
+
+    Enum.any?([table, to_string(table)], fn table ->
+      MapSet.member?(schema_moves, {table, old_schema, new_schema})
+    end)
+  end
+
+  defp reference_schema_move?(_, _, _), do: false
 
   defp clean_for_equality(attribute, repo) do
     cond do
@@ -3364,9 +3490,10 @@ defmodule AshPostgres.MigrationGenerator do
         %{strategy: nil, attribute: nil, global: nil}
       end
 
-    {drop_ops, rename_map, loaded} =
-      Enum.reduce(orphan_keys, {[], %{}, []}, fn {table, schema} = old_key,
-                                                 {ops, rename_map, snapshots} ->
+    {drop_ops, rename_map, schema_move_map, loaded} =
+      Enum.reduce(orphan_keys, {[], %{}, %{}, []}, fn {table, schema} = old_key,
+                                                      {ops, rename_map, schema_move_map,
+                                                       snapshots} ->
         minimal_snapshot = %{
           table: table,
           schema: schema,
@@ -3376,63 +3503,83 @@ defmodule AshPostgres.MigrationGenerator do
 
         case get_existing_snapshot(minimal_snapshot, opts) do
           nil ->
-            {ops, rename_map, snapshots}
+            {ops, rename_map, schema_move_map, snapshots}
 
           existing_snapshot ->
             if Map.get(existing_snapshot, :drop_table_opted_out, false) do
-              {ops, rename_map, snapshots}
+              {ops, rename_map, schema_move_map, snapshots}
             else
-              # Only consider new tables in the same schema as candidates
-              candidates =
+              # Infer one same-table/different-schema candidate as an intentional schema move.
+              schema_move_candidates =
+                Enum.filter(added_keys_list, fn {new_table, new_schema} ->
+                  new_table == table && new_schema != schema
+                end)
+
+              # Only consider new tables in the same schema as rename candidates
+              rename_candidates =
                 Enum.filter(added_keys_list, fn {new_table, new_schema} ->
                   new_schema == schema && new_table != table
                 end)
 
-              {ops, rename_map, snapshots} =
-                case candidates do
+              {ops, rename_map, schema_move_map, snapshots} =
+                case schema_move_candidates do
                   [{new_table, new_schema}] ->
-                    if renaming_table_to?(old_key, {new_table, new_schema}, opts) do
-                      new_rename_map =
-                        Map.put(rename_map, {new_table, new_schema}, %{
-                          old_table: table,
-                          old_schema: schema,
-                          snapshot: existing_snapshot
-                        })
+                    new_schema_move_map =
+                      Map.put(schema_move_map, {new_table, new_schema}, %{
+                        old_schema: schema,
+                        snapshot: existing_snapshot
+                      })
 
-                      {ops, new_rename_map, [existing_snapshot | snapshots]}
-                    else
-                      if drop_table_confirmed?(existing_snapshot, opts) do
-                        drop_op = %Operation.DropTable{
-                          table: existing_snapshot.table,
-                          schema: existing_snapshot.schema,
-                          repo: existing_snapshot.repo,
-                          multitenancy: existing_snapshot.multitenancy
-                        }
-
-                        {[drop_op | ops], rename_map, [existing_snapshot | snapshots]}
-                      else
-                        record_drop_table_opt_out(existing_snapshot, opts)
-                        {ops, rename_map, snapshots}
-                      end
-                    end
+                    {ops, rename_map, new_schema_move_map, [existing_snapshot | snapshots]}
 
                   _ ->
-                    if drop_table_confirmed?(existing_snapshot, opts) do
-                      drop_op = %Operation.DropTable{
-                        table: existing_snapshot.table,
-                        schema: existing_snapshot.schema,
-                        repo: existing_snapshot.repo,
-                        multitenancy: existing_snapshot.multitenancy
-                      }
+                    case rename_candidates do
+                      [{new_table, new_schema}] ->
+                        if renaming_table_to?(old_key, {new_table, new_schema}, opts) do
+                          new_rename_map =
+                            Map.put(rename_map, {new_table, new_schema}, %{
+                              old_table: table,
+                              old_schema: schema,
+                              snapshot: existing_snapshot
+                            })
 
-                      {[drop_op | ops], rename_map, [existing_snapshot | snapshots]}
-                    else
-                      record_drop_table_opt_out(existing_snapshot, opts)
-                      {ops, rename_map, snapshots}
+                          {ops, new_rename_map, schema_move_map, [existing_snapshot | snapshots]}
+                        else
+                          if drop_table_confirmed?(existing_snapshot, opts) do
+                            drop_op = %Operation.DropTable{
+                              table: existing_snapshot.table,
+                              schema: existing_snapshot.schema,
+                              repo: existing_snapshot.repo,
+                              multitenancy: existing_snapshot.multitenancy
+                            }
+
+                            {[drop_op | ops], rename_map, schema_move_map,
+                             [existing_snapshot | snapshots]}
+                          else
+                            record_drop_table_opt_out(existing_snapshot, opts)
+                            {ops, rename_map, schema_move_map, snapshots}
+                          end
+                        end
+
+                      _ ->
+                        if drop_table_confirmed?(existing_snapshot, opts) do
+                          drop_op = %Operation.DropTable{
+                            table: existing_snapshot.table,
+                            schema: existing_snapshot.schema,
+                            repo: existing_snapshot.repo,
+                            multitenancy: existing_snapshot.multitenancy
+                          }
+
+                          {[drop_op | ops], rename_map, schema_move_map,
+                           [existing_snapshot | snapshots]}
+                        else
+                          record_drop_table_opt_out(existing_snapshot, opts)
+                          {ops, rename_map, schema_move_map, snapshots}
+                        end
                     end
                 end
 
-              {ops, rename_map, snapshots}
+              {ops, rename_map, schema_move_map, snapshots}
             end
         end
       end)
@@ -3440,7 +3587,7 @@ defmodule AshPostgres.MigrationGenerator do
     loaded = Enum.reverse(loaded)
     drop_ops = Enum.reverse(drop_ops)
 
-    {sort_drop_table_operations(drop_ops, loaded), loaded, rename_map}
+    {sort_drop_table_operations(drop_ops, loaded), loaded, rename_map, schema_move_map}
   end
 
   defp sort_drop_table_operations(drop_ops, snapshots) do
