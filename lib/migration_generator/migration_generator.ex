@@ -489,10 +489,25 @@ defmodule AshPostgres.MigrationGenerator do
         Enum.map(deduped, fn {%{table: table, schema: schema} = snapshot, existing_snapshot} ->
           cond do
             move_info = Map.get(schema_move_map, {table, schema}) ->
-              {snapshot, move_info.snapshot}
+              if move_info[:declined?] do
+                {snapshot, nil}
+              else
+                {snapshot, move_info.snapshot}
+              end
 
             rename_info = Map.get(rename_map, {table, schema}) ->
               {snapshot, rename_info.snapshot}
+
+            existing_snapshot && existing_snapshot.schema != schema ->
+              if moving_table_to_schema?(
+                   {table, existing_snapshot.schema},
+                   {table, schema},
+                   opts
+                 ) do
+                {snapshot, existing_snapshot}
+              else
+                {snapshot, nil}
+              end
 
             true ->
               {snapshot, existing_snapshot}
@@ -3524,13 +3539,33 @@ defmodule AshPostgres.MigrationGenerator do
               {ops, rename_map, schema_move_map, snapshots} =
                 case schema_move_candidates do
                   [{new_table, new_schema}] ->
-                    new_schema_move_map =
-                      Map.put(schema_move_map, {new_table, new_schema}, %{
-                        old_schema: schema,
-                        snapshot: existing_snapshot
-                      })
+                    if moving_table_to_schema?(old_key, {new_table, new_schema}, opts) do
+                      new_schema_move_map =
+                        Map.put(schema_move_map, {new_table, new_schema}, %{
+                          old_schema: schema,
+                          snapshot: existing_snapshot
+                        })
 
-                    {ops, rename_map, new_schema_move_map, [existing_snapshot | snapshots]}
+                      {ops, rename_map, new_schema_move_map, [existing_snapshot | snapshots]}
+                    else
+                      declined_schema_move_map =
+                        Map.put(schema_move_map, {new_table, new_schema}, %{declined?: true})
+
+                      if drop_table_confirmed?(existing_snapshot, opts) do
+                        drop_op = %Operation.DropTable{
+                          table: existing_snapshot.table,
+                          schema: existing_snapshot.schema,
+                          repo: existing_snapshot.repo,
+                          multitenancy: existing_snapshot.multitenancy
+                        }
+
+                        {[drop_op | ops], rename_map, declined_schema_move_map,
+                         [existing_snapshot | snapshots]}
+                      else
+                        record_drop_table_opt_out(existing_snapshot, opts)
+                        {ops, rename_map, declined_schema_move_map, snapshots}
+                      end
+                    end
 
                   _ ->
                     case rename_candidates do
@@ -3785,6 +3820,24 @@ defmodule AshPostgres.MigrationGenerator do
       end
     end
   end
+
+  defp moving_table_to_schema?({table, old_schema}, {_new_table, new_schema}, opts) do
+    if opts.dev do
+      false
+    else
+      message =
+        "Are you moving #{schema_table_name(table, old_schema)} to #{schema_table_name(table, new_schema)}?"
+
+      if opts.no_shell? do
+        raise "Unimplemented: cannot determine: #{message} without shell input"
+      else
+        yes?(opts, message)
+      end
+    end
+  end
+
+  defp schema_table_name(table, nil), do: table
+  defp schema_table_name(table, schema), do: "#{schema}.#{table}"
 
   defp get_new_attribute(adding, opts, tries \\ 3)
 
