@@ -5382,6 +5382,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([SchemaMoveMessage])
 
+      send(self(), {:mix_shell_input, :yes?, true})
+
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: snapshot_path,
         migration_path: migration_path,
@@ -5458,6 +5460,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       defdomain([SchemaMoveColumnMessage])
 
+      send(self(), {:mix_shell_input, :yes?, true})
+
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: snapshot_path,
         migration_path: migration_path,
@@ -5526,6 +5530,82 @@ defmodule AshPostgres.MigrationGeneratorTest do
       refute latest =~ "drop table(:schema_move_column_messages"
     end
 
+    test "does not infer a schema move when the prompt is declined", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource DeclinedSchemaMoveMessage, "declined_schema_move_messages" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([DeclinedSchemaMoveMessage])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "add_declined_schema_move_messages"
+      )
+
+      defresource DeclinedSchemaMoveMessage, "declined_schema_move_messages" do
+        postgres do
+          table "declined_schema_move_messages"
+          schema "declined_messages"
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([DeclinedSchemaMoveMessage])
+
+      send(self(), {:mix_shell_input, :yes?, false})
+      send(self(), {:mix_shell_input, :yes?, false})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "decline_messages_schema_move"
+      )
+
+      migration_files =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      latest =
+        migration_files
+        |> List.last()
+        |> File.read!()
+
+      assert latest =~
+               ~S[create table(:declined_schema_move_messages, primary_key: false, prefix: "declined_messages") do]
+
+      refute latest =~
+               ~S[execute("ALTER TABLE \"declined_schema_move_messages\" SET SCHEMA \"declined_messages\"")]
+
+      refute latest =~ "drop table(:declined_schema_move_messages)"
+    end
+
     test "generates alter table set schema when a resource schema changes", %{
       snapshot_path: snapshot_path,
       migration_path: migration_path
@@ -5548,6 +5628,8 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       defdomain([SchemaChangeMessage])
+
+      send(self(), {:mix_shell_input, :yes?, true})
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: snapshot_path,
@@ -5606,6 +5688,89 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       refute latest =~ "create table(:schema_change_messages"
       refute latest =~ "drop table(:schema_change_messages"
+    end
+
+    test "does not infer an explicit schema-to-schema move when the prompt is declined", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource DeclinedSchemaChangeMessage, "declined_schema_change_messages" do
+        postgres do
+          table "declined_schema_change_messages"
+          schema "old_declined_message_schema"
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([DeclinedSchemaChangeMessage])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "add_declined_schema_change_messages"
+      )
+
+      defresource DeclinedSchemaChangeMessage, "declined_schema_change_messages" do
+        postgres do
+          table "declined_schema_change_messages"
+          schema "new_declined_message_schema"
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([DeclinedSchemaChangeMessage])
+
+      send(self(), {:mix_shell_input, :yes?, false})
+      send(self(), {:mix_shell_input, :yes?, false})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "decline_messages_schema_change"
+      )
+
+      migration_files =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      latest =
+        migration_files
+        |> List.last()
+        |> File.read!()
+
+      assert latest =~
+               ~S[create table(:declined_schema_change_messages, primary_key: false, prefix: "new_declined_message_schema") do]
+
+      refute latest =~
+               ~S[execute("ALTER TABLE \"old_declined_message_schema\".\"declined_schema_change_messages\" SET SCHEMA \"new_declined_message_schema\"")]
+
+      refute latest =~
+               ~S[drop table(:declined_schema_change_messages, prefix: "old_declined_message_schema")]
     end
 
     test "moving a referenced table schema does not drop or recreate tables or foreign keys" do
