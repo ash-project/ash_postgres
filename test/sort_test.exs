@@ -446,4 +446,42 @@ defmodule AshPostgres.SortTest do
       |> Ash.read!()
     end
   end
+
+  describe "keyset pagination on microsecond-precision datetime columns" do
+    test "next page returns the remaining rows when sorting by created_at desc" do
+      # All three posts share the same second; only microseconds differ —
+      # exposes precision loss between the eq and lt sides of the keyset filter.
+      base = ~U[2026-05-25 05:34:24Z]
+
+      [post1, post2, post3] =
+        Enum.map([10_000, 20_000, 30_000], fn usec ->
+          Post
+          |> Ash.Changeset.for_create(:create, %{
+            title: "post-#{usec}",
+            created_at: %{base | microsecond: {usec, 6}}
+          })
+          |> Ash.create!()
+        end)
+
+      %{results: [first, cursor_row]} =
+        Post
+        |> Ash.Query.for_read(:keyset)
+        |> Ash.Query.sort(created_at: :desc)
+        |> Ash.Query.page(limit: 2)
+        |> Ash.read!()
+
+      assert first.id == post3.id
+      assert cursor_row.id == post2.id
+
+      %{results: results} =
+        Post
+        |> Ash.Query.for_read(:keyset)
+        |> Ash.Query.sort(created_at: :desc)
+        |> Ash.Query.page(limit: 2, after: cursor_row.__metadata__.keyset)
+        |> Ash.read!()
+
+      assert length(results) == 1
+      assert hd(results).id == post1.id
+    end
+  end
 end
