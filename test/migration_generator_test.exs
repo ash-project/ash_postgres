@@ -1262,6 +1262,98 @@ defmodule AshPostgres.MigrationGeneratorTest do
                Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
                |> Enum.reject(&String.contains?(&1, "extensions"))
     end
+
+    test "when changing a context multitenant resource to global, skipped references are not dropped",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path,
+           tenant_migration_path: tenant_migration_path
+         } do
+      defresource User, "users" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        multitenancy do
+          strategy(:context)
+          global?(false)
+        end
+      end
+
+      defresource ApiKey, "api_keys" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        relationships do
+          belongs_to(:user, User)
+        end
+      end
+
+      defdomain([Post, User, ApiKey])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        tenant_migration_path: tenant_migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert initial_migration =
+               "#{migration_path}/**/*_migrate_resources*.exs"
+               |> Path.wildcard()
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+               |> Enum.sort()
+               |> List.last()
+               |> File.read!()
+
+      refute initial_migration =~ ~S[drop constraint(:api_keys, "api_keys_user_id_fkey")]
+
+      defresource User do
+        postgres do
+          table "users"
+          repo(AshPostgres.TestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        multitenancy do
+          strategy(:context)
+          global?(true)
+        end
+      end
+
+      defdomain([Post, User, ApiKey])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        tenant_migration_path: tenant_migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert follow_up_migration =
+               "#{migration_path}/**/*_migrate_resources*.exs"
+               |> Path.wildcard()
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+               |> Enum.sort()
+               |> List.last()
+               |> File.read!()
+
+      refute follow_up_migration =~ ~S[drop constraint(:api_keys, "api_keys_user_id_fkey")]
+    end
   end
 
   describe "creating follow up migrations" do
