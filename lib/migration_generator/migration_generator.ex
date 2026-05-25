@@ -2893,7 +2893,7 @@ defmodule AshPostgres.MigrationGenerator do
 
     add_attribute_events =
       Enum.flat_map(attributes_to_add, fn attribute ->
-        if attribute.references do
+        if attribute.references && has_reference?(snapshot.multitenancy, attribute) do
           reference_ops =
             if attribute.references.deferrable do
               [
@@ -3174,10 +3174,12 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   def has_reference?(multitenancy, attribute) do
+    multitenancy_strategy = multitenancy && multitenancy.strategy
+
     not is_nil(Map.get(attribute, :references)) and
       !(attribute.references.multitenancy &&
           attribute.references.multitenancy.strategy == :context &&
-          (is_nil(multitenancy) || multitenancy.strategy == :attribute))
+          multitenancy_strategy in [nil, :attribute])
   end
 
   def get_existing_snapshot(snapshot, opts) do

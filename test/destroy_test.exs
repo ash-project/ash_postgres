@@ -6,6 +6,36 @@ defmodule AshPostgres.DestroyTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.{Permalink, Post}
 
+  test "destroy with undeclared foreign key constraint reports delete action" do
+    Ecto.Adapters.SQL.query!(TestRepo, """
+    CREATE TABLE undeclared_fk_children (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      post_id uuid NOT NULL REFERENCES posts(id) ON DELETE RESTRICT
+    )
+    """)
+
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{})
+      |> Ash.create!()
+
+    Ecto.Adapters.SQL.query!(
+      TestRepo,
+      "INSERT INTO undeclared_fk_children (post_id) VALUES ($1)",
+      [Ecto.UUID.dump!(post.id)]
+    )
+
+    assert {:error, error} =
+             post
+             |> Ash.Changeset.for_destroy(:destroy, %{})
+             |> Ash.destroy()
+
+    message = Exception.message(error)
+
+    assert message =~ "attempting to delete struct"
+    refute message =~ "attempting to insert struct"
+  end
+
   test "destroy with restrict on_delete returns would leave records behind error" do
     post =
       Post

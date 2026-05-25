@@ -1865,7 +1865,12 @@ defmodule AshPostgres.DataLayer do
           end
         rescue
           e ->
-            handle_raised_error(e, __STACKTRACE__, ecto_changeset, resource)
+            handle_raised_error(
+              e,
+              __STACKTRACE__,
+              {:ecto_changeset, :update, ecto_changeset},
+              resource
+            )
         end
     end
   end
@@ -2134,7 +2139,12 @@ defmodule AshPostgres.DataLayer do
           end
         rescue
           e ->
-            handle_raised_error(e, __STACKTRACE__, ecto_changeset, resource)
+            handle_raised_error(
+              e,
+              __STACKTRACE__,
+              {:ecto_changeset, :delete, ecto_changeset},
+              resource
+            )
         end
     end
   end
@@ -2839,6 +2849,16 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
+  defp handle_raised_error(
+         %Postgrex.Error{} = error,
+         stacktrace,
+         {:ecto_changeset, action, changeset},
+         resource
+       )
+       when action in [:insert, :update, :delete] do
+    handle_postgrex_error(error, stacktrace, changeset, resource, action)
+  end
+
   defp handle_raised_error(%Ecto.Query.CastError{} = e, stacktrace, context, resource) do
     handle_raised_error(
       Ash.Error.Query.InvalidFilterValue.exception(value: e.value, context: context),
@@ -2854,6 +2874,14 @@ defmodule AshPostgres.DataLayer do
          changeset,
          resource
        ) do
+    handle_postgrex_error(error, stacktrace, changeset, resource, :insert)
+  end
+
+  defp handle_raised_error(error, stacktrace, _ecto_changeset, _resource) do
+    {:error, Ash.Error.to_ash_error(error, stacktrace)}
+  end
+
+  defp handle_postgrex_error(error, stacktrace, changeset, resource, action) do
     case Ecto.Adapters.Postgres.Connection.to_constraints(error, []) do
       [] ->
         constraints = maybe_foreign_key_violation_constraints(error)
@@ -2861,7 +2889,7 @@ defmodule AshPostgres.DataLayer do
         if constraints != [] do
           {:error,
            changeset
-           |> constraints_to_errors(:delete, constraints, resource, error)
+           |> constraints_to_errors(action, constraints, resource, error)
            |> Ash.Error.to_ash_error()}
         else
           {:error, Ash.Error.to_ash_error(error, stacktrace)}
@@ -2870,13 +2898,9 @@ defmodule AshPostgres.DataLayer do
       constraints ->
         {:error,
          changeset
-         |> constraints_to_errors(:insert, constraints, resource, error)
+         |> constraints_to_errors(action, constraints, resource, error)
          |> Ash.Error.to_ash_error()}
     end
-  end
-
-  defp handle_raised_error(error, stacktrace, _ecto_changeset, _resource) do
-    {:error, Ash.Error.to_ash_error(error, stacktrace)}
   end
 
   defp maybe_foreign_key_violation_constraints(%Postgrex.Error{postgres: postgres})
@@ -3728,7 +3752,12 @@ defmodule AshPostgres.DataLayer do
             end)
           rescue
             e ->
-              handle_raised_error(e, __STACKTRACE__, ecto_changeset, resource)
+              handle_raised_error(
+                e,
+                __STACKTRACE__,
+                {:ecto_changeset, :delete, ecto_changeset},
+                resource
+              )
           end
       end
     end
