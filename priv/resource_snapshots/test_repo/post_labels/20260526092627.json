@@ -41,7 +41,7 @@
       "scale": null,
       "size": null,
       "source": "content_id",
-      "type": "bigint"
+      "type": "uuid"
     },
     {
       "allow_nil?": false,
@@ -126,7 +126,7 @@
   ],
   "custom_statements": [],
   "has_create_action": true,
-  "hash": "6DBB60B6D32729CEAE9266383990DC834AA776EB5E87F620B595ADA0326C00B5",
+  "hash": "93DA33C9435A810642A1C08B6430C24BAA7497D5ED8F60E24A877BFFD487DD9A",
   "identities": [
     {
       "all_tenants?": false,

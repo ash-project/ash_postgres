@@ -1,8 +1,4 @@
-# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>
-#
-# SPDX-License-Identifier: MIT
-
-defmodule AshPostgres.TestRepo.Migrations.MigrateResources71 do
+defmodule AshPostgres.TestRepo.Migrations.MigrateResource71 do
   @moduledoc """
   Updates resources based on their most recent snapshots.
 
@@ -12,6 +8,52 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources71 do
   use Ecto.Migration
 
   def up do
+    execute("CREATE SCHEMA IF NOT EXISTS interest")
+
+    create table(:interests, primary_key: false, prefix: "interest") do
+      add(:id, :uuid, null: false, default: fragment("gen_random_uuid()"), primary_key: true)
+      add(:name, :text)
+    end
+
+    execute("CREATE SCHEMA IF NOT EXISTS profiles")
+
+    create table(:profile_interests, primary_key: false, prefix: "profiles") do
+      add(:id, :uuid, null: false, default: fragment("gen_random_uuid()"), primary_key: true)
+
+      add(
+        :profile_id,
+        references(:profile,
+          column: :id,
+          name: "profile_interests_profile_id_fkey",
+          type: :uuid,
+          prefix: "profiles"
+        ),
+        null: false
+      )
+
+      add(
+        :interest_id,
+        references(:interests,
+          column: :id,
+          name: "profile_interests_interest_id_fkey",
+          type: :uuid,
+          prefix: "interest"
+        ),
+        null: false
+      )
+    end
+
+    create(
+      unique_index(:profile_interests, [:profile_id, :interest_id],
+        name: "profile_interests_unique_profile_interest_index",
+        prefix: "profiles"
+      )
+    )
+
+    alter table(:classrooms) do
+      add(:public, :boolean, default: true)
+    end
+
     create table(:post_labels, primary_key: false) do
       add(:id, :uuid, null: false, default: fragment("gen_random_uuid()"), primary_key: true)
 
@@ -86,5 +128,24 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources71 do
     drop_if_exists(index(:post_labels, [:label_id]))
 
     drop(table(:post_labels))
+
+    alter table(:classrooms) do
+      remove(:public)
+    end
+
+    drop(constraint(:profile_interests, "profile_interests_profile_id_fkey", prefix: "profiles"))
+
+    drop(constraint(:profile_interests, "profile_interests_interest_id_fkey", prefix: "profiles"))
+
+    drop_if_exists(
+      unique_index(:profile_interests, [:profile_id, :interest_id],
+        name: "profile_interests_unique_profile_interest_index",
+        prefix: "profiles"
+      )
+    )
+
+    drop(table(:profile_interests, prefix: "profiles"))
+
+    drop(table(:interests, prefix: "interest"))
   end
 end
