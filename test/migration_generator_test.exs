@@ -2662,6 +2662,202 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert down_code =~ ~S{drop_if_exists index(:posts, [:org_id])}
     end
 
+    test "transitioning from non-multitenant to attribute multitenancy drops single-column belongs_to indexes and creates composite ones",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      defresource OrgForMtTransition, "orgs_for_mt_transition" do
+        attributes do
+          uuid_primary_key(:id, writable?: true, public?: true)
+          attribute(:name, :string, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:id)
+        end
+      end
+
+      defresource UserForMtTransition, "users_for_mt_transition" do
+        attributes do
+          uuid_primary_key(:id, writable?: true, public?: true)
+          attribute(:name, :string, public?: true)
+        end
+      end
+
+      defresource TokenForMtTransition, "tokens_for_mt_transition" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string, public?: true)
+        end
+
+        relationships do
+          belongs_to(:user, UserForMtTransition, public?: true)
+        end
+
+        postgres do
+          references do
+            reference(:user, index?: true)
+          end
+        end
+      end
+
+      defdomain([OrgForMtTransition, UserForMtTransition, TokenForMtTransition])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      defresource TokenForMtTransition, "tokens_for_mt_transition" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, OrgForMtTransition, public?: true)
+          belongs_to(:user, UserForMtTransition, public?: true)
+        end
+
+        postgres do
+          references do
+            reference(:user, index?: true)
+          end
+        end
+      end
+
+      defdomain([OrgForMtTransition, UserForMtTransition, TokenForMtTransition])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      [_first, second] =
+        Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      content = File.read!(second)
+
+      assert content =~ ~S{drop_if_exists index(:tokens_for_mt_transition, [:user_id])},
+             "should drop the obsolete single-column belongs_to index when acquiring multitenancy"
+
+      assert content =~ ~S{create index(:tokens_for_mt_transition, [:org_id, :user_id])},
+             "should create the new composite belongs_to index when acquiring multitenancy"
+    end
+
+    test "transitioning from attribute multitenancy to non-multitenant drops composite belongs_to indexes and creates single-column ones",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      defresource OrgForMtDrop, "orgs_for_mt_drop" do
+        attributes do
+          uuid_primary_key(:id, writable?: true, public?: true)
+          attribute(:name, :string, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:id)
+        end
+      end
+
+      defresource UserForMtDrop, "users_for_mt_drop" do
+        attributes do
+          uuid_primary_key(:id, writable?: true, public?: true)
+          attribute(:name, :string, public?: true)
+        end
+      end
+
+      defresource TokenForMtDrop, "tokens_for_mt_drop" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, OrgForMtDrop, public?: true)
+          belongs_to(:user, UserForMtDrop, public?: true)
+        end
+
+        postgres do
+          references do
+            reference(:user, index?: true)
+          end
+        end
+      end
+
+      defdomain([OrgForMtDrop, UserForMtDrop, TokenForMtDrop])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      defresource TokenForMtDrop, "tokens_for_mt_drop" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:name, :string, public?: true)
+        end
+
+        relationships do
+          belongs_to(:user, UserForMtDrop, public?: true)
+        end
+
+        postgres do
+          references do
+            reference(:user, index?: true)
+          end
+        end
+      end
+
+      defdomain([OrgForMtDrop, UserForMtDrop, TokenForMtDrop])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      [_first, second] =
+        Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      content = File.read!(second)
+
+      assert content =~ ~S{drop_if_exists index(:tokens_for_mt_drop, [:org_id, :user_id])},
+             "should drop the obsolete composite belongs_to index when removing multitenancy"
+
+      assert content =~ ~S{create index(:tokens_for_mt_drop, [:user_id])},
+             "should create the new single-column belongs_to index when removing multitenancy"
+    end
+
     test "references merge :match_with and multitenancy attribute", %{
       snapshot_path: snapshot_path,
       migration_path: migration_path

@@ -2443,8 +2443,11 @@ defmodule AshPostgres.MigrationGenerator do
             attribute.references && attribute.references[:index?]
 
           old_attribute ->
-            (old_attribute.references && old_attribute.references[:index?]) !=
-              (attribute.references && attribute.references[:index?])
+            new_index? = attribute.references && attribute.references[:index?]
+            old_index? = old_attribute.references && old_attribute.references[:index?]
+
+            old_index? != new_index? ||
+              (new_index? && multitenancy_changed?)
         end
       end)
       |> Enum.map(fn attribute ->
@@ -2468,7 +2471,11 @@ defmodule AshPostgres.MigrationGenerator do
 
         attribute_doesnt_exist? = !attribute && old_attribute[:references][:index?]
 
-        has_removed_index? || attribute_doesnt_exist?
+        multitenancy_change_requires_rewrite? =
+          attribute && old_attribute[:references][:index?] && attribute[:references][:index?] &&
+            multitenancy_changed?
+
+        has_removed_index? || attribute_doesnt_exist? || multitenancy_change_requires_rewrite?
       end)
       |> Enum.map(fn attribute ->
         %Operation.RemoveReferenceIndex{
