@@ -210,6 +210,52 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     end
   end
 
+  defmodule MoveTableSchema do
+    @moduledoc false
+    defstruct [:table, :schema, :old_schema, :new_schema, :repo, :multitenancy, no_phase: true]
+
+    def up(%{table: table, old_schema: old_schema, new_schema: new_schema, repo: repo}) do
+      # Moving into a configured schema may require creating it first.
+      create_schema =
+        if new_schema && repo.create_schemas_in_migrations?() do
+          "execute(\"CREATE SCHEMA IF NOT EXISTS #{new_schema}\")\n\n"
+        else
+          ""
+        end
+
+      create_schema <> move_schema_statement(table, old_schema, new_schema)
+    end
+
+    def down(%{table: table, old_schema: old_schema, new_schema: new_schema}) do
+      move_schema_statement(table, new_schema, old_schema)
+    end
+
+    defp move_schema_statement(table, from_schema, to_schema) do
+      # A nil Ash schema means Postgres' default public schema.
+      target_schema = to_schema || "public"
+
+      sql =
+        "ALTER TABLE #{qualified_table_name(table, from_schema)} SET SCHEMA #{quoted_identifier(target_schema)}"
+
+      "execute(#{inspect(sql)})"
+    end
+
+    defp qualified_table_name(table, nil), do: quoted_identifier(table)
+
+    defp qualified_table_name(table, schema) do
+      "#{quoted_identifier(schema)}.#{quoted_identifier(table)}"
+    end
+
+    defp quoted_identifier(identifier) do
+      escaped =
+        identifier
+        |> to_string()
+        |> String.replace(~s("), ~s(""))
+
+      ~s("#{escaped}")
+    end
+  end
+
   defmodule AddAttribute do
     @moduledoc false
     defstruct [:attribute, :table, :schema, :multitenancy, :old_multitenancy]
