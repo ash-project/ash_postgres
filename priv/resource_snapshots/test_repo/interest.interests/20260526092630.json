@@ -13,7 +13,7 @@
       "type": "uuid"
     },
     {
-      "allow_nil?": false,
+      "allow_nil?": true,
       "default": "nil",
       "generated?": false,
       "precision": null,
@@ -21,7 +21,7 @@
       "references": null,
       "scale": null,
       "size": null,
-      "source": "value",
+      "source": "name",
       "type": "text"
     }
   ],
@@ -31,29 +31,14 @@
   "custom_indexes": [],
   "custom_statements": [],
   "has_create_action": true,
-  "hash": "094DD4BC4D82A17CF6976D4787FFAE874FCF2F7286AD4411441A7D547CBFC1CB",
-  "identities": [
-    {
-      "all_tenants?": false,
-      "base_filter": null,
-      "index_name": "labels_unique_value_index",
-      "keys": [
-        {
-          "type": "atom",
-          "value": "value"
-        }
-      ],
-      "name": "unique_value",
-      "nils_distinct?": true,
-      "where": null
-    }
-  ],
+  "hash": "F67A136F4A1A7E6C289CE6D3E912E3B1A97041DCC8453DD49AA471D84248753E",
+  "identities": [],
   "multitenancy": {
     "attribute": null,
     "global": null,
     "strategy": null
   },
   "repo": "Elixir.AshPostgres.TestRepo",
-  "schema": null,
-  "table": "labels"
+  "schema": "interest",
+  "table": "interests"
 }
