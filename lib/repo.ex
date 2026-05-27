@@ -60,6 +60,9 @@ defmodule AshPostgres.Repo do
   @doc "Configure the version of postgres that is being used."
   @callback min_pg_version() :: Version.t()
 
+  @doc "Whether or not to generate extension migrations for this repo. Defaults to `true`."
+  @callback migrate_extensions?() :: boolean
+
   @doc """
   Use this to inform the data layer about the oldest potential postgres version it will be run on.
 
@@ -150,6 +153,7 @@ defmodule AshPostgres.Repo do
 
       def installed_extensions, do: []
       def tenant_migrations_path, do: nil
+      def migrate_extensions?, do: true
       def migrations_path, do: nil
       def create_schemas_in_migrations?, do: true
       def default_prefix, do: "public"
@@ -323,6 +327,7 @@ defmodule AshPostgres.Repo do
       defoverridable init: 2,
                      on_transaction_begin: 1,
                      installed_extensions: 0,
+                     migrate_extensions?: 0,
                      all_tenants: 0,
                      default_constraint_match_type: 2,
                      prefer_transaction?: 0,
