@@ -5577,6 +5577,89 @@ defmodule AshPostgres.MigrationGeneratorTest do
       refute latest_migration =~ "create table(:messages_rename_new"
     end
 
+    test "rename table migration is still proposed when new table name has an empty snapshot directory",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      defresource MessageEmptyDirRename, "messages_empty_dir_rename" do
+        postgres do
+          table "messages_empty_dir_rename"
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([MessageEmptyDirRename])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "add_messages_empty_dir_rename"
+      )
+
+      # Simulate a leftover empty directory with the new table's name in the snapshot folder.
+      # Before the fix, this caused the generator to skip proposing a rename because it
+      # treated the empty directory as an existing snapshot for the target table.
+      empty_dir = Path.join([snapshot_path, "test_repo", "messages_empty_dir_rename_new"])
+      File.mkdir_p!(empty_dir)
+
+      defresource MessageEmptyDirRename, "messages_empty_dir_rename_new" do
+        postgres do
+          table "messages_empty_dir_rename_new"
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([MessageEmptyDirRename])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "rename_messages_empty_dir_table"
+      )
+
+      migration_files =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      latest_migration =
+        migration_files
+        |> List.last()
+        |> File.read!()
+
+      assert latest_migration =~
+               "rename table(:messages_empty_dir_rename), to: table(:messages_empty_dir_rename_new)"
+
+      refute latest_migration =~ "create table(:messages_empty_dir_rename_new"
+    end
+
     test "rename table migration respects schema prefix", %{
       snapshot_path: snapshot_path,
       migration_path: migration_path
