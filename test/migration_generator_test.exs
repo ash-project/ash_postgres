@@ -5653,6 +5653,138 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[rename table(:schema_messages_rename, prefix: "my_schema_rename"), to: table(:schema_messages_rename_new, prefix: "my_schema_rename")]
     end
 
+    test "with multiple candidate new tables, prompts for which one is the rename target", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource MultiRenameFoo, "multi_rename_foo" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+      end
+
+      defdomain([MultiRenameFoo])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "add_multi_rename_foo"
+      )
+
+      defresource MultiRenameFoo, "multi_rename_foo_new" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+      end
+
+      defresource MultiRenameBar, "multi_rename_bar_new" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:label, :string, public?: true)
+        end
+      end
+
+      defdomain([MultiRenameFoo, MultiRenameBar])
+
+      # "Are you renaming multi_rename_foo?"
+      send(self(), {:mix_shell_input, :yes?, true})
+      # "What are you renaming it to?: ..."
+      send(self(), {:mix_shell_input, :prompt, "multi_rename_foo_new"})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "rename_with_unrelated_new_table"
+      )
+
+      latest =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+        |> List.last()
+        |> File.read!()
+
+      assert latest =~
+               "rename table(:multi_rename_foo), to: table(:multi_rename_foo_new)"
+
+      assert latest =~ "create table(:multi_rename_bar_new"
+      refute latest =~ "drop table(:multi_rename_foo)"
+      refute latest =~ "create table(:multi_rename_foo_new"
+    end
+
+    test "with multiple candidates, declining the rename prompt falls back to drop", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource MultiRenameDeclineFoo, "multi_rename_decline_foo" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+      end
+
+      defdomain([MultiRenameDeclineFoo])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "add_multi_rename_decline_foo"
+      )
+
+      defresource MultiRenameDeclineNewA, "multi_rename_decline_new_a" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+      end
+
+      defresource MultiRenameDeclineNewB, "multi_rename_decline_new_b" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:label, :string, public?: true)
+        end
+      end
+
+      defdomain([MultiRenameDeclineNewA, MultiRenameDeclineNewB])
+
+      # "Are you renaming multi_rename_decline_foo?" -> no
+      send(self(), {:mix_shell_input, :yes?, false})
+      # "Generate a migration to DROP this table?" -> yes
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "decline_rename_with_two_new_tables"
+      )
+
+      latest =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+        |> List.last()
+        |> File.read!()
+
+      assert latest =~ "drop table(:multi_rename_decline_foo)"
+      assert latest =~ "create table(:multi_rename_decline_new_a"
+      assert latest =~ "create table(:multi_rename_decline_new_b"
+      refute latest =~ "rename table(:multi_rename_decline_foo)"
+    end
+
     test "generates alter table set schema when a resource schema is added", %{
       snapshot_path: snapshot_path,
       migration_path: migration_path

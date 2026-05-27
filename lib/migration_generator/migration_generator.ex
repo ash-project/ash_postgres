@@ -3539,10 +3539,12 @@ defmodule AshPostgres.MigrationGenerator do
                   new_table == table && new_schema != schema
                 end)
 
-              # Only consider new tables in the same schema as rename candidates
+              # Only consider new tables in the same schema as rename candidates,
+              # excluding ones already claimed by another rename.
               rename_candidates =
-                Enum.filter(added_keys_list, fn {new_table, new_schema} ->
-                  new_schema == schema && new_table != table
+                Enum.filter(added_keys_list, fn {new_table, new_schema} = candidate ->
+                  new_schema == schema && new_table != table &&
+                    not Map.has_key?(rename_map, candidate)
                 end)
 
               {ops, rename_map, schema_move_map, snapshots} =
@@ -3577,35 +3579,28 @@ defmodule AshPostgres.MigrationGenerator do
                     end
 
                   _ ->
-                    case rename_candidates do
-                      [{new_table, new_schema}] ->
-                        if renaming_table_to?(old_key, {new_table, new_schema}, opts) do
-                          new_rename_map =
-                            Map.put(rename_map, {new_table, new_schema}, %{
-                              old_table: table,
-                              old_schema: schema,
-                              snapshot: existing_snapshot
-                            })
+                    rename_target =
+                      case rename_candidates do
+                        [] ->
+                          nil
 
-                          {ops, new_rename_map, schema_move_map, [existing_snapshot | snapshots]}
-                        else
-                          if drop_table_confirmed?(existing_snapshot, opts) do
-                            drop_op = %Operation.DropTable{
-                              table: existing_snapshot.table,
-                              schema: existing_snapshot.schema,
-                              repo: existing_snapshot.repo,
-                              multitenancy: existing_snapshot.multitenancy
-                            }
-
-                            {[drop_op | ops], rename_map, schema_move_map,
-                             [existing_snapshot | snapshots]}
+                        [{new_table, new_schema}] ->
+                          if renaming_table_to?(old_key, {new_table, new_schema}, opts) do
+                            {new_table, new_schema}
                           else
-                            record_drop_table_opt_out(existing_snapshot, opts)
-                            {ops, rename_map, schema_move_map, snapshots}
+                            nil
                           end
-                        end
 
-                      _ ->
+                        _ ->
+                          if renaming_table?(old_key, opts) do
+                            get_new_table(old_key, rename_candidates, opts)
+                          else
+                            nil
+                          end
+                      end
+
+                    case rename_target do
+                      nil ->
                         if drop_table_confirmed?(existing_snapshot, opts) do
                           drop_op = %Operation.DropTable{
                             table: existing_snapshot.table,
@@ -3620,6 +3615,16 @@ defmodule AshPostgres.MigrationGenerator do
                           record_drop_table_opt_out(existing_snapshot, opts)
                           {ops, rename_map, schema_move_map, snapshots}
                         end
+
+                      {new_table, new_schema} ->
+                        new_rename_map =
+                          Map.put(rename_map, {new_table, new_schema}, %{
+                            old_table: table,
+                            old_schema: schema,
+                            snapshot: existing_snapshot
+                          })
+
+                        {ops, new_rename_map, schema_move_map, [existing_snapshot | snapshots]}
                     end
                 end
 
@@ -3847,6 +3852,50 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp schema_table_name(table, nil), do: table
   defp schema_table_name(table, schema), do: "#{schema}.#{table}"
+
+  defp renaming_table?({old_table, schema}, opts) do
+    if opts.dev do
+      false
+    else
+      message =
+        if schema do
+          "Are you renaming #{schema}.#{old_table}?"
+        else
+          "Are you renaming #{old_table}?"
+        end
+
+      if opts.no_shell? do
+        raise "Unimplemented: cannot determine: #{message} without shell input"
+      else
+        yes?(opts, message)
+      end
+    end
+  end
+
+  defp get_new_table(old_key, candidates, opts, tries \\ 3)
+
+  defp get_new_table(_old_key, _candidates, _opts, 0) do
+    raise "Could not get matching table name after 3 attempts."
+  end
+
+  defp get_new_table(old_key, candidates, opts, tries) do
+    options = Enum.map_join(candidates, ", ", fn {new_table, _} -> new_table end)
+
+    name =
+      prompt(opts, "What are you renaming it to?: #{options}")
+
+    name =
+      if name do
+        String.trim(name)
+      else
+        nil
+      end
+
+    case Enum.find(candidates, fn {new_table, _} -> to_string(new_table) == name end) do
+      nil -> get_new_table(old_key, candidates, opts, tries - 1)
+      candidate -> candidate
+    end
+  end
 
   defp get_new_attribute(adding, opts, tries \\ 3)
 
