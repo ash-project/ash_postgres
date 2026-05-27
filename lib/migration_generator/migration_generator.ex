@@ -3476,7 +3476,7 @@ defmodule AshPostgres.MigrationGenerator do
       |> File.ls!()
       |> Enum.filter(fn name ->
         path = Path.join(base_folder, name)
-        File.dir?(path) and name != "extensions"
+        File.dir?(path) and name != "extensions" and File.ls!(path) != []
       end)
       |> Enum.map(fn name ->
         if String.contains?(name, ".") do
