@@ -1124,6 +1124,20 @@ defmodule AshPostgres.Test.Post do
 
     calculate(:c_times_p, :integer, expr(count_of_comments * count_of_linked_posts))
 
+
+    calculate(
+      :score_category,
+      :integer,
+      expr(
+        cond do
+          score > 100 -> 3
+          score > 50 -> 2
+          score > 0 -> 1
+          true -> 0
+        end
+      )
+    )
+
     calculate(
       :literal_map_in_expr,
       :map,

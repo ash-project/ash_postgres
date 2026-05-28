@@ -1100,6 +1100,31 @@ defmodule AshPostgres.CalculationTest do
     assert full_name == "name"
   end
 
+  test "cond/if calculation can be used in query filters" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "match", score: 75})
+      |> Ash.create!()
+
+    # Loading the cond-based calculation works fine
+    post = Ash.load!(post, :score_category)
+    assert post.score_category == 2
+
+    # Filtering by a cond-based calculation should also work.
+    # This currently fails with DBConnection.EncodeError because the THEN
+    # clause literals in the generated CASE WHEN are not type-cast when the
+    # expression appears in a WHERE clause (they ARE cast in SELECT).
+    assert [_] =
+             Post
+             |> Ash.Query.filter(score_category == 2)
+             |> Ash.read!()
+
+    assert [] =
+             Post
+             |> Ash.Query.filter(score_category == 3)
+             |> Ash.read!()
+  end
+
   test "calculation with fragment and cond returning integer doesn't cause Postgrex encoding error" do
     Post
     |> Ash.Changeset.for_create(:create, %{title: "hello ash lovers"})
