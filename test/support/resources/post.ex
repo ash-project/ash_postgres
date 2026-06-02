@@ -1124,7 +1124,6 @@ defmodule AshPostgres.Test.Post do
 
     calculate(:c_times_p, :integer, expr(count_of_comments * count_of_linked_posts))
 
-
     calculate(
       :score_category,
       :integer,
