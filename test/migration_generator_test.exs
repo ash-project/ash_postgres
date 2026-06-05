@@ -488,6 +488,58 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert File.read!(file2) =~ ~S[modify :title, :text, collation: "de_AT"]
     end
+
+    test "a collation defined via installed_collations generates a create collation migration", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      Application.put_env(:ash_postgres, :installed_collations, [
+        %AshPostgres.CustomCollation{
+          name: "natural_sort",
+          provider: :icu,
+          locale: "en-u-kn-true"
+        }
+      ])
+
+      on_exit(fn -> Application.delete_env(:ash_postgres, :installed_collations) end)
+
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      file =
+        Path.wildcard("#{migration_path}/**/*_collations*.exs")
+        |> Enum.at(0)
+
+      assert file, "expected a collations migration to be generated"
+
+      contents = File.read!(file)
+      assert contents =~ "CREATE COLLATION IF NOT EXISTS"
+      assert contents =~ "natural_sort"
+      assert contents =~ "provider = icu"
+      assert contents =~ "locale = 'en-u-kn-true'"
+      assert contents =~ "deterministic = true"
+
+      # the object definition is recorded in its own snapshot for future diffing
+      snapshot_file =
+        Path.wildcard("#{snapshot_path}/**/collations.json")
+        |> Enum.at(0)
+
+      assert snapshot_file
+      assert File.read!(snapshot_file) =~ "natural_sort"
+    end
   end
 
   describe "creating initial snapshots with native uuidv7 on PG 18" do

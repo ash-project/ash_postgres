@@ -57,6 +57,13 @@ defmodule AshPostgres.Repo do
   @doc "Use this to inform the data layer about what extensions are installed"
   @callback installed_extensions() :: [String.t() | module()]
 
+  @doc """
+  Use this to inform the data layer about what custom collation objects should be created.
+
+  See `AshPostgres.CustomCollation` for the available options.
+  """
+  @callback installed_collations() :: [AshPostgres.CustomCollation.t()]
+
   @doc "Configure the version of postgres that is being used."
   @callback min_pg_version() :: Version.t()
 
@@ -152,6 +159,7 @@ defmodule AshPostgres.Repo do
       end
 
       def installed_extensions, do: []
+      def installed_collations, do: []
       def tenant_migrations_path, do: nil
       def migrate_extensions?, do: true
       def migrations_path, do: nil
@@ -327,6 +335,7 @@ defmodule AshPostgres.Repo do
       defoverridable init: 2,
                      on_transaction_begin: 1,
                      installed_extensions: 0,
+                     installed_collations: 0,
                      migrate_extensions?: 0,
                      all_tenants: 0,
                      default_constraint_match_type: 2,

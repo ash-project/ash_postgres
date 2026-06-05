@@ -20,6 +20,10 @@ defmodule AshPostgres.DevTestRepo do
       Application.get_env(:ash_postgres, :no_extensions, [])
   end
 
+  def installed_collations do
+    Application.get_env(:ash_postgres, :installed_collations, [])
+  end
+
   def min_pg_version do
     case System.get_env("PG_VERSION") do
       nil ->
