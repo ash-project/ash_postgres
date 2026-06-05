@@ -3,7 +3,11 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshPostgres.CustomIndex do
-  @moduledoc "Represents a custom index on the table backing a resource"
+  @moduledoc """
+  Represents a custom index on the table backing a resource.
+
+  Each entry in `fields` can be an atom, string, or a tuple with an order and a field.
+  """
   @fields [
     :table,
     :fields,
@@ -26,8 +30,19 @@ defmodule AshPostgres.CustomIndex do
 
   @schema [
     fields: [
-      type: {:wrap_list, {:or, [:atom, :string]}},
-      doc: "The fields to include in the index."
+      type:
+        {:wrap_list,
+         {:or,
+          [
+            :atom,
+            :string,
+            {:tuple, [{:one_of, [:asc, :desc]}, {:or, [:atom, :string]}]}
+          ]}},
+      doc: """
+      The fields to include in the index.
+
+      Each entry can be an atom, string, or a tuple with an order using :desc or :asc and a field.
+      """
     ],
     error_fields: [
       type: {:list, :atom},
@@ -83,6 +98,41 @@ defmodule AshPostgres.CustomIndex do
 
   def schema, do: @schema
 
+  def column_name(field) when is_atom(field) or is_binary(field), do: field
+
+  def column_name({order, field})
+      when order in [:asc, :desc] and (is_atom(field) or is_binary(field)),
+      do: field
+
+  def field_to_snapshot(field) when is_atom(field), do: %{type: "atom", value: field}
+  def field_to_snapshot(field) when is_binary(field), do: %{type: "string", value: field}
+
+  def field_to_snapshot({order, field})
+      when order in [:asc, :desc] and (is_atom(field) or is_binary(field)) do
+    %{
+      type: "directed",
+      order: to_string(order),
+      value: if(is_atom(field), do: to_string(field), else: field)
+    }
+  end
+
+  def field_comparison_key(field) when is_atom(field), do: to_string(field)
+  def field_comparison_key(field) when is_binary(field), do: field
+
+  def field_comparison_key({order, field})
+      when order in [:asc, :desc] and (is_atom(field) or is_binary(field)) do
+    "#{order}:#{field}"
+  end
+
+  @doc false
+  def field_for_migration(field) when is_atom(field), do: inspect(field)
+  def field_for_migration(field) when is_binary(field), do: inspect(field)
+
+  def field_for_migration({order, field})
+      when order in [:asc, :desc] and (is_atom(field) or is_binary(field)) do
+    "#{order}: #{inspect(field)}"
+  end
+
   def transform(index) do
     with {:ok, index} <- set_name(index) do
       set_error_fields(index)
@@ -99,11 +149,13 @@ defmodule AshPostgres.CustomIndex do
          index
          | error_fields:
              Enum.flat_map(index.fields, fn field ->
-               if Regex.match?(~r/^[0-9a-zA-Z_]+$/, to_string(field)) do
-                 if is_binary(field) do
-                   [String.to_atom(field)]
+               column = column_name(field)
+
+               if Regex.match?(~r/^[0-9a-zA-Z_]+$/, to_string(column)) do
+                 if is_binary(column) do
+                   [String.to_atom(column)]
                  else
-                   [field]
+                   [column]
                  end
                else
                  []
@@ -125,7 +177,8 @@ defmodule AshPostgres.CustomIndex do
 
       mismatched_field =
           Enum.find(index.fields, fn field ->
-            !Regex.match?(~r/^[0-9a-zA-Z_]+$/, to_string(field))
+            column = column_name(field)
+            !Regex.match?(~r/^[0-9a-zA-Z_]+$/, to_string(column))
           end) ->
         {:error,
          """
@@ -149,7 +202,7 @@ defmodule AshPostgres.CustomIndex do
 
   # sobelow_skip ["DOS.StringToAtom"]
   def name(table, %{fields: fields}) do
-    [table, fields, "index"]
+    [table, Enum.map(fields, &column_name/1), "index"]
     |> List.flatten()
     |> Enum.map(&to_string(&1))
     |> Enum.map(&String.replace(&1, ~r"[^\w_]", "_"))

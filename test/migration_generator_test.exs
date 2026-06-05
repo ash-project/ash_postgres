@@ -793,6 +793,49 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "custom_indexes with sort direction" do
+    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      :ok
+
+      defposts do
+        postgres do
+          custom_indexes do
+            index([desc: :title], name: "posts_title_desc_index")
+            index([:id, desc: :title], name: "posts_id_title_desc_index")
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+    end
+
+    test "it generates create index with sort direction", %{migration_path: migration_path} do
+      assert [custom_index_migration] =
+               Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      file = File.read!(custom_index_migration)
+
+      assert file =~ ~S/create index(:posts, [desc: :title], name: "posts_title_desc_index")/
+
+      assert file =~
+               ~S/create index(:posts, [:id, desc: :title], name: "posts_id_title_desc_index")/
+    end
+  end
+
   describe "custom_indexes with follow up migrations" do
     setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
       :ok

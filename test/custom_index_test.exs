@@ -29,4 +29,15 @@ defmodule AshPostgres.Test.CustomIndexTest do
                    |> Ash.create!()
                  end
   end
+
+  test "directed custom index fields populate error_fields" do
+    {:ok, index} =
+      AshPostgres.CustomIndex.transform(%AshPostgres.CustomIndex{
+        fields: [:tenant_id, {:desc, :occurred_at}],
+        unique: true,
+        name: "events_tenant_id_occurred_at_index"
+      })
+
+    assert index.error_fields == [:tenant_id, :occurred_at]
+  end
 end
