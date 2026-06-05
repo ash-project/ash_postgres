@@ -143,6 +143,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def maybe_add_scale(nil), do: nil
     def maybe_add_scale(scale), do: "scale: #{scale}"
+
+    def maybe_add_collation(nil), do: nil
+    def maybe_add_collation(collation), do: "collation: #{inspect(collation)}"
   end
 
   defmodule CreateTable do
@@ -299,6 +302,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         maybe_add_precision(attribute[:precision]),
         maybe_add_scale(attribute[:scale]),
         maybe_add_default(attribute.default),
+        maybe_add_collation(attribute[:collation]),
         maybe_add_primary_key(attribute.primary_key?),
         maybe_add_null(attribute.allow_nil?)
       ]
@@ -342,6 +346,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         maybe_add_precision(attribute[:precision]),
         maybe_add_scale(attribute[:scale]),
         maybe_add_default(attribute.default),
+        maybe_add_collation(attribute[:collation]),
         maybe_add_primary_key(attribute.primary_key?),
         maybe_add_null(attribute.allow_nil?)
       ]
@@ -366,6 +371,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "add #{inspect(attribute.source)}",
         inspect(attribute.type),
         maybe_add_default(attribute.default),
+        maybe_add_collation(attribute[:collation]),
         maybe_add_primary_key(attribute.primary_key?),
         size,
         maybe_add_precision(attribute[:precision]),
@@ -393,6 +399,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "add #{inspect(attribute.source)}",
         inspect(attribute.type),
         maybe_add_default(attribute.default),
+        maybe_add_collation(attribute[:collation]),
         maybe_add_primary_key(attribute.primary_key?),
         size,
         maybe_add_precision(attribute[:precision]),
@@ -438,6 +445,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         ],
         ")",
         maybe_add_default(attribute.default),
+        maybe_add_collation(attribute[:collation]),
         maybe_add_primary_key(attribute.primary_key?),
         maybe_add_null(attribute.allow_nil?)
       ]
@@ -486,6 +494,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         maybe_add_precision(attribute[:precision]),
         maybe_add_scale(attribute[:scale]),
         maybe_add_default(attribute.default),
+        maybe_add_collation(attribute[:collation]),
         maybe_add_primary_key(attribute.primary_key?),
         maybe_add_null(attribute.allow_nil?)
       ]
@@ -527,6 +536,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         maybe_add_precision(attribute[:precision]),
         maybe_add_scale(attribute[:scale]),
         maybe_add_default(attribute.default),
+        maybe_add_collation(attribute[:collation]),
         maybe_add_primary_key(attribute.primary_key?),
         maybe_add_null(attribute.allow_nil?)
       ]
@@ -574,6 +584,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "#{inspect(attribute.type)}",
         maybe_add_null(attribute.allow_nil?),
         maybe_add_default(attribute.default),
+        maybe_add_collation(attribute[:collation]),
         size,
         maybe_add_precision(attribute[:precision]),
         maybe_add_scale(attribute[:scale]),
@@ -699,7 +710,13 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           end
         end
 
-      "#{null}#{default}#{size}#{precision}#{scale}#{primary_key}"
+      collation =
+        if Map.get(attribute, :collation) != Map.get(old_attribute, :collation) &&
+             attribute[:collation] do
+          ", collation: #{inspect(attribute.collation)}"
+        end
+
+      "#{null}#{default}#{size}#{precision}#{scale}#{collation}#{primary_key}"
     end
 
     def up(%{

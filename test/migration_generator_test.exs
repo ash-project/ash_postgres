@@ -396,6 +396,100 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "collations" do
+    test "a collation declared on an attribute is added to the column", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defposts do
+        postgres do
+          collations do
+            collation(:title, "natural_sort")
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      file =
+        Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.at(0)
+
+      assert File.read!(file) =~ ~S[add :title, :text, collation: "natural_sort"]
+    end
+
+    test "changing a collation generates a modify with the new collation", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defposts do
+        postgres do
+          collations do
+            collation(:title, "natural_sort")
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      defposts do
+        postgres do
+          collations do
+            collation(:title, "de_AT")
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert File.read!(file2) =~ ~S[modify :title, :text, collation: "de_AT"]
+    end
+  end
+
   describe "creating initial snapshots with native uuidv7 on PG 18" do
     setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
       prev_pg_version_env = System.fetch_env("PG_VERSION")

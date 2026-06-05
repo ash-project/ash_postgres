@@ -10,6 +10,7 @@ spark_locals_without_parens = [
   check_constraint: 2,
   check_constraint: 3,
   code?: 1,
+  collation: 2,
   concurrently: 1,
   create?: 1,
   create_table_options: 1,

@@ -1038,6 +1038,7 @@ defmodule AshPostgres.MigrationGenerator do
         source: source,
         type: merge_types(Enum.map(attributes, & &1.type), source, table),
         size: size,
+        collation: merge_collations(Enum.map(attributes, & &1[:collation]), source, table),
         default: merge_defaults(Enum.map(attributes, & &1.default)),
         allow_nil?: Enum.any?(attributes, & &1.allow_nil?) || Enum.count(attributes) < count,
         generated?: Enum.any?(attributes, & &1.generated?),
@@ -1119,6 +1120,22 @@ defmodule AshPostgres.MigrationGenerator do
 
       types ->
         raise "Conflicting types for table `#{table}.#{name}`: #{inspect(types)}"
+    end
+  end
+
+  defp merge_collations(collations, name, table) do
+    collations
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> case do
+      [] ->
+        nil
+
+      [collation] ->
+        collation
+
+      collations ->
+        raise "Conflicting collations for table `#{table}.#{name}`: #{inspect(collations)}"
     end
   end
 
@@ -4135,6 +4152,9 @@ defmodule AshPostgres.MigrationGenerator do
     repo = AshPostgres.DataLayer.Info.repo(resource, :mutate)
     ignored = AshPostgres.DataLayer.Info.migration_ignore_attributes(resource) || []
 
+    collations =
+      Map.new(AshPostgres.DataLayer.Info.collations(resource), &{&1.attribute, &1.collation})
+
     resource
     |> Ash.Resource.Info.attributes()
     |> Enum.reject(&(&1.name in ignored))
@@ -4172,6 +4192,7 @@ defmodule AshPostgres.MigrationGenerator do
       |> Map.put(:size, size)
       |> Map.put(:type, type)
       |> Map.put(:source, attribute.source || attribute.name)
+      |> Map.put(:collation, collations[attribute.name])
       |> Map.drop([:name, :constraints])
       |> then(fn map ->
         if precision do
@@ -4669,6 +4690,7 @@ defmodule AshPostgres.MigrationGenerator do
     |> Map.put_new(:size, nil)
     |> Map.put_new(:precision, nil)
     |> Map.put_new(:scale, nil)
+    |> Map.put_new(:collation, nil)
     |> Map.put_new(:default, "nil")
     |> Map.update!(:default, &(&1 || "nil"))
     |> Map.update!(:references, fn

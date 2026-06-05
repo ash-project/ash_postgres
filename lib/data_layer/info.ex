@@ -112,6 +112,11 @@ defmodule AshPostgres.DataLayer.Info do
     |> Enum.find(&(&1.relationship == relationship))
   end
 
+  @doc "The configured collations for a resource"
+  def collations(resource) do
+    Extension.get_entities(resource, [:postgres, :collations])
+  end
+
   @doc "A keyword list of customized migration types"
   def migration_types(resource) do
     Extension.get_opt(resource, [:postgres], :migration_types, [])

@@ -221,6 +221,41 @@ defmodule AshPostgres.DataLayer do
     entities: [@check_constraint]
   }
 
+  @collation %Spark.Dsl.Entity{
+    name: :collation,
+    describe: """
+    Applies a collation to an attribute's column when generating migrations.
+
+    The collation can be a built-in collation (e.g `"de_AT"`, `"und-x-icu"`) or one created
+    via the repo's `installed_collations/0` callback. Setting a collation makes it the column's
+    default, so ordinary sorts and comparisons on that column use it.
+    """,
+    examples: [
+      "collation :name, \"natural_sort\""
+    ],
+    args: [:attribute, :collation],
+    target: AshPostgres.Collation,
+    schema: AshPostgres.Collation.schema()
+  }
+
+  @collations %Spark.Dsl.Section{
+    name: :collations,
+    describe: """
+    A section for configuring the collations applied to a table's columns.
+
+    This section is only relevant if you are using the migration generator with this resource.
+    Otherwise, it has no effect.
+    """,
+    examples: [
+      """
+      collations do
+        collation :name, "natural_sort"
+      end
+      """
+    ],
+    entities: [@collation]
+  }
+
   @references %Spark.Dsl.Section{
     name: :references,
     describe: """
@@ -266,7 +301,8 @@ defmodule AshPostgres.DataLayer do
       @custom_statements,
       @manage_tenant,
       @references,
-      @check_constraints
+      @check_constraints,
+      @collations
     ],
     modules: [
       :repo

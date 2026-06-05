@@ -20,6 +20,8 @@ Postgres data layer configuration
    * reference
  * [check_constraints](#postgres-check_constraints)
    * check_constraint
+ * [collations](#postgres-collations)
+   * collation
 
 
 ### Examples
@@ -385,6 +387,47 @@ check_constraint :price, "price_must_be_positive", check: "price > 0", message: 
 ### Introspection
 
 Target: `AshPostgres.CheckConstraint`
+
+
+### postgres.collations
+A section for configuring the collations applied to a table's columns.
+
+This section is only relevant if you are using the migration generator with this resource.
+Otherwise, it has no effect.
+
+### Nested DSLs
+ * [collation](#postgres-collations-collation)
+
+### Examples
+```
+collations do
+  collation :name, "natural_sort"
+end
+```
+### postgres.collations.collation
+```elixir
+collation attribute, collation
+```
+
+Applies a collation to an attribute's column when generating migrations.
+
+The collation can be a built-in collation (e.g `"de_AT"`, `"und-x-icu"`) or one created via the repo's `installed_collations/0` callback. Setting a collation makes it the column's default, so ordinary sorts and comparisons on that column use it.
+
+### Examples
+```
+collation :name, "natural_sort"
+```
+
+### Arguments
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`attribute`](#postgres-collations-collation-attribute){: #postgres-collations-collation-attribute .spark-required} | `atom` |  | The attribute to apply the collation to. |
+| [`collation`](#postgres-collations-collation-collation){: #postgres-collations-collation-collation .spark-required} | `String.t` |  | The name of the collation to use for the column. Can be a built-in collation (e.g `"de_AT"`, `"und-x-icu"`) or one created via the repo's `installed_collations/0` callback. |
+
+### Introspection
+
+Target: `AshPostgres.Collation`
 
 
 
