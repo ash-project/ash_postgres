@@ -108,6 +108,7 @@ defmodule AshPostgres.MixProject do
         "documentation/tutorials/set-up-with-existing-database.md",
         "documentation/topics/about-ash-postgres/what-is-ash-postgres.md",
         "documentation/topics/resources/references.md",
+        "documentation/topics/resources/collations.md",
         "documentation/topics/resources/polymorphic-resources.md",
         "documentation/topics/resources/working-with-existing-databases.md",
         "documentation/topics/development/migrations-and-tasks.md",

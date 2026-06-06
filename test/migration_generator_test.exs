@@ -542,6 +542,55 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert File.read!(snapshot_file) =~ "natural_sort"
     end
 
+    test "removing a collation from installed_collations generates a drop collation migration", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      Application.put_env(:ash_postgres, :installed_collations, [
+        %AshPostgres.CustomCollation{
+          name: "natural_sort",
+          provider: :icu,
+          locale: "en-u-kn-true"
+        }
+      ])
+
+      on_exit(fn -> Application.delete_env(:ash_postgres, :installed_collations) end)
+
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      # drop the object from the repo's installed_collations and regenerate
+      Application.put_env(:ash_postgres, :installed_collations, [])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [_create_file, drop_file] =
+               Enum.sort(Path.wildcard("#{migration_path}/**/*_collations*.exs"))
+
+      contents = File.read!(drop_file)
+      assert contents =~ "DROP COLLATION IF EXISTS"
+      assert contents =~ "natural_sort"
+    end
+
     test "a collation on a non-existent attribute raises a DslError" do
       err =
         assert_dsl_error do
