@@ -8,6 +8,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
   @moduletag :tmp_dir
 
   import ExUnit.CaptureLog
+  import Spark.Test
 
   setup %{tmp_dir: tmp_dir} do
     current_shell = Mix.shell()
@@ -539,6 +540,55 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert snapshot_file
       assert File.read!(snapshot_file) =~ "natural_sort"
+    end
+
+    test "a collation on a non-existent attribute raises a DslError" do
+      err =
+        assert_dsl_error do
+          defmodule Elixir.AshPostgres.CollationMissingAttr do
+            use Ash.Resource, domain: nil, data_layer: AshPostgres.DataLayer
+
+            postgres do
+              table("collation_missing_attr")
+              repo(AshPostgres.TestRepo)
+
+              collations do
+                collation(:does_not_exist, "natural_sort")
+              end
+            end
+
+            attributes do
+              uuid_primary_key(:id)
+            end
+          end
+        end
+
+      assert Exception.message(err) =~ "no such attribute exists"
+    end
+
+    test "a collation on a non-string attribute raises a DslError" do
+      err =
+        assert_dsl_error do
+          defmodule Elixir.AshPostgres.CollationBadType do
+            use Ash.Resource, domain: nil, data_layer: AshPostgres.DataLayer
+
+            postgres do
+              table("collation_bad_type")
+              repo(AshPostgres.TestRepo)
+
+              collations do
+                collation(:count, "natural_sort")
+              end
+            end
+
+            attributes do
+              uuid_primary_key(:id)
+              attribute(:count, :integer, public?: true)
+            end
+          end
+        end
+
+      assert Exception.message(err) =~ "string-based (text) columns"
     end
   end
 

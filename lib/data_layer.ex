@@ -462,7 +462,8 @@ defmodule AshPostgres.DataLayer do
       AshPostgres.Verifiers.ValidateCheckConstraints,
       AshPostgres.Verifiers.PreventAttributeMultitenancyAndNonFullMatchType,
       AshPostgres.Verifiers.EnsureTableOrPolymorphic,
-      AshPostgres.Verifiers.ValidateIdentityIndexNames
+      AshPostgres.Verifiers.ValidateIdentityIndexNames,
+      AshPostgres.Verifiers.ValidateCollations
     ]
 
   def migrate(args) do
