@@ -74,11 +74,13 @@ defmodule AshPostgres.MigrationGenerator do
     extension_migration_files =
       create_extension_migrations(repos, opts)
 
-    tenant_migration_files =
+    {tenant_migration_files, tenant_review_flags} =
       create_migrations(tenant_snapshots, opts, true, snapshots, unmanaged_tenant_snapshots)
 
-    migration_files =
+    {migration_files, global_review_flags} =
       create_migrations(snapshots, opts, false, [], unmanaged_snapshots)
+
+    review_flags = merge_review_flag_maps(tenant_review_flags, global_review_flags)
 
     case extension_migration_files ++ tenant_migration_files ++ migration_files do
       [] ->
@@ -91,6 +93,10 @@ defmodule AshPostgres.MigrationGenerator do
         :ok
 
       files ->
+        if !(opts.check or opts.quiet or opts.no_shell?) do
+          emit_review_warnings(review_flags)
+        end
+
         cond do
           opts.check ->
             raise Ash.Error.Framework.PendingCodegen,
@@ -460,7 +466,7 @@ defmodule AshPostgres.MigrationGenerator do
        ) do
     snapshots
     |> Enum.group_by(& &1.repo)
-    |> Enum.flat_map(fn {repo, snapshots} ->
+    |> Enum.reduce({[], initial_review_flags()}, fn {repo, snapshots}, {files_acc, flags_acc} ->
       deduped = deduplicate_snapshots(snapshots, opts, non_tenant_snapshots)
 
       managed_table_keys =
@@ -539,12 +545,13 @@ defmodule AshPostgres.MigrationGenerator do
         |> Enum.concat(drop_operations)
         |> Enum.uniq()
 
-      operations
-      |> case do
+      case operations do
         [] ->
-          []
+          {files_acc, flags_acc}
 
         operations ->
+          repo_flags = classify_operations(operations)
+
           dev_migrations = get_dev_migrations(opts, tenant?, repo)
 
           if !opts.dev and dev_migrations != [] do
@@ -582,15 +589,88 @@ defmodule AshPostgres.MigrationGenerator do
                 operations_to_migrations(public_operations, repo, opts, false)
             end
 
-          migrations
-          |> Enum.concat(create_new_snapshot(snapshots, repo_name(repo), opts, tenant?))
-          |> then(fn files ->
-            remove_orphan_snapshots(orphan_snapshots, opts)
-            files
-          end)
+          files =
+            migrations
+            |> Enum.concat(create_new_snapshot(snapshots, repo_name(repo), opts, tenant?))
+            |> then(fn files ->
+              remove_orphan_snapshots(orphan_snapshots, opts)
+              files
+            end)
+
+          {files_acc ++ files, merge_review_flag_maps(flags_acc, repo_flags)}
       end
     end)
   end
+
+  defp emit_review_warnings(review_flags) do
+    shell = Mix.shell()
+
+    review_flags
+    |> review_warning_messages()
+    |> Enum.each(&shell.info/1)
+  end
+
+  defp review_warning_messages(review_flags) do
+    [
+      review_baseline_message(),
+      review_commented_safeguards_message(review_flags),
+      review_destructive_message(review_flags)
+    ]
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp review_baseline_message do
+    "Please always manually review the generated migrations for correctness."
+  end
+
+  defp review_commented_safeguards_message(%{commented_safeguards?: true}) do
+    "Warning: there are migration steps commented out and in need of manual review."
+  end
+
+  defp review_commented_safeguards_message(_), do: nil
+
+  defp review_destructive_message(%{destructive_uncommented?: true}) do
+    "Warning: this migration includes destructive operations (e.g. drops or column removals). Review carefully before migrating."
+  end
+
+  defp review_destructive_message(_), do: nil
+
+  defp classify_operations(operations) do
+    Enum.reduce(operations, initial_review_flags(), &merge_review_flags/2)
+  end
+
+  defp initial_review_flags do
+    %{commented_safeguards?: false, destructive_uncommented?: false}
+  end
+
+  defp merge_review_flags(op, acc) do
+    acc
+    |> Map.update!(:commented_safeguards?, &(&1 or commented_safeguard?(op)))
+    |> Map.update!(:destructive_uncommented?, &(&1 or destructive_uncommented?(op)))
+  end
+
+  defp merge_review_flag_maps(a, b) do
+    %{
+      commented_safeguards?: a.commented_safeguards? or b.commented_safeguards?,
+      destructive_uncommented?: a.destructive_uncommented? or b.destructive_uncommented?
+    }
+  end
+
+  defp commented_safeguard?(%{commented?: true}), do: true
+  defp commented_safeguard?(_), do: false
+
+  defp destructive_uncommented?(%Operation.DropTable{}), do: true
+  defp destructive_uncommented?(%Operation.RemoveAttribute{commented?: false}), do: true
+  defp destructive_uncommented?(%Operation.RemovePrimaryKey{}), do: true
+  defp destructive_uncommented?(%Operation.RemovePrimaryKeyDown{commented?: false}), do: true
+  defp destructive_uncommented?(%Operation.DropForeignKey{}), do: true
+  defp destructive_uncommented?(%Operation.RemoveCustomStatement{}), do: true
+  defp destructive_uncommented?(%Operation.RemoveCustomIndex{}), do: true
+  defp destructive_uncommented?(%Operation.RemoveReferenceIndex{}), do: true
+  defp destructive_uncommented?(%Operation.RemoveUniqueIndex{}), do: true
+  defp destructive_uncommented?(%Operation.RemoveCheckConstraint{}), do: true
+  defp destructive_uncommented?(%Operation.AddPrimaryKeyDown{remove_old?: true}), do: true
+  defp destructive_uncommented?(_), do: false
 
   defp operations_to_migrations([], _repo, _opts, _tenant?), do: []
 
