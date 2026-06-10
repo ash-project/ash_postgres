@@ -7,6 +7,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
   @moduletag :migration
   @moduletag :tmp_dir
 
+  @baseline "Please always manually review the generated migrations for correctness."
+  @commented_warning "migration steps commented out and in need of manual review"
+  @destructive_warning "destructive operations"
+  @warning_prefix "Warning:"
+
   import ExUnit.CaptureLog
 
   setup %{tmp_dir: tmp_dir} do
@@ -104,6 +109,27 @@ defmodule AshPostgres.MigrationGeneratorTest do
       {pos, _len} -> pos
       :nomatch -> nil
     end
+  end
+
+  defp flush_mix_shell do
+    receive do
+      {:mix_shell, _, _} -> flush_mix_shell()
+    after
+      0 -> :ok
+    end
+  end
+
+  defp mix_shell_info_messages(acc \\ []) do
+    receive do
+      {:mix_shell, :info, message} ->
+        mix_shell_info_messages([to_string(message) | acc])
+    after
+      0 -> Enum.reverse(acc)
+    end
+  end
+
+  defp shell_output do
+    mix_shell_info_messages() |> Enum.join("\n")
   end
 
   defmacrop defresource(mod, table, do: body) do
@@ -5492,6 +5518,377 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert is_integer(company_pos)
       assert task_pos < project_pos
       assert project_pos < company_pos
+    end
+  end
+
+  describe "review warnings" do
+    test "emits baseline reminder for additive migrations", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource ReviewWarnAddPost, "review_warn_add_posts" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([ReviewWarnAddPost])
+
+      flush_mix_shell()
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: false,
+        format: false,
+        auto_name: true,
+        name: "review_warn_add"
+      )
+
+      output = shell_output()
+
+      assert output =~ @baseline
+      refute output =~ @warning_prefix
+    end
+
+    test "emits commented safeguard escalation with dont_drop_columns", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource ReviewWarnColumnPost, "review_warn_column_posts" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([ReviewWarnColumnPost])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "review_warn_setup_column"
+      )
+
+      defresource ReviewWarnColumnPost, "review_warn_column_posts" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([ReviewWarnColumnPost])
+
+      send(self(), {:mix_shell_input, :yes?, false})
+      flush_mix_shell()
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: false,
+        format: false,
+        auto_name: true,
+        name: "review_warn_comment_column",
+        dont_drop_columns: true
+      )
+
+      output = shell_output()
+
+      latest =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+        |> List.last()
+        |> File.read!()
+
+      assert latest =~ "Attribute removal has been commented out"
+      refute latest =~ ~r/^\s*remove "title"/m
+
+      assert output =~ @baseline
+      assert output =~ @commented_warning
+      refute output =~ @destructive_warning
+    end
+
+    test "emits destructive escalation when dropping a table", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource ReviewWarnKeepPost, "review_warn_keep_posts" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defresource ReviewWarnDropPost, "review_warn_drop_posts" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([ReviewWarnKeepPost, ReviewWarnDropPost])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "review_warn_setup_drop"
+      )
+
+      defdomain([ReviewWarnKeepPost])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+      flush_mix_shell()
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: false,
+        format: false,
+        auto_name: true,
+        name: "review_warn_drop"
+      )
+
+      output = shell_output()
+
+      latest =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+        |> List.last()
+        |> File.read!()
+
+      assert latest =~ "drop table(:review_warn_drop_posts)"
+      assert output =~ @baseline
+      assert output =~ @destructive_warning
+      refute output =~ @commented_warning
+    end
+
+    test "emits destructive escalation when removing a column", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource ReviewWarnRemoveColumn, "review_warn_remove_column" do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([ReviewWarnRemoveColumn])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "review_warn_setup_column"
+      )
+
+      defresource ReviewWarnRemoveColumn, "review_warn_remove_column" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([ReviewWarnRemoveColumn])
+
+      send(self(), {:mix_shell_input, :yes?, false})
+      flush_mix_shell()
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: false,
+        format: false,
+        auto_name: true,
+        name: "review_warn_remove_column"
+      )
+
+      output = shell_output()
+
+      latest =
+        Path.wildcard("#{migration_path}/**/*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+        |> List.last()
+        |> File.read!()
+
+      assert latest =~ ~r/^\s*remove :title/m
+      assert output =~ @baseline
+      assert output =~ @destructive_warning
+      refute output =~ @commented_warning
+    end
+
+    test "does not emit review warnings when quiet is true", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource ReviewWarnQuietPost, "review_warn_quiet_posts" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([ReviewWarnQuietPost])
+
+      flush_mix_shell()
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        name: "review_warn_quiet"
+      )
+
+      output = shell_output()
+
+      refute output =~ @baseline
+      refute output =~ @warning_prefix
+    end
+
+    test "does not emit review warnings when check is true", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource ReviewWarnCheckPost, "review_warn_check_posts" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([ReviewWarnCheckPost])
+
+      flush_mix_shell()
+
+      assert_raise Ash.Error.Framework.PendingCodegen, fn ->
+        AshPostgres.MigrationGenerator.generate(Domain,
+          snapshot_path: snapshot_path,
+          migration_path: migration_path,
+          check: true,
+          quiet: false,
+          format: false,
+          auto_name: true
+        )
+      end
+
+      refute File.exists?(
+               Path.wildcard("#{snapshot_path}/test_repo/review_warn_check_posts/*.json")
+             )
+
+      refute File.exists?(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
+
+      assert shell_output() == ""
+    end
+
+    test "does not emit review warnings when no_shell? is true", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource ReviewWarnNoShellPost, "review_warn_noshell_posts" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([ReviewWarnNoShellPost])
+
+      flush_mix_shell()
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: false,
+        no_shell?: true,
+        format: false,
+        auto_name: true,
+        name: "review_warn_noshell"
+      )
+
+      output = shell_output()
+
+      refute output =~ @baseline
+      refute output =~ @warning_prefix
+    end
+
+    test "emits review warnings on dry_run", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource ReviewWarnDryRunPost, "review_warn_dry_run_posts" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defdomain([ReviewWarnDryRunPost])
+
+      flush_mix_shell()
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        dry_run: true,
+        quiet: false,
+        format: false,
+        auto_name: true
+      )
+
+      output = shell_output()
+
+      assert output =~ @baseline
+      refute output =~ @warning_prefix
     end
   end
 
