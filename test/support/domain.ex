@@ -39,6 +39,7 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.Permalink)
     resource(AshPostgres.Test.Record)
     resource(AshPostgres.Test.PostFollower)
+    resource(AshPostgres.Test.NotificationRecipient)
     resource(AshPostgres.Test.StatefulPostFollower)
     resource(AshPostgres.Test.PostWithEmptyUpdate)
     resource(AshPostgres.Test.DbPoint)
