@@ -2235,7 +2235,6 @@ defmodule AshSql.AggregateTest do
       assert result_without_page_count.count_of_comments == 1
       assert result_without_page_count.author_first_name_calc == "John"
 
-      Logger.configure(level: :debug)
       # Test with page(count: true) - this triggers the bug
       %{results: [result_with_page_count | _]} =
         Post
