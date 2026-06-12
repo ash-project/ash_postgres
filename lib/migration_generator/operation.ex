@@ -1098,7 +1098,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           base_filter: base_filter,
           multitenancy: multitenancy
         }) do
-      keys = index_keys(index.fields, index.all_tenants?, multitenancy)
+      keys =
+        index.fields
+        |> index_keys(index.all_tenants?, multitenancy)
+        |> Enum.map(&AshPostgres.CustomIndex.field_for_migration/1)
 
       index =
         case {index.where, base_filter} do
@@ -1120,15 +1123,20 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           option(:prefix, schema)
         ])
 
+      columns = Enum.join(keys, ", ")
+
       if opts == "" do
-        "create index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}])"
+        "create index(:#{as_atom(table)}, [#{columns}])"
       else
-        "create index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{opts})"
+        "create index(:#{as_atom(table)}, [#{columns}], #{opts})"
       end
     end
 
     def down(%{schema: schema, index: index, table: table, multitenancy: multitenancy}) do
-      keys = index_keys(index.fields, index.all_tenants?, multitenancy)
+      keys =
+        index.fields
+        |> index_keys(index.all_tenants?, multitenancy)
+        |> Enum.map(&AshPostgres.CustomIndex.field_for_migration/1)
 
       opts =
         join([
@@ -1136,10 +1144,12 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           option(:prefix, schema)
         ])
 
+      columns = Enum.join(keys, ", ")
+
       if opts == "" do
-        "drop_if_exists index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}])"
+        "drop_if_exists index(:#{as_atom(table)}, [#{columns}])"
       else
-        "drop_if_exists index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{opts})"
+        "drop_if_exists index(:#{as_atom(table)}, [#{columns}], #{opts})"
       end
     end
   end

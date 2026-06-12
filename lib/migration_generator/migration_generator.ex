@@ -2790,7 +2790,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp custom_index_comparison_key(index, snapshot) do
     index
     |> Map.update!(:fields, fn fields ->
-      Enum.map(fields, &to_string/1)
+      Enum.map(fields, &AshPostgres.CustomIndex.field_comparison_key/1)
     end)
     |> add_custom_index_name(snapshot.table)
     |> Map.put(:where, {snapshot.base_filter, index.where})
@@ -4597,10 +4597,7 @@ defmodule AshPostgres.MigrationGenerator do
     |> Map.update!(:custom_indexes, fn indexes ->
       Enum.map(indexes, fn index ->
         fields =
-          Enum.map(index.fields, fn
-            field when is_atom(field) -> %{type: "atom", value: field}
-            field when is_binary(field) -> %{type: "string", value: field}
-          end)
+          Enum.map(index.fields, &AshPostgres.CustomIndex.field_to_snapshot/1)
 
         %{index | fields: fields}
         |> Map.delete(:__spark_metadata__)
@@ -4708,9 +4705,17 @@ defmodule AshPostgres.MigrationGenerator do
       custom_index
       |> Map.update(:fields, [], fn fields ->
         Enum.map(fields, fn
-          %{type: "atom", value: field} -> maybe_to_atom(field)
-          %{type: "string", value: field} -> field
-          field -> field
+          %{type: "atom", value: field} ->
+            maybe_to_atom(field)
+
+          %{type: "string", value: field} ->
+            field
+
+          %{type: "directed", order: order, value: value} ->
+            {maybe_to_atom(order), maybe_to_atom(value)}
+
+          field ->
+            field
         end)
       end)
       |> Map.put_new(:include, [])
