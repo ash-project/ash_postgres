@@ -884,6 +884,11 @@ defmodule AshPostgres.Test.Post do
 
     has_many(:post_followers, AshPostgres.Test.PostFollower)
 
+    has_many :user_notification_recipients, AshPostgres.Test.NotificationRecipient do
+      filter(expr(not is_nil(user_id)))
+      sort(order: :asc)
+    end
+
     # For testing join_relationship limit inheritance
     has_many :top_three_post_followers, AshPostgres.Test.PostFollower do
       sort(order: :asc)
@@ -916,6 +921,15 @@ defmodule AshPostgres.Test.Post do
       source_attribute_on_join_resource: :post_id,
       destination_attribute_on_join_resource: :follower_id,
       sort: [Ash.Sort.expr_sort(parent(post_followers.order), :integer)]
+    )
+
+    many_to_many(:sorted_notification_users, AshPostgres.Test.User,
+      public?: true,
+      through: AshPostgres.Test.NotificationRecipient,
+      join_relationship: :user_notification_recipients,
+      source_attribute_on_join_resource: :post_id,
+      destination_attribute_on_join_resource: :user_id,
+      sort: [Ash.Sort.expr_sort(parent(user_notification_recipients.order), :integer)]
     )
 
     many_to_many :tags, AshPostgres.Test.Tag do
