@@ -124,7 +124,7 @@ defmodule AshPostgres.Test.UpdateManyTest do
     assert by_id[b.id] == "b!"
   end
 
-  test "the default :atomic strategy fails with a single error when a change cannot be made atomic" do
+  test "the default strategy fails with a single error when a change cannot be made atomic" do
     posts = for i <- 1..5, do: create_post(%{title: "t#{i}"})
     inputs = Enum.map(posts, fn p -> {p, %{title: "#{p.title}!"}} end)
 
@@ -139,7 +139,7 @@ defmodule AshPostgres.Test.UpdateManyTest do
     assert [%Ash.Error.Invalid.NoMatchingBulkStrategy{}] = errors
   end
 
-  test "the :atomic strategy is enforced for identifier inputs too (not silently streamed)" do
+  test "the default strategy is enforced for identifier inputs too (not silently streamed)" do
     a = create_post(%{title: "a"})
 
     %Ash.BulkResult{status: :error, records: records} =
@@ -153,14 +153,13 @@ defmodule AshPostgres.Test.UpdateManyTest do
     assert Ash.get!(Post, a.id).title == "a"
   end
 
-  test "updates more records than fit in a single batch under the :atomic_batches strategy" do
+  test "updates more records than fit in a single batch (atomic_batches is the default)" do
     posts = for i <- 1..10, do: create_post(%{title: "t#{i}", score: i})
     inputs = Enum.map(posts, fn p -> {p, %{score: p.score + 100}} end)
 
     %Ash.BulkResult{status: :success} =
       result =
       Ash.update_many(inputs, Post, :update,
-        strategy: [:atomic_batches],
         batch_size: 3,
         return_records?: true
       )
