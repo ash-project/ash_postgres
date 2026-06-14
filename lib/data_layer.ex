@@ -2224,9 +2224,16 @@ defmodule AshPostgres.DataLayer do
 
     source = resolve_source(resource, Enum.at(changesets, 0))
 
+    # On PostgreSQL 17+ we implement upserts with `MERGE` instead of `INSERT ... ON CONFLICT`,
+    # which lets us report per-row whether each record was inserted or updated (via
+    # `merge_action()`), surfaced as `:upsert_action` metadata. Below 17, when explicitly
+    # disabled, or for upserts whose keys cannot be matched by `MERGE`, we fall back to the
+    # `ON CONFLICT` path.
+    use_merge? = options[:upsert?] && merge_upsert?(resource, options)
+
     try do
       opts =
-        if options[:upsert?] do
+        if options[:upsert?] && !use_merge? do
           # Ash groups changesets by atomics before dispatching them to the data layer
           # this means that all changesets have the same atomics
           %{atomics: atomics, filter: filter} = Enum.at(changesets, 0)
@@ -2318,9 +2325,13 @@ defmodule AshPostgres.DataLayer do
         end
 
       result =
-        with_savepoint(repo, opts[:on_conflict], fn ->
-          repo.insert_all(source, ecto_changesets, opts)
-        end)
+        if use_merge? do
+          merge_upsert(repo, resource, source, changesets, ecto_changesets, opts, options)
+        else
+          with_savepoint(repo, opts[:on_conflict], fn ->
+            repo.insert_all(source, ecto_changesets, opts)
+          end)
+        end
 
       identity = options[:identity]
       keys = Map.get(identity || %{}, :keys) || Ash.Resource.Info.primary_key(resource)
@@ -2615,6 +2626,221 @@ defmodule AshPostgres.DataLayer do
       end
     end)
   end
+
+  defp merge_upsert?(resource, _options) do
+    Application.get_env(:ash_postgres, :upsert_with_merge?, true) != false &&
+      AshPostgres.DataLayer.Info.pg_version_matches?(resource, ">= 17.0.0")
+  end
+
+  # Implements an upsert as a single `MERGE` statement (PostgreSQL 17+). Returns the same
+  # `{count, records | nil}` shape as `repo.insert_all/3` so the downstream result handling
+  # in `bulk_create/3` is shared between both paths.
+  defp merge_upsert(repo, resource, source, changesets, ecto_changesets, opts, options) do
+    changeset = Enum.at(changesets, 0)
+    %{atomics: atomics, filter: filter} = changeset
+    upsert_keys = options[:upsert_keys] || Ash.Resource.Info.primary_key(resource)
+
+    base_query =
+      from(row in source, as: ^0)
+      |> AshSql.Bindings.default_bindings(resource, AshPostgres.SqlImplementation)
+
+    upsert_set = upsert_set(resource, changesets, upsert_keys, options)
+
+    set_query =
+      case AshSql.Atomics.query_with_atomics(resource, base_query, nil, atomics, %{}, upsert_set) do
+        {:empty, _query} ->
+          raise "Cannot upsert with no fields to specify in the upsert statement. This can only happen on resources without a primary key."
+
+        {:ok, query} ->
+          query
+
+        {:error, error} ->
+          raise Ash.Error.to_ash_error(error)
+      end
+
+    # The upsert condition (which may reference the incoming row via `EXCLUDED`) becomes
+    # `WHEN MATCHED AND ...`.
+    when_matched_condition_query =
+      if filter do
+        merge_filter_query(resource, source, filter)
+      end
+
+    # The full `ON` clause: each key matched as `<key on target> = <key on incoming>`, combined
+    # with the resource's base_filter and the identity's `where` (reproducing partial-unique-index
+    # matching semantics). `source_fields` are the attributes the incoming side references and which
+    # therefore must exist on the `EXCLUDED` source even if these entries don't set them.
+    {on_query, source_fields} =
+      build_merge_on_query(resource, source, upsert_keys, options[:identity], changeset)
+
+    table =
+      case source do
+        {table, _resource} -> table
+        _ -> AshPostgres.DataLayer.Info.table(resource)
+      end
+
+    # Any of the rendered sub-queries (the SET expressions, the upsert condition, or the ON
+    # clause) can contain ash expressions that raise at runtime. Their `has_error?` flags live
+    # on separate query structs, so fold them together to decide whether to savepoint.
+    savepoint_query =
+      combine_expression_accumulators(set_query, [when_matched_condition_query, on_query])
+
+    with_savepoint(repo, savepoint_query, fn ->
+      AshPostgres.Merge.merge_all(repo,
+        resource: resource,
+        table: table,
+        prefix: opts[:prefix],
+        entries: ecto_changesets,
+        on_query: on_query,
+        source_fields: source_fields,
+        set_query: set_query,
+        when_matched_condition_query: when_matched_condition_query,
+        on_not_matched: :insert,
+        returning: opts[:returning],
+        report_action?: true
+      )
+    end)
+  end
+
+  # Returns `base_query` with its `has_error?` accumulator flag set if any of `base_query` or
+  # `others` flagged a potentially-raising expression, so a single `with_savepoint/3` call
+  # covers every sub-query rendered into the MERGE statement.
+  defp combine_expression_accumulators(base_query, others) do
+    has_error? =
+      [base_query | others]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.any?(& &1.__ash_bindings__.expression_accumulator.has_error?)
+
+    put_in(base_query.__ash_bindings__.expression_accumulator.has_error?, has_error?)
+  end
+
+  # Builds a `SELECT 1 ... WHERE <filter>` query whose rendered WHERE clause AshPostgres.Merge
+  # extracts and splices into a MERGE condition. Built from the same `from(row in source, as: ^0)`
+  # shape as the SET query so Ecto emits a consistent target alias across all clauses.
+  defp merge_filter_query(resource, source, filter) do
+    query =
+      from(row in source, as: ^0)
+      |> AshSql.Bindings.default_bindings(resource, AshPostgres.SqlImplementation)
+
+    case AshSql.Filter.filter(query, filter, resource) do
+      {:ok, query} -> Ecto.Query.select(query, 1)
+      {:error, error} -> raise Ash.Error.to_ash_error(error)
+    end
+  end
+
+  # Builds the rendered `ON` query for a MERGE upsert: a key-match expression for each upsert key,
+  # combined with the identity's `where` (and the resource base_filter, applied by `Ash.Query.new/1`).
+  # Also returns the attributes the incoming (`EXCLUDED`) side references, which must be present on
+  # the source.
+  defp build_merge_on_query(resource, source, keys, identity, changeset) do
+    nils_distinct? = if identity, do: identity.nils_distinct?, else: true
+    identity_where = identity && identity.where
+
+    {match_expressions, source_fields} =
+      Enum.map_reduce(keys, [], fn key, acc ->
+        {expression, fields} = key_match_expression(resource, key, nils_distinct?, changeset)
+        {expression, fields ++ acc}
+      end)
+
+    match_expression =
+      Enum.reduce(match_expressions, fn expression, acc -> Ash.Expr.expr(^acc and ^expression) end)
+
+    filter =
+      resource
+      |> Ash.Query.new()
+      |> Ash.Query.do_filter(match_expression)
+      |> then(fn query ->
+        if identity_where, do: Ash.Query.do_filter(query, identity_where), else: query
+      end)
+      |> Map.get(:filter)
+
+    {merge_filter_query(resource, source, filter), Enum.uniq(source_fields)}
+  end
+
+  # `<key on the existing row> == <key on the incoming row>`. For `nils_distinct?: false`
+  # identities (NULLS NOT DISTINCT) two NULL keys must also match, so widen to an
+  # `IS NOT DISTINCT FROM` equivalent. Returns the match expression and the attributes its
+  # incoming side references.
+  defp key_match_expression(resource, key, nils_distinct?, changeset) do
+    {lhs, rhs, source_fields} = key_match_sides(resource, key, changeset)
+
+    expression =
+      if nils_distinct? do
+        Ash.Expr.expr(^lhs == ^rhs)
+      else
+        Ash.Expr.expr(^lhs == ^rhs or (is_nil(^lhs) and is_nil(^rhs)))
+      end
+
+    {expression, source_fields}
+  end
+
+  # Produces `{existing-row expr, incoming-row expr, referenced source attributes}` for a key. The
+  # incoming side references the conflicting row via `upsert_conflict/1` (rendered as `EXCLUDED.col`).
+  # Calculation keys are resolved to a proper `Ash.Query.Calculation` (with context) and matched as
+  # expressions on both sides.
+  defp key_match_sides(resource, key, changeset) do
+    case Ash.Resource.Info.field(resource, key) do
+      %Ash.Resource.Attribute{} = attribute ->
+        {%Ash.Query.Ref{attribute: attribute, relationship_path: [], resource: resource},
+         %Ash.Query.UpsertConflict{attribute: key}, [key]}
+
+      %Ash.Resource.Calculation{calculation: {module, opts}} = resource_calculation ->
+        {:ok, calculation} =
+          Ash.Query.Calculation.new(
+            resource_calculation.name,
+            module,
+            opts,
+            resource_calculation.type,
+            resource_calculation.constraints
+          )
+
+        calculation =
+          Ash.Actions.Read.add_calc_context(
+            calculation,
+            changeset.context[:private][:actor],
+            changeset.context[:private][:authorize?],
+            changeset.tenant,
+            changeset.context[:private][:tracer],
+            changeset.domain,
+            resource,
+            parent_stack: []
+          )
+
+        resolved = calculation.module.expression(calculation.opts, calculation.context)
+        lhs = %Ash.Query.Ref{attribute: calculation, relationship_path: [], resource: resource}
+        rhs = rewrite_to_incoming_row(resolved)
+        {lhs, rhs, calculation_source_fields(resolved)}
+
+      other ->
+        raise ArgumentError,
+              "Cannot use #{inspect(key)} as a MERGE upsert key: unsupported field #{inspect(other && other.__struct__)}"
+    end
+  end
+
+  # Rewrites a calculation's (local) attribute references to reference the incoming/conflicting row.
+  defp rewrite_to_incoming_row(expression) do
+    Ash.Filter.map(expression, fn
+      %Ash.Query.Ref{relationship_path: [], attribute: attribute} ->
+        %Ash.Query.UpsertConflict{attribute: merge_field_name(attribute)}
+
+      %Ash.Query.Ref{} = ref ->
+        raise ArgumentError,
+              "Calculation MERGE upsert key references a relationship (#{inspect(ref.relationship_path)}), which cannot be matched in a single MERGE statement"
+
+      other ->
+        other
+    end)
+  end
+
+  # The local attributes a calculation key depends on; they must exist on the `EXCLUDED` source.
+  defp calculation_source_fields(expression) do
+    expression
+    |> Ash.Filter.list_refs()
+    |> Enum.filter(&(&1.relationship_path == []))
+    |> Enum.map(&merge_field_name(&1.attribute))
+  end
+
+  defp merge_field_name(%{name: name}), do: name
+  defp merge_field_name(name) when is_atom(name), do: name
 
   @doc false
   def get_source_for_upsert_field(field, resource) do

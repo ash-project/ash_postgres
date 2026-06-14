@@ -6,20 +6,22 @@ ExUnit.start(capture_log: true)
 
 Logger.configure(level: :debug)
 
-exclude_tags =
+# A `@tag :postgres_<n>` marks a test as requiring PostgreSQL >= n. Exclude any whose required
+# version is newer than the version under test. Defaults to 16 to match `TestRepo.min_pg_version/0`.
+pg_version =
   case System.get_env("PG_VERSION") do
-    "13" ->
-      [:postgres_14, :postgres_15, :postgres_16]
+    nil ->
+      16
 
-    "14" ->
-      [:postgres_15, :postgres_16]
-
-    "15" ->
-      [:postgres_16]
-
-    _ ->
-      []
+    version ->
+      case Integer.parse(version) do
+        {major, _} -> major
+        :error -> 16
+      end
   end
+
+exclude_tags =
+  for n <- [14, 15, 16, 17, 18], n > pg_version, do: :"postgres_#{n}"
 
 ExUnit.configure(stacktrace_depth: 100, exclude: exclude_tags)
 

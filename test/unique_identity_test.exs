@@ -82,4 +82,22 @@ defmodule AshPostgres.Test.UniqueIdentityTest do
     assert new_post.id == post.id
     assert new_post.price == 10
   end
+
+  @tag :postgres_17
+  test "upsert on a calculation-backed identity matches via the calculation expression" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "title", uniq_on_upper: "foo"})
+      |> Ash.create!()
+
+    upserted =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "title2", uniq_on_upper: "FOO"})
+      |> Ash.create!(upsert?: true, upsert_identity: :uniq_on_upper, upsert_fields: [:title])
+
+    # "foo" and "FOO" collide under UPPER(...), so this updates the existing row rather than inserting.
+    assert upserted.id == post.id
+    assert upserted.title == "title2"
+    assert Ash.Resource.get_metadata(upserted, :upsert_action) == :update
+  end
 end

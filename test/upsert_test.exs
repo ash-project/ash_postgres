@@ -145,4 +145,58 @@ defmodule AshPostgres.Test.UpsertTest do
 
     assert DateTime.compare(upserted.updated_at, past) == :eq
   end
+
+  describe "upsert_action metadata (MERGE, PostgreSQL 17+)" do
+    # Below PG 17, upserts use INSERT ... ON CONFLICT, which cannot report whether each row
+    # was inserted or updated; this metadata is only populated on the MERGE path.
+    @describetag :postgres_17
+
+    test "a created record is tagged :insert and an updated record is tagged :update" do
+      id = Ash.UUID.generate()
+
+      created =
+        Post
+        |> Ash.Changeset.for_create(:create, %{id: id, title: "title"})
+        |> Ash.create!(upsert?: true)
+
+      assert Ash.Resource.get_metadata(created, :upsert_action) == :insert
+
+      updated =
+        Post
+        |> Ash.Changeset.for_create(:create, %{id: id, title: "title2"})
+        |> Ash.create!(upsert?: true)
+
+      assert Ash.Resource.get_metadata(updated, :upsert_action) == :update
+    end
+
+    test "bulk upserts tag each record according to its action" do
+      existing_id = Ash.UUID.generate()
+      new_id = Ash.UUID.generate()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{id: existing_id, title: "existing"})
+      |> Ash.create!()
+
+      %Ash.BulkResult{records: records} =
+        Ash.bulk_create!(
+          [
+            %{id: existing_id, title: "updated"},
+            %{id: new_id, title: "brand new"}
+          ],
+          Post,
+          :create,
+          upsert?: true,
+          upsert_fields: [:title],
+          return_records?: true
+        )
+
+      actions =
+        Map.new(records, fn record ->
+          {record.id, Ash.Resource.get_metadata(record, :upsert_action)}
+        end)
+
+      assert actions[existing_id] == :update
+      assert actions[new_id] == :insert
+    end
+  end
 end
