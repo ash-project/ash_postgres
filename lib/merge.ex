@@ -50,6 +50,9 @@ defmodule AshPostgres.Merge do
     * `:source_fields` - attribute names that must exist on the source in addition to the entry
       columns (e.g. upsert keys or calculation-key dependencies referenced via `EXCLUDED`); any not
       set by the entries are supplied as NULL and are not inserted
+    * `:extra_source_columns` - synthetic (non-attribute) columns to add to the source, each
+      `%{name: atom, type: ecto_type, values: [value_per_entry]}` (e.g. per-row present? flags for
+      `update_many`). Exposed on `EXCLUDED` but never inserted.
     * `:on_query` (required) - an `Ecto.Query` (`select: 1`, `where: <pred>`) whose WHERE is the
       full `ON` condition (per-key matching plus base_filter / identity where)
     * `:set_query` - an `Ecto.Query` carrying `update: [set: ...]` (no `where`); rendered into
@@ -82,7 +85,13 @@ defmodule AshPostgres.Merge do
 
     # 1. USING (VALUES ...) AS EXCLUDED(cols) -- rendered, dumped, and cast by Ecto.
     {insert_header, values_sql, values_params} =
-      build_values_source(repo, resource, entries, opts[:source_fields] || [])
+      build_values_source(
+        repo,
+        resource,
+        entries,
+        opts[:source_fields] || [],
+        opts[:extra_source_columns] || []
+      )
 
     counter = length(values_params)
 
@@ -137,9 +146,7 @@ defmodule AshPostgres.Merge do
     {count, load_returning(repo, resource, result.rows, returning_fields, opts)}
   end
 
-  # -- USING source --------------------------------------------------------------------
-
-  defp build_values_source(repo, resource, entries, extra_fields) do
+  defp build_values_source(repo, resource, entries, extra_fields, extra_columns) do
     entry_fields = entries |> Enum.flat_map(&Map.keys/1) |> Enum.uniq()
 
     # The source is referenced as `EXCLUDED` in the ON/SET/condition clauses. Beyond the entry
@@ -150,15 +157,30 @@ defmodule AshPostgres.Merge do
     source_fields = Enum.uniq(entry_fields ++ extra_fields)
 
     insert_cols = source_columns(resource, entry_fields)
-    cols = source_columns(resource, source_fields)
+    attr_cols = source_columns(resource, source_fields)
 
-    types = Map.new(cols, fn {_field, source_col, type} -> {source_col, type} end)
+    # Synthetic, non-attribute columns (e.g. per-row "is this column present?" flags for
+    # update_many). They are exposed on `EXCLUDED` for the SET clause but never inserted.
+    types =
+      attr_cols
+      |> Map.new(fn {_field, source_col, type} -> {source_col, type} end)
+      |> Map.merge(Map.new(extra_columns, fn %{name: name, type: type} -> {name, type} end))
 
     rows =
-      Enum.map(entries, fn entry ->
-        Map.new(cols, fn {field, source_col, _type} ->
-          {source_col, Map.get(entry, field)}
-        end)
+      entries
+      |> Enum.with_index()
+      |> Enum.map(fn {entry, index} ->
+        attr_values =
+          Map.new(attr_cols, fn {field, source_col, _type} ->
+            {source_col, Map.get(entry, field)}
+          end)
+
+        synthetic_values =
+          Map.new(extra_columns, fn %{name: name, values: values} ->
+            {name, Enum.at(values, index)}
+          end)
+
+        Map.merge(attr_values, synthetic_values)
       end)
 
     {values_sql, values_params} =
@@ -240,8 +262,6 @@ defmodule AshPostgres.Merge do
     resource.__schema__(:field_source, field) || field
   end
 
-  # -- WHEN MATCHED --------------------------------------------------------------------
-
   defp build_when_matched(_repo, nil, _cond_sql, _counter), do: {"", [], nil}
 
   defp build_when_matched(_repo, :do_nothing, _cond_sql, _counter),
@@ -255,8 +275,6 @@ defmodule AshPostgres.Merge do
     {[" WHEN MATCHED", cond_part, " THEN UPDATE SET ", set_clause], params, target_alias}
   end
 
-  # -- WHEN NOT MATCHED ----------------------------------------------------------------
-
   defp build_when_not_matched(:do_nothing, _header), do: " WHEN NOT MATCHED THEN DO NOTHING"
 
   defp build_when_not_matched(:insert, header) do
@@ -264,8 +282,6 @@ defmodule AshPostgres.Merge do
     vals = Enum.map_join(header, ", ", fn col -> "#{@source_alias}.#{quote_name(col)}" end)
     " WHEN NOT MATCHED THEN INSERT (#{cols}) VALUES (#{vals})"
   end
-
-  # -- RETURNING -----------------------------------------------------------------------
 
   defp build_returning(opts, resource, target_alias) do
     case opts[:returning] do
@@ -294,8 +310,6 @@ defmodule AshPostgres.Merge do
 
     {" RETURNING " <> col_sql <> action_sql, %{sources: sources, report_action?: report_action?}}
   end
-
-  # -- Loading returned rows -----------------------------------------------------------
 
   defp load_returning(_repo, _resource, _rows, nil, _opts), do: nil
 
@@ -332,8 +346,7 @@ defmodule AshPostgres.Merge do
     end)
   end
 
-  # -- to_sql clause extraction (deterministic; no alias rewriting) --------------------
-
+  # Deterministically pull clauses out of rendered SQL (no alias rewriting).
   # `UPDATE "table" AS <alias> SET <set>` -> {alias, set}
   defp extract_set_clause(update_sql) do
     {before_set, after_set} = split_sql_keyword!(update_sql, "SET")
@@ -390,8 +403,7 @@ defmodule AshPostgres.Merge do
     end
   end
 
-  # -- SQL keyword scanning (quote/paren aware; not a regex) ----------------------------
-
+  # Scans for a top-level SQL keyword, skipping quoted strings and parens (not a regex).
   defp split_sql_keyword!(sql, keyword) do
     case split_sql_keyword(sql, keyword) do
       nil -> raise ArgumentError, "Expected #{keyword} in rendered SQL: #{inspect(sql)}"
@@ -476,8 +488,6 @@ defmodule AshPostgres.Merge do
       end
     end
   end
-
-  # -- quoting -------------------------------------------------------------------------
 
   defp quote_name(name) when is_atom(name), do: quote_name(Atom.to_string(name))
 

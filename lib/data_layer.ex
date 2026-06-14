@@ -683,6 +683,13 @@ defmodule AshPostgres.DataLayer do
 
   def can?(_, :destroy_query), do: true
 
+  def can?(resource, :update_many) do
+    # `update_many` is implemented with a single SQL MERGE, which (with RETURNING + merge_action)
+    # requires PostgreSQL 17, and the same tenant-management restriction as `update_query`.
+    AshPostgres.DataLayer.Info.pg_version_matches?(resource, ">= 17.0.0") &&
+      !AshPostgres.DataLayer.Info.manage_tenant_update?(resource)
+  end
+
   def can?(_, {:lock, :for_update}), do: true
   def can?(_, :composite_types), do: true
 
@@ -2489,6 +2496,168 @@ defmodule AshPostgres.DataLayer do
           resource
         )
     end
+  end
+
+  @impl true
+  @doc false
+  # Updates many records, each with its own changes, as a single SQL MERGE (PostgreSQL 17+).
+  # Each changeset targets one record by primary key (`changeset.data`); `changeset.attributes`
+  # are this record's changes and `changeset.atomics` are shared across the batch. Records that
+  # are no longer present are simply not returned (`WHEN NOT MATCHED THEN DO NOTHING`); the action
+  # layer diffs the returned records against the changesets to surface NotFound/Stale errors.
+  def update_many(resource, changesets, options) do
+    changesets = Enum.to_list(changesets)
+    changeset = Enum.at(changesets, 0)
+    repo = AshSql.dynamic_repo(resource, AshPostgres.SqlImplementation, changeset)
+    opts = AshSql.repo_opts(repo, AshPostgres.SqlImplementation, nil, options[:tenant], resource)
+
+    opts =
+      if options[:return_records?] do
+        returning =
+          case options[:action_select] do
+            nil -> true
+            [] -> Ash.Resource.Info.primary_key(resource)
+            fields -> fields
+          end
+
+        Keyword.put(opts, :returning, returning)
+      else
+        opts
+      end
+
+    source = resolve_source(resource, changeset)
+    pkey = Ash.Resource.Info.primary_key(resource)
+    %{atomics: atomics, filter: filter} = changeset
+
+    try do
+      # Each entry carries the primary key (for matching) plus this record's changed attributes.
+      entries =
+        Enum.map(changesets, fn cs -> Map.merge(Map.take(cs.data, pkey), cs.attributes) end)
+
+      {set_values, present_columns} = update_many_set(resource, changesets)
+
+      base_query =
+        from(row in source, as: ^0)
+        |> AshSql.Bindings.default_bindings(resource, AshPostgres.SqlImplementation)
+
+      set_query =
+        case AshSql.Atomics.query_with_atomics(
+               resource,
+               base_query,
+               nil,
+               atomics,
+               %{},
+               set_values
+             ) do
+          {:empty, _query} ->
+            raise "Cannot `update_many` with no changes."
+
+          {:ok, query} ->
+            query
+
+          {:error, error} ->
+            raise Ash.Error.to_ash_error(error)
+        end
+
+      when_matched_condition_query =
+        if filter, do: merge_filter_query(resource, source, filter)
+
+      {on_query, source_fields} = build_merge_on_query(resource, source, pkey, nil, changeset)
+
+      table =
+        case source do
+          {table, _resource} -> table
+          _ -> AshPostgres.DataLayer.Info.table(resource)
+        end
+
+      opts =
+        if schema = changeset.context[:data_layer][:schema] do
+          Keyword.put(opts, :prefix, schema)
+        else
+          opts
+        end
+
+      savepoint_query =
+        combine_expression_accumulators(set_query, [when_matched_condition_query, on_query])
+
+      result =
+        with_savepoint(repo, savepoint_query, fn ->
+          AshPostgres.Merge.merge_all(repo,
+            resource: resource,
+            table: table,
+            prefix: opts[:prefix],
+            entries: entries,
+            on_query: on_query,
+            source_fields: source_fields,
+            extra_source_columns: present_columns,
+            set_query: set_query,
+            when_matched_condition_query: when_matched_condition_query,
+            on_not_matched: :do_nothing,
+            returning: opts[:returning],
+            report_action?: true
+          )
+        end)
+
+      case result do
+        {_, nil} -> :ok
+        {_, records} -> {:ok, records}
+      end
+    rescue
+      e ->
+        handle_raised_error(
+          e,
+          __STACKTRACE__,
+          {:bulk_create, ecto_changeset(changeset.data, changeset, :update, repo, false)},
+          resource
+        )
+    end
+  end
+
+  # Single pass over the batch: an attribute set by *every* changeset is copied straight from the
+  # source (`col = EXCLUDED.col`); an attribute set by only *some* is gated by a per-row present?
+  # flag (`col = CASE WHEN EXCLUDED."col__present" THEN EXCLUDED.col ELSE t.col END`) so a record
+  # that didn't set it keeps its current value (and a record that set it to NULL still gets NULL).
+  # sobelow_skip ["DOS.StringToAtom"]
+  defp update_many_set(resource, changesets) do
+    total = length(changesets)
+
+    counts =
+      Enum.reduce(changesets, %{}, fn changeset, counts ->
+        Enum.reduce(Map.keys(changeset.attributes), counts, fn field, counts ->
+          Map.update(counts, field, 1, &(&1 + 1))
+        end)
+      end)
+
+    Enum.reduce(counts, {[], []}, fn {field, count}, {set_values, present_columns} ->
+      source_col = to_string(get_source_for_upsert_field(field, resource))
+
+      if count == total do
+        dynamic = Ecto.Query.dynamic([], fragment("EXCLUDED.?", identifier(^source_col)))
+        {[{field, dynamic} | set_values], present_columns}
+      else
+        present_name = String.to_atom(source_col <> "__present")
+        present_ref = to_string(present_name)
+
+        dynamic =
+          Ecto.Query.dynamic(
+            [row],
+            fragment(
+              "CASE WHEN EXCLUDED.? THEN EXCLUDED.? ELSE ? END",
+              identifier(^present_ref),
+              identifier(^source_col),
+              field(row, ^field)
+            )
+          )
+
+        present_column = %{
+          name: present_name,
+          type: :boolean,
+          values: Enum.map(changesets, &Map.has_key?(&1.attributes, field))
+        }
+
+        {[{field, dynamic} | set_values], [present_column | present_columns]}
+      end
+    end)
   end
 
   defp with_savepoint(
