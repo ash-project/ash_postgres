@@ -11,6 +11,43 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.10.0](https://github.com/ash-project/ash_postgres/compare/v2.9.1...v2.10.0) (2026-06-14)
+
+
+
+
+### Features:
+
+* add `update_many` callback by Zach Daniel
+
+### Bug Fixes:
+
+* Filter out empty snapshot directories (#765) by Rutgerdj
+
+* move table schema migrations (#758) by febarnett3
+
+* rewrite belongs_to reference indexes when multitenancy changes (#762) by Jinkyou Son
+
+* handle skipped references and delete constraint errors (#759) by ChivukulaVirinchi
+
+* ignore migrate false resources in drop detection (#757) by ChivukulaVirinchi
+
+* place atomics in binding `1`, not `0` by Zach Daniel
+
+### Improvements:
+
+* Implement upserts with MERGE (17+) by Zach Daniel
+
+* Warning for reviewing operations (#777) by colenelson0
+
+* add more generic table renaming by Zach Daniel
+
+* Add migrate_extensions? callback to allow repos to opt out of extension migrations (#761) by gixtrem
+
+* allow specifying global vs private statements (#751) by CyanideDragon
+
+* ash_postgres.gen.resources: many-to-many, views, no-PK tables, and prompt UX (#748) by Johannes Welebil
+
 ## [v2.9.1](https://github.com/ash-project/ash_postgres/compare/v2.9.0...v2.9.1) (2026-05-01)
 
 
