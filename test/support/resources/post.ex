@@ -528,6 +528,29 @@ defmodule AshPostgres.Test.Post do
       change(atomic_update(:score, expr((score || 0) + ^arg(:amount))))
     end
 
+    # Atomic-compatible action that also registers an after_action hook, used to verify
+    # `Ash.update_many` runs after_action hooks on its single-statement (MERGE) path.
+    update :update_and_mark do
+      accept([:title])
+      require_atomic?(true)
+      change(AshPostgres.Test.Changes.AtomicAfterActionMarker)
+    end
+
+    # Unconditional after_batch hook on an atomic action: runs on the MERGE path (no calculation).
+    update :update_with_after_batch do
+      accept([:title])
+      require_atomic?(true)
+      change(AshPostgres.Test.Changes.AfterBatchMarker)
+    end
+
+    # Conditional after_batch hook: its `where` becomes a calculation the data layer must evaluate
+    # over the merged rows — exercises the calculation (CTE) path of the MERGE.
+    update :update_with_conditional_after_batch do
+      accept([:title])
+      require_atomic?(true)
+      change(AshPostgres.Test.Changes.AfterBatchMarker, where: [compare(:score, greater_than: 5)])
+    end
+
     update :manual_update do
       require_atomic?(false)
       manual(AshPostgres.Test.Post.ManualUpdate)

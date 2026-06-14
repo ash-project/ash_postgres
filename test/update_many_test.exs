@@ -47,6 +47,103 @@ defmodule AshPostgres.Test.UpdateManyTest do
     assert Ash.Resource.get_metadata(record, :upsert_action) == :update
   end
 
+  test "return_notifications?: true returns a notification per updated record (atomic path)" do
+    a = create_post(%{title: "a"})
+    b = create_post(%{title: "b"})
+
+    %Ash.BulkResult{notifications: notifications} =
+      Ash.update_many(
+        [{a, %{title: "a!"}}, {b, %{title: "b!"}}],
+        Post,
+        :update,
+        return_notifications?: true,
+        return_records?: true
+      )
+
+    assert length(notifications) == 2
+    assert Enum.all?(notifications, &match?(%Ash.Notifier.Notification{resource: Post}, &1))
+    assert notifications |> Enum.map(& &1.action.name) |> Enum.uniq() == [:update]
+    # the notification carries the updated record
+    assert notifications |> Enum.map(& &1.data.title) |> Enum.sort() == ["a!", "b!"]
+  end
+
+  test "return_notifications?: true also works on the streaming path" do
+    a = create_post(%{title: "a"})
+
+    %Ash.BulkResult{notifications: notifications} =
+      Ash.update_many([{a, %{title: "a!"}}], Post, :change_title,
+        strategy: [:stream],
+        return_notifications?: true,
+        return_records?: true
+      )
+
+    assert [%Ash.Notifier.Notification{resource: Post}] = notifications
+  end
+
+  test "no notifications are produced unless requested" do
+    a = create_post(%{title: "a"})
+
+    %Ash.BulkResult{notifications: notifications} =
+      Ash.update_many([{a, %{title: "a!"}}], Post, :update, return_records?: true)
+
+    assert notifications == nil
+  end
+
+  test "runs after_action hooks on the single-statement (merge) path" do
+    a = create_post(%{title: "a"})
+    b = create_post(%{title: "b"})
+
+    %Ash.BulkResult{status: :success, records: records} =
+      Ash.update_many(
+        [{a, %{title: "a!"}}, {b, %{title: "b!"}}],
+        Post,
+        :update_and_mark,
+        return_records?: true
+      )
+
+    # the after_action hook set this metadata on each record
+    assert Enum.all?(records, &Ash.Resource.get_metadata(&1, :after_action_ran))
+    # and the distinct per-row inputs were still applied in the one statement
+    assert records |> Enum.map(& &1.title) |> Enum.sort() == ["a!", "b!"]
+  end
+
+  test "runs unconditional after_batch hooks on the merge path" do
+    a = create_post(%{title: "a"})
+    b = create_post(%{title: "b"})
+
+    %Ash.BulkResult{status: :success, records: records} =
+      Ash.update_many(
+        [{a, %{title: "a!"}}, {b, %{title: "b!"}}],
+        Post,
+        :update_with_after_batch,
+        return_records?: true
+      )
+
+    assert Enum.all?(records, &Ash.Resource.get_metadata(&1, :after_batch_ran))
+    assert records |> Enum.map(& &1.title) |> Enum.sort() == ["a!", "b!"]
+  end
+
+  test "conditional after_batch hooks are run via the streaming fallback" do
+    low = create_post(%{title: "low", score: 1})
+    high = create_post(%{title: "high", score: 10})
+
+    # A hook gated by a `where` needs both old and new row values together, which the MERGE can't
+    # surface, so these route to the streaming path (the same place bulk updates run them).
+    %Ash.BulkResult{status: :success, records: records} =
+      Ash.update_many(
+        [{low, %{title: "low!"}}, {high, %{title: "high!"}}],
+        Post,
+        :update_with_conditional_after_batch,
+        strategy: [:stream],
+        return_records?: true
+      )
+
+    by_id = Map.new(records, &{&1.id, &1})
+    # the hook's `where score > 5` only matches the high-score row
+    refute Ash.Resource.get_metadata(by_id[low.id], :after_batch_ran)
+    assert Ash.Resource.get_metadata(by_id[high.id], :after_batch_ran)
+  end
+
   test "preserves the only-if-changed behavior of update timestamps" do
     post = create_post(%{title: "a"})
     original = Ash.get!(Post, post.id)
