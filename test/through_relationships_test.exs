@@ -356,7 +356,7 @@ defmodule AshPostgres.Test.ThroughRelationshipsTest do
 
       assert [%{name: "Policy Test School 1"}] =
                AshPostgres.Test.Through.School
-               |> Ash.Query.filter(%{teachers: %{name: %{in: ^filter}}})
+               |> Ash.Query.filter_input(%{teachers: %{name: %{in: filter}}})
                |> Ash.read!(authorize?: true)
     end
 
@@ -376,7 +376,7 @@ defmodule AshPostgres.Test.ThroughRelationshipsTest do
 
       assert [%{name: "School With Active Teacher"}] =
                AshPostgres.Test.Through.School
-               |> Ash.Query.filter(%{teachers: %{name: %{in: ^filter}}})
+               |> Ash.Query.filter_input(%{teachers: %{name: %{in: filter}}})
                |> Ash.read!(authorize?: true)
     end
   end

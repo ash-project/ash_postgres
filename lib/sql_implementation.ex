@@ -53,8 +53,8 @@ defmodule AshPostgres.SqlImplementation do
         acc,
         _type
       ) do
-    query.__ash_bindings__.resource
-
+    # The incoming row is referenced as `EXCLUDED` for both `INSERT ... ON CONFLICT` and
+    # `MERGE` (where `AshPostgres.Merge` aliases the USING source `AS EXCLUDED`).
     {:ok,
      Ecto.Query.dynamic(
        [],
@@ -110,10 +110,13 @@ defmodule AshPostgres.SqlImplementation do
         Ecto.Query.dynamic(ilike(^arg1, ^arg2))
       end
 
-    if type != Ash.Type.Boolean do
-      {:ok, inner_dyn, acc}
+    # Cast the result to a proper boolean when that's the expected output type.
+    # `type` typically arrives as a `{Ash.Type.Boolean, constraints}` tuple, so
+    # match both forms.
+    if boolean_type?(type) do
+      {:ok, Ecto.Query.dynamic(type(^inner_dyn, :boolean)), acc}
     else
-      {:ok, Ecto.Query.dynamic(type(^inner_dyn, ^type)), acc}
+      {:ok, inner_dyn, acc}
     end
   end
 
@@ -385,6 +388,12 @@ defmodule AshPostgres.SqlImplementation do
       ) do
     :error
   end
+
+  defp boolean_type?(Ash.Type.Boolean), do: true
+  defp boolean_type?({Ash.Type.Boolean, _}), do: true
+  defp boolean_type?(:boolean), do: true
+  defp boolean_type?({:boolean, _}), do: true
+  defp boolean_type?(_), do: false
 
   @impl true
   def table(resource) do

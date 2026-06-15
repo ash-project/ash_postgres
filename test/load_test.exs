@@ -8,6 +8,7 @@ defmodule AshPostgres.Test.LoadTest do
   alias AshPostgres.Test.{
     Author,
     Comment,
+    NotificationRecipient,
     Post,
     PostFollower,
     Record,
@@ -232,6 +233,40 @@ defmodule AshPostgres.Test.LoadTest do
       |> Ash.read!()
 
     assert length(post.first_3_followers) == 2
+  end
+
+  test "many_to_many can sort on a polymorphic partial identity join relationship" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "a"})
+      |> Ash.create!()
+
+    followers =
+      for i <- 0..2 do
+        User
+        |> Ash.Changeset.for_create(:create, %{name: "user#{i}", is_active: true})
+        |> Ash.create!()
+      end
+
+    followers
+    |> Enum.zip([2, 0, 1])
+    |> Enum.each(fn {follower, order} ->
+      NotificationRecipient
+      |> Ash.Changeset.for_create(:create, %{
+        order: order,
+        post_id: post.id,
+        user_id: follower.id
+      })
+      |> Ash.create!()
+    end)
+
+    [post] =
+      Post
+      |> Ash.Query.for_read(:read, %{})
+      |> Ash.Query.load(:sorted_notification_users)
+      |> Ash.read!()
+
+    assert Enum.map(post.sorted_notification_users, & &1.name) == ["user1", "user2", "user0"]
   end
 
   test "many_to_many loads work when nested" do

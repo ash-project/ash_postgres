@@ -25,12 +25,6 @@ defmodule AshPostgres.CalculationTest do
   import Ash.Expr
   import ExUnit.CaptureLog
 
-  setup do
-    on_exit(fn ->
-      Logger.configure(level: :warning)
-    end)
-  end
-
   test "a calculation that references a first optimizable aggregate can be sorted on" do
     author1 =
       Author
@@ -146,8 +140,6 @@ defmodule AshPostgres.CalculationTest do
       |> Ash.Changeset.for_create(:create, %{title: "match"})
       |> Ash.create!()
 
-    Logger.configure(level: :debug)
-
     log1 =
       capture_log(fn ->
         post
@@ -175,8 +167,6 @@ defmodule AshPostgres.CalculationTest do
       Post
       |> Ash.Changeset.for_create(:create, %{title: "match"})
       |> Ash.create!()
-
-    Logger.configure(level: :debug)
 
     log =
       capture_log(fn ->
