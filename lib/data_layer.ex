@@ -3729,10 +3729,9 @@ defmodule AshPostgres.DataLayer do
               fields -> fields
             end
           else
-            case Enum.filter(index.fields, &is_atom/1) do
-              [] -> pkey
-              fields -> fields
-            end
+            index.fields
+            |> Enum.map(&AshPostgres.CustomIndex.column_name/1)
+            |> Enum.uniq()
           end
 
         Ecto.Changeset.unique_constraint(changeset, fields, opts)

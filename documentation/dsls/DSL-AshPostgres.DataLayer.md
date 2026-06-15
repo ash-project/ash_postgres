@@ -103,7 +103,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`fields`](#postgres-custom_indexes-index-fields){: #postgres-custom_indexes-index-fields } | `atom \| String.t \| list(atom \| String.t)` |  | The fields to include in the index. |
+| [`fields`](#postgres-custom_indexes-index-fields){: #postgres-custom_indexes-index-fields } | `atom \| String.t \| {:asc \| :desc, atom \| String.t} \| list(atom \| String.t \| {:asc \| :desc, atom \| String.t})` |  | The fields to include in the index. Each entry can be an atom, string, or a tuple with an order using :desc or :asc and a field. |
 ### Options
 
 | Name | Type | Default | Docs |
