@@ -420,6 +420,7 @@ defmodule AshPostgres.DataLayer do
 
   use Spark.Dsl.Extension,
     sections: @sections,
+    transformers: [AshPostgres.Transformers.AddQueryTimeoutPreparation],
     verifiers: [
       AshPostgres.Verifiers.PreventMultidimensionalArrayAggregates,
       AshPostgres.Verifiers.ValidateReferences,
@@ -833,7 +834,7 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def set_context(resource, data_layer_query, context) do
-    AshSql.Query.set_context(resource, data_layer_query, AshPostgres.SqlImplementation, context)
+    AshPostgres.Sql.Query.set_context(resource, data_layer_query, context)
   end
 
   @impl true
@@ -864,10 +865,7 @@ defmodule AshPostgres.DataLayer do
       repo = AshSql.dynamic_repo(resource, AshPostgres.SqlImplementation, query)
 
       with_savepoint(repo, query, fn ->
-        repo.all(
-          query,
-          AshSql.repo_opts(repo, AshPostgres.SqlImplementation, nil, nil, resource)
-        )
+        AshPostgres.RepoOpts.all(repo, query, resource)
         |> AshSql.Query.remap_mapped_fields(query)
         |> then(fn results ->
           if query.__ash_bindings__.context[:data_layer][:combination_of_queries?] do
@@ -1041,16 +1039,7 @@ defmodule AshPostgres.DataLayer do
                   repo =
                     AshSql.dynamic_repo(source_resource, AshPostgres.SqlImplementation, query)
 
-                  repo.one(
-                    query,
-                    AshSql.repo_opts(
-                      repo,
-                      AshPostgres.SqlImplementation,
-                      nil,
-                      nil,
-                      source_resource
-                    )
-                  )
+                  AshPostgres.RepoOpts.one(repo, query, source_resource)
               end
 
             {:ok,
@@ -1101,10 +1090,7 @@ defmodule AshPostgres.DataLayer do
           end
 
         results =
-          repo.all(
-            lateral_join_query,
-            AshSql.repo_opts(repo, AshPostgres.SqlImplementation, nil, nil, source_resource)
-          )
+          AshPostgres.RepoOpts.all(repo, lateral_join_query, source_resource)
           |> AshSql.Query.remap_mapped_fields(
             query,
             calculations_require_rewrite,
