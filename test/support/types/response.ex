@@ -48,7 +48,7 @@ defmodule AshPostgres.Test.Types.Response do
     else
       case cast_input(new_value, constraints) do
         {:ok, value} -> {:atomic, value}
-        {:error, error} -> {:error, error}
+        :error -> :error
       end
     end
   end

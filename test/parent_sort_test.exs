@@ -7,8 +7,6 @@ defmodule AshPostgres.Test.ParentSortTest do
 
   alias AshPostgres.Test.{Organization, Post, User}
 
-  require Ash.Query
-
   test "can reference parent field when declaring default sort in has_many no_attributes? relationship" do
     organization =
       Organization

@@ -6,8 +6,6 @@ defmodule AshPostgres.Test.CustomIndexTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.Post
 
-  require Ash.Query
-
   test "unique constraint errors are properly caught" do
     Post
     |> Ash.Changeset.for_create(:create, %{

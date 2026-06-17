@@ -6,8 +6,6 @@ defmodule AshPostgres.Test.Support.Relationships.FilterChileRelationshipByParent
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.{Comment, Post}
 
-  require Ash.Query
-
   describe "loading ratings of a comment filtered by a post" do
     setup do
       post =

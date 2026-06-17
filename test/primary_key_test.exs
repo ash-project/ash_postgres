@@ -7,8 +7,6 @@ defmodule AshPostgres.Test.PrimaryKeyTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.{IntegerPost, Post, PostView}
 
-  require Ash.Query
-
   test "creates record with integer primary key" do
     assert %IntegerPost{} =
              IntegerPost |> Ash.Changeset.for_create(:create, %{title: "title"}) |> Ash.create!()

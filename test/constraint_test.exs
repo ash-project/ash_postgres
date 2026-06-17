@@ -7,8 +7,6 @@ defmodule AshPostgres.ConstraintTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.Post
 
-  require Ash.Query
-
   test "constraint messages are properly raised" do
     assert_raise Ash.Error.Invalid, ~r/yo, bad price/, fn ->
       Post

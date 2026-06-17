@@ -6,8 +6,6 @@ defmodule AshPostgres.Test.UpsertTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.Post
 
-  require Ash.Query
-
   test "empty upserts" do
     id = Ash.UUID.generate()
 

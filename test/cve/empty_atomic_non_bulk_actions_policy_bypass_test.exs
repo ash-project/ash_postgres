@@ -12,8 +12,6 @@ defmodule AshPostgres.EmptyAtomicNonBulkActionsPolicyBypassTest do
 
   alias AshPostgres.Test.PostWithEmptyUpdate
 
-  require Ash.Query
-
   test "a forbidden error is appropriately raised on atomic upgraded, empty, non-bulk actions" do
     post =
       PostWithEmptyUpdate

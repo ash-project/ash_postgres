@@ -728,7 +728,7 @@ if Code.ensure_loaded?(Igniter) do
     defp custom_indexes(table_spec, true) do
       table_spec.indexes
       |> Enum.reject(fn index ->
-        !index.unique? || (&index_as_identity?/1) ||
+        !index.unique? || index_as_identity?(index) ||
           Enum.any?(index.columns, &String.contains?(&1, "("))
       end)
       |> case do

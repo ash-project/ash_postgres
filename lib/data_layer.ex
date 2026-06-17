@@ -1693,8 +1693,12 @@ defmodule AshPostgres.DataLayer do
     Ash.Query.do_filter(query, expr)
   end
 
-  defp get_subquery(%Ecto.Query{} = query), do: query
-  defp get_subquery(%Ecto.SubQuery{query: query}), do: query
+  defp get_subquery(query) do
+    case query do
+      %Ecto.SubQuery{query: query} -> query
+      %Ecto.Query{} -> query
+    end
+  end
 
   @doc false
   def set_subquery_prefix(data_layer_query, source_query, resource) do

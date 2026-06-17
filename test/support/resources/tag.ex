@@ -8,8 +8,6 @@ defmodule AshPostgres.Test.Tag do
     domain: AshPostgres.Test.Domain,
     data_layer: AshPostgres.DataLayer
 
-  require Ash.Sort
-
   postgres do
     table "tags"
     repo AshPostgres.TestRepo

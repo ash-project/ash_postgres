@@ -7,8 +7,6 @@ defmodule AshPostgres.DevMigrationsTest do
   @moduletag :migration
   @moduletag :tmp_dir
 
-  require Logger
-
   alias Ecto.Adapters.SQL.Sandbox
 
   setup %{tmp_dir: tmp_dir} do

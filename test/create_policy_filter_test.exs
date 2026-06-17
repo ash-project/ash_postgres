@@ -19,7 +19,6 @@ defmodule AshPostgres.Test.CreatePolicyFilterTest do
   """
 
   use AshPostgres.RepoCase, async: false
-  require Ash.Query
 
   defmodule Domain do
     use Ash.Domain
