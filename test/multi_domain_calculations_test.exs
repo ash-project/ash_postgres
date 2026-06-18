@@ -5,8 +5,6 @@
 defmodule AshPostgres.Test.MultiDomainCalculationsTest do
   use AshPostgres.RepoCase, async: false
 
-  require Ash.Query
-
   test "total is returned correctly" do
     item =
       AshPostgres.Test.MultiDomainCalculations.DomainOne.Item

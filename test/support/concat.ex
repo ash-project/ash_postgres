@@ -5,7 +5,6 @@
 defmodule AshPostgres.Test.Concat do
   @moduledoc false
   use Ash.Resource.Calculation
-  require Ash.Query
 
   def init(opts) do
     if opts[:keys] && is_list(opts[:keys]) && Enum.all?(opts[:keys], &is_atom/1) do

@@ -11,8 +11,6 @@ defmodule AshPostgres.Test.PostWithEmptyUpdate do
       Ash.Policy.Authorizer
     ]
 
-  require Ash.Sort
-
   policies do
     policy action(:empty_update) do
       # force visiting the database

@@ -4,7 +4,6 @@
 
 defmodule AshPostgres.EctoCompatibilityTest do
   use AshPostgres.RepoCase, async: false
-  require Ash.Query
 
   test "call Ecto.Repo.insert! via Ash Repo" do
     org =

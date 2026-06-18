@@ -6,8 +6,6 @@ defmodule AshPostgres.PolymorphismTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.{Label, Post, Rating}
 
-  require Ash.Query
-
   test "you can create related data" do
     Post
     |> Ash.Changeset.for_create(:create, rating: %{score: 10})

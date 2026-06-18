@@ -6,7 +6,6 @@ if Code.ensure_loaded?(Igniter) do
   defmodule Mix.Tasks.AshPostgres.Install do
     @moduledoc "Installs AshPostgres. Should be run with `mix igniter.install ash_postgres`"
     @shortdoc @moduledoc
-    require Igniter.Code.Common
     require Igniter.Code.Function
     use Igniter.Mix.Task
 

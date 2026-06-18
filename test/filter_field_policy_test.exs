@@ -7,8 +7,6 @@ defmodule FilterFieldPolicyTest do
 
   alias AshPostgres.Test.{Organization, Post, User}
 
-  require Ash.Query
-
   test "filter uses the correct field policies when exanding refs" do
     organization =
       Organization

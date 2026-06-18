@@ -6,8 +6,6 @@ defmodule AshPostgres.Test.UpdateManyTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.Post
 
-  require Ash.Query
-
   # `update_many` is implemented as a single SQL MERGE, which requires PostgreSQL 17.
   @moduletag :postgres_17
 

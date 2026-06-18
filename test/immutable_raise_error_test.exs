@@ -7,8 +7,6 @@ defmodule AshPostgres.ImmutableRaiseErrorTest do
 
   alias AshPostgres.Test.ImmutableErrorTester
 
-  require Ash.Query
-
   setup do
     original = Application.get_env(:ash_postgres, :test_repo_use_immutable_errors?)
     Application.put_env(:ash_postgres, :test_repo_use_immutable_errors?, true)

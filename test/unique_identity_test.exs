@@ -7,8 +7,6 @@ defmodule AshPostgres.Test.UniqueIdentityTest do
   alias AshPostgres.Test.Organization
   alias AshPostgres.Test.Post
 
-  require Ash.Query
-
   test "unique constraint errors are properly caught" do
     post =
       Post

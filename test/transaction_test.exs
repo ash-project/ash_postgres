@@ -6,8 +6,6 @@ defmodule AshPostgres.Test.TransactionTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.Post
 
-  require Ash.Query
-
   test "after_transaction hooks are invoked on failure" do
     assert_raise Ash.Error.Unknown, ~r/something bad happened/, fn ->
       Post
