@@ -7,15 +7,6 @@ defmodule AshPostgres.ResourceGeenratorTests do
 
   import Igniter.Test
 
-  defp assert_creates_normalized(igniter, path, expected) do
-    assert_creates(igniter, path, fn actual ->
-      actual = String.replace(actual, "\r\n", "\n")
-      expected = String.replace(expected, "\r\n", "\n")
-
-      assert actual == expected
-    end)
-  end
-
   setup do
     AshPostgres.TestRepo.query!("DROP TABLE IF EXISTS example_table")
 
