@@ -30,7 +30,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
       "--repo",
       "AshPostgres.TestRepo"
     ])
-    |> assert_creates_normalized("lib/my_app/accounts/example_table.ex", """
+    |> assert_creates("lib/my_app/accounts/example_table.ex", """
     defmodule MyApp.Accounts.ExampleTable do
       use Ash.Resource,
         domain: MyApp.Accounts,
@@ -84,7 +84,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
       "--repo",
       "AshPostgres.TestRepo"
     ])
-    |> assert_creates_normalized("lib/my_app/accounts/pk_less_table.ex", """
+    |> assert_creates("lib/my_app/accounts/pk_less_table.ex", """
     defmodule MyApp.Accounts.PkLessTable do
       use Ash.Resource,
         domain: MyApp.Accounts,
@@ -143,7 +143,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
       "AshPostgres.TestRepo",
       "--include-views"
     ])
-    |> assert_creates_normalized("lib/my_app/accounts/example_view.ex", """
+    |> assert_creates("lib/my_app/accounts/example_view.ex", """
     defmodule MyApp.Accounts.ExampleView do
       use Ash.Resource,
         domain: MyApp.Accounts,
@@ -211,7 +211,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
       "AshPostgres.TestRepo",
       "--include-views"
     ])
-    |> assert_creates_normalized("lib/my_app/accounts/example_mv.ex", """
+    |> assert_creates("lib/my_app/accounts/example_mv.ex", """
     defmodule MyApp.Accounts.ExampleMv do
       use Ash.Resource,
         domain: MyApp.Accounts,
@@ -350,7 +350,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
       "--repo",
       "AshPostgres.TestRepo"
     ])
-    |> assert_creates_normalized("lib/my_app/inventory/warehouse.ex", """
+    |> assert_creates("lib/my_app/inventory/warehouse.ex", """
     defmodule MyApp.Inventory.Warehouse do
       use Ash.Resource,
         domain: MyApp.Inventory,
@@ -388,7 +388,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
       end
     end
     """)
-    |> assert_creates_normalized("lib/my_app/inventory/product.ex", """
+    |> assert_creates("lib/my_app/inventory/product.ex", """
     defmodule MyApp.Inventory.Product do
       use Ash.Resource,
         domain: MyApp.Inventory,
@@ -489,7 +489,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
         "AshPostgres.TestRepo",
         "--fragments"
       ])
-      |> assert_creates_normalized("lib/my_app/accounts/example_table.ex", """
+      |> assert_creates("lib/my_app/accounts/example_table.ex", """
       defmodule MyApp.Accounts.ExampleTable do
         use Ash.Resource,
           domain: MyApp.Accounts,
@@ -506,7 +506,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
         end
       end
       """)
-      |> assert_creates_normalized("lib/my_app/accounts/example_table/model.ex", """
+      |> assert_creates("lib/my_app/accounts/example_table/model.ex", """
       defmodule MyApp.Accounts.ExampleTable.Model do
         use Spark.Dsl.Fragment,
           of: Ash.Resource
@@ -565,7 +565,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
         "AshPostgres.TestRepo",
         "--fragments"
       ])
-      |> assert_creates_normalized("lib/my_app/sales/customer.ex", """
+      |> assert_creates("lib/my_app/sales/customer.ex", """
       defmodule MyApp.Sales.Customer do
         use Ash.Resource,
           domain: MyApp.Sales,
@@ -583,7 +583,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
         end
       end
       """)
-      |> assert_creates_normalized("lib/my_app/sales/customer/model.ex", """
+      |> assert_creates("lib/my_app/sales/customer/model.ex", """
       defmodule MyApp.Sales.Customer.Model do
         use Spark.Dsl.Fragment,
           of: Ash.Resource
@@ -606,7 +606,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
         end
       end
       """)
-      |> assert_creates_normalized("lib/my_app/sales/order/model.ex", """
+      |> assert_creates("lib/my_app/sales/order/model.ex", """
       defmodule MyApp.Sales.Order.Model do
         use Spark.Dsl.Fragment,
           of: Ash.Resource
@@ -673,7 +673,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
       # Resource should NOT be modified (it already exists)
       |> assert_unchanged("lib/my_app/accounts/example_table.ex")
       # Fragment should still be created
-      |> assert_creates_normalized("lib/my_app/accounts/example_table/model.ex", """
+      |> assert_creates("lib/my_app/accounts/example_table/model.ex", """
       defmodule MyApp.Accounts.ExampleTable.Model do
         use Spark.Dsl.Fragment,
           of: Ash.Resource
@@ -748,7 +748,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
         "--repo",
         "AshPostgres.TestRepo"
       ])
-      |> assert_creates_normalized("lib/my_app/blog/article.ex", """
+      |> assert_creates("lib/my_app/blog/article.ex", """
       defmodule MyApp.Blog.Article do
         use Ash.Resource,
           domain: MyApp.Blog,
@@ -786,7 +786,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
         end
       end
       """)
-      |> assert_creates_normalized("lib/my_app/blog/topic.ex", """
+      |> assert_creates("lib/my_app/blog/topic.ex", """
       defmodule MyApp.Blog.Topic do
         use Ash.Resource,
           domain: MyApp.Blog,
@@ -1082,7 +1082,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
         "--repo",
         "AshPostgres.TestRepo"
       ])
-      |> assert_creates_normalized("lib/my_app/blog/article.ex", """
+      |> assert_creates("lib/my_app/blog/article.ex", """
       defmodule MyApp.Blog.Article do
         use Ash.Resource,
           domain: MyApp.Blog,
@@ -1120,7 +1120,7 @@ defmodule AshPostgres.ResourceGeenratorTests do
         end
       end
       """)
-      |> assert_creates_normalized("lib/my_app/blog/person.ex", """
+      |> assert_creates("lib/my_app/blog/person.ex", """
       defmodule MyApp.Blog.Person do
         use Ash.Resource,
           domain: MyApp.Blog,
