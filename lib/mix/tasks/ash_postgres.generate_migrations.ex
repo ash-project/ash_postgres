@@ -8,7 +8,8 @@ defmodule Mix.Tasks.AshPostgres.GenerateMigrations do
 
   Options:
 
-  * `domains` - a comma separated list of Domain modules, for which migrations will be generated
+  * `domains` - a comma separated list of Domain modules, for which migrations will be generated.
+      Defaults to the domains configured in the application's `:ash_domains` configuration.
   * `snapshot-path` - a custom path to store the snapshots, defaults to "priv/repo_name/resource_snapshots"
   * `migration-path` - a custom path to store the migrations, defaults to "priv/repo_name/migrations".
     Migrations are stored in a folder for each repo, so `priv/repo_name/migrations`
