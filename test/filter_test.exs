@@ -1003,8 +1003,6 @@ defmodule AshPostgres.FilterTest do
         |> Ash.create!()
 
         if rem(i, 2) == 0 do
-          Process.sleep(2)
-
           Comment
           |> Ash.Changeset.for_create(:create, %{title: "later_comment"})
           |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
