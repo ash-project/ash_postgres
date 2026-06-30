@@ -866,7 +866,13 @@ defmodule AshPostgres.DataLayer do
       with_savepoint(repo, query, fn ->
         repo.all(
           query,
-          AshSql.repo_opts(repo, AshPostgres.SqlImplementation, nil, nil, resource)
+          AshSql.repo_opts(
+            repo,
+            AshPostgres.SqlImplementation,
+            repo_timeout(query),
+            nil,
+            resource
+          )
         )
         |> AshSql.Query.remap_mapped_fields(query)
         |> then(fn results ->
@@ -891,6 +897,12 @@ defmodule AshPostgres.DataLayer do
 
   defp no_table?(%{from: %{source: {"", _}}}), do: true
   defp no_table?(_), do: false
+
+  defp repo_timeout(%{__ash_bindings__: %{context: context}}) when is_map(context) do
+    get_in(context, [:data_layer, :timeout]) || (context[:action] && context[:action].timeout)
+  end
+
+  defp repo_timeout(_), do: nil
 
   @impl true
   def functions(resource) do
@@ -1046,7 +1058,7 @@ defmodule AshPostgres.DataLayer do
                     AshSql.repo_opts(
                       repo,
                       AshPostgres.SqlImplementation,
-                      nil,
+                      repo_timeout(query),
                       nil,
                       source_resource
                     )
@@ -1103,7 +1115,13 @@ defmodule AshPostgres.DataLayer do
         results =
           repo.all(
             lateral_join_query,
-            AshSql.repo_opts(repo, AshPostgres.SqlImplementation, nil, nil, source_resource)
+            AshSql.repo_opts(
+              repo,
+              AshPostgres.SqlImplementation,
+              repo_timeout(lateral_join_query),
+              nil,
+              source_resource
+            )
           )
           |> AshSql.Query.remap_mapped_fields(
             query,
@@ -1693,12 +1711,8 @@ defmodule AshPostgres.DataLayer do
     Ash.Query.do_filter(query, expr)
   end
 
-  defp get_subquery(query) do
-    case query do
-      %Ecto.SubQuery{query: query} -> query
-      %Ecto.Query{} -> query
-    end
-  end
+  defp get_subquery(%Ecto.Query{} = query), do: query
+  defp get_subquery(%Ecto.SubQuery{query: query}), do: query
 
   @doc false
   def set_subquery_prefix(data_layer_query, source_query, resource) do
