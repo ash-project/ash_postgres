@@ -427,12 +427,22 @@ defmodule AshPostgres.MigrationGeneratorTest do
       prev_pg_version_env = System.fetch_env("PG_VERSION")
       System.put_env("PG_VERSION", "18")
 
+      # TestRepo defaults `use_builtin_uuidv7_function?` to false (to avoid
+      # snapshot churn at min_pg_version 19); opt into the native function here.
+      prev_use_builtin = Application.get_env(:ash_postgres, :test_use_builtin_uuidv7?)
+      Application.put_env(:ash_postgres, :test_use_builtin_uuidv7?, true)
+
       on_exit(fn ->
         case prev_pg_version_env do
           # there was a previous env var set, restore it
           {:ok, value} -> System.put_env("PG_VERSION", value)
           # there was nothing set, delete what we set
           :error -> System.delete_env("PG_VERSION")
+        end
+
+        case prev_use_builtin do
+          nil -> Application.delete_env(:ash_postgres, :test_use_builtin_uuidv7?)
+          value -> Application.put_env(:ash_postgres, :test_use_builtin_uuidv7?, value)
         end
       end)
 

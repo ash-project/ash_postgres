@@ -5,6 +5,7 @@
     "uuid-ossp",
     "pg_trgm",
     "citext",
+    "btree_gist",
     "demo-functions_v1",
     "immutable_raise_error_v2",
     "ltree"

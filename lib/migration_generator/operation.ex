@@ -981,6 +981,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       :multitenancy,
       :old_multitenancy,
       :insert_after_attribute_source,
+      :temporal,
       no_phase: true,
       concurrently: false
     ]
@@ -1009,38 +1010,113 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       concurrently_option = if Map.get(op, :concurrently), do: "concurrently: true"
 
-      cond do
-        base_filter && where ->
-          where = "(#{where}) AND (#{base_filter})"
+      plain =
+        cond do
+          base_filter && where ->
+            where = "(#{where}) AND (#{base_filter})"
 
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where), concurrently_option])})"
+            "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where), concurrently_option])})"
 
-        base_filter ->
-          base_filter = "(#{base_filter})"
+          base_filter ->
+            base_filter = "(#{base_filter})"
 
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), concurrently_option])})"
+            "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), concurrently_option])})"
 
-        where ->
-          where = "(#{where})"
+          where ->
+            where = "(#{where})"
 
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where), concurrently_option])})"
+            "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where), concurrently_option])})"
 
-        true ->
-          "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), concurrently_option])})"
+          true ->
+            "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), concurrently_option])})"
+        end
+
+      case temporal_attribute(op) do
+        nil ->
+          plain
+
+        period ->
+          # Period-aware uniqueness: the same key values may recur across non-overlapping
+          # periods (history), but never within a single instant. PG19+ enforces this with
+          # a `WITHOUT OVERLAPS`-style GiST exclusion (`key WITH =`, `period WITH &&`,
+          # needs `btree_gist`). Version-guarded so the migration is portable — on servers
+          # older than PG19 (where temporal isn't supported) it degrades to a plain unique
+          # index rather than failing.
+          predicate =
+            cond do
+              base_filter && where -> "(#{where}) AND (#{base_filter})"
+              base_filter -> "(#{base_filter})"
+              where -> "(#{where})"
+              true -> nil
+            end
+
+          exclude_cols = Enum.map_join(keys, ", ", &"#{&1} WITH =") <> ", #{period} WITH &&"
+          where_sql = if predicate, do: " WHERE (#{predicate})", else: ""
+
+          body =
+            "ADD CONSTRAINT \\\"#{index_name}\\\" EXCLUDE USING gist (#{exclude_cols})#{where_sql}"
+
+          """
+          if repo().query!("SHOW server_version_num").rows |> hd() |> hd() |> String.to_integer() >= 190_000 do
+            #{alter_table(table, schema, multitenancy, body)}
+          else
+            #{plain}
+          end
+          """
       end
     end
 
-    def down(%{
-          identity: %{name: name, keys: keys, index_name: index_name, all_tenants?: all_tenants?},
-          table: table,
-          schema: schema,
-          multitenancy: multitenancy
-        }) do
+    def down(
+          %{
+            identity: %{name: name, keys: keys, index_name: index_name, all_tenants?: all_tenants?},
+            table: table,
+            schema: schema,
+            multitenancy: multitenancy
+          } = op
+        ) do
       keys = index_keys(keys, all_tenants?, multitenancy)
 
       index_name = index_name || "#{table}_#{name}_index"
 
-      "drop_if_exists unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema)])})"
+      plain =
+        "drop_if_exists unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema)])})"
+
+      case temporal_attribute(op) do
+        nil ->
+          plain
+
+        _period ->
+          body = "DROP CONSTRAINT IF EXISTS \\\"#{index_name}\\\""
+
+          """
+          if repo().query!("SHOW server_version_num").rows |> hd() |> hd() |> String.to_integer() >= 190_000 do
+            #{alter_table(table, schema, multitenancy, body)}
+          else
+            #{plain}
+          end
+          """
+      end
+    end
+
+    defp temporal_attribute(%{temporal: %{strategy: :context, attribute: attribute}})
+         when is_binary(attribute),
+         do: attribute
+
+    defp temporal_attribute(_), do: nil
+
+    # An `execute("ALTER TABLE <qualified> <body>")` line, qualifying the table the same
+    # way the temporal primary key does (context multitenancy -> runtime `prefix()`).
+    defp alter_table(table, schema, multitenancy, body) do
+      cond do
+        multitenancy.strategy == :context ->
+          "execute(\"ALTER TABLE \\\"\#{prefix()}\\\".\\\"#{table}\\\" #{body}\")"
+
+        schema ->
+          "execute(\"ALTER TABLE \\\"#{schema}.#{table}\\\" #{body}\")"
+
+        true ->
+          "execute(\"ALTER TABLE \\\"#{table}\\\" #{body}\")"
+      end
     end
   end
 
@@ -1211,26 +1287,45 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule AddPrimaryKey do
     @moduledoc false
-    defstruct [:schema, :table, :keys, no_phase: true]
+    defstruct [:schema, :table, :keys, :temporal, no_phase: true]
 
-    def up(%{schema: schema, table: table, keys: keys, multitenancy: multitenancy}) do
-      keys = Enum.join(keys, ", ")
+    def up(%{schema: schema, table: table, keys: keys, multitenancy: multitenancy} = op) do
+      temporal? =
+        match?(%{strategy: :context, attribute: attribute} when is_binary(attribute), op.temporal)
 
-      cond do
-        multitenancy.strategy == :context ->
-          """
-          execute("ALTER TABLE \\\"\#{prefix()}\\\".\\\"#{table}\\\" ADD PRIMARY KEY (#{keys})")
-          """
+      alter_for = fn key_string ->
+        cond do
+          multitenancy.strategy == :context ->
+            "execute(\"ALTER TABLE \\\"\#{prefix()}\\\".\\\"#{table}\\\" ADD PRIMARY KEY (#{key_string})\")"
 
-        schema ->
-          """
-          execute("ALTER TABLE \\\"#{schema}.#{table}\\\" ADD PRIMARY KEY (#{keys})")
-          """
+          schema ->
+            "execute(\"ALTER TABLE \\\"#{schema}.#{table}\\\" ADD PRIMARY KEY (#{key_string})\")"
 
-        true ->
-          """
-          execute("ALTER TABLE \\\"#{table}\\\" ADD PRIMARY KEY (#{keys})")
-          """
+          true ->
+            "execute(\"ALTER TABLE \\\"#{table}\\\" ADD PRIMARY KEY (#{key_string})\")"
+        end
+      end
+
+      plain_keys = Enum.join(keys, ", ")
+
+      if temporal? do
+        # Temporal primary key: the period column is checked for non-overlap
+        # rather than equality (SQL:2011 / PG18+, `WITHOUT OVERLAPS`, backed by a
+        # GiST exclusion constraint requiring `btree_gist` — enforced via
+        # `installed_extensions`, see VerifyTemporal). Guarded at migration time so
+        # the migration is portable: on servers older than PG19 it degrades to a
+        # plain primary key rather than failing.
+        temporal_keys = plain_keys <> ", #{op.temporal.attribute} WITHOUT OVERLAPS"
+
+        """
+        if repo().query!("SHOW server_version_num").rows |> hd() |> hd() |> String.to_integer() >= 190_000 do
+          #{alter_for.(temporal_keys)}
+        else
+          #{alter_for.(plain_keys)}
+        end
+        """
+      else
+        alter_for.(plain_keys) <> "\n"
       end
     end
 
@@ -1296,6 +1391,52 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           execute("ALTER TABLE \\\"#{table}\\\" ADD PRIMARY KEY (#{keys})")
           """
       end
+    end
+  end
+
+  defmodule AddTemporalForeignKey do
+    @moduledoc false
+    # A temporal (SQL:2011 `PERIOD`) foreign key. Ecto's `references/2` cannot
+    # express `PERIOD`, so it is emitted as a raw `ALTER TABLE` after the tables
+    # exist. Postgres temporal FKs support only `NO ACTION`.
+    defstruct [
+      :schema,
+      :table,
+      :name,
+      :column,
+      :source_period,
+      :destination_schema,
+      :destination_table,
+      :destination_attribute,
+      :destination_period,
+      no_phase: true
+    ]
+
+    def up(op) do
+      name = op.name || "#{op.table}_#{op.column}_tfkey"
+
+      destination =
+        if op.destination_schema do
+          "\\\"#{op.destination_schema}\\\".\\\"#{op.destination_table}\\\""
+        else
+          "\\\"#{op.destination_table}\\\""
+        end
+
+      # PERIOD foreign keys need PG18+; guarded at migration time so the migration
+      # is portable (skipped entirely on servers older than PG19).
+      """
+      if repo().query!("SHOW server_version_num").rows |> hd() |> hd() |> String.to_integer() >= 190_000 do
+        execute("ALTER TABLE \\\"#{op.table}\\\" ADD CONSTRAINT #{name} FOREIGN KEY (#{op.column}, PERIOD #{op.source_period}) REFERENCES #{destination} (#{op.destination_attribute}, PERIOD #{op.destination_period})")
+      end
+      """
+    end
+
+    def down(op) do
+      name = op.name || "#{op.table}_#{op.column}_tfkey"
+
+      """
+      execute("ALTER TABLE \\\"#{op.table}\\\" DROP CONSTRAINT #{name}")
+      """
     end
   end
 

@@ -455,6 +455,15 @@ defmodule AshPostgres.SqlImplementation do
     parameterized_type(AshPostgres.Type.CiStringWrapper, constraints)
   end
 
+  def parameterized_type(Ash.Type.Range, constraints) do
+    parameterized_type(AshPostgres.Type.Range, constraints)
+  end
+
+  def parameterized_type({Ash.Type.Range, constraints}, _) do
+    parameterized_type(AshPostgres.Type.Range, constraints)
+  end
+
+
   def parameterized_type(Ash.Type.String, constraints) do
     parameterized_type(AshPostgres.Type.StringWrapper, constraints)
   end

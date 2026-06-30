@@ -21,6 +21,7 @@ defmodule AshPostgres.TestRepo do
       "uuid-ossp",
       "pg_trgm",
       "citext",
+      "btree_gist",
       AshPostgres.TestCustomExtension,
       AshPostgres.Extensions.ImmutableRaiseError,
       "ltree"
@@ -28,10 +29,16 @@ defmodule AshPostgres.TestRepo do
       Application.get_env(:ash_postgres, :no_extensions, [])
   end
 
+  # Default to the Ash `uuid_generate_v7()` function rather than PG18+'s native
+  # `uuidv7()`, so bumping min_pg_version to 19 doesn't churn every snapshot.
+  # Overridable per-test (e.g. the native-uuidv7 generator test opts in).
+  def use_builtin_uuidv7_function?,
+    do: Application.get_env(:ash_postgres, :test_use_builtin_uuidv7?, false)
+
   def min_pg_version do
     case System.get_env("PG_VERSION") do
       nil ->
-        %Version{major: 16, minor: 0, patch: 0}
+        %Version{major: 19, minor: 0, patch: 0}
 
       version ->
         case Integer.parse(version) do

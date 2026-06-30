@@ -50,6 +50,7 @@ if Mix.env() == :test do
     username: "postgres",
     database: "ash_postgres_test",
     hostname: "localhost",
+    port: 5433,
     pool: Ecto.Adapters.SQL.Sandbox
 
   config :ash_postgres, AshPostgres.DevTestRepo,
@@ -57,6 +58,7 @@ if Mix.env() == :test do
     password: "postgres",
     database: "ash_postgres_dev_test",
     hostname: "localhost",
+    port: 5433,
     migration_primary_key: [name: :id, type: :binary_id],
     pool: Ecto.Adapters.SQL.Sandbox
 
@@ -68,7 +70,8 @@ if Mix.env() == :test do
   config :ash_postgres, AshPostgres.TestNoSandboxRepo,
     username: "postgres",
     database: "ash_postgres_test",
-    hostname: "localhost"
+    hostname: "localhost",
+    port: 5433
 
   # sobelow_skip ["Config.Secrets"]
   config :ash_postgres, AshPostgres.TestNoSandboxRepo, password: "postgres"
@@ -84,7 +87,8 @@ if Mix.env() == :test do
       AshPostgres.Test.ComplexCalculations.Domain,
       AshPostgres.Test.MultiDomainCalculations.DomainOne,
       AshPostgres.Test.MultiDomainCalculations.DomainTwo,
-      AshPostgres.Test.MultiDomainCalculations.DomainThree
+      AshPostgres.Test.MultiDomainCalculations.DomainThree,
+      AshPostgres.Test.Temporal.Domain
     ]
 
   config :ash, :compatible_foreign_key_types, [
