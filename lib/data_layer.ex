@@ -1711,7 +1711,6 @@ defmodule AshPostgres.DataLayer do
     Ash.Query.do_filter(query, expr)
   end
 
-  defp get_subquery(%Ecto.Query{} = query), do: query
   defp get_subquery(%Ecto.SubQuery{query: query}), do: query
 
   @doc false
