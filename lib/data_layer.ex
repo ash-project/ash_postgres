@@ -2449,7 +2449,7 @@ defmodule AshPostgres.DataLayer do
               end)
 
             results =
-              if opts[:upsert?] do
+              if options[:upsert?] do
                 changesets
                 |> Enum.map(fn changeset ->
                   identity =
