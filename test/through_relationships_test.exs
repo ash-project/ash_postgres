@@ -58,6 +58,90 @@ defmodule AshPostgres.Test.ThroughRelationshipsTest do
       assert teacher_names == ["Dr. Williams", "Mr. Smith", "Ms. Johnson"]
     end
 
+    test "loads teachers through a context-filtered intermediate relationship", setup do
+      %{school_1: school_1, classroom_1: classroom_1, classroom_2: classroom_2} = setup
+      %{teacher_1: teacher_1, teacher_2: teacher_2, teacher_3: teacher_3} = setup
+
+      assign_teacher(classroom_1.id, teacher_1.id)
+      assign_teacher(classroom_1.id, teacher_2.id)
+      assign_teacher(classroom_2.id, teacher_2.id)
+      assign_teacher(classroom_2.id, teacher_3.id)
+
+      # The intermediate `context_filtered_classrooms` relationship filters on
+      # `^context(:sample_context)`. With no context set the template resolves to
+      # nil, so `is_nil(^context(:sample_context))` matches and all classrooms
+      # (and therefore all their teachers) load.
+      school_with_teachers = Ash.load!(school_1, :context_teachers)
+
+      teacher_names =
+        school_with_teachers.context_teachers
+        |> Enum.map(& &1.name)
+        |> Enum.sort()
+
+      assert teacher_names == ["Dr. Williams", "Mr. Smith", "Ms. Johnson"]
+    end
+
+    test "actor template in intermediate filter is resolved when loading through", setup do
+      %{school_1: school_1, classroom_1: classroom_1, classroom_2: classroom_2} = setup
+      %{teacher_1: teacher_1, teacher_3: teacher_3} = setup
+
+      # "Math 101" == classroom_1 (Mr. Smith), "Science 101" == classroom_2 (Dr. Williams).
+      assign_teacher(classroom_1.id, teacher_1.id)
+      assign_teacher(classroom_2.id, teacher_3.id)
+
+      # The intermediate `actor_filtered_classrooms` relationship filters on
+      # `name == ^actor(:visible_classroom)`. The template resolves to the actor's
+      # value, restricting the through relationship to the "Math 101" classroom and
+      # therefore only Mr. Smith.
+      school_with_teachers =
+        AshPostgres.Test.Through.School
+        |> Ash.Query.filter(id == ^school_1.id)
+        |> Ash.Query.load(:actor_teachers)
+        |> Ash.read_one!(actor: %{visible_classroom: "Math 101"})
+
+      teacher_names =
+        school_with_teachers.actor_teachers
+        |> Enum.map(& &1.name)
+        |> Enum.sort()
+
+      assert teacher_names == ["Mr. Smith"]
+    end
+
+    test "context template is resolved in a two-hop through relationship", setup do
+      %{school_1: school_1} = setup
+
+      # Two-hop through (`context_filtered_classrooms -> students`) exercises the
+      # non-recursive through path. With no context the template resolves to nil
+      # so all classrooms match and every student loads.
+      school_with_students = Ash.load!(school_1, :context_students)
+
+      student_names =
+        school_with_students.context_students
+        |> Enum.map(& &1.name)
+        |> Enum.sort()
+
+      assert student_names == ["Alice", "Bob"]
+    end
+
+    test "actor template is resolved in a two-hop through relationship", setup do
+      %{school_1: school_1} = setup
+
+      # Alice is in "Math 101", Bob is in "Science 101". The actor template
+      # restricts the intermediate classrooms to "Math 101", so only Alice loads.
+      school_with_students =
+        AshPostgres.Test.Through.School
+        |> Ash.Query.filter(id == ^school_1.id)
+        |> Ash.Query.load(:actor_students)
+        |> Ash.read_one!(actor: %{visible_classroom: "Math 101"})
+
+      student_names =
+        school_with_students.actor_students
+        |> Enum.map(& &1.name)
+        |> Enum.sort()
+
+      assert student_names == ["Alice"]
+    end
+
     test "has_many through with no results", setup do
       %{school_2: school_2} = setup
 

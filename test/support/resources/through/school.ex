@@ -63,9 +63,36 @@ defmodule AshPostgres.Test.Through.School do
       public?(true)
     end
 
+    has_many :context_filtered_classrooms, AshPostgres.Test.Through.Classroom do
+      public?(true)
+
+      filter(
+        expr(
+          is_nil(^context(:sample_context)) or
+            name == ^context(:sample_context)
+        )
+      )
+    end
+
+    has_many :actor_filtered_classrooms, AshPostgres.Test.Through.Classroom do
+      public?(true)
+
+      filter(expr(name == ^actor(:visible_classroom)))
+    end
+
     has_many :teachers, AshPostgres.Test.Through.Teacher do
       public?(true)
       through([:classrooms, :classroom_teachers, :teacher])
+    end
+
+    has_many :context_teachers, AshPostgres.Test.Through.Teacher do
+      public?(true)
+      through([:context_filtered_classrooms, :classroom_teachers, :teacher])
+    end
+
+    has_many :actor_teachers, AshPostgres.Test.Through.Teacher do
+      public?(true)
+      through([:actor_filtered_classrooms, :classroom_teachers, :teacher])
     end
 
     has_many :retired_teachers, AshPostgres.Test.Through.Teacher do
@@ -76,6 +103,18 @@ defmodule AshPostgres.Test.Through.School do
     has_many :active_teachers, AshPostgres.Test.Through.Teacher do
       public?(true)
       through([:classrooms, :active_teacher])
+    end
+
+    # Two-hop `through` relationships that exercise the same template resolution
+    # on the intermediate (context/actor filtered) relationship.
+    has_many :context_students, AshPostgres.Test.Through.Student do
+      public?(true)
+      through([:context_filtered_classrooms, :students])
+    end
+
+    has_many :actor_students, AshPostgres.Test.Through.Student do
+      public?(true)
+      through([:actor_filtered_classrooms, :students])
     end
   end
 end
