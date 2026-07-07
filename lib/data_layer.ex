@@ -1306,13 +1306,28 @@ defmodule AshPostgres.DataLayer do
               start_bindings_at: through_binding
             })
             |> Ash.Query.set_context(Map.get(through_relationship, :context))
-            |> Ash.Query.do_filter(Map.get(through_relationship, :filter))
+            |> then(fn q ->
+              Ash.Query.do_filter(
+                q,
+                fill_relationship_filter_templates(
+                  Map.get(through_relationship, :filter),
+                  source_query,
+                  q
+                )
+              )
+            end)
             |> then(fn q ->
               # For through-list paths, the first relationship's filter applies to the through table
               # For many_to_many, the relationship filter is for the destination, not the through table
               if !is_atom(Map.get(relationship, :through)) ||
                    is_nil(Map.get(relationship, :through)) do
-                Ash.Query.do_filter(q, Map.get(relationship, :filter),
+                Ash.Query.do_filter(
+                  q,
+                  fill_relationship_filter_templates(
+                    Map.get(relationship, :filter),
+                    source_query,
+                    q
+                  ),
                   parent_stack: [relationship.source]
                 )
               else
@@ -1589,7 +1604,12 @@ defmodule AshPostgres.DataLayer do
     resource
     |> Ash.Query.new()
     |> Ash.Query.put_context(:data_layer, %{start_bindings_at: 0})
-    |> Ash.Query.do_filter(Map.get(prev_rel, :filter))
+    |> then(fn q ->
+      Ash.Query.do_filter(
+        q,
+        fill_relationship_filter_templates(Map.get(prev_rel, :filter), source_query, q)
+      )
+    end)
     |> Ash.Query.set_tenant(source_query.tenant)
     |> set_lateral_join_prefix(query)
     |> case do
@@ -1613,6 +1633,23 @@ defmodule AshPostgres.DataLayer do
          {:ok, rest_queries} <- build_through_queries(query, source_query, through_rel, rest) do
       {:ok, rel_query ++ rest_queries}
     end
+  end
+
+  # Relationship filters used by `through` relationships may reference
+  # `^actor/1`, `^context/1`, `^arg/1` or `^tenant/0` templates. These templates
+  # must be resolved before the filter is compiled into SQL, otherwise the raw
+  # template (e.g. `{:_context, :sample_context}`) is handed to the SQL
+  # implementation, which cannot process it. This mirrors how a directly loaded
+  # relationship filter is hydrated (see `Ash.Actions.Read.Relationships`):
+  # actor/args/tenant come from the source query while the context is taken from
+  # the query the filter is being applied to.
+  defp fill_relationship_filter_templates(filter, source_query, related_query) do
+    Ash.Expr.fill_template(filter,
+      actor: source_query.context[:private][:actor],
+      tenant: source_query.to_tenant,
+      args: source_query.arguments,
+      context: related_query.context
+    )
   end
 
   defp lateral_join_source_query(
