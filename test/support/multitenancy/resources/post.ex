@@ -31,6 +31,10 @@ defmodule AshPostgres.MultitenancyTest.Post do
     defaults([:create, :read, :update, :destroy])
 
     update(:update_with_policy)
+
+    destroy(:destroy_with_exists) do
+      change(filter(expr(exists(self, true))))
+    end
   end
 
   postgres do
