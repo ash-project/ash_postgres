@@ -85,9 +85,23 @@ defmodule AshPostgres.MigrationGenerator do
     case extension_migration_files ++ tenant_migration_files ++ migration_files do
       [] ->
         if !opts.check || opts.dry_run do
-          Mix.shell().info(
-            "No changes detected, so no migrations or snapshots have been created."
-          )
+          if Enum.empty?(unmanaged_resources) do
+            Mix.shell().info(
+              "No changes detected, so no migrations or snapshots have been created."
+            )
+          else
+            unmanaged_names =
+              unmanaged_resources
+              |> Enum.map_join(", ", &inspect/1)
+
+            Mix.shell().info("""
+            No changes detected, so no migrations or snapshots have been created.
+
+            Note: the following resources have `migrate?` set to `false` and were skipped: #{unmanaged_names}.
+
+            If you expected migrations to be generated for them, remove `migrate?(false)` from their `postgres` block. Resources generated with `mix ash_postgres.gen.resources --no-migrations` have `migrate?` set to `false` by default.
+            """)
+          end
         end
 
         :ok

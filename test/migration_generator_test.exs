@@ -6816,4 +6816,55 @@ defmodule AshPostgres.MigrationGeneratorTest do
       refute up =~ "references(:referenced_schema_move_authors"
     end
   end
+  describe "resources with migrate? false (#585)" do
+    test "warns that resources were skipped due to migrate? false", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource SkippedMigrateResource do
+        postgres do
+          table "skipped_migrate_resource"
+          repo AshPostgres.TestRepo
+          migrate? false
+        end
+
+        actions do
+          defaults([:read, :create])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defdomain([SkippedMigrateResource])
+
+      # First run: creates extension migrations (unrelated to our resource)
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: false,
+        format: false,
+        auto_name: true
+      )
+
+      flush_mix_shell()
+
+      # Second run: extensions already exist, so only the migrate? false
+      # resource remains — which is skipped, producing "No changes detected"
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: false,
+        format: false,
+        auto_name: true
+      )
+
+      output = shell_output()
+
+      assert output =~ "No changes detected"
+      assert output =~ "migrate?"
+      assert output =~ "SkippedMigrateResource"
+    end
+  end
 end
