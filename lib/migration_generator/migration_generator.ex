@@ -95,7 +95,9 @@ defmodule AshPostgres.MigrationGenerator do
 
             Note: Some resources have `migrate?` set to `false` and were skipped.
 
-            If you expected migrations to be generated for them, remove `migrate?(false)` from their `postgres` block. Resources generated with `mix ash_postgres.gen.resources --no-migrations` have `migrate?` set to `false` by default.
+            If you expected migrations to be generated for them, remove `migrate?(false)`
+            from their `postgres` block. Resources generated with `mix ash_postgres.gen.resources
+            --no-migrations` have `migrate?` set to `false` by default.
             """)
           end
         end
