@@ -8,7 +8,9 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
   def latest_version, do: @latest_version
 
   @moduledoc false
-  def install(nil) do
+  def install(version, opts \\ [])
+
+  def install(nil, opts) do
     """
     execute(\"\"\"
     CREATE OR REPLACE FUNCTION ash_elixir_or(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE)
@@ -78,11 +80,11 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
 
     #{ash_required()}
 
-    #{uuid_generate_v7()}
+    #{uuid_generate_v7(opts)}
     """
   end
 
-  def install(0) do
+  def install(0, opts) do
     """
     execute(\"\"\"
     ALTER FUNCTION ash_elixir_or(left BOOLEAN, in right ANYCOMPATIBLE, out f1 ANYCOMPATIBLE) IMMUTABLE
@@ -104,7 +106,7 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
 
     #{ash_required()}
 
-    #{uuid_generate_v7()}
+    #{uuid_generate_v7(opts)}
 
     execute(\"\"\"
     CREATE OR REPLACE FUNCTION ash_trim_whitespace(arr text[])
@@ -134,55 +136,57 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     """
   end
 
-  def install(1) do
+  def install(1, opts) do
     """
     #{ash_raise_error()}
 
     #{ash_required()}
 
-    #{uuid_generate_v7()}
+    #{uuid_generate_v7(opts)}
     """
   end
 
-  def install(2) do
+  def install(2, opts) do
     """
     #{ash_raise_error()}
 
     #{ash_required()}
 
-    #{uuid_generate_v7()}
+    #{uuid_generate_v7(opts)}
     """
   end
 
-  def install(3) do
+  def install(3, opts) do
     """
     execute("ALTER FUNCTION ash_raise_error(jsonb) STABLE;")
     execute("ALTER FUNCTION ash_raise_error(jsonb, ANYCOMPATIBLE) STABLE")
 
     #{ash_required()}
 
-    #{uuid_generate_v7()}
+    #{uuid_generate_v7(opts)}
     """
   end
 
-  def install(4) do
+  def install(4, opts) do
     """
     execute("ALTER FUNCTION ash_raise_error(jsonb) STABLE;")
     execute("ALTER FUNCTION ash_raise_error(jsonb, ANYCOMPATIBLE) STABLE")
 
     #{ash_required()}
 
-    #{uuid_generate_v7()}
+    #{uuid_generate_v7(opts)}
     """
   end
 
-  def install(5) do
+  def install(5, _opts) do
     """
     #{ash_required()}
     """
   end
 
-  def drop(4) do
+  def drop(version, opts \\ [])
+
+  def drop(4, _opts) do
     """
     execute("ALTER FUNCTION ash_raise_error(jsonb) VOLATILE;")
     execute("ALTER FUNCTION ash_raise_error(jsonb, ANYCOMPATIBLE) VOLATILE")
@@ -191,32 +195,32 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     """
   end
 
-  def drop(5) do
+  def drop(5, _opts) do
     "execute(\"DROP FUNCTION IF EXISTS ash_required(ANYCOMPATIBLE, jsonb)\")"
   end
 
-  def drop(3) do
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), ash_required(ANYCOMPATIBLE, jsonb)\")"
+  def drop(3, opts) do
+    "execute(\"DROP FUNCTION IF EXISTS #{uuid_v7_drop(opts)}ash_required(ANYCOMPATIBLE, jsonb)\")"
   end
 
-  def drop(2) do
+  def drop(2, opts) do
     """
     #{ash_raise_error()}
 
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), ash_required(ANYCOMPATIBLE, jsonb)\")"
+    "execute(\"DROP FUNCTION IF EXISTS #{uuid_v7_drop(opts)}ash_required(ANYCOMPATIBLE, jsonb)\")"
     """
   end
 
-  def drop(1) do
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_required(ANYCOMPATIBLE, jsonb)\")"
+  def drop(1, opts) do
+    "execute(\"DROP FUNCTION IF EXISTS #{uuid_v7_drop(opts)}ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_required(ANYCOMPATIBLE, jsonb)\")"
   end
 
-  def drop(0) do
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_trim_whitespace(text[]), ash_required(ANYCOMPATIBLE, jsonb)\")"
+  def drop(0, opts) do
+    "execute(\"DROP FUNCTION IF EXISTS #{uuid_v7_drop(opts)}ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_trim_whitespace(text[]), ash_required(ANYCOMPATIBLE, jsonb)\")"
   end
 
-  def drop(nil) do
-    "execute(\"DROP FUNCTION IF EXISTS uuid_generate_v7(), ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_elixir_and(BOOLEAN, ANYCOMPATIBLE), ash_elixir_and(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(BOOLEAN, ANYCOMPATIBLE), ash_trim_whitespace(text[]), ash_required(ANYCOMPATIBLE, jsonb)\")"
+  def drop(nil, opts) do
+    "execute(\"DROP FUNCTION IF EXISTS #{uuid_v7_drop(opts)}ash_raise_error(jsonb), ash_raise_error(jsonb, ANYCOMPATIBLE), ash_elixir_and(BOOLEAN, ANYCOMPATIBLE), ash_elixir_and(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(ANYCOMPATIBLE, ANYCOMPATIBLE), ash_elixir_or(BOOLEAN, ANYCOMPATIBLE), ash_trim_whitespace(text[]), ash_required(ANYCOMPATIBLE, jsonb)\")"
   end
 
   defp ash_required do
@@ -272,35 +276,47 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     """
   end
 
-  defp uuid_generate_v7 do
-    """
-    execute(\"\"\"
-    CREATE OR REPLACE FUNCTION uuid_generate_v7()
-    RETURNS UUID
-    AS $$
-    DECLARE
-      timestamp    TIMESTAMPTZ;
-      microseconds INT;
-    BEGIN
-      timestamp    = clock_timestamp();
-      microseconds = (cast(extract(microseconds FROM timestamp)::INT - (floor(extract(milliseconds FROM timestamp))::INT * 1000) AS DOUBLE PRECISION) * 4.096)::INT;
+  defp uuid_generate_v7(opts) do
+    if Keyword.get(opts, :use_builtin_uuidv7_function?, false) do
+      ""
+    else
+      """
+      execute(\"\"\"
+      CREATE OR REPLACE FUNCTION uuid_generate_v7()
+      RETURNS UUID
+      AS $$
+      DECLARE
+        timestamp    TIMESTAMPTZ;
+        microseconds INT;
+      BEGIN
+        timestamp    = clock_timestamp();
+        microseconds = (cast(extract(microseconds FROM timestamp)::INT - (floor(extract(milliseconds FROM timestamp))::INT * 1000) AS DOUBLE PRECISION) * 4.096)::INT;
 
-      RETURN encode(
-        set_byte(
+        RETURN encode(
           set_byte(
-            overlay(uuid_send(gen_random_uuid()) placing substring(int8send(floor(extract(epoch FROM timestamp) * 1000)::BIGINT) FROM 3) FROM 1 FOR 6
+            set_byte(
+              overlay(uuid_send(gen_random_uuid()) placing substring(int8send(floor(extract(epoch FROM timestamp) * 1000)::BIGINT) FROM 3) FROM 1 FOR 6
+            ),
+            6, (b'0111' || (microseconds >> 8)::bit(4))::bit(8)::int
           ),
-          6, (b'0111' || (microseconds >> 8)::bit(4))::bit(8)::int
+          7, microseconds::bit(8)::int
         ),
-        7, microseconds::bit(8)::int
-      ),
-      'hex')::UUID;
-    END
-    $$
-    LANGUAGE PLPGSQL
-    SET search_path = ''
-    VOLATILE;
-    \"\"\")
-    """
+        'hex')::UUID;
+      END
+      $$
+      LANGUAGE PLPGSQL
+      SET search_path = ''
+      VOLATILE;
+      \"\"\")
+      """
+    end
+  end
+
+  defp uuid_v7_drop(opts) do
+    if Keyword.get(opts, :use_builtin_uuidv7_function?, false) do
+      ""
+    else
+      "uuid_generate_v7(), "
+    end
   end
 end
