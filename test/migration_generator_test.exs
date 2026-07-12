@@ -473,6 +473,22 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert file_contents =~
                ~S[add :id, :uuid, null: false, default: fragment("uuidv7()"), primary_key: true]
     end
+
+    test "the ash-functions extension migration does not create uuid_generate_v7", %{
+      migration_path: migration_path
+    } do
+      files = Path.wildcard("#{migration_path}/**/*extensions*.exs")
+
+      assert files != []
+
+      assert Enum.any?(files, fn file ->
+               File.read!(file) =~ "CREATE OR REPLACE FUNCTION ash_required"
+             end)
+
+      refute Enum.any?(files, fn file ->
+               File.read!(file) =~ "CREATE OR REPLACE FUNCTION uuid_generate_v7"
+             end)
+    end
   end
 
   describe "creating initial snapshots for resources with a schema" do
