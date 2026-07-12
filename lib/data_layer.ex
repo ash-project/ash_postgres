@@ -308,7 +308,7 @@ defmodule AshPostgres.DataLayer do
         type: :keyword_list,
         default: [],
         doc: """
-        A keyword list of attribute names to the ecto migration default that should be used for that attribute. The string you use will be placed verbatim in the migration. Use fragments like `fragment(\\\\"now()\\\\")`, or for `nil`, use `\\\\"nil\\\\"`.
+        A keyword list of attribute names to the ecto migration default that should be used for that attribute. The string you use will be placed verbatim in the migration. Use fragments like `fragment(\\\\"now()\\\\")`, or for `nil`, use `\\\\"nil\\\\"`. For custom `Ash.Type` modules, see `c:AshPostgres.Type.value_to_postgres_default/3`.
         """
       ],
       calculations_to_sql: [
