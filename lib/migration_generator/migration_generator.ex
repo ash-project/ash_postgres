@@ -382,7 +382,8 @@ defmodule AshPostgres.MigrationGenerator do
           Enum.map_join(to_install, "\n", fn
             "ash-functions" ->
               AshPostgres.MigrationGenerator.AshFunctions.install(
-                extensions_snapshot[:ash_functions_version]
+                extensions_snapshot[:ash_functions_version],
+                use_builtin_uuidv7_function?: repo.use_builtin_uuidv7_function?()
               )
 
             {ext_name, _version, up_fn, _down_fn} when is_function(up_fn, 1) ->
