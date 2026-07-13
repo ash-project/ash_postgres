@@ -6,6 +6,8 @@ defmodule AshPostgres.Test.UpsertTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.Post
 
+  require Ash.Expr
+
   test "empty upserts" do
     id = Ash.UUID.generate()
 
@@ -36,6 +38,40 @@ defmodule AshPostgres.Test.UpsertTest do
 
     assert updated_post.id == id
     assert updated_post.updated_at == new_post.updated_at
+  end
+
+  test "returns a skipped upsert whose identity contains nil" do
+    AshPostgres.TestRepo.query!("""
+    CREATE UNIQUE INDEX posts_nullable_identity_index
+    ON posts (uniq_one, uniq_two) NULLS NOT DISTINCT
+    WHERE type = 'sponsored'
+    """)
+
+    original =
+      Post
+      |> Ash.Changeset.for_create(:create, %{
+        uniq_one: "one",
+        uniq_two: nil,
+        price: 10
+      })
+      |> Ash.create!()
+
+    skipped =
+      Post
+      |> Ash.Changeset.for_create(
+        :create,
+        %{uniq_one: "one", uniq_two: nil, price: 20},
+        upsert?: true,
+        upsert_identity: :uniq_one_and_two,
+        upsert_fields: [:price],
+        upsert_condition: Ash.Expr.expr(false),
+        return_skipped_upsert?: true
+      )
+      |> Ash.create!()
+
+    assert skipped.id == original.id
+    assert skipped.price == 10
+    assert Ash.Resource.get_metadata(skipped, :upsert_skipped)
   end
 
   test "upserting results in the same created_at timestamp, but a new updated_at timestamp" do
