@@ -7043,8 +7043,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       output = shell_output()
 
       assert output =~ "No changes detected"
-      assert output =~ "migrate?"
-      assert output =~ "SkippedMigrateResource"
+      assert output =~ "Some resources have `migrate?` set to `false` and were skipped"
     end
   end
 end
