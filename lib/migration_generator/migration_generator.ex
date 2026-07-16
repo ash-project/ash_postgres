@@ -1158,6 +1158,7 @@ defmodule AshPostgres.MigrationGenerator do
           destination_attribute: merge_uniq!(references, table, :destination_attribute, name),
           deferrable: merge_uniq!(references, table, :deferrable, name),
           index?: merge_uniq!(references, table, :index?, name),
+          index_where: merge_uniq!(references, table, :index_where, name),
           destination_attribute_default:
             merge_uniq!(references, table, :destination_attribute_default, name),
           destination_attribute_generated:
@@ -2610,8 +2611,11 @@ defmodule AshPostgres.MigrationGenerator do
           old_attribute ->
             new_index? = attribute.references && attribute.references[:index?]
             old_index? = old_attribute.references && old_attribute.references[:index?]
+            new_index_where = attribute.references && attribute.references[:index_where]
+            old_index_where = old_attribute.references && old_attribute.references[:index_where]
 
             old_index? != new_index? ||
+              (new_index? && old_index_where != new_index_where) ||
               (new_index? && multitenancy_changed?)
         end
       end)
@@ -2620,6 +2624,7 @@ defmodule AshPostgres.MigrationGenerator do
           table: snapshot.table,
           schema: snapshot.schema,
           source: attribute.source,
+          where: attribute.references[:index_where],
           multitenancy: snapshot.multitenancy
         }
       end)
@@ -2640,13 +2645,19 @@ defmodule AshPostgres.MigrationGenerator do
           attribute && old_attribute[:references][:index?] && attribute[:references][:index?] &&
             multitenancy_changed?
 
-        has_removed_index? || attribute_doesnt_exist? || multitenancy_change_requires_rewrite?
+        index_where_change_requires_rewrite? =
+          attribute && old_attribute[:references][:index?] && attribute[:references][:index?] &&
+            old_attribute[:references][:index_where] != attribute[:references][:index_where]
+
+        has_removed_index? || attribute_doesnt_exist? || multitenancy_change_requires_rewrite? ||
+          index_where_change_requires_rewrite?
       end)
       |> Enum.map(fn attribute ->
         %Operation.RemoveReferenceIndex{
           table: snapshot.table,
           schema: snapshot.schema,
           source: attribute.source,
+          where: attribute.references[:index_where],
           multitenancy: snapshot.multitenancy,
           old_multitenancy: old_snapshot.multitenancy
         }
@@ -3274,11 +3285,13 @@ defmodule AshPostgres.MigrationGenerator do
           old_refs
           |> clean_references_for_comparison()
           |> Map.delete(:index?)
+          |> Map.delete(:index_where)
 
         new_without_index =
           new_refs
           |> clean_references_for_comparison()
           |> Map.delete(:index?)
+          |> Map.delete(:index_where)
 
         old_without_index != new_without_index
     end
@@ -3308,6 +3321,9 @@ defmodule AshPostgres.MigrationGenerator do
     {left, right} =
       normalize_attribute_reference_schema_move(left, right, schema_moves)
 
+    left = remove_reference_index_options(left)
+    right = remove_reference_index_options(right)
+
     left =
       if ignore_names? do
         Map.drop(left, [:source, :name])
@@ -3324,6 +3340,13 @@ defmodule AshPostgres.MigrationGenerator do
 
     left != right
   end
+
+  defp remove_reference_index_options(%{references: references} = attribute)
+       when is_map(references) do
+    %{attribute | references: Map.drop(references, [:index?, :index_where])}
+  end
+
+  defp remove_reference_index_options(attribute), do: attribute
 
   defp normalize_attribute_reference_schema_move(left, right, schema_moves) do
     old_refs = Map.get(left, :references)
@@ -4345,6 +4368,8 @@ defmodule AshPostgres.MigrationGenerator do
             destination_attribute: destination_attribute_source,
             deferrable: configured_reference.deferrable,
             index?: configured_reference.index?,
+            index_where:
+              reference_index_where(configured_reference.index_where, attribute.source),
             multitenancy: multitenancy(relationship.destination),
             on_delete: configured_reference.on_delete,
             on_update: configured_reference.on_update,
@@ -4367,6 +4392,10 @@ defmodule AshPostgres.MigrationGenerator do
     end)
   end
 
+  defp reference_index_where(:not_nil, source), do: "#{source} IS NOT NULL"
+  defp reference_index_where(index_where, _source) when is_binary(index_where), do: index_where
+  defp reference_index_where(nil, _source), do: nil
+
   defp configured_reference(resource, table, attribute, relationship) do
     ref =
       resource
@@ -4379,6 +4408,7 @@ defmodule AshPostgres.MigrationGenerator do
         match_type: nil,
         deferrable: false,
         index?: false,
+        index_where: nil,
         schema:
           relationship.context[:data_layer][:schema] ||
             AshPostgres.DataLayer.Info.schema(relationship.destination) ||
@@ -4796,6 +4826,7 @@ defmodule AshPostgres.MigrationGenerator do
         |> Map.update!(:on_delete, &(&1 && load_references_on_delete(&1)))
         |> Map.update!(:on_update, &(&1 && maybe_to_atom(&1)))
         |> Map.put_new(:index?, false)
+        |> Map.put_new(:index_where, nil)
         |> Map.put_new(:match_with, nil)
         |> Map.put_new(:match_type, nil)
         |> Map.update!(

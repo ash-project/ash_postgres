@@ -1156,13 +1156,14 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule AddReferenceIndex do
     @moduledoc false
-    defstruct [:table, :schema, :source, :multitenancy, no_phase: true]
+    defstruct [:table, :schema, :source, :where, :multitenancy, no_phase: true]
     import Helper
 
     def up(%{
           source: source,
           table: table,
           schema: schema,
+          where: where,
           multitenancy: multitenancy
         }) do
       keys =
@@ -1176,7 +1177,8 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
       opts =
         join([
-          option(:prefix, schema)
+          option(:prefix, schema),
+          option(:where, where)
         ])
 
       if opts == "" do
@@ -1378,7 +1380,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule RemoveReferenceIndex do
     @moduledoc false
-    defstruct [:schema, :table, :source, :multitenancy, :old_multitenancy, no_phase: true]
+    defstruct [:schema, :table, :source, :where, :multitenancy, :old_multitenancy, no_phase: true]
     import Helper
 
     def up(operation) do

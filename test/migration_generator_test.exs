@@ -2387,6 +2387,166 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert File.read!(file) =~ ~S{create index(:posts, [:post_id])}
     end
 
+    test "references generate partial indexes with index_where: :not_nil", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource PartialIndexPost, "partial_index_posts" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defresource PartialIndexComment, "partial_index_comments" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        relationships do
+          belongs_to(:post, PartialIndexPost, public?: true)
+        end
+
+        postgres do
+          references do
+            reference(:post, index?: true, index_where: :not_nil)
+          end
+        end
+      end
+
+      defmodule PartialIndexDomain do
+        use Ash.Domain
+
+        resources do
+          resource(PartialIndexPost)
+          resource(PartialIndexComment)
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(PartialIndexDomain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [file] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert File.read!(file) =~
+               ~S{create index(:partial_index_comments, [:post_id], where: "post_id IS NOT NULL")}
+
+      assert [snapshot_file] =
+               Path.wildcard("#{snapshot_path}/**/partial_index_comments/*.json")
+
+      snapshot = snapshot_file |> File.read!() |> Jason.decode!()
+      post_id = Enum.find(snapshot["attributes"], &(&1["source"] == "post_id"))
+
+      assert post_id["references"]["index_where"] == "post_id IS NOT NULL"
+    end
+
+    test "changing only reference index_where replaces the index without changing the foreign key",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      defresource FullIndexPost, "index_where_posts" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defresource FullIndexComment, "index_where_comments" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        relationships do
+          belongs_to(:post, FullIndexPost, public?: true)
+        end
+
+        postgres do
+          references do
+            reference(:post, index?: true)
+          end
+        end
+      end
+
+      defmodule FullIndexDomain do
+        use Ash.Domain
+
+        resources do
+          resource(FullIndexPost)
+          resource(FullIndexComment)
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(FullIndexDomain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      defresource IndexWherePartialPost, "index_where_posts" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defresource IndexWherePartialComment, "index_where_comments" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        relationships do
+          belongs_to(:post, IndexWherePartialPost, public?: true)
+        end
+
+        postgres do
+          references do
+            reference(:post, index?: true, index_where: "post_id IS NOT NULL")
+          end
+        end
+      end
+
+      defmodule IndexWherePartialDomain do
+        use Ash.Domain
+
+        resources do
+          resource(IndexWherePartialPost)
+          resource(IndexWherePartialComment)
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(IndexWherePartialDomain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      [_, file] =
+        Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      content = File.read!(file)
+
+      assert content =~ ~S{drop_if_exists index(:index_where_comments, [:post_id])}
+
+      assert content =~
+               ~S{create index(:index_where_comments, [:post_id], where: "post_id IS NOT NULL")}
+
+      refute content =~
+               ~S{drop constraint(:index_where_comments, "index_where_comments_post_id_fkey")}
+
+      refute content =~ ~S{modify :post_id, references(}
+    end
+
     test "changing only reference index? does not drop and re-add foreign key (issue #611)", %{
       snapshot_path: snapshot_path,
       migration_path: migration_path
@@ -2511,6 +2671,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       refute content =~ ~S{modify :post_id, references(},
              "migration should not modify references when only index? changed (issue #611)"
+
+      refute content =~ ~S{modify :post_id,},
+             "migration should not modify the attribute when only index? changes (issue #611)"
     end
 
     test "references with deferrable modifications generate changes with the correct schema", %{
@@ -6832,6 +6995,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       refute up =~ "references(:referenced_schema_move_authors"
     end
   end
+
   describe "resources with migrate? false (#585)" do
     test "warns that resources were skipped due to migrate? false", %{
       snapshot_path: snapshot_path,
@@ -6879,8 +7043,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       output = shell_output()
 
       assert output =~ "No changes detected"
-      assert output =~ "migrate?"
-      assert output =~ "SkippedMigrateResource"
+      assert output =~ "Some resources have `migrate?` set to `false` and were skipped"
     end
   end
 end

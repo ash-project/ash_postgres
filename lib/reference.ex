@@ -13,6 +13,7 @@ defmodule AshPostgres.Reference do
     :match_type,
     :deferrable,
     :index?,
+    :index_where,
     :__spark_metadata__,
     ignore?: false
   ]
@@ -71,6 +72,11 @@ defmodule AshPostgres.Reference do
         type: :boolean,
         default: false,
         doc: "Whether to create or not a corresponding index"
+      ],
+      index_where: [
+        type: {:or, [{:one_of, [:not_nil]}, :string]},
+        doc:
+          "A condition to use for the corresponding partial index. Use `:not_nil` to exclude rows where the reference is nil."
       ]
     ]
   end
