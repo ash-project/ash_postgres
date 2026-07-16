@@ -309,6 +309,7 @@ reference :post, on_delete: :delete, on_update: :update, name: "comments_to_post
 | [`match_with`](#postgres-references-reference-match_with){: #postgres-references-reference-match_with } | `keyword` |  | Defines additional keys to the foreign key in order to build a composite foreign key. The key should be the name of the source attribute (in the current resource), the value the name of the destination attribute. |
 | [`match_type`](#postgres-references-reference-match_type){: #postgres-references-reference-match_type } | `:simple \| :partial \| :full` |  | select if the match is `:simple`, `:partial`, or `:full` |
 | [`index?`](#postgres-references-reference-index?){: #postgres-references-reference-index? } | `boolean` | `false` | Whether to create or not a corresponding index |
+| [`index_where`](#postgres-references-reference-index_where){: #postgres-references-reference-index_where } | `:not_nil \| String.t` |  | A condition to use for the corresponding partial index. Use `:not_nil` to exclude rows where the reference is nil. |
 
 
 
