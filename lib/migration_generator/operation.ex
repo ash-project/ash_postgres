@@ -1104,10 +1104,14 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         |> Enum.map(&AshPostgres.CustomIndex.field_for_migration/1)
 
       index =
-        case {index.where, base_filter} do
-          {_where, nil} -> index
-          {nil, base_filter} -> %{index | where: base_filter}
-          {where, base_filter} -> %{index | where: base_filter <> " AND " <> where}
+        if index.include_base_filter? do
+          case {index.where, base_filter} do
+            {_where, nil} -> index
+            {nil, base_filter} -> %{index | where: base_filter}
+            {where, base_filter} -> %{index | where: base_filter <> " AND " <> where}
+          end
+        else
+          index
         end
 
       opts =
