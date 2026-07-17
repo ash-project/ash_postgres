@@ -23,6 +23,7 @@ spark_locals_without_parens = [
   identity_wheres_to_sql: 1,
   ignore?: 1,
   include: 1,
+  include_base_filter?: 1,
   index: 1,
   index: 2,
   index?: 1,
