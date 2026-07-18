@@ -157,13 +157,13 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule RenameTable do
     @moduledoc false
-    defstruct [:old_table, :new_table, :schema, :multitenancy, :repo, no_phase: true]
+    defstruct [:old_table, :table, :schema, :multitenancy, :repo, no_phase: true]
 
     import Helper, only: [as_atom: 1]
 
     def up(%{
           old_table: old_table,
-          new_table: new_table,
+          table: new_table,
           schema: schema,
           multitenancy: multitenancy
         }) do
@@ -175,7 +175,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def down(%{
           old_table: old_table,
-          new_table: new_table,
+          table: new_table,
           schema: schema,
           multitenancy: multitenancy
         }) do
@@ -1046,7 +1046,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule AddCustomStatement do
     @moduledoc false
-    defstruct [:statement, :table, no_phase: true]
+    defstruct [:statement, :table, :schema, no_phase: true]
 
     def up(%{statement: %{up: up, code?: false}}) do
       """
@@ -1075,7 +1075,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule RemoveCustomStatement do
     @moduledoc false
-    defstruct [:statement, :table, no_phase: true]
+    defstruct [:statement, :table, :schema, no_phase: true]
 
     def up(%{statement: statement, table: table}) do
       AddCustomStatement.down(%AddCustomStatement{statement: statement, table: table})
@@ -1307,7 +1307,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
   defmodule RemovePrimaryKey do
     @moduledoc false
-    defstruct [:schema, :table, no_phase: true]
+    defstruct [:schema, :table, :keys, no_phase: true]
 
     def up(%{schema: schema, table: table, old_multitenancy: multitenancy}) do
       cond do
