@@ -10,7 +10,8 @@ defmodule AshPostgres.Statement do
     :up,
     :down,
     :code?,
-    :global?
+    :global?,
+    :after_tables
   ]
 
   defstruct @fields ++ [:__spark_metadata__]
@@ -50,6 +51,13 @@ defmodule AshPostgres.Statement do
       type: :string,
       doc: "How to tear down the structure of the statement",
       required: true
+    ],
+    after_tables: [
+      type: {:list, :string},
+      default: [],
+      doc: """
+      Table names that this statement's `up` depends on being fully finalized (including their columns and indexes) before it runs. Use this when a raw SQL statement references structure (e.g. a foreign key referencing a unique index) on another table so the migration generator can order it correctly.
+      """
     ]
   ]
 

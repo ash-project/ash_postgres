@@ -21,11 +21,11 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
 
   Requiring a fact waits on *every* operation that provides it, not just one
   — see `toposort_operations/1`'s `provides_index`. That's what makes
-  `:table_structure_ready` work as a catch-all: many operation types provide
-  it, so an op that requires it (currently only `AddCustomStatement`'s
-  own-table requirement) transparently waits for all of that table's
-  structural work, without needing to enumerate every attribute/index/
-  constraint by hand.
+  `:table_structure_ready`/`:table_finalized` work as catch-alls: many
+  operation types provide them, so an op that requires one (e.g.
+  `AddCustomStatement`'s own-table or `after_tables` requirement)
+  transparently waits for all of that table's work, without needing to
+  enumerate every attribute/index/constraint by hand.
 
   Requiring a fact that nothing in the current batch provides is vacuously
   satisfied — it adds no dependency edge at all, rather than blocking or
@@ -64,13 +64,13 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
 
   Table-scoped (`key = {schema, table}`):
 
-  These first three track "how done is this table", but not as one single
+  These first four track "how done is this table", but not as one single
   chain — `:table_ready` is provided by a disjoint set of operations
   (`CreateTable`/`RenameTable`/`MoveTableSchema`) from `:table_columns_settled`
   (`AddAttribute`/`RenameAttribute`/`AlterAttribute`/`RemoveAttribute`), so
   requiring both together is *not* redundant — neither subsumes the other.
-  Both converge at `:table_structure_ready`, which every structural operation
-  provides:
+  Both converge at `:table_structure_ready` and `:table_finalized`, which
+  every structural operation provides:
 
   - `:table_ready` — the table exists (`CreateTable`/`RenameTable`/
     `MoveTableSchema`).
@@ -80,10 +80,20 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
     a check constraint's `check:`) might reference a column that's about to
     be added, altered, renamed, or removed, and can't be parsed to know
     which columns it actually touches.
-  - `:table_structure_ready` — provided by every structural operation on this
-    table (including `:table_ready`'s and `:table_columns_settled`'s
-    providers); a consumer requires it once to mean "wait for all of this
-    table's structural work".
+  - `:table_structure_ready` — this table's structural (DDL) work is done:
+    provided by every structural operation on this table (including
+    `:table_ready`'s and `:table_columns_settled`'s providers).
+  - `:table_finalized` — this table is *truly* done, including any
+    `custom_statements` declared on it: provided by everything that provides
+    `:table_structure_ready`, plus each `AddCustomStatement` on the table (a
+    table with no custom statements is finalized as soon as its structure is
+    ready). Kept separate from `:table_structure_ready` because
+    `AddCustomStatement`'s own implicit "wait for my own table" requirement
+    must use the narrower fact — were it to require `:table_finalized`, two
+    custom statements on the same table would each provide and require the
+    same fact, a guaranteed cycle. Only the explicit, opt-in `after_tables`
+    cross-table reference requires `:table_finalized`, so it also waits for
+    the target table's own custom statements.
 
   Column-scoped (`key = {schema, table, column}`):
 
@@ -154,20 +164,19 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
   def provides(op) do
     case op do
       %Operation.CreateTable{table: table, schema: schema} ->
-        [{:table_ready, key(table, schema)}, {:table_structure_ready, key(table, schema)}]
+        [{:table_ready, key(table, schema)}] ++ structure_ready_facts(table, schema)
 
       %Operation.RenameTable{table: table, schema: schema} ->
-        [{:table_ready, key(table, schema)}, {:table_structure_ready, key(table, schema)}]
+        [{:table_ready, key(table, schema)}] ++ structure_ready_facts(table, schema)
 
       %Operation.MoveTableSchema{table: table, new_schema: schema} ->
-        [{:table_ready, key(table, schema)}, {:table_structure_ready, key(table, schema)}]
+        [{:table_ready, key(table, schema)}] ++ structure_ready_facts(table, schema)
 
       %Operation.AddAttribute{table: table, schema: schema, attribute: attribute} ->
         [
           {:column_ready, key(table, schema, attribute.source)},
-          {:table_columns_settled, key(table, schema)},
-          {:table_structure_ready, key(table, schema)}
-        ]
+          {:table_columns_settled, key(table, schema)}
+        ] ++ structure_ready_facts(table, schema)
 
       %Operation.RenameAttribute{
         table: table,
@@ -176,21 +185,18 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
       } ->
         [
           {:column_ready, key(table, schema, new_attribute.source)},
-          {:table_columns_settled, key(table, schema)},
-          {:table_structure_ready, key(table, schema)}
-        ]
+          {:table_columns_settled, key(table, schema)}
+        ] ++ structure_ready_facts(table, schema)
 
       %Operation.AlterAttribute{table: table, schema: schema} ->
         [
-          {:table_columns_settled, key(table, schema)},
-          {:table_structure_ready, key(table, schema)}
-        ]
+          {:table_columns_settled, key(table, schema)}
+        ] ++ structure_ready_facts(table, schema)
 
       %Operation.RemoveAttribute{table: table, schema: schema} ->
         [
-          {:table_columns_settled, key(table, schema)},
-          {:table_structure_ready, key(table, schema)}
-        ]
+          {:table_columns_settled, key(table, schema)}
+        ] ++ structure_ready_facts(table, schema)
 
       %Operation.AddUniqueIndex{table: table, schema: schema, identity: identity} = op ->
         columns =
@@ -200,15 +206,13 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
             Map.get(op, :multitenancy)
           )
 
-        [
-          {:table_structure_ready, key(table, schema)},
-          {:unique_index_created, key(table, schema, columns)}
-        ]
+        structure_ready_facts(table, schema) ++
+          [{:unique_index_created, key(table, schema, columns)}]
 
       %Operation.RemoveUniqueIndex{table: table, schema: schema, identity: identity} ->
         keys = List.wrap(identity.keys)
 
-        [{:table_structure_ready, key(table, schema)}] ++
+        structure_ready_facts(table, schema) ++
           Enum.map(keys, &{:column_unique_index_removed, key(table, schema, &1)})
 
       %Operation.AddCustomIndex{table: table, schema: schema, index: index} = op ->
@@ -226,11 +230,11 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
             []
           end
 
-        [{:table_structure_ready, key(table, schema)}] ++ unique_facts
+        structure_ready_facts(table, schema) ++ unique_facts
 
       %Operation.RemoveCustomIndex{table: table, schema: schema, index: index} ->
         base =
-          [{:table_structure_ready, key(table, schema)}] ++
+          structure_ready_facts(table, schema) ++
             Enum.map(index.fields, fn field ->
               {:column_custom_index_removed,
                key(table, schema, AshPostgres.CustomIndex.column_name(field))}
@@ -248,16 +252,14 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
         end
 
       %Operation.AddReferenceIndex{table: table, schema: schema} ->
-        [{:table_structure_ready, key(table, schema)}]
+        structure_ready_facts(table, schema)
 
       %Operation.RemoveReferenceIndex{table: table, schema: schema, source: source} ->
-        [
-          {:table_structure_ready, key(table, schema)},
-          {:reference_index_removed, key(table, schema, source)}
-        ]
+        structure_ready_facts(table, schema) ++
+          [{:reference_index_removed, key(table, schema, source)}]
 
       %Operation.AddCheckConstraint{table: table, schema: schema} ->
-        [{:table_structure_ready, key(table, schema)}]
+        structure_ready_facts(table, schema)
 
       %Operation.RemoveCheckConstraint{
         table: table,
@@ -267,7 +269,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
       } ->
         cols = check_constraint_columns(constraint, multitenancy)
 
-        [{:table_structure_ready, key(table, schema)}] ++
+        structure_ready_facts(table, schema) ++
           Enum.map(cols, &{:column_check_constraint_removed, key(table, schema, &1)})
 
       %Operation.DropForeignKey{
@@ -281,31 +283,37 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
         dest_schema = Map.get(reference, :schema)
 
         [
-          {:column_fk_dropped, key(dest_table, dest_schema, dest_column)},
-          {:table_structure_ready, key(table, schema)}
-        ]
+          {:column_fk_dropped, key(dest_table, dest_schema, dest_column)}
+        ] ++ structure_ready_facts(table, schema)
 
       %Operation.DropForeignKey{table: table, schema: schema} ->
-        [{:table_structure_ready, key(table, schema)}]
+        structure_ready_facts(table, schema)
 
       %Operation.AlterDeferrability{table: table, schema: schema} ->
-        [{:table_structure_ready, key(table, schema)}]
+        structure_ready_facts(table, schema)
 
       %Operation.AddPrimaryKey{table: table, schema: schema} ->
-        [{:table_structure_ready, key(table, schema)}]
+        structure_ready_facts(table, schema)
 
       %Operation.AddPrimaryKeyDown{table: table, schema: schema} ->
-        [{:table_structure_ready, key(table, schema)}]
+        structure_ready_facts(table, schema)
 
       %Operation.RemovePrimaryKey{table: table, schema: schema} ->
-        [{:table_structure_ready, key(table, schema)}]
+        structure_ready_facts(table, schema)
 
       %Operation.RemovePrimaryKeyDown{table: table, schema: schema} ->
-        [{:table_structure_ready, key(table, schema)}]
+        structure_ready_facts(table, schema)
+
+      %Operation.AddCustomStatement{table: own_table, schema: schema} ->
+        [{:table_finalized, key(own_table, schema)}]
 
       _ ->
         []
     end
+  end
+
+  defp structure_ready_facts(table, schema) do
+    [{:table_structure_ready, key(table, schema)}, {:table_finalized, key(table, schema)}]
   end
 
   @doc "Facts that must already be provided (by some other operation) before `op` can run."
@@ -461,8 +469,18 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
       %Operation.RemovePrimaryKey{table: table, schema: schema, keys: keys} ->
         Enum.map(List.wrap(keys), &{:column_fk_dropped, key(table, schema, &1)})
 
-      %Operation.AddCustomStatement{table: own_table, schema: schema} ->
-        [{:table_structure_ready, key(own_table, schema)}]
+      %Operation.AddCustomStatement{table: own_table, schema: schema, statement: statement} ->
+        after_tables = statement |> Map.get(:after_tables) |> List.wrap()
+
+        # Own table: the narrower `:table_structure_ready` (not
+        # `:table_finalized`) — using the broader fact here would make two
+        # custom statements on the same table each require the other's
+        # `:table_finalized` (each provides it too), a guaranteed cycle.
+        # Declared `after_tables` targets: the broader `:table_finalized`,
+        # so this statement also waits for *that* table's own custom
+        # statements, not just its structure.
+        [{:table_structure_ready, key(own_table, schema)}] ++
+          Enum.map(after_tables, &{:table_finalized, key(&1, schema)})
 
       _ ->
         []
