@@ -1879,7 +1879,8 @@ defmodule AshPostgres.MigrationGenerator do
   defp toposort_operation_indices([index | rest], adjacency, in_degrees, acc) do
     {in_degrees, newly_available} =
       Enum.reduce(Map.get(adjacency, index, []), {in_degrees, []}, fn dependent_index,
-                                                                       {in_degrees, newly_available} ->
+                                                                      {in_degrees,
+                                                                       newly_available} ->
         updated_in_degree = Map.fetch!(in_degrees, dependent_index) - 1
         in_degrees = Map.put(in_degrees, dependent_index, updated_in_degree)
 
@@ -2031,7 +2032,11 @@ defmodule AshPostgres.MigrationGenerator do
         Enum.any?(old_snapshot.custom_statements, &(&1.name == statement.name))
       end)
       |> Enum.map(
-        &%Operation.AddCustomStatement{statement: &1, table: snapshot.table, schema: snapshot.schema}
+        &%Operation.AddCustomStatement{
+          statement: &1,
+          table: snapshot.table,
+          schema: snapshot.schema
+        }
       )
 
     custom_statements_to_remove =
@@ -2040,7 +2045,11 @@ defmodule AshPostgres.MigrationGenerator do
         Enum.any?(snapshot.custom_statements, &(&1.name == old_statement.name))
       end)
       |> Enum.map(
-        &%Operation.RemoveCustomStatement{statement: &1, table: snapshot.table, schema: snapshot.schema}
+        &%Operation.RemoveCustomStatement{
+          statement: &1,
+          table: snapshot.table,
+          schema: snapshot.schema
+        }
       )
 
     custom_statements_to_alter =
@@ -2099,7 +2108,7 @@ defmodule AshPostgres.MigrationGenerator do
             new_index_where = attribute.references && attribute.references[:index_where]
             old_index_where = old_attribute.references && old_attribute.references[:index_where]
 
-            old_index? != new_index? ||
+            (new_index? && old_index? != new_index?) ||
               (new_index? && old_index_where != new_index_where) ||
               (new_index? && multitenancy_changed?)
         end
