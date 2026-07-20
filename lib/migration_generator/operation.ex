@@ -83,24 +83,45 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def reference_type(%{type: type}, _), do: type
 
-    def with_match(reference, source_attribute \\ nil)
+    def tenant_columns(multitenancy) do
+      (Map.get(multitenancy, :ancestor_attributes) || []) ++ List.wrap(multitenancy.attribute)
+    end
+
+    def with_match(reference, source_multitenancy \\ nil)
 
     def with_match(
           %{
             primary_key?: false,
             destination_attribute: reference_attribute,
-            multitenancy: %{strategy: :attribute, attribute: destination_attribute}
+            multitenancy: %{strategy: :attribute} = destination_multitenancy
           } = reference,
-          source_attribute
+          source_multitenancy
         )
-        when not is_nil(source_attribute) and reference_attribute != destination_attribute do
-      with_targets =
-        [{as_atom(source_attribute), as_atom(destination_attribute)}]
-        |> Enum.into(reference.match_with || %{})
-        |> with_targets()
+        when not is_nil(source_multitenancy) do
+      # Tenant columns (ancestor_attributes ++ [attribute]) are paired positionally.
+      # With hierarchies of different depths, only the shared prefix is paired.
+      tenant_targets =
+        tenant_columns(source_multitenancy)
+        |> Enum.zip(tenant_columns(destination_multitenancy))
+        |> Enum.map(fn {source, destination} -> {as_atom(source), as_atom(destination)} end)
+        |> Enum.reject(fn {_source, destination} ->
+          destination == as_atom(reference_attribute)
+        end)
 
-      # We can only have match: :full here, this gets validated by a Transformer
-      join([with_targets, "match: :full"])
+      if tenant_targets == [] do
+        with_match(reference, nil)
+      else
+        tenant_sources = Enum.map(tenant_targets, &elem(&1, 0))
+
+        with_targets =
+          (reference.match_with || %{})
+          |> Enum.reject(fn {source, _destination} -> as_atom(source) in tenant_sources end)
+          |> Enum.concat(tenant_targets)
+          |> with_targets()
+
+        # We can only have match: :full here, this gets validated by a Transformer
+        join([with_targets, "match: :full"])
+      end
     end
 
     def with_match(reference, _) do
@@ -114,7 +135,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       end
     end
 
-    def with_targets(targets) when is_map(targets) do
+    def with_targets(targets) when is_map(targets) or is_list(targets) do
       targets_string =
         targets
         |> Enum.map_join(", ", fn {source, destination} -> "#{source}: :#{destination}" end)
@@ -132,7 +153,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def index_keys(keys, all_tenants?, multitenancy) do
       if multitenancy.strategy == :attribute and not all_tenants? do
-        Enum.uniq([multitenancy.attribute | keys])
+        Enum.uniq(tenant_columns(multitenancy) ++ keys)
       else
         keys
       end
@@ -263,7 +284,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     import Helper
 
     def up(%{
-          multitenancy: %{strategy: :attribute, attribute: source_attribute},
+          multitenancy: %{strategy: :attribute} = source_multitenancy,
           attribute:
             %{
               references:
@@ -275,7 +296,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
                 } = reference
             } = attribute
         }) do
-      with_match = with_match(reference, source_attribute)
+      with_match = with_match(reference, source_multitenancy)
 
       size =
         if attribute[:size] do
@@ -754,7 +775,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     end
 
     defp reference(
-           %{strategy: :attribute, attribute: source_attribute},
+           %{strategy: :attribute} = source_multitenancy,
            %{
              references:
                %{
@@ -771,7 +792,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           destination_schema
         end
 
-      with_match = with_match(reference, source_attribute)
+      with_match = with_match(reference, source_multitenancy)
 
       join([
         "references(:#{as_atom(table)}, column: #{inspect(reference_attribute)}",
@@ -1170,14 +1191,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           where: where,
           multitenancy: multitenancy
         }) do
-      keys =
-        case multitenancy do
-          %{strategy: :attribute, attribute: attribute} when attribute != source ->
-            [attribute, source]
-
-          _ ->
-            [source]
-        end
+      keys = reference_index_keys(multitenancy, source)
 
       opts =
         join([
@@ -1193,14 +1207,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     end
 
     def down(%{schema: schema, source: source, table: table, multitenancy: multitenancy}) do
-      keys =
-        case multitenancy do
-          %{strategy: :attribute, attribute: attribute} when attribute != source ->
-            [attribute, source]
-
-          _ ->
-            [source]
-        end
+      keys = reference_index_keys(multitenancy, source)
 
       opts =
         join([
@@ -1211,6 +1218,16 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         "drop_if_exists index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}])"
       else
         "drop_if_exists index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{opts})"
+      end
+    end
+
+    defp reference_index_keys(multitenancy, source) do
+      case multitenancy do
+        %{strategy: :attribute} ->
+          Enum.reject(tenant_columns(multitenancy), &(&1 == source)) ++ [source]
+
+        _ ->
+          [source]
       end
     end
   end
