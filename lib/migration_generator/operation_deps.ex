@@ -113,6 +113,12 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
     referenced by another table's foreign key (verified directly, and not
     limited to primary keys), so `RemovePrimaryKey`/`RemoveUniqueIndex`
     require this for each of their own columns.
+  - `:reference_index_removed` — the reference index on this FK column has
+    been dropped (`RemoveReferenceIndex`). `AddReferenceIndex` requires this
+    for its own source column: both derive the same auto-generated index
+    name from their columns, so rewriting an existing reference index
+    (a Remove/Add pair, e.g. when its `index_where` predicate changes) must
+    drop the old index before creating the new one.
 
   Index-scoped (`key = {schema, table, index}`, same shape as a column-scoped
   key but the third element is an index name, not a column):
@@ -212,8 +218,11 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
       %Operation.AddReferenceIndex{table: table, schema: schema} ->
         [{:table_structure_ready, key(table, schema)}]
 
-      %Operation.RemoveReferenceIndex{table: table, schema: schema} ->
-        [{:table_structure_ready, key(table, schema)}]
+      %Operation.RemoveReferenceIndex{table: table, schema: schema, source: source} ->
+        [
+          {:table_structure_ready, key(table, schema)},
+          {:reference_index_removed, key(table, schema, source)}
+        ]
 
       %Operation.AddCheckConstraint{table: table, schema: schema} ->
         [{:table_structure_ready, key(table, schema)}]
@@ -374,10 +383,14 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
           base
         end
 
-      %Operation.AddReferenceIndex{table: table, schema: schema} ->
+      %Operation.AddReferenceIndex{table: table, schema: schema, source: source} ->
+        # a `RemoveReferenceIndex` on the same source column must run first —
+        # both derive the same auto-generated index name from their columns,
+        # so Postgres can't create the new index while the old one exists.
         [
           {:table_ready, key(table, schema)},
-          {:table_columns_settled, key(table, schema)}
+          {:table_columns_settled, key(table, schema)},
+          {:reference_index_removed, key(table, schema, source)}
         ]
 
       %Operation.AddCheckConstraint{

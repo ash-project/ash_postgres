@@ -209,6 +209,57 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
 
       refute Enum.any?(OperationDeps.requires(add), &match?({:custom_index_removed, _}, &1))
     end
+
+    test "RemoveReferenceIndex and AddReferenceIndex on the same source column are linked" do
+      # Both derive the same auto-generated index name from their columns, so
+      # the add can't run while the old index still exists (e.g. an index_where
+      # rewrite of an existing reference index).
+      remove = %Operation.RemoveReferenceIndex{
+        table: "posts",
+        schema: nil,
+        source: :author_id,
+        multitenancy: %{attribute: nil, strategy: nil, global: nil},
+        old_multitenancy: %{attribute: nil, strategy: nil, global: nil}
+      }
+
+      add = %Operation.AddReferenceIndex{
+        table: "posts",
+        schema: nil,
+        source: :author_id,
+        where: "author_id IS NOT NULL",
+        multitenancy: %{attribute: nil, strategy: nil, global: nil}
+      }
+
+      [fact] =
+        OperationDeps.provides(remove)
+        |> Enum.filter(&match?({:reference_index_removed, _}, &1))
+
+      assert fact in OperationDeps.requires(add)
+    end
+
+    test "AddReferenceIndex is NOT linked to a RemoveReferenceIndex on a different source column" do
+      remove = %Operation.RemoveReferenceIndex{
+        table: "posts",
+        schema: nil,
+        source: :editor_id,
+        multitenancy: %{attribute: nil, strategy: nil, global: nil},
+        old_multitenancy: %{attribute: nil, strategy: nil, global: nil}
+      }
+
+      add = %Operation.AddReferenceIndex{
+        table: "posts",
+        schema: nil,
+        source: :author_id,
+        where: nil,
+        multitenancy: %{attribute: nil, strategy: nil, global: nil}
+      }
+
+      [fact] =
+        OperationDeps.provides(remove)
+        |> Enum.filter(&match?({:reference_index_removed, _}, &1))
+
+      refute fact in OperationDeps.requires(add)
+    end
   end
 
   describe "down-sequence validity for renames" do
