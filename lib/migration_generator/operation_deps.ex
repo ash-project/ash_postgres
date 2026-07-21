@@ -57,9 +57,10 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
   Each fact is a 2-tuple `{name, key}`. `key` is `{schema, table}` for a
   table-scoped fact, or `{schema, table, x}` for a fact scoped to some `x`
   within that table — see `key/2`, `key/3`. That third element is a column
-  for every fact below except `:custom_index_removed`, where it's an index
-  name; facts are named `table_*`/`column_*`/`index_*` to match what their
-  key actually scopes over, not just its shape.
+  for every fact below except `:custom_index_removed` (an index name) and
+  `:unique_index_created` (a sorted column list); facts are named
+  `table_*`/`column_*`/`index_*` to match what their key actually scopes
+  over, not just its shape.
 
   Table-scoped (`key = {schema, table}`):
 
@@ -87,11 +88,8 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
   Column-scoped (`key = {schema, table, column}`):
 
   - `:column_ready` — a specific column (by its current name) exists.
-  - `:column_unique_index_created` — a specific column is now covered by a
-    unique index (satisfies FK targets referencing it — Postgres requires a
-    foreign key's target to be backed by a unique constraint/index).
-  - `:column_unique_index_removed` — the inverse: a specific column's unique
-    index has been removed. `RenameAttribute` requires this for the same
+  - `:column_unique_index_removed` — a unique index covering this column has
+    been removed. `RenameAttribute` requires this for the same
     `down`-validity reason as `:column_custom_index_removed`.
   - `:column_custom_index_removed` — every `RemoveCustomIndex` whose
     structured `fields` list includes this column has run. `RenameAttribute`
@@ -126,6 +124,19 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
   - `:custom_index_removed` — a specific *named* custom index has been
     dropped, so a same-named index can be recreated (Postgres index names
     are unique per schema).
+
+  Column-set-scoped (`key = {schema, table, sorted_columns}`, the third
+  element a sorted list of column atoms):
+
+  - `:unique_index_created` — a unique index covering *exactly* this column
+    set exists (`AddUniqueIndex` for identities, unique `AddCustomIndex`).
+    The set is the columns the rendered index actually covers — including
+    the tenant attribute that attribute-strategy multitenancy prefixes at
+    render time. A foreign key requires this fact for exactly its referenced
+    column set (`destination_attribute` plus `match_with` destinations),
+    matching Postgres's rule that an FK target must be backed by a unique
+    index on exactly the referenced columns — per-column unique indexes
+    don't satisfy it, and correspondingly don't provide this fact.
   """
 
   alias AshPostgres.MigrationGenerator.Operation
@@ -181,11 +192,18 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
           {:table_structure_ready, key(table, schema)}
         ]
 
-      %Operation.AddUniqueIndex{table: table, schema: schema, identity: identity} ->
-        keys = List.wrap(identity.keys)
+      %Operation.AddUniqueIndex{table: table, schema: schema, identity: identity} = op ->
+        columns =
+          unique_index_column_set(
+            List.wrap(identity.keys),
+            Map.get(identity, :all_tenants?, false),
+            Map.get(op, :multitenancy)
+          )
 
-        [{:table_structure_ready, key(table, schema)}] ++
-          Enum.map(keys, &{:column_unique_index_created, key(table, schema, &1)})
+        [
+          {:table_structure_ready, key(table, schema)},
+          {:unique_index_created, key(table, schema, columns)}
+        ]
 
       %Operation.RemoveUniqueIndex{table: table, schema: schema, identity: identity} ->
         keys = List.wrap(identity.keys)
@@ -193,8 +211,22 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
         [{:table_structure_ready, key(table, schema)}] ++
           Enum.map(keys, &{:column_unique_index_removed, key(table, schema, &1)})
 
-      %Operation.AddCustomIndex{table: table, schema: schema} ->
-        [{:table_structure_ready, key(table, schema)}]
+      %Operation.AddCustomIndex{table: table, schema: schema, index: index} = op ->
+        unique_facts =
+          if index.unique do
+            columns =
+              unique_index_column_set(
+                Enum.map(index.fields, &AshPostgres.CustomIndex.column_name/1),
+                Map.get(index, :all_tenants?, false),
+                Map.get(op, :multitenancy)
+              )
+
+            [{:unique_index_created, key(table, schema, columns)}]
+          else
+            []
+          end
+
+        [{:table_structure_ready, key(table, schema)}] ++ unique_facts
 
       %Operation.RemoveCustomIndex{table: table, schema: schema, index: index} ->
         base =
@@ -369,10 +401,26 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
           Enum.map(keys, &{:column_fk_dropped, key(table, schema, &1)})
 
       %Operation.AddCustomIndex{table: table, schema: schema, index: index} ->
-        base = [
-          {:table_ready, key(table, schema)},
-          {:table_columns_settled, key(table, schema)}
-        ]
+        # When the index has no raw `where` and every field is a plain column
+        # name, we know exactly which columns it touches — require just those
+        # columns' existence instead of the whole table being settled. Raw SQL
+        # (a `where`, an expression field like "lower(email)") keeps the
+        # conservative table-wide margin. The precision matters beyond
+        # performance: a *unique* custom index provides
+        # `unique_index_created` (see `provides/1`) so that FKs
+        # targeting it run after it — with a table-wide requirement here, a
+        # same-table FK alter would wait on this index while this index waits
+        # on `table_columns_settled` provided by that same alter: a cycle.
+        column_requirements =
+          case simple_column_fields(index) do
+            {:ok, columns} ->
+              Enum.map(columns, &{:column_ready, key(table, schema, &1)})
+
+            :error ->
+              [{:table_columns_settled, key(table, schema)}]
+          end
+
+        base = [{:table_ready, key(table, schema)} | column_requirements]
 
         # a `RemoveCustomIndex` sharing this index's *explicit* name must run
         # first — Postgres can't create an index under a name that's still in
@@ -426,13 +474,61 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
        }) do
     schema = Map.get(reference, :schema)
 
-    [
-      {:column_ready, key(table, schema, column)},
-      {:column_unique_index_created, key(table, schema, column)}
-    ]
+    # A composite foreign key (`with:` via match_with) references the
+    # destination column plus the match_with destination columns. Postgres
+    # requires one unique index covering exactly that column set, so the FK
+    # must run after each referenced column exists and after the covering
+    # unique index (when either is created in this same batch).
+    destination_columns =
+      [column | Map.values(Map.get(reference, :match_with) || %{})]
+      |> Enum.map(&normalize_column/1)
+
+    column_set = destination_columns |> Enum.uniq() |> Enum.sort()
+
+    Enum.map(destination_columns, &{:column_ready, key(table, schema, &1)}) ++
+      [{:unique_index_created, key(table, schema, column_set)}]
   end
 
   defp reference_requirements(_), do: []
+
+  # The columns the rendered unique index actually covers: attribute-strategy
+  # multitenancy prefixes the tenant attribute at render time (see
+  # `Operation.Helper.index_keys/3`), so the fact key must be built from the
+  # same column set for it to line up with what a composite FK references.
+  defp unique_index_column_set(keys, all_tenants?, multitenancy) do
+    keys
+    |> Operation.Helper.index_keys(all_tenants?, multitenancy || %{strategy: nil})
+    |> Enum.map(&normalize_column/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  defp normalize_column(column) when is_atom(column), do: column
+  # sobelow_skip ["DOS.StringToAtom"]
+  defp normalize_column(column) when is_binary(column), do: String.to_atom(column)
+
+  # {:ok, columns} when the index provably touches exactly `columns` (no raw
+  # `where`, every field and included column a plain column name); :error when
+  # any raw SQL means we can't know.
+  defp simple_column_fields(index) do
+    fields = Map.get(index, :fields)
+
+    if Map.get(index, :where) || is_nil(fields) do
+      :error
+    else
+      columns =
+        Enum.map(fields, &AshPostgres.CustomIndex.column_name/1) ++
+          List.wrap(Map.get(index, :include))
+
+      if Enum.all?(columns, fn column ->
+           column |> to_string() |> String.match?(~r/^[a-zA-Z0-9_]+$/)
+         end) do
+        {:ok, Enum.map(columns, &normalize_column/1)}
+      else
+        :error
+      end
+    end
+  end
 
   defp check_constraint_columns(constraint, multitenancy) do
     cols = List.wrap(Map.get(constraint, :attribute))

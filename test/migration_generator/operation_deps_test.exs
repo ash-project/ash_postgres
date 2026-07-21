@@ -87,10 +87,128 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
 
       [index_fact] =
         OperationDeps.provides(referenced_index)
-        |> Enum.filter(&match?({:column_unique_index_created, _}, &1))
+        |> Enum.filter(&match?({:unique_index_created, _}, &1))
 
+      assert index_fact == {:unique_index_created, {"public", "posts", [:id]}}
       assert column_fact in requires
       assert index_fact in requires
+    end
+
+    test "a composite FK (match_with) requires a unique index covering exactly its referenced column set" do
+      # e.g. `reference :dept, match_with: [org_id: :org_id]` produces a
+      # composite FK on dept (id, org_id); Postgres requires one unique index
+      # covering exactly those columns, which here is a custom index rather
+      # than an identity (identities mix in base_filter, making the index
+      # partial and unusable as an FK target).
+      referenced_index = %Operation.AddCustomIndex{
+        table: "dept",
+        schema: nil,
+        index: %{name: "dept_org_id_id_index", unique: true, fields: ["org_id", "id"]},
+        base_filter: nil,
+        multitenancy: %{attribute: nil, strategy: nil, global: nil}
+      }
+
+      referencing_attribute = %Operation.AddAttribute{
+        table: "customer",
+        schema: nil,
+        attribute: %{
+          source: :dept_id,
+          primary_key?: false,
+          references: %{
+            table: "dept",
+            destination_attribute: :id,
+            schema: "public",
+            match_with: %{org_id: :org_id}
+          }
+        }
+      }
+
+      requires = OperationDeps.requires(referencing_attribute)
+
+      # provider side: string field names normalize into one sorted atom set
+      [index_fact] =
+        OperationDeps.provides(referenced_index)
+        |> Enum.filter(&match?({:unique_index_created, _}, &1))
+
+      assert index_fact == {:unique_index_created, {"public", "dept", [:id, :org_id]}}
+
+      # consumer side: the FK waits for the covering index and the extra column
+      assert index_fact in requires
+      assert {:column_ready, {"public", "dept", :org_id}} in requires
+    end
+
+    test "separate single-column unique indexes do not satisfy a composite FK's covering-index requirement" do
+      # Postgres requires ONE unique index on exactly (id, org_id); a unique
+      # index on (id) plus another on (org_id) does not qualify, and
+      # correspondingly neither provides the column-set fact the FK requires.
+      id_index = %Operation.AddCustomIndex{
+        table: "dept",
+        schema: nil,
+        index: %{name: nil, unique: true, fields: ["id"]},
+        base_filter: nil,
+        multitenancy: %{attribute: nil, strategy: nil, global: nil}
+      }
+
+      org_id_index = %Operation.AddCustomIndex{
+        table: "dept",
+        schema: nil,
+        index: %{name: nil, unique: true, fields: ["org_id"]},
+        base_filter: nil,
+        multitenancy: %{attribute: nil, strategy: nil, global: nil}
+      }
+
+      referencing_attribute = %Operation.AddAttribute{
+        table: "customer",
+        schema: nil,
+        attribute: %{
+          source: :dept_id,
+          primary_key?: false,
+          references: %{
+            table: "dept",
+            destination_attribute: :id,
+            schema: "public",
+            match_with: %{org_id: :org_id}
+          }
+        }
+      }
+
+      [required_index_fact] =
+        OperationDeps.requires(referencing_attribute)
+        |> Enum.filter(&match?({:unique_index_created, _}, &1))
+
+      refute required_index_fact in OperationDeps.provides(id_index)
+      refute required_index_fact in OperationDeps.provides(org_id_index)
+    end
+
+    test "the provided column set includes the tenant attribute that multitenancy prefixes at render time" do
+      # The rendered index is (org_id, secondary_id), not (secondary_id) —
+      # see Operation.Helper.index_keys/3 — so the fact must say so, or a
+      # composite FK targeting (org_id, secondary_id) would never link to it.
+      op = %Operation.AddUniqueIndex{
+        table: "users",
+        schema: nil,
+        identity: %{keys: [:secondary_id], where: nil, base_filter: nil},
+        multitenancy: %{strategy: :attribute, attribute: :org_id, global: false}
+      }
+
+      assert {:unique_index_created, {"public", "users", [:org_id, :secondary_id]}} in OperationDeps.provides(
+               op
+             )
+    end
+
+    test "a non-unique custom index does not provide unique_index_created" do
+      index_op = %Operation.AddCustomIndex{
+        table: "dept",
+        schema: nil,
+        index: %{name: nil, unique: false, fields: ["org_id"]},
+        base_filter: nil,
+        multitenancy: %{attribute: nil, strategy: nil, global: nil}
+      }
+
+      refute Enum.any?(
+               OperationDeps.provides(index_op),
+               &match?({:unique_index_created, _}, &1)
+             )
     end
 
     test "reference.schema (\"public\" string) and a table's own nil schema normalize to the same fact key" do
