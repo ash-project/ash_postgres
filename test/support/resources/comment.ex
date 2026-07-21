@@ -138,6 +138,10 @@ defmodule AshPostgres.Test.Comment do
     end
 
     count(:count_of_ratings, :ratings)
+
+    # top_ratings has `limit: 2` — aggregates over it should respect that limit.
+    count(:count_of_top_ratings, :top_ratings)
+    list(:top_rating_scores, :top_ratings, :score)
   end
 
   calculations do
