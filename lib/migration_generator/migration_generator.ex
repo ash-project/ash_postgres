@@ -2409,6 +2409,18 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp after?(%Operation.RenameTable{}, _), do: false
 
+  defp after?(
+         %Operation.DropForeignKey{attribute: %{references: %{table: table}}},
+         %Operation.DropTable{table: table}
+       ),
+       do: false
+
+  defp after?(
+         %Operation.DropTable{table: table},
+         %Operation.DropForeignKey{attribute: %{references: %{table: table}}}
+       ),
+       do: true
+
   defp after?(_, %Operation.DropTable{}), do: true
   defp after?(%Operation.DropTable{}, _), do: false
 
