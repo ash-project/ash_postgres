@@ -77,9 +77,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       :bigint
     end
 
-    def reference_type(%{type: :identity}, _), do: ":identity"
+    def reference_type(%{type: :identity}, _), do: :identity
 
-    def reference_type(%{type: :integer, default: "nil", generated?: true}, _), do: ":bigserial"
+    def reference_type(%{type: :integer, default: "nil", generated?: true}, _), do: :bigserial
 
     def reference_type(%{type: type}, _), do: type
 
