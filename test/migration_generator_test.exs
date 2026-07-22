@@ -943,7 +943,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       [up_side, down_side] = String.split(contents, "def down", parts: 2)
 
-      up_side_parts = String.split(up_side, "\n", trim: true)
+      up_side_parts =
+        String.split(up_side, "\n", trim: true)
+        |> Enum.map(&String.trim/1)
 
       assert Enum.find_index(up_side_parts, fn x ->
                x == "rename table(:posts), :title, to: :title_short"
@@ -952,12 +954,160 @@ defmodule AshPostgres.MigrationGeneratorTest do
                  x == "create index(:posts, [:title_short])"
                end)
 
-      down_side_parts = String.split(down_side, "\n", trim: true)
+      down_side_parts =
+        String.split(down_side, "\n", trim: true)
+        |> Enum.map(&String.trim/1)
 
       assert Enum.find_index(down_side_parts, fn x ->
                x == "rename table(:posts), :title_short, to: :title"
              end) <
                Enum.find_index(down_side_parts, fn x -> x == "create index(:posts, [:title])" end)
+    end
+  end
+
+  describe "check constraint and column removed together" do
+    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      :ok
+
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:price, :integer, public?: true)
+        end
+
+        postgres do
+          check_constraints do
+            check_constraint(:price, "price_must_be_positive", check: ~S["price" > 0])
+          end
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+    end
+
+    test "the constraint is dropped before the column, so `down` recreates the column before the constraint",
+         %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defdomain([Post])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      contents = File.read!(file2)
+
+      [up_side, down_side] = String.split(contents, "def down", parts: 2)
+
+      up_side_parts = String.split(up_side, "\n", trim: true) |> Enum.map(&String.trim/1)
+
+      # up: drop the constraint before removing the column it covers.
+      assert Enum.find_index(up_side_parts, &(&1 == "drop_if_exists constraint(:posts, :price_must_be_positive)")) <
+               Enum.find_index(up_side_parts, &(&1 == "remove :price"))
+
+      down_side_parts = String.split(down_side, "\n", trim: true) |> Enum.map(&String.trim/1)
+
+      # down (reversed): recreate the column before recreating the
+      # constraint that references it — otherwise this `down` would fail
+      # against real Postgres with "column price does not exist".
+      assert Enum.find_index(down_side_parts, &(&1 == "add :price, :bigint")) <
+               Enum.find_index(down_side_parts, &String.starts_with?(&1, "create constraint(:posts, :price_must_be_positive"))
+    end
+  end
+
+  describe "identity and attribute renamed together" do
+    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      :ok
+
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+
+        identities do
+          identity(:uniq_title, [:title])
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+    end
+
+    test "the old identity's index is dropped before the rename, so `down` recreates the index after undoing the rename",
+         %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title_short, :string, public?: true)
+        end
+
+        identities do
+          identity(:uniq_title, [:title_short])
+        end
+      end
+
+      defdomain([Post])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      contents = File.read!(file2)
+
+      [up_side, down_side] = String.split(contents, "def down", parts: 2)
+
+      up_side_parts = String.split(up_side, "\n", trim: true) |> Enum.map(&String.trim/1)
+
+      assert Enum.find_index(up_side_parts, &(&1 == "rename table(:posts), :title, to: :title_short")) <
+               Enum.find_index(up_side_parts, &String.starts_with?(&1, "create unique_index(:posts, [:title_short]"))
+
+      down_side_parts = String.split(down_side, "\n", trim: true) |> Enum.map(&String.trim/1)
+
+      # down (reversed): undo the rename before recreating the old index —
+      # otherwise this `down` would try to index a column name that doesn't
+      # exist yet.
+      assert Enum.find_index(down_side_parts, &(&1 == "rename table(:posts), :title_short, to: :title")) <
+               Enum.find_index(down_side_parts, &String.starts_with?(&1, "create unique_index(:posts, [:title]"))
     end
   end
 
@@ -4879,7 +5029,12 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert file_content =~
                ~S[add :id, :decimal, null: false, precision: 10, scale: 0, primary_key: true]
 
-      assert file_content =~ ~S[add :category_id, :decimal, null: false, precision: 10, scale: 0]
+      # `category_id` is a new column with its foreign key known from the
+      # start, so it's emitted as a single `add ..., references(...)` (rather
+      # than a separate `add` followed by a later `modify ... references(...)`)
+      # — this still carries the same decimal precision/scale.
+      assert file_content =~
+               ~S[add :category_id, references(:categories, column: :id, name: "products_category_id_fkey", type: :decimal, prefix: "public"), precision: 10, scale: 0, null: false]
     end
   end
 
