@@ -11,6 +11,39 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.11.0](https://github.com/ash-project/ash_postgres/compare/v2.10.0...v2.11.0) (2026-07-22)
+
+
+
+
+### Features:
+
+* allow custom indexes to exclude base filters (#796) by Jechol Lee
+
+### Bug Fixes:
+
+* fix generated reference type value for identity and bigserial (#800) by Dmitry Maganov
+
+* return skipped upserts with nil identity values (#794) by Jechol Lee
+
+* warn when resources are skipped due to migrate?: false during miâ¦ (#792) by Jsime34
+
+* set tenant on destroy so exists() subqueries resolve against the tenant schema (#790) by Francisco-Castro
+
+* resolve actor/context templates in through relationship filters (#789) by Barnabas Jovanovics
+
+* correlate bulk upsert records by identity on the MERGE path (#786) by Johannes Welebil
+
+* ensure timeouts applied at repo level (#784) by torazar
+
+### Improvements:
+
+* Add partial index conditions for references (#795) by Jechol Lee
+
+* avoid generating uuidv7 by default, once postgres v18 is detected (#793) by Luca Venir
+
+* Added sort direction support to custom_indexes fields.  (#775) by Thomas Lucas
+
 ## [v2.10.0](https://github.com/ash-project/ash_postgres/compare/v2.9.1...v2.10.0) (2026-06-14)
 
 
