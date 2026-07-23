@@ -4707,6 +4707,186 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "multitenancy with ancestor attributes" do
+    setup do
+      :ok
+    end
+
+    test "identity unique indexes are prefixed with the ancestor attributes and the snapshot round-trips",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      defresource Customer, "customers" do
+        multitenancy do
+          strategy(:attribute)
+          attribute(:department_id)
+          ancestor_attributes([:organization_id])
+        end
+
+        identities do
+          identity(:unique_name, [:name])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:organization_id, :uuid, allow_nil?: false, public?: true)
+          attribute(:department_id, :uuid, allow_nil?: false, public?: true)
+          attribute(:name, :string, allow_nil?: false, public?: true)
+        end
+      end
+
+      defdomain([Customer])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [file] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert File.read!(file) =~
+               ~S{create unique_index(:customers, [:organization_id, :department_id, :name], name: "customers_unique_name_index")}
+
+      # A second run must load the ancestor attributes back from the snapshot and
+      # detect no changes
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [^file] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+    end
+
+    test "references pair the ancestor attributes with the destination's tenant columns", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource Department, "departments" do
+        multitenancy do
+          strategy(:attribute)
+          attribute(:organization_id)
+        end
+
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:secondary_id, :uuid, public?: true)
+          attribute(:organization_id, :uuid, allow_nil?: false, public?: true)
+        end
+      end
+
+      defresource CustomerGroup, "customer_groups" do
+        multitenancy do
+          strategy(:attribute)
+          attribute(:department_id)
+          ancestor_attributes([:organization_id])
+        end
+
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:secondary_id, :uuid, public?: true)
+          attribute(:organization_id, :uuid, allow_nil?: false, public?: true)
+          attribute(:department_id, :uuid, allow_nil?: false, public?: true)
+        end
+      end
+
+      defresource Customer, "customers" do
+        multitenancy do
+          strategy(:attribute)
+          attribute(:department_id)
+          ancestor_attributes([:organization_id])
+        end
+
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:organization_id, :uuid, allow_nil?: false, public?: true)
+          attribute(:name, :string, public?: true)
+        end
+
+        relationships do
+          belongs_to(:department, Department, destination_attribute: :secondary_id, public?: true)
+          belongs_to(:group, CustomerGroup, destination_attribute: :secondary_id, public?: true)
+        end
+      end
+
+      defdomain([Department, CustomerGroup, Customer])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [file] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      file_content = File.read!(file)
+
+      # Destination scoped only by the ancestor: only the shared prefix is paired
+      assert file_content =~
+               ~S{references(:departments, column: :secondary_id, with: [organization_id: :organization_id], match: :full, name: "customers_department_id_fkey", type: :uuid, prefix: "public")}
+
+      # Destination with the same hierarchy: both tenant columns are paired
+      assert file_content =~
+               ~S{references(:customer_groups, column: :secondary_id, with: [organization_id: :organization_id, department_id: :department_id], match: :full, name: "customers_group_id_fkey", type: :uuid, prefix: "public")}
+    end
+
+    test "a deeper ancestor chain prefixes indexes in the declared order", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource Task, "tasks" do
+        multitenancy do
+          strategy(:attribute)
+          attribute(:team_id)
+          ancestor_attributes([:organization_id, :department_id])
+        end
+
+        identities do
+          identity(:unique_name, [:name])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:organization_id, :uuid, allow_nil?: false, public?: true)
+          attribute(:department_id, :uuid, allow_nil?: false, public?: true)
+          attribute(:team_id, :uuid, allow_nil?: false, public?: true)
+          attribute(:name, :string, allow_nil?: false, public?: true)
+        end
+      end
+
+      defdomain([Task])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [file] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert File.read!(file) =~
+               ~S{create unique_index(:tasks, [:organization_id, :department_id, :team_id, :name], name: "tasks_unique_name_index")}
+    end
+  end
+
   describe "decimal precision and scale" do
     setup do
       :ok
