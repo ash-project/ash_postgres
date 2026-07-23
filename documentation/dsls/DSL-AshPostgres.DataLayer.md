@@ -119,6 +119,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
 | [`nulls_distinct`](#postgres-custom_indexes-index-nulls_distinct){: #postgres-custom_indexes-index-nulls_distinct } | `boolean` | `true` | specify whether null values should be considered distinct for a unique index. Requires PostgreSQL 15 or later |
 | [`message`](#postgres-custom_indexes-index-message){: #postgres-custom_indexes-index-message } | `String.t` |  | A custom message to use for unique indexes that have been violated |
 | [`all_tenants?`](#postgres-custom_indexes-index-all_tenants?){: #postgres-custom_indexes-index-all_tenants? } | `boolean` | `false` | Whether or not the index should factor in the multitenancy attribute or not. |
+| [`include_base_filter?`](#postgres-custom_indexes-index-include_base_filter?){: #postgres-custom_indexes-index-include_base_filter? } | `boolean` | `true` | Whether or not the resource base filter should be included in the index predicate. |
 
 
 

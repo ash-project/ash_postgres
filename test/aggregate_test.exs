@@ -316,6 +316,29 @@ defmodule AshSql.AggregateTest do
     end
   end
 
+  describe "aggregates over a relationship with a limit" do
+    test "respect the relationship's limit and sort" do
+      comment =
+        Comment
+        |> Ash.Changeset.for_create(:create, %{title: "title"})
+        |> Ash.create!()
+
+      for score <- 1..5 do
+        Rating
+        |> Ash.Changeset.for_create(:create, %{score: score, resource_id: comment.id})
+        |> Ash.create!(context: %{data_layer: %{table: "comment_ratings"}})
+      end
+
+      # top_ratings has `limit: 2, sort: [score: :desc]`, so aggregates over it
+      # should only see the top two scores, [5, 4] — not all five ratings.
+      assert %{count_of_top_ratings: 2, top_rating_scores: [5, 4]} =
+               Comment
+               |> Ash.Query.filter(id == ^comment.id)
+               |> Ash.Query.load([:count_of_top_ratings, :top_rating_scores])
+               |> Ash.read_one!()
+    end
+  end
+
   describe "count" do
     test "with no related data it returns 0" do
       post =

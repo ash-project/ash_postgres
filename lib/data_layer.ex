@@ -98,9 +98,10 @@ defmodule AshPostgres.DataLayer do
     describe: """
     A section for configuring custom statements to be added to migrations.
 
-    Changing custom statements may require manual intervention, because Ash can't determine what order they should run
-    in (i.e if they depend on table structure that you've added, or vice versa). As such, any `down` statements we run
-    for custom statements happen first, and any `up` statements happen last.
+    By default, a statement has no declared dependency on other tables, so `down` statements run before any other
+    operation and `up` statements run after all other operations for that statement's table. If your statement's `up`
+    depends on structure from another table (e.g. a foreign key referencing a unique index defined via `identities`),
+    declare it with `after_tables` so the migration generator orders it correctly relative to that table's operations.
 
     Additionally, when changing a custom statement, we must make some assumptions, i.e that we should migrate
     the old structure down using the previously configured `down` and recreate it.
@@ -115,6 +116,13 @@ defmodule AshPostgres.DataLayer do
         statement :pgweb_idx do
           up "CREATE INDEX pgweb_idx ON pgweb USING GIN (to_tsvector('english', title || ' ' || body));"
           down "DROP INDEX pgweb_idx;"
+        end
+
+        statement :children_parent_composite_fk do
+          # ensures this runs after `parents`'s columns and unique indexes are finalized
+          after_tables ["parents"]
+          up "ALTER TABLE children ADD CONSTRAINT children_parent_fk FOREIGN KEY (region_id, parent_id) REFERENCES parents (region_id, id);"
+          down "ALTER TABLE children DROP CONSTRAINT children_parent_fk;"
         end
       end
       """
