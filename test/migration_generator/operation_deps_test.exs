@@ -484,19 +484,107 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
   end
 
   describe "custom_statements" do
-    test "AddCustomStatement's own-table requirement is satisfied by a CreateTable for that same table" do
+    test "AddCustomStatement's own-table requirement is satisfied by a CreateTable for that same table (via table_structure_ready)" do
       create = %Operation.CreateTable{table: "widget", schema: nil}
 
       statement = %Operation.AddCustomStatement{
         table: "widget",
         schema: nil,
-        statement: %{name: :some_statement, up: "", down: "", code?: false}
+        statement: %{name: :some_statement, up: "", down: "", code?: false, after_tables: []}
       }
 
       [fact] =
         OperationDeps.provides(create) |> Enum.filter(&match?({:table_structure_ready, _}, &1))
 
       assert fact in OperationDeps.requires(statement)
+    end
+
+    test "AddCustomStatement with after_tables is satisfied by a CreateTable for the declared table (via table_finalized)" do
+      create = %Operation.CreateTable{table: "parents", schema: nil}
+
+      statement = %Operation.AddCustomStatement{
+        table: "widget",
+        schema: nil,
+        statement: %{
+          name: :widget_parent_composite_fk,
+          up: "",
+          down: "",
+          code?: false,
+          after_tables: ["parents"]
+        }
+      }
+
+      [fact] = OperationDeps.provides(create) |> Enum.filter(&match?({:table_finalized, _}, &1))
+
+      assert fact in OperationDeps.requires(statement)
+    end
+
+    test "AddCustomStatement with after_tables is satisfied by another custom statement declared on the target table" do
+      # This is the whole point of the two-tier fact split: a shared,
+      # foundational custom statement (e.g. one that creates a structure
+      # another table's FK needs) can live on the table it actually concerns,
+      # and other resources' `after_tables` will wait for it too — not just
+      # for that table's plain structural (DDL) operations.
+      parent_statement = %Operation.AddCustomStatement{
+        table: "parents",
+        schema: nil,
+        statement: %{
+          name: :parents_composite_unique_index,
+          up: "",
+          down: "",
+          code?: false,
+          after_tables: []
+        }
+      }
+
+      child_statement = %Operation.AddCustomStatement{
+        table: "widget",
+        schema: nil,
+        statement: %{
+          name: :widget_parent_composite_fk,
+          up: "",
+          down: "",
+          code?: false,
+          after_tables: ["parents"]
+        }
+      }
+
+      [fact] =
+        OperationDeps.provides(parent_statement)
+        |> Enum.filter(&match?({:table_finalized, _}, &1))
+
+      assert fact in OperationDeps.requires(child_statement)
+    end
+
+    test "two custom statements declared on the same table do not require each other (no sibling cycle)" do
+      statement_a = %Operation.AddCustomStatement{
+        table: "widget",
+        schema: nil,
+        statement: %{name: :a, up: "", down: "", code?: false, after_tables: []}
+      }
+
+      statement_b = %Operation.AddCustomStatement{
+        table: "widget",
+        schema: nil,
+        statement: %{name: :b, up: "", down: "", code?: false, after_tables: []}
+      }
+
+      # Each provides :table_finalized for their shared table (so *other*
+      # tables' after_tables can depend on either of them), but neither's own
+      # implicit requirement is written in terms of that same broad fact —
+      # only the narrower :table_structure_ready, which neither custom
+      # statement provides. If this ever regresses, `AddCustomStatement`s on
+      # a shared table would deadlock (a real cycle) via each other's
+      # `:table_finalized`.
+      refute Enum.any?(
+               OperationDeps.provides(statement_a),
+               &match?({:table_structure_ready, _}, &1)
+             )
+
+      refute Enum.any?(
+               OperationDeps.requires(statement_b),
+               &match?({:table_finalized, _}, &1)
+             )
     end
   end
 
