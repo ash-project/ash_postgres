@@ -320,7 +320,8 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
   def requires(op) do
     case op do
       %Operation.AddAttribute{table: table, schema: schema, attribute: attribute} ->
-        [{:table_ready, key(table, schema)}] ++ reference_requirements(attribute)
+        [{:table_ready, key(table, schema)}] ++
+          reference_requirements(attribute, table, schema)
 
       %Operation.AlterAttribute{
         table: table,
@@ -341,7 +342,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
           {:table_ready, key(table, schema)},
           {:column_ready, key(table, schema, old_attribute.source)},
           {:column_ready, key(table, schema, new_attribute.source)}
-        ] ++ reference_requirements(new_attribute)
+        ] ++ reference_requirements(new_attribute, table, schema)
 
       %Operation.RenameAttribute{table: table, schema: schema, old_attribute: old_attribute} ->
         [
@@ -463,6 +464,17 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
       %Operation.RemoveCheckConstraint{table: table, schema: schema} ->
         [{:table_ready, key(table, schema)}]
 
+      %Operation.DropForeignKey{table: table, schema: schema, direction: :down} ->
+        # Renders nothing in `up` — it exists so `down` drops the FK
+        # constraint created by its paired Add/AlterAttribute. Waiting for
+        # `table_columns_settled` keeps it after that paired op (so the
+        # reversed `down` drops the constraint before undoing the op that
+        # created it) and out of the middle of a table's column operations,
+        # where it would otherwise split a `create table` phase in two
+        # (issue #805: the split left a primary-key column in a later
+        # `alter`, an invalid second primary key).
+        [{:table_ready, key(table, schema)}, {:table_columns_settled, key(table, schema)}]
+
       %Operation.DropForeignKey{table: table, schema: schema} ->
         [{:table_ready, key(table, schema)}]
 
@@ -487,10 +499,13 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
     end
   end
 
-  defp reference_requirements(%{
-         references: %{table: table, destination_attribute: column} = reference
-       }) do
+  defp reference_requirements(
+         %{references: %{table: table, destination_attribute: column} = reference} = attribute,
+         own_table,
+         own_schema
+       ) do
     schema = Map.get(reference, :schema)
+    match_with = Map.get(reference, :match_with) || %{}
 
     # A composite foreign key (`with:` via match_with) references the
     # destination column plus the match_with destination columns. Postgres
@@ -498,16 +513,28 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
     # must run after each referenced column exists and after the covering
     # unique index (when either is created in this same batch).
     destination_columns =
-      [column | Map.values(Map.get(reference, :match_with) || %{})]
+      [column | Map.values(match_with)]
       |> Enum.map(&normalize_column/1)
 
     column_set = destination_columns |> Enum.uniq() |> Enum.sort()
 
+    # The match_with *source* columns live on the FK's own table and are part
+    # of the constraint too, so the FK can't be created before they exist
+    # (issue #805: the FK landed inline in `create table` while its source
+    # column was only added in a later `alter table`). The attribute's own
+    # source column is excluded — it's the column this very operation adds.
+    source_columns =
+      match_with
+      |> Map.keys()
+      |> Enum.map(&normalize_column/1)
+      |> Enum.reject(&(&1 == normalize_column(attribute.source)))
+
     Enum.map(destination_columns, &{:column_ready, key(table, schema, &1)}) ++
-      [{:unique_index_created, key(table, schema, column_set)}]
+      [{:unique_index_created, key(table, schema, column_set)}] ++
+      Enum.map(source_columns, &{:column_ready, key(own_table, own_schema, &1)})
   end
 
-  defp reference_requirements(_), do: []
+  defp reference_requirements(_, _, _), do: []
 
   # The columns the rendered unique index actually covers: attribute-strategy
   # multitenancy prefixes the tenant attribute at render time (see

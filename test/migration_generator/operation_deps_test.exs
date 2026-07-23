@@ -137,6 +137,77 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
       assert {:column_ready, {"public", "dept", :org_id}} in requires
     end
 
+    test "a composite FK (match_with) also requires its own table's source columns (issue #805)" do
+      # `reference :a, match_with: [site_id: :site_id]` on junctions makes
+      # junctions.site_id part of the FK constraint, so the FK can't be
+      # created before that sibling column exists. The attribute's own source
+      # column is excluded — it's the column the operation itself adds.
+      referencing_attribute = %Operation.AddAttribute{
+        table: "junctions",
+        schema: nil,
+        attribute: %{
+          source: :a_id,
+          primary_key?: false,
+          references: %{
+            table: "as",
+            destination_attribute: :id,
+            schema: "public",
+            match_with: %{site_id: :site_id}
+          }
+        }
+      }
+
+      source_column = %Operation.AddAttribute{
+        table: "junctions",
+        schema: nil,
+        attribute: %{source: :site_id, primary_key?: true}
+      }
+
+      requires = OperationDeps.requires(referencing_attribute)
+
+      [column_fact] =
+        OperationDeps.provides(source_column) |> Enum.filter(&match?({:column_ready, _}, &1))
+
+      assert column_fact == {:column_ready, {"public", "junctions", :site_id}}
+      assert column_fact in requires
+      refute {:column_ready, {"public", "junctions", :a_id}} in requires
+    end
+
+    test "a down-direction DropForeignKey waits for all of its table's column operations (issue #805)" do
+      # DropForeignKey{direction: :down} renders nothing in `up`; it exists so
+      # `down` drops the constraint its paired Add/AlterAttribute created.
+      # Requiring `table_columns_settled` keeps it after that paired op and
+      # out of the middle of a `create table`'s column operations, where it
+      # would split the create phase (leaving e.g. a primary-key column to an
+      # invalid later `alter`).
+      drop_down = %Operation.DropForeignKey{
+        table: "junctions",
+        schema: nil,
+        attribute: %{references: %{table: "as", destination_attribute: :id, schema: nil}},
+        direction: :down
+      }
+
+      fk_alter = %Operation.AlterAttribute{
+        table: "junctions",
+        schema: nil,
+        old_attribute: %{source: :a_id},
+        new_attribute: %{
+          source: :a_id,
+          references: %{table: "as", destination_attribute: :id, schema: "public"}
+        }
+      }
+
+      [settled_fact] =
+        OperationDeps.provides(fk_alter)
+        |> Enum.filter(&match?({:table_columns_settled, _}, &1))
+
+      assert settled_fact in OperationDeps.requires(drop_down)
+
+      # the up-direction op (used when dropping/replacing an FK) keeps its
+      # narrower requirement so drop sequences are not disturbed
+      refute settled_fact in OperationDeps.requires(%{drop_down | direction: :up})
+    end
+
     test "separate single-column unique indexes do not satisfy a composite FK's covering-index requirement" do
       # Postgres requires ONE unique index on exactly (id, org_id); a unique
       # index on (id) plus another on (org_id) does not qualify, and

@@ -1024,7 +1024,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
       up_side_parts = String.split(up_side, "\n", trim: true) |> Enum.map(&String.trim/1)
 
       # up: drop the constraint before removing the column it covers.
-      assert Enum.find_index(up_side_parts, &(&1 == "drop_if_exists constraint(:posts, :price_must_be_positive)")) <
+      assert Enum.find_index(
+               up_side_parts,
+               &(&1 == "drop_if_exists constraint(:posts, :price_must_be_positive)")
+             ) <
                Enum.find_index(up_side_parts, &(&1 == "remove :price"))
 
       down_side_parts = String.split(down_side, "\n", trim: true) |> Enum.map(&String.trim/1)
@@ -1033,7 +1036,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
       # constraint that references it — otherwise this `down` would fail
       # against real Postgres with "column price does not exist".
       assert Enum.find_index(down_side_parts, &(&1 == "add :price, :bigint")) <
-               Enum.find_index(down_side_parts, &String.starts_with?(&1, "create constraint(:posts, :price_must_be_positive"))
+               Enum.find_index(
+                 down_side_parts,
+                 &String.starts_with?(&1, "create constraint(:posts, :price_must_be_positive")
+               )
     end
   end
 
@@ -1098,16 +1104,28 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       up_side_parts = String.split(up_side, "\n", trim: true) |> Enum.map(&String.trim/1)
 
-      assert Enum.find_index(up_side_parts, &(&1 == "rename table(:posts), :title, to: :title_short")) <
-               Enum.find_index(up_side_parts, &String.starts_with?(&1, "create unique_index(:posts, [:title_short]"))
+      assert Enum.find_index(
+               up_side_parts,
+               &(&1 == "rename table(:posts), :title, to: :title_short")
+             ) <
+               Enum.find_index(
+                 up_side_parts,
+                 &String.starts_with?(&1, "create unique_index(:posts, [:title_short]")
+               )
 
       down_side_parts = String.split(down_side, "\n", trim: true) |> Enum.map(&String.trim/1)
 
       # down (reversed): undo the rename before recreating the old index —
       # otherwise this `down` would try to index a column name that doesn't
       # exist yet.
-      assert Enum.find_index(down_side_parts, &(&1 == "rename table(:posts), :title_short, to: :title")) <
-               Enum.find_index(down_side_parts, &String.starts_with?(&1, "create unique_index(:posts, [:title]"))
+      assert Enum.find_index(
+               down_side_parts,
+               &(&1 == "rename table(:posts), :title_short, to: :title")
+             ) <
+               Enum.find_index(
+                 down_side_parts,
+                 &String.starts_with?(&1, "create unique_index(:posts, [:title]")
+               )
     end
   end
 

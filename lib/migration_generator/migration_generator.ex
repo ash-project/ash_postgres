@@ -1627,10 +1627,12 @@ defmodule AshPostgres.MigrationGenerator do
          ],
          acc
        ) do
-    rest
-    |> Enum.take_while(fn op ->
-      op.table == table && op.schema == schema
-    end)
+    same_table_prefix =
+      Enum.take_while(rest, fn op ->
+        op.table == table && op.schema == schema
+      end)
+
+    same_table_prefix
     |> Enum.with_index()
     |> Enum.find(fn
       {%Operation.AlterAttribute{
@@ -1648,8 +1650,27 @@ defmodule AshPostgres.MigrationGenerator do
         streamline(rest, [add | acc])
 
       {alter, index} ->
-        new_attribute = Map.put(add.attribute, :references, alter.new_attribute.references)
-        streamline(List.delete_at(rest, index), [%{add | attribute: new_attribute} | acc])
+        # Merging pulls the alter's reference up to the add's position, so it
+        # must not jump over an operation the toposort deliberately placed
+        # before it — e.g. the AddAttribute for a composite FK's `match_with`
+        # source column (issue #805).
+        alter_requires = MapSet.new(OperationDeps.requires(alter))
+
+        safe_to_merge? =
+          same_table_prefix
+          |> Enum.take(index)
+          |> Enum.all?(fn op ->
+            op
+            |> OperationDeps.provides()
+            |> Enum.all?(&(not MapSet.member?(alter_requires, &1)))
+          end)
+
+        if safe_to_merge? do
+          new_attribute = Map.put(add.attribute, :references, alter.new_attribute.references)
+          streamline(List.delete_at(rest, index), [%{add | attribute: new_attribute} | acc])
+        else
+          streamline(rest, [add | acc])
+        end
     end
   end
 

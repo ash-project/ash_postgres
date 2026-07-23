@@ -12,10 +12,7 @@ defmodule AshPostgres.MigrationGenerator.OperationCycleError do
   @impl true
   def message(%{operations: operations}) do
     described =
-      operations
-      |> Enum.map(&describe_operation/1)
-      |> Enum.map(&"  - #{&1}")
-      |> Enum.join("\n")
+      Enum.map_join(operations, "\n", &"  - #{describe_operation(&1)}")
 
     """
     Could not determine a valid order for the following migration operations \

@@ -226,6 +226,114 @@ defmodule AshPostgres.DevMigrationsTest do
     end
   end
 
+  describe "composite foreign keys" do
+    # https://github.com/ash-project/ash_postgres/issues/805
+    #
+    # The exact resource/table names are load-bearing: the bug was an
+    # ordering tie-break in the generator's dependency resolution, and
+    # renaming these resources made it disappear.
+    test "a match_with reference's generated migration applies cleanly", %{
+      snapshot_path: snapshot_path
+    } do
+      defresource Site do
+        postgres do
+          table "sites"
+          repo(AshPostgres.DevTestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defresource A do
+        postgres do
+          table "as"
+          repo(AshPostgres.DevTestRepo)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        relationships do
+          belongs_to :site, Site do
+            allow_nil?(false)
+            primary_key?(true)
+          end
+        end
+      end
+
+      defresource Junction do
+        postgres do
+          table "junctions"
+          repo(AshPostgres.DevTestRepo)
+
+          references do
+            reference(:a, match_with: [site_id: :site_id])
+          end
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        relationships do
+          belongs_to :a, A do
+            allow_nil?(false)
+          end
+
+          belongs_to :site, Site do
+            allow_nil?(false)
+            primary_key?(true)
+          end
+        end
+      end
+
+      defdomain([Site, A, Junction])
+
+      # The copied snapshots include tables (e.g. multitenant_orgs) that are
+      # not in this domain; without this the generator prompts about
+      # renaming/dropping them as orphans.
+      File.rm_rf!(Path.join(snapshot_path, "dev_test_repo/multitenant_orgs"))
+
+      on_exit(fn ->
+        AshPostgres.DevTestRepo.query!(
+          ~s(DROP TABLE IF EXISTS "junctions", "as", "sites" CASCADE)
+        )
+      end)
+
+      existing_files = Path.wildcard("priv/dev_test_repo/migrations/**/*.exs")
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: "priv/dev_test_repo/migrations",
+        auto_name: true
+      )
+
+      assert [_new_file] =
+               Path.wildcard("priv/dev_test_repo/migrations/**/*.exs") -- existing_files
+
+      migrate(existing_files |> Enum.sort() |> List.last())
+
+      assert table_exists?("sites")
+      assert table_exists?("as")
+      assert table_exists?("junctions")
+    end
+  end
+
   defp migrate(after_file) do
     AshPostgres.MultiTenancy.migrate_tenant(
       nil,
