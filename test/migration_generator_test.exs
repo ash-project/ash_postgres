@@ -5896,6 +5896,152 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert task_pos < project_pos
       assert project_pos < company_pos
     end
+
+    test "drops dependent foreign keys before dropping referenced table", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource ReferencedDropOrderParent, "referenced_drop_parent_for_fk_drop_order" do
+        attributes do
+          integer_primary_key(:id)
+          attribute(:label, :string, public?: true)
+        end
+      end
+
+      defresource ReferencedDropOrderChildOneBefore,
+                  "referenced_drop_child_one_for_fk_drop_order" do
+        attributes do
+          integer_primary_key(:id)
+          attribute(:parent_id, :integer, public?: true)
+        end
+
+        relationships do
+          belongs_to(:parent, ReferencedDropOrderParent) do
+            source_attribute(:parent_id)
+            public?(true)
+            allow_nil?(true)
+          end
+        end
+
+        postgres do
+          references do
+            reference(:parent)
+          end
+        end
+      end
+
+      defresource ReferencedDropOrderChildTwoBefore,
+                  "referenced_drop_child_two_for_fk_drop_order" do
+        attributes do
+          integer_primary_key(:id)
+          attribute(:parent_id, :integer, public?: true)
+        end
+
+        relationships do
+          belongs_to(:parent, ReferencedDropOrderParent) do
+            source_attribute(:parent_id)
+            public?(true)
+            allow_nil?(true)
+          end
+        end
+
+        postgres do
+          references do
+            reference(:parent)
+          end
+        end
+      end
+
+      defdomain([
+        ReferencedDropOrderParent,
+        ReferencedDropOrderChildOneBefore,
+        ReferencedDropOrderChildTwoBefore
+      ])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        snapshots_only: true
+      )
+
+      defresource ReferencedDropOrderChildOneAfter,
+                  "referenced_drop_child_one_for_fk_drop_order" do
+        attributes do
+          integer_primary_key(:id)
+          attribute(:parent_id, :integer, public?: true)
+        end
+      end
+
+      defresource ReferencedDropOrderChildTwoAfter,
+                  "referenced_drop_child_two_for_fk_drop_order" do
+        attributes do
+          integer_primary_key(:id)
+          attribute(:parent_id, :integer, public?: true)
+        end
+      end
+
+      defdomain([
+        ReferencedDropOrderChildOneAfter,
+        ReferencedDropOrderChildTwoAfter
+      ])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        dev: true,
+        name: "repro_drop_referenced_table"
+      )
+
+      migration_file =
+        Path.wildcard("#{migration_path}/*repro_drop_referenced_table*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> List.first()
+
+      assert migration_file,
+             "Expected a generated migration containing repro_drop_referenced_table, got: #{inspect(Path.wildcard(migration_path <> "/*.exs"))}"
+
+      file = File.read!(migration_file)
+
+      [_, up_and_rest] = String.split(file, "def up do")
+      [up_code, _] = String.split(up_and_rest, "def down do")
+
+      parent_drop_idx =
+        position_of_substring(
+          up_code,
+          "drop table(:referenced_drop_parent_for_fk_drop_order)"
+        )
+
+      child_one_drop_idx =
+        position_of_substring(
+          up_code,
+          ~s[drop constraint(:referenced_drop_child_one_for_fk_drop_order, "referenced_drop_child_one_for_fk_drop_order_parent_id_fkey")]
+        )
+
+      child_two_drop_idx =
+        position_of_substring(
+          up_code,
+          ~s[drop constraint(:referenced_drop_child_two_for_fk_drop_order, "referenced_drop_child_two_for_fk_drop_order_parent_id_fkey")]
+        )
+
+      assert is_integer(parent_drop_idx),
+             "Expected up migration to drop the referenced table before finalizing, got:\n#{up_code}"
+
+      assert is_integer(child_one_drop_idx),
+             "Expected up migration to drop child one foreign key before parent table removal, got:\n#{up_code}"
+
+      assert is_integer(child_two_drop_idx),
+             "Expected up migration to drop child two foreign key before parent table removal, got:\n#{up_code}"
+
+      assert child_one_drop_idx < parent_drop_idx,
+             "Expected child one FK drop (pos #{child_one_drop_idx}) before parent drop (pos #{parent_drop_idx}) in migration:\n#{up_code}"
+
+      assert child_two_drop_idx < parent_drop_idx,
+             "Expected child two FK drop (pos #{child_two_drop_idx}) before parent drop (pos #{parent_drop_idx}) in migration:\n#{up_code}"
+    end
   end
 
   describe "review warnings" do
