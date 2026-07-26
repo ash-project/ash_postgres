@@ -2745,6 +2745,7 @@ defmodule AshPostgres.MigrationGenerator do
         end
         |> Enum.concat(deferrable_ops)
       end)
+      |> Enum.flat_map(&with_serial_sequence_cleanup/1)
 
     remove_attribute_events =
       Enum.map(attributes_to_remove, fn attribute ->
@@ -2758,6 +2759,26 @@ defmodule AshPostgres.MigrationGenerator do
 
     add_attribute_events ++
       alter_attribute_events ++ remove_attribute_events ++ rename_attribute_events
+  end
+
+  defp with_serial_sequence_cleanup(%Operation.AlterAttribute{} = operation) do
+    case Operation.AlterAttribute.serial_transition(operation) do
+      :remove -> [operation, serial_sequence_transition(operation)]
+      :add -> [serial_sequence_transition(operation), operation]
+      nil -> [operation]
+    end
+  end
+
+  defp with_serial_sequence_cleanup(operation), do: [operation]
+
+  defp serial_sequence_transition(operation) do
+    %Operation.SerialSequenceTransition{
+      table: operation.table,
+      schema: operation.schema,
+      column: operation.new_attribute.source,
+      transition: Operation.AlterAttribute.serial_transition(operation),
+      statement: Operation.AlterAttribute.serial_sequence_statement(operation)
+    }
   end
 
   defp differently_deferrable?(%{references: %{deferrable: left}}, %{

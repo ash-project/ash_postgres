@@ -69,6 +69,22 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  defmacrop defgeneratedpost(default) do
+    quote do
+      defposts do
+        attributes do
+          attribute(:id, :integer,
+            generated?: true,
+            allow_nil?: false,
+            primary_key?: true,
+            public?: true,
+            default: unquote(default)
+          )
+        end
+      end
+    end
+  end
+
   defmacrop defcomments(mod \\ Comment, do: body) do
     quote do
       defresource unquote(mod) do
@@ -109,6 +125,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
       {pos, _len} -> pos
       :nomatch -> nil
     end
+  end
+
+  defp generate_post_migration(domain, snapshot_path, migration_path) do
+    AshPostgres.MigrationGenerator.generate(domain,
+      snapshot_path: snapshot_path,
+      migration_path: migration_path,
+      quiet: true,
+      format: false,
+      auto_name: true
+    )
   end
 
   defp flush_mix_shell do
@@ -2205,6 +2231,76 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert File.read!(file) =~
                ~S[add :views, :bigint]
+    end
+  end
+
+  describe "serial sequence transitions" do
+    test "removes the sequence when a generated integer stops being serial", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defgeneratedpost(nil)
+      defdomain([Post])
+      generate_post_migration(Domain, snapshot_path, migration_path)
+
+      defgeneratedpost(0)
+      defdomain([Post])
+      generate_post_migration(Domain, snapshot_path, migration_path)
+
+      assert [_initial_migration, alter_migration] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+               |> Enum.sort()
+
+      migration = File.read!(alter_migration)
+
+      assert migration =~ ~S[modify :id, :bigint, default: 0]
+      assert migration =~ ~S[format('%I.%I', 'public', 'posts')]
+      assert migration =~ ~S[pg_get_serial_sequence(]
+      assert migration =~ ~S[DROP SEQUENCE %s]
+      assert migration =~ ~S[CREATE SEQUENCE %s AS bigint]
+      refute migration =~ ~S[modify :id, :bigserial]
+
+      [up, down] = String.split(migration, "def down", parts: 2)
+
+      assert position_of_substring(up, ~S[modify :id, :bigint, default: 0]) <
+               position_of_substring(up, ~S[DROP SEQUENCE %s])
+
+      assert position_of_substring(down, ~S[CREATE SEQUENCE %s AS bigint]) <
+               position_of_substring(down, ~S[modify :id, :bigint])
+
+      refute down =~ ~S[modify :id, :bigint, default: nil]
+    end
+
+    test "restores the sequence when a generated integer becomes serial", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defgeneratedpost(0)
+      defdomain([Post])
+      generate_post_migration(Domain, snapshot_path, migration_path)
+
+      defgeneratedpost(nil)
+      defdomain([Post])
+      generate_post_migration(Domain, snapshot_path, migration_path)
+
+      assert [_initial_migration, restore_sequence_migration] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+               |> Enum.sort()
+
+      migration = File.read!(restore_sequence_migration)
+      [up, down] = String.split(migration, "def down", parts: 2)
+
+      assert position_of_substring(up, ~S[CREATE SEQUENCE %s AS bigint]) <
+               position_of_substring(up, ~S[modify :id, :bigint])
+
+      assert up =~ ~S[SET DEFAULT nextval]
+      refute up =~ ~S[modify :id, :bigserial]
+      refute up =~ ~S[modify :id, :bigint, default: nil]
+
+      assert position_of_substring(down, ~S[modify :id, :bigint, default: 0]) <
+               position_of_substring(down, ~S[DROP SEQUENCE %s])
     end
   end
 

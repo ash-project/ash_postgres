@@ -193,6 +193,17 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
           {:table_columns_settled, key(table, schema)}
         ] ++ structure_ready_facts(table, schema)
 
+      %Operation.SerialSequenceTransition{
+        table: table,
+        schema: schema,
+        column: column,
+        transition: :add
+      } ->
+        [{:serial_sequence_ready, key(table, schema, column)}]
+
+      %Operation.SerialSequenceTransition{transition: :remove} ->
+        []
+
       %Operation.RemoveAttribute{table: table, schema: schema} ->
         [
           {:table_columns_settled, key(table, schema)}
@@ -328,7 +339,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
         schema: schema,
         new_attribute: new_attribute,
         old_attribute: old_attribute
-      } ->
+      } = op ->
         # `old_attribute.source` is normally the current column name, but when
         # a rename and a property change (type/null/default) land in the same
         # diff, `old_attribute` here is the *pre-rename* attribute (see
@@ -338,11 +349,36 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
         # (no rename, both sources equal, so this is a no-op duplicate) and
         # the rename+alter case (only `new_attribute.source` has a provider —
         # the `RenameAttribute` op — so the alter correctly waits for it).
+        serial_sequence_requirements =
+          case Operation.AlterAttribute.serial_transition(op) do
+            :add -> [{:serial_sequence_ready, key(table, schema, new_attribute.source)}]
+            :remove -> []
+            nil -> []
+          end
+
         [
           {:table_ready, key(table, schema)},
           {:column_ready, key(table, schema, old_attribute.source)},
           {:column_ready, key(table, schema, new_attribute.source)}
-        ] ++ reference_requirements(new_attribute, table, schema)
+        ] ++
+          serial_sequence_requirements ++ reference_requirements(new_attribute, table, schema)
+
+      %Operation.SerialSequenceTransition{
+        table: table,
+        schema: schema,
+        column: column,
+        transition: :add
+      } ->
+        [
+          {:table_ready, key(table, schema)},
+          {:column_ready, key(table, schema, column)}
+        ]
+
+      %Operation.SerialSequenceTransition{table: table, schema: schema, transition: :remove} ->
+        [
+          {:table_ready, key(table, schema)},
+          {:table_columns_settled, key(table, schema)}
+        ]
 
       %Operation.RenameAttribute{table: table, schema: schema, old_attribute: old_attribute} ->
         [
