@@ -276,26 +276,87 @@ defmodule AshPostgres.MixProject do
 
   defp generate_migrations(args) do
     for_each_pg_variant("ash_postgres.generate_migrations", ["--auto-name" | args])
+    stamp_licenses()
   end
 
   defp check_migrations(args) do
     for_each_pg_variant("ash_postgres.generate_migrations", ["--check" | args])
   end
 
+  # Each variant runs in its own OS process rather than via `Mix.Task.rerun/2`.
+  # `PG_VERSION` is read at runtime by `AshPostgres.TestRepo.min_pg_version/0`
+  # and everything derived from it (`use_builtin_uuidv7_function?/0`, the
+  # migration and snapshot paths), so a second in-VM run would have to
+  # invalidate whatever the first one already resolved or compiled. A fresh
+  # process can't get that wrong — and `Mix.Task.rerun/2` additionally skips the
+  # task's requirements, leaving the app uncompiled and unstarted, so the
+  # generator finds no repos and reports "no changes" no matter what changed.
   defp for_each_pg_variant(task, args) do
-    previous = System.fetch_env("PG_VERSION")
+    Enum.each(@pg_variants, fn version ->
+      Mix.shell().info("==> PG_VERSION=#{version} mix #{task} #{Enum.join(args, " ")}")
 
-    try do
-      Enum.each(@pg_variants, fn version ->
-        System.put_env("PG_VERSION", version)
-        Mix.shell().info("==> PG_VERSION=#{version} mix #{task} #{Enum.join(args, " ")}")
-        Mix.Task.rerun(task, args)
-      end)
-    after
-      case previous do
-        {:ok, value} -> System.put_env("PG_VERSION", value)
-        :error -> System.delete_env("PG_VERSION")
+      {_output, status} =
+        System.cmd("mix", [task | args],
+          env: [{"PG_VERSION", version}, {"MIX_ENV", "test"}],
+          into: IO.stream(:stdio, :line),
+          stderr_to_stdout: true
+        )
+
+      if status != 0 do
+        Mix.raise("mix #{task} failed for PG_VERSION=#{version} (exit status #{status})")
       end
+    end)
+  end
+
+  @spdx_copyright "SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>"
+  @spdx_license "SPDX-License-Identifier: MIT"
+
+  # The migration generator doesn't emit SPDX info, but CI runs a REUSE
+  # compliance check over every file in the repo — so freshly generated
+  # migrations and snapshots fail it until they're stamped. Doing that here
+  # keeps it from being a manual chore that has to be remembered twice, once
+  # per `@pg_variants` set.
+  #
+  # `.exs` files take a comment header; `.json` snapshots can't carry comments,
+  # so they get a REUSE `.license` sidecar instead. Idempotent — anything
+  # already covered is left alone.
+  #
+  # The root is spelled out rather than taken from `AshPostgres.TestPaths`:
+  # that module lives in `test/support`, which isn't loadable from `mix.exs`.
+  # Keep it in sync with `AshPostgres.TestPaths`'s `@root`.
+  defp stamp_licenses do
+    stamped =
+      "test_priv/**/*.{exs,json}"
+      |> Path.wildcard()
+      |> Enum.count(fn path ->
+        case Path.extname(path) do
+          ".exs" -> stamp_header(path)
+          ".json" -> stamp_sidecar(path)
+        end
+      end)
+
+    Mix.shell().info("==> stamped SPDX info on #{stamped} generated file(s)")
+  end
+
+  defp stamp_header(path) do
+    contents = File.read!(path)
+
+    if String.contains?(contents, "SPDX-License-Identifier") do
+      false
+    else
+      File.write!(path, "# #{@spdx_copyright}\n#\n# #{@spdx_license}\n\n" <> contents)
+      true
+    end
+  end
+
+  defp stamp_sidecar(path) do
+    sidecar = path <> ".license"
+
+    if File.exists?(sidecar) do
+      false
+    else
+      File.write!(sidecar, "#{@spdx_copyright}\n\n#{@spdx_license}\n")
+      true
     end
   end
 end
