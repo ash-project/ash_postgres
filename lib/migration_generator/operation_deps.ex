@@ -83,6 +83,15 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
   - `:table_structure_ready` — this table's structural (DDL) work is done:
     provided by every structural operation on this table (including
     `:table_ready`'s and `:table_columns_settled`'s providers).
+  - `:table_fk_dropped` — every foreign key on another table that referenced
+    *any* column of this table has been dropped (`direction: :up`). The
+    table-scoped counterpart to `:column_fk_dropped`, for `DropTable`, which
+    knows only its own name — not which of its columns other tables' foreign
+    keys point at. Postgres refuses to `DROP TABLE` while another table's
+    foreign key still references it, so the drop must come after those
+    `DropForeignKey` operations even though `DropTable` is early-tier (the
+    `required_by_early_tier` exemption in `toposort_operations/1` is what lets
+    that specific dependency win over the blanket barrier).
   - `:table_finalized` — this table is *truly* done, including any
     `custom_statements` declared on it: provided by everything that provides
     `:table_structure_ready`, plus each `AddCustomStatement` on the table (a
@@ -294,7 +303,8 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
         dest_schema = Map.get(reference, :schema)
 
         [
-          {:column_fk_dropped, key(dest_table, dest_schema, dest_column)}
+          {:column_fk_dropped, key(dest_table, dest_schema, dest_column)},
+          {:table_fk_dropped, key(dest_table, dest_schema)}
         ] ++ structure_ready_facts(table, schema)
 
       %Operation.DropForeignKey{table: table, schema: schema} ->
@@ -513,6 +523,12 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
 
       %Operation.DropForeignKey{table: table, schema: schema} ->
         [{:table_ready, key(table, schema)}]
+
+      %Operation.DropTable{table: table, schema: schema} ->
+        # Postgres refuses to drop a table another table's foreign key still
+        # references. `DropTable` doesn't know *which* of its columns are
+        # referenced, so it waits on the table-scoped fact.
+        [{:table_fk_dropped, key(table, schema)}]
 
       %Operation.RemovePrimaryKey{table: table, schema: schema, keys: keys} ->
         Enum.map(List.wrap(keys), &{:column_fk_dropped, key(table, schema, &1)})

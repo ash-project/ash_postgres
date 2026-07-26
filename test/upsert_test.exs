@@ -8,6 +8,53 @@ defmodule AshPostgres.Test.UpsertTest do
 
   require Ash.Expr
 
+  defmodule Domain do
+    @moduledoc false
+    use Ash.Domain
+
+    resources do
+      allow_unregistered?(true)
+    end
+  end
+
+  # Deliberately kept out of the configured domains (and so out of
+  # `test_priv/test_repo/migrations`): its unique index needs `NULLS NOT DISTINCT`,
+  # which PostgreSQL 14 can't parse. The test creates the table itself.
+  defmodule NullableIdentityRecord do
+    @moduledoc false
+    use Ash.Resource,
+      domain: Domain,
+      data_layer: AshPostgres.DataLayer
+
+    postgres do
+      table("nullable_identity_records")
+      repo(AshPostgres.TestRepo)
+    end
+
+    attributes do
+      uuid_primary_key(:id)
+      attribute(:uniq_one, :string, public?: true)
+      attribute(:uniq_two, :string, public?: true)
+      attribute(:price, :integer, public?: true)
+    end
+
+    identities do
+      # `nils_distinct?: false` matches the `NULLS NOT DISTINCT` index, so two
+      # nil `uniq_two` values conflict. Both upsert implementations need it:
+      # `INSERT ... ON CONFLICT` renders a conflict target Postgres resolves
+      # against that index, and `MERGE` (17+) widens its `ON` comparison to be
+      # nil-safe.
+      identity(:uniq_one_and_two, [:uniq_one, :uniq_two]) do
+        nils_distinct?(false)
+      end
+    end
+
+    actions do
+      default_accept(:*)
+      defaults([:read, create: :*])
+    end
+  end
+
   test "empty upserts" do
     id = Ash.UUID.generate()
 
@@ -40,15 +87,26 @@ defmodule AshPostgres.Test.UpsertTest do
     assert updated_post.updated_at == new_post.updated_at
   end
 
+  # `NULLS NOT DISTINCT` (which is what makes two nil keys conflict at all)
+  # requires PostgreSQL 15+.
+  @tag :postgres_15
   test "returns a skipped upsert whose identity contains nil" do
     AshPostgres.TestRepo.query!("""
-    CREATE UNIQUE INDEX posts_nullable_identity_index
-    ON posts (uniq_one, uniq_two) NULLS NOT DISTINCT
-    WHERE type = 'sponsored'
+    CREATE TABLE nullable_identity_records (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      uniq_one text,
+      uniq_two text,
+      price bigint
+    )
+    """)
+
+    AshPostgres.TestRepo.query!("""
+    CREATE UNIQUE INDEX nullable_identity_records_uniq_one_and_two_index
+    ON nullable_identity_records (uniq_one, uniq_two) NULLS NOT DISTINCT
     """)
 
     original =
-      Post
+      NullableIdentityRecord
       |> Ash.Changeset.for_create(:create, %{
         uniq_one: "one",
         uniq_two: nil,
@@ -57,7 +115,7 @@ defmodule AshPostgres.Test.UpsertTest do
       |> Ash.create!()
 
     skipped =
-      Post
+      NullableIdentityRecord
       |> Ash.Changeset.for_create(
         :create,
         %{uniq_one: "one", uniq_two: nil, price: 20},

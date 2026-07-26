@@ -7,6 +7,12 @@ defmodule AshPostgres.DevTestRepo do
   use AshPostgres.Repo,
     otp_app: :ash_postgres
 
+  # See `AshPostgres.TestPaths` for why these live outside `priv/`.
+  def init(type, config) do
+    {:ok, config} = super(type, config)
+    {:ok, AshPostgres.TestPaths.put_paths(config, "dev_test_repo")}
+  end
+
   def on_transaction_begin(data) do
     send(self(), data)
   end

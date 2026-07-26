@@ -256,8 +256,8 @@ defmodule AshPostgres.MixProject do
       format: "format --migrate",
       "spark.formatter": "spark.formatter --extensions AshPostgres.DataLayer",
       "spark.cheat_sheets": "spark.cheat_sheets --extensions AshPostgres.DataLayer",
-      "test.generate_migrations": "ash_postgres.generate_migrations --auto-name",
-      "test.check_migrations": "ash_postgres.generate_migrations --check",
+      "test.generate_migrations": &generate_migrations/1,
+      "test.check_migrations": &check_migrations/1,
       "test.migrate_tenants": "ash_postgres.migrate --tenants",
       "test.migrate": "ash_postgres.migrate",
       "test.rollback": "ash_postgres.rollback",
@@ -265,5 +265,37 @@ defmodule AshPostgres.MixProject do
       "test.reset": ["test.drop", "test.create", "test.migrate", "ash_postgres.migrate --tenants"],
       "test.drop": "ash_postgres.drop"
     ]
+  end
+
+  # PostgreSQL 18's builtin `uuidv7()` makes generated migrations and snapshots
+  # version-specific (see `AshPostgres.TestRepo.init/2`), so the test suite
+  # commits one set per variant and CI checks whichever matches its
+  # `PG_VERSION`. Generating or checking only one variant would leave the other
+  # stale, so always do every variant.
+  @pg_variants ["16", "18"]
+
+  defp generate_migrations(args) do
+    for_each_pg_variant("ash_postgres.generate_migrations", ["--auto-name" | args])
+  end
+
+  defp check_migrations(args) do
+    for_each_pg_variant("ash_postgres.generate_migrations", ["--check" | args])
+  end
+
+  defp for_each_pg_variant(task, args) do
+    previous = System.fetch_env("PG_VERSION")
+
+    try do
+      Enum.each(@pg_variants, fn version ->
+        System.put_env("PG_VERSION", version)
+        Mix.shell().info("==> PG_VERSION=#{version} mix #{task} #{Enum.join(args, " ")}")
+        Mix.Task.rerun(task, args)
+      end)
+    after
+      case previous do
+        {:ok, value} -> System.put_env("PG_VERSION", value)
+        :error -> System.delete_env("PG_VERSION")
+      end
+    end
   end
 end

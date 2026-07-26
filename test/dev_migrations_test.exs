@@ -21,9 +21,9 @@ defmodule AshPostgres.DevMigrationsTest do
     Sandbox.checkout(AshPostgres.DevTestRepo)
 
     # Copy existing snapshots to tmp dir so the generator doesn't
-    # re-generate extensions or delete orphan snapshots from priv/
+    # re-generate extensions or delete orphan snapshots from test_priv/
     snapshot_path = Path.join(tmp_dir, "snapshots")
-    source = "priv/resource_snapshots"
+    source = AshPostgres.TestPaths.path("resource_snapshots")
 
     if File.exists?(source) do
       File.cp_r!(source, snapshot_path)
@@ -90,12 +90,13 @@ defmodule AshPostgres.DevMigrationsTest do
   end
 
   setup do
-    migrations_dev_path = "priv/dev_test_repo/migrations"
+    migrations_dev_path = AshPostgres.TestPaths.path(["dev_test_repo", "migrations"])
 
     initial_migration_files =
       if File.exists?(migrations_dev_path), do: File.ls!(migrations_dev_path), else: []
 
-    tenant_migrations_dev_path = "priv/dev_test_repo/tenant_migrations"
+    tenant_migrations_dev_path =
+      AshPostgres.TestPaths.path(["dev_test_repo", "tenant_migrations"])
 
     initial_tenant_migration_files =
       if File.exists?(tenant_migrations_dev_path),
@@ -142,13 +143,18 @@ defmodule AshPostgres.DevMigrationsTest do
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: snapshot_path,
-        migration_path: "priv/dev_test_repo/migrations",
+        migration_path: AshPostgres.TestPaths.path(["dev_test_repo", "migrations"]),
         dev: true,
         auto_name: true
       )
 
       assert [_extensions, migration, _migration] =
-               Path.wildcard("priv/dev_test_repo/migrations/**/*_migrate_resources*.exs")
+               Path.wildcard(
+                 AshPostgres.TestPaths.path([
+                   "dev_test_repo",
+                   "migrations/**/*_migrate_resources*.exs"
+                 ])
+               )
 
       migrate(migration)
       assert table_exists?("posts")
@@ -157,7 +163,7 @@ defmodule AshPostgres.DevMigrationsTest do
       # and creates a permanent migration in its place
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: snapshot_path,
-        migration_path: "priv/dev_test_repo/migrations",
+        migration_path: AshPostgres.TestPaths.path(["dev_test_repo", "migrations"]),
         auto_name: true
       )
 
@@ -185,8 +191,8 @@ defmodule AshPostgres.DevMigrationsTest do
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: snapshot_path,
-        migration_path: "priv/dev_test_repo/migrations",
-        tenant_migration_path: "priv/dev_test_repo/tenant_migrations",
+        migration_path: AshPostgres.TestPaths.path(["dev_test_repo", "migrations"]),
+        tenant_migration_path: AshPostgres.TestPaths.path(["dev_test_repo", "tenant_migrations"]),
         dev: true,
         auto_name: true
       )
@@ -198,26 +204,41 @@ defmodule AshPostgres.DevMigrationsTest do
 
       assert [_] =
                Enum.sort(
-                 Path.wildcard("priv/dev_test_repo/migrations/**/*_migrate_resources*.exs")
+                 Path.wildcard(
+                   AshPostgres.TestPaths.path([
+                     "dev_test_repo",
+                     "migrations/**/*_migrate_resources*.exs"
+                   ])
+                 )
                )
                |> Enum.reject(&String.contains?(&1, "extensions"))
 
       assert [_tenant_migration] =
                Enum.sort(
-                 Path.wildcard("priv/dev_test_repo/tenant_migrations/**/*_migrate_resources*.exs")
+                 Path.wildcard(
+                   AshPostgres.TestPaths.path([
+                     "dev_test_repo",
+                     "tenant_migrations/**/*_migrate_resources*.exs"
+                   ])
+                 )
                )
                |> Enum.reject(&String.contains?(&1, "extensions"))
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: snapshot_path,
-        migration_path: "priv/dev_test_repo/migrations",
-        tenant_migration_path: "priv/dev_test_repo/tenant_migrations",
+        migration_path: AshPostgres.TestPaths.path(["dev_test_repo", "migrations"]),
+        tenant_migration_path: AshPostgres.TestPaths.path(["dev_test_repo", "tenant_migrations"]),
         auto_name: true
       )
 
       assert [_tenant_migration] =
                Enum.sort(
-                 Path.wildcard("priv/dev_test_repo/tenant_migrations/**/*_migrate_resources*.exs")
+                 Path.wildcard(
+                   AshPostgres.TestPaths.path([
+                     "dev_test_repo",
+                     "tenant_migrations/**/*_migrate_resources*.exs"
+                   ])
+                 )
                )
                |> Enum.reject(&String.contains?(&1, "extensions"))
 
@@ -315,16 +336,18 @@ defmodule AshPostgres.DevMigrationsTest do
         )
       end)
 
-      existing_files = Path.wildcard("priv/dev_test_repo/migrations/**/*.exs")
+      existing_files =
+        Path.wildcard(AshPostgres.TestPaths.path(["dev_test_repo", "migrations/**/*.exs"]))
 
       AshPostgres.MigrationGenerator.generate(Domain,
         snapshot_path: snapshot_path,
-        migration_path: "priv/dev_test_repo/migrations",
+        migration_path: AshPostgres.TestPaths.path(["dev_test_repo", "migrations"]),
         auto_name: true
       )
 
       assert [_new_file] =
-               Path.wildcard("priv/dev_test_repo/migrations/**/*.exs") -- existing_files
+               Path.wildcard(AshPostgres.TestPaths.path(["dev_test_repo", "migrations/**/*.exs"])) --
+                 existing_files
 
       migrate(existing_files |> Enum.sort() |> List.last())
 
@@ -338,7 +361,7 @@ defmodule AshPostgres.DevMigrationsTest do
     AshPostgres.MultiTenancy.migrate_tenant(
       nil,
       AshPostgres.DevTestRepo,
-      "priv/dev_test_repo/migrations",
+      AshPostgres.TestPaths.path(["dev_test_repo", "migrations"]),
       after_file
     )
   end
@@ -348,7 +371,7 @@ defmodule AshPostgres.DevMigrationsTest do
       AshPostgres.MultiTenancy.migrate_tenant(
         tenant,
         AshPostgres.DevTestRepo,
-        "priv/dev_test_repo/tenant_migrations"
+        AshPostgres.TestPaths.path(["dev_test_repo", "tenant_migrations"])
       )
     end
   end

@@ -7,6 +7,28 @@ defmodule AshPostgres.TestRepo do
   use AshPostgres.Repo,
     otp_app: :ash_postgres
 
+  # Selects the committed migration/snapshot set that matches the server
+  # version.
+  #
+  # `use_builtin_uuidv7_function?/0` is derived from `min_pg_version/0`, which
+  # here follows `PG_VERSION` — so on PostgreSQL 18 a `uuid_v7_primary_key`
+  # renders its default as the server's builtin `uuidv7()` rather than Ash's
+  # `uuid_generate_v7()`. Generated snapshots and migrations are therefore
+  # genuinely version-specific, while CI runs
+  # `mix ash_postgres.generate_migrations --check` on every version in the
+  # matrix. Rather than one committed set that can only ever match a single
+  # version, each variant gets its own; `mix test.generate_migrations`
+  # regenerates all of them.
+  def init(type, config) do
+    {:ok, config} = super(type, config)
+
+    if use_builtin_uuidv7_function?() do
+      {:ok, AshPostgres.TestPaths.put_paths(config, "test_repo_pg18", "resource_snapshots_pg18")}
+    else
+      {:ok, AshPostgres.TestPaths.put_paths(config, "test_repo")}
+    end
+  end
+
   def on_transaction_begin(data) do
     send(self(), data)
   end

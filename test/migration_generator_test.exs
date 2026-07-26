@@ -14,6 +14,18 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
   import ExUnit.CaptureLog
 
+  # `uuid_v7_primary_key` renders PostgreSQL 18's builtin `uuidv7()` instead of
+  # Ash's own `uuid_generate_v7()` — see `AshPostgres.TestRepo.init/2`. Tests
+  # that only happen to include a v7 key follow the repo; the "native uuidv7 on
+  # PG 18" describe block below pins the builtin form explicitly.
+  defp uuid_v7_default do
+    if AshPostgres.TestRepo.use_builtin_uuidv7_function?() do
+      ~S[fragment("uuidv7()")]
+    else
+      ~S[fragment("uuid_generate_v7()")]
+    end
+  end
+
   setup %{tmp_dir: tmp_dir} do
     current_shell = Mix.shell()
 
@@ -419,7 +431,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       # the migration adds the other_id, with its default
       assert file_contents =~
-               ~S[add :other_id, :uuid, null: false, default: fragment("uuid_generate_v7()"), primary_key: true]
+               "add :other_id, :uuid, null: false, default: #{uuid_v7_default()}, primary_key: true"
 
       # the migration adds the id, with its default
       assert file_contents =~
@@ -595,7 +607,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       # the migration adds the other_id, with its default
       assert file_contents =~
-               ~S[add :other_id, :uuid, null: false, default: fragment("uuid_generate_v7()"), primary_key: true]
+               "add :other_id, :uuid, null: false, default: #{uuid_v7_default()}, primary_key: true"
 
       # the migration adds other attributes
       assert file_contents =~ ~S[add :title, :text]
