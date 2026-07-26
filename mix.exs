@@ -308,8 +308,16 @@ defmodule AshPostgres.MixProject do
     end)
   end
 
+  # `reuse lint` reads every file in the repo looking for these very tags and
+  # parses whatever follows one to the end of the line — here that would be
+  # `MIT"`, trailing quote included, which is not a valid SPDX expression. These
+  # markers are REUSE's documented way to say "the tags below are data, not this
+  # file's own licensing".
+  #
+  # REUSE-IgnoreStart
   @spdx_copyright "SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>"
   @spdx_license "SPDX-License-Identifier: MIT"
+  # REUSE-IgnoreEnd
 
   # The migration generator doesn't emit SPDX info, but CI runs a REUSE
   # compliance check over every file in the repo — so freshly generated
