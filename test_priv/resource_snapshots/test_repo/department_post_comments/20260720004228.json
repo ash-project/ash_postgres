@@ -21,7 +21,7 @@
       "references": null,
       "scale": null,
       "size": null,
-      "source": "name",
+      "source": "text",
       "type": "text"
     },
     {
@@ -47,6 +47,41 @@
       "size": null,
       "source": "department_id",
       "type": "uuid"
+    },
+    {
+      "allow_nil?": true,
+      "default": "nil",
+      "generated?": false,
+      "precision": null,
+      "primary_key?": false,
+      "references": {
+        "deferrable": false,
+        "destination_attribute": "id",
+        "destination_attribute_default": null,
+        "destination_attribute_generated": null,
+        "index?": false,
+        "index_where": null,
+        "match_type": null,
+        "match_with": null,
+        "multitenancy": {
+          "ancestor_attributes": [
+            "organization_id"
+          ],
+          "attribute": "department_id",
+          "global": false,
+          "strategy": "attribute"
+        },
+        "name": "department_post_comments_post_id_fkey",
+        "on_delete": null,
+        "on_update": null,
+        "primary_key?": true,
+        "schema": "public",
+        "table": "department_posts"
+      },
+      "scale": null,
+      "size": null,
+      "source": "post_id",
+      "type": "uuid"
     }
   ],
   "base_filter": null,
@@ -55,23 +90,8 @@
   "custom_indexes": [],
   "custom_statements": [],
   "has_create_action": true,
-  "hash": "387238C8A174D395A0F312BBDFBC3C3A13E9CE709492A29E70A35BEC36253FA9",
-  "identities": [
-    {
-      "all_tenants?": false,
-      "base_filter": null,
-      "index_name": "department_posts_unique_name_index",
-      "keys": [
-        {
-          "type": "atom",
-          "value": "name"
-        }
-      ],
-      "name": "unique_name",
-      "nils_distinct?": true,
-      "where": null
-    }
-  ],
+  "hash": "BBE7D2CA277ED71A6BAE94BE975192184938175E8ACFD08EE16238AE95ECA88A",
+  "identities": [],
   "multitenancy": {
     "ancestor_attributes": [
       "organization_id"
@@ -82,5 +102,5 @@
   },
   "repo": "Elixir.AshPostgres.TestRepo",
   "schema": null,
-  "table": "department_posts"
+  "table": "department_post_comments"
 }

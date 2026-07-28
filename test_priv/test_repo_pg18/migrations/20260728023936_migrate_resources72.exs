@@ -12,8 +12,31 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources72 do
   use Ecto.Migration
 
   def up do
+    create table(:department_post_comments, primary_key: false) do
+      add(:id, :uuid, null: false, default: fragment("gen_random_uuid()"), primary_key: true)
+      add(:text, :text)
+      add(:organization_id, :uuid)
+      add(:department_id, :uuid)
+      add(:post_id, :uuid)
+    end
+
     create table(:department_posts, primary_key: false) do
       add(:id, :uuid, null: false, default: fragment("gen_random_uuid()"), primary_key: true)
+    end
+
+    alter table(:department_post_comments) do
+      modify(
+        :post_id,
+        references(:department_posts,
+          column: :id,
+          name: "department_post_comments_post_id_fkey",
+          type: :uuid,
+          prefix: "public"
+        )
+      )
+    end
+
+    alter table(:department_posts) do
       add(:name, :text)
       add(:organization_id, :uuid)
       add(:department_id, :uuid)
@@ -24,36 +47,29 @@ defmodule AshPostgres.TestRepo.Migrations.MigrateResources72 do
         name: "department_posts_unique_name_index"
       )
     )
-
-    create table(:department_post_comments, primary_key: false) do
-      add(:id, :uuid, null: false, default: fragment("gen_random_uuid()"), primary_key: true)
-      add(:text, :text)
-      add(:organization_id, :uuid)
-      add(:department_id, :uuid)
-
-      add(
-        :post_id,
-        references(:department_posts,
-          column: :id,
-          name: "department_post_comments_post_id_fkey",
-          type: :uuid,
-          prefix: "public"
-        )
-      )
-    end
   end
 
   def down do
-    drop(constraint(:department_post_comments, "department_post_comments_post_id_fkey"))
-
-    drop(table(:department_post_comments))
-
     drop_if_exists(
       unique_index(:department_posts, [:organization_id, :department_id, :name],
         name: "department_posts_unique_name_index"
       )
     )
 
+    alter table(:department_posts) do
+      remove(:department_id)
+      remove(:organization_id)
+      remove(:name)
+    end
+
+    drop(constraint(:department_post_comments, "department_post_comments_post_id_fkey"))
+
+    alter table(:department_post_comments) do
+      modify(:post_id, :uuid)
+    end
+
     drop(table(:department_posts))
+
+    drop(table(:department_post_comments))
   end
 end
