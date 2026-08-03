@@ -222,6 +222,34 @@ defmodule AshPostgres.CombinationTest do
       assert hd(result).title == "post1"
     end
 
+    test "a third combination part applies to the running result, not to the second part" do
+      for title <- ["alpha", "beta", "gamma", "delta"] do
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: title})
+        |> Ash.create!()
+      end
+
+      # The parts are applied in the order given, so this is
+      # ({alpha, beta} ∪ {gamma}) ∩ {alpha, gamma}.
+      #
+      # Rendered as a flat SQL chain instead, INTERSECT would bind tighter than
+      # UNION and give {alpha, beta} ∪ ({gamma} ∩ {alpha, gamma}), which keeps
+      # beta. `delta` belongs to neither grouping, so a whole-table read cannot
+      # be mistaken for a pass.
+      result =
+        Post
+        |> Ash.Query.combination_of([
+          Ash.Query.Combination.base(filter: expr(title in ["alpha", "beta"])),
+          Ash.Query.Combination.union(filter: expr(title == "gamma")),
+          Ash.Query.Combination.intersect(filter: expr(title in ["alpha", "gamma"]))
+        ])
+        |> Ash.read!()
+        |> Enum.map(& &1.title)
+        |> Enum.sort()
+
+      assert result == ["alpha", "gamma"]
+    end
+
     test "combinations with multiple union_all" do
       Post
       |> Ash.Changeset.for_create(:create, %{title: "post1"})
