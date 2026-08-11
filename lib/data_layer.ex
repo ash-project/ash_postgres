@@ -2286,6 +2286,25 @@ defmodule AshPostgres.DataLayer do
             fields -> fields
           end
 
+        # Upserts pair each returned row back up with its changeset by the upsert identity's
+        # keys, so those keys have to be read back even when the action's select doesn't ask
+        # for them - otherwise nothing correlates and every record is dropped from the
+        # result while still being written. `Ash.Actions.Helpers.select/2` masks the extra
+        # fields out of the records afterwards, so this doesn't widen what callers observe.
+        # Identity keys that aren't attributes (an identity over a calculation, e.g.
+        # `upper(thing)`) have no column to return and are left out.
+        returning =
+          if options[:upsert?] && is_list(returning) do
+            correlation_keys =
+              resource
+              |> upsert_correlation_keys(options)
+              |> Enum.filter(&Ash.Resource.Info.attribute(resource, &1))
+
+            Enum.uniq(returning ++ correlation_keys)
+          else
+            returning
+          end
+
         Keyword.put(opts, :returning, returning)
       else
         opts
@@ -2403,7 +2422,7 @@ defmodule AshPostgres.DataLayer do
         end
 
       identity = options[:identity]
-      keys = Map.get(identity || %{}, :keys) || Ash.Resource.Info.primary_key(resource)
+      keys = upsert_correlation_keys(resource, options)
 
       # if it's single the return_skipped_upsert? is handled at the
       # call site https://github.com/ash-project/ash_postgres/blob/0b21d4a99cc3f6d8676947e291ac9b9d57ad6e2e/lib/data_layer.ex#L3046-L3046
@@ -2558,6 +2577,13 @@ defmodule AshPostgres.DataLayer do
           resource
         )
     end
+  end
+
+  # The keys `bulk_create/3` uses to pair returned rows back up with their changesets when
+  # upserting. Positional correlation isn't an option there: the rows PostgreSQL returns are
+  # neither guaranteed to be in input order nor guaranteed to be one per input.
+  defp upsert_correlation_keys(resource, options) do
+    Map.get(options[:identity] || %{}, :keys) || Ash.Resource.Info.primary_key(resource)
   end
 
   @impl true
