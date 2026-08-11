@@ -2286,6 +2286,25 @@ defmodule AshPostgres.DataLayer do
             fields -> fields
           end
 
+        # Upserts pair each returned row back up with its changeset by the upsert identity's
+        # keys, so those keys have to be read back even when the action's select doesn't ask
+        # for them - otherwise nothing correlates and every record is dropped from the
+        # result while still being written. `Ash.Actions.Helpers.select/2` masks the extra
+        # fields out of the records afterwards, so this doesn't widen what callers observe.
+        # Identity keys that aren't attributes (an identity over a calculation, e.g.
+        # `upper(thing)`) have no column to return and are left out.
+        returning =
+          if options[:upsert?] && is_list(returning) do
+            correlation_keys =
+              resource
+              |> upsert_correlation_keys(options)
+              |> Enum.filter(&Ash.Resource.Info.attribute(resource, &1))
+
+            Enum.uniq(returning ++ correlation_keys)
+          else
+            returning
+          end
+
         Keyword.put(opts, :returning, returning)
       else
         opts
@@ -2403,7 +2422,7 @@ defmodule AshPostgres.DataLayer do
         end
 
       identity = options[:identity]
-      keys = Map.get(identity || %{}, :keys) || Ash.Resource.Info.primary_key(resource)
+      keys = upsert_correlation_keys(resource, options)
 
       # if it's single the return_skipped_upsert? is handled at the
       # call site https://github.com/ash-project/ash_postgres/blob/0b21d4a99cc3f6d8676947e291ac9b9d57ad6e2e/lib/data_layer.ex#L3046-L3046
@@ -2424,7 +2443,7 @@ defmodule AshPostgres.DataLayer do
             |> Enum.filter(fn changeset ->
               not Map.has_key?(
                 results_by_identity,
-                Map.take(changeset.attributes, keys)
+                changeset_correlation_key(changeset, keys)
               )
             end)
             |> Enum.map(fn changeset ->
@@ -2464,9 +2483,7 @@ defmodule AshPostgres.DataLayer do
           results =
             changesets
             |> Enum.map(fn changeset ->
-              identity =
-                changeset.attributes
-                |> Map.take(keys)
+              identity = changeset_correlation_key(changeset, keys)
 
               Map.get(results_by_identity, identity, Map.get(skipped_upserts, identity))
             end)
@@ -2497,9 +2514,7 @@ defmodule AshPostgres.DataLayer do
               if options[:upsert?] do
                 changesets
                 |> Enum.map(fn changeset ->
-                  identity =
-                    changeset.attributes
-                    |> Map.take(keys)
+                  identity = changeset_correlation_key(changeset, keys)
 
                   result_for_changeset = Map.get(results_by_identity, identity)
 
@@ -2558,6 +2573,22 @@ defmodule AshPostgres.DataLayer do
           resource
         )
     end
+  end
+
+  # The keys `bulk_create/3` uses to pair returned rows back up with their changesets when
+  # upserting. Positional correlation isn't an option there: the rows PostgreSQL returns are
+  # neither guaranteed to be in input order nor guaranteed to be one per input.
+  defp upsert_correlation_keys(resource, options) do
+    Map.get(options[:identity] || %{}, :keys) || Ash.Resource.Info.primary_key(resource)
+  end
+
+  # The correlation key for a changeset. `Map.take/2` would drop identity keys the changeset
+  # never set (a nullable field left `nil`, common with `nils_distinct?: false` identities),
+  # producing a key with fewer fields than the returned row's `Map.take(row, keys)` - so it
+  # would never match and the record would be dropped. Build the key over every identity key,
+  # defaulting the unset ones to `nil`, so both sides have the same shape.
+  defp changeset_correlation_key(changeset, keys) do
+    Map.new(keys, fn key -> {key, Map.get(changeset.attributes, key)} end)
   end
 
   @impl true

@@ -323,6 +323,93 @@ defmodule AshPostgres.BulkCreateTest do
                end)
     end
 
+    # Bulk upserts correlate the returned rows back to their changesets by the upsert
+    # identity's keys, so those keys have to be read back even when the action's select
+    # doesn't ask for them - otherwise no row correlates and every record is silently
+    # dropped from the result while still being written to the database.
+    #
+    # `:upsert_with_no_filter` declares no changes or notifiers, so its `action_select`
+    # is just the primary key; an explicit `select` therefore can't widen it to include
+    # `:uniq_if_contains_foo`. `select: []` is what `Ash.Reactor`'s `bulk_create` step
+    # passes.
+    test "bulk upsert returns inserted records when select excludes the identity keys" do
+      assert %Ash.BulkResult{status: :success, records: records} =
+               Ash.bulk_create(
+                 [
+                   %{title: "fredfoo", uniq_if_contains_foo: "1foo", price: 10},
+                   %{title: "georgefoo", uniq_if_contains_foo: "2foo", price: 20}
+                 ],
+                 Post,
+                 :upsert_with_no_filter,
+                 return_records?: true,
+                 return_errors?: true,
+                 select: []
+               )
+
+      assert length(records) == 2
+      assert Enum.all?(records, & &1.id)
+
+      assert [10, 20] == Post |> Ash.read!() |> Enum.map(& &1.price) |> Enum.sort()
+    end
+
+    test "bulk upsert returns updated records when select excludes the identity keys" do
+      Ash.bulk_create!(
+        [
+          %{title: "fredfoo", uniq_if_contains_foo: "1foo", price: 10},
+          %{title: "georgefoo", uniq_if_contains_foo: "2foo", price: 20}
+        ],
+        Post,
+        :create
+      )
+
+      assert %Ash.BulkResult{status: :success, records: records} =
+               Ash.bulk_create(
+                 [
+                   %{title: "fredfoo", uniq_if_contains_foo: "1foo", price: 1000},
+                   %{title: "georgefoo", uniq_if_contains_foo: "2foo", price: 20_000}
+                 ],
+                 Post,
+                 :upsert_with_no_filter,
+                 return_records?: true,
+                 return_errors?: true,
+                 select: [:id]
+               )
+
+      assert length(records) == 2
+      assert Enum.all?(records, & &1.id)
+
+      assert [1000, 20_000] == Post |> Ash.read!() |> Enum.map(& &1.price) |> Enum.sort()
+    end
+
+    # The correlation key is built per changeset from the upsert identity's keys. When a
+    # multi-field identity leaves one key unset (a nullable field left `nil`, as with a
+    # natural key like `[barcode, timestamp, order_id, route_id]` where `route_id` is
+    # often nil), that key must still appear in the correlation key - otherwise it has
+    # fewer fields than the returned row's key and no row correlates, silently dropping
+    # every record from the result while still writing them.
+    test "bulk upsert returns records when a multi-field identity leaves a key unset (nil)" do
+      assert %Ash.BulkResult{status: :success, records: records} =
+               Ash.bulk_create(
+                 [
+                   %{title: "one-a", uniq_one: "a", price: 10},
+                   %{title: "one-b", uniq_one: "b", price: 20}
+                 ],
+                 Post,
+                 :create,
+                 upsert?: true,
+                 upsert_identity: :uniq_one_and_two,
+                 upsert_fields: [],
+                 return_records?: true,
+                 return_errors?: true,
+                 select: []
+               )
+
+      assert length(records) == 2
+      assert Enum.all?(records, & &1.id)
+
+      assert [10, 20] == Post |> Ash.read!() |> Enum.map(& &1.price) |> Enum.sort()
+    end
+
     test "bulk upsert returns skipped records with return_skipped_upsert?" do
       assert [
                {:ok, %{title: "fredfoo", uniq_if_contains_foo: "1foo", price: 10}},
