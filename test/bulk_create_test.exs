@@ -381,6 +381,35 @@ defmodule AshPostgres.BulkCreateTest do
       assert [1000, 20_000] == Post |> Ash.read!() |> Enum.map(& &1.price) |> Enum.sort()
     end
 
+    # The correlation key is built per changeset from the upsert identity's keys. When a
+    # multi-field identity leaves one key unset (a nullable field left `nil`, as with a
+    # natural key like `[barcode, timestamp, order_id, route_id]` where `route_id` is
+    # often nil), that key must still appear in the correlation key - otherwise it has
+    # fewer fields than the returned row's key and no row correlates, silently dropping
+    # every record from the result while still writing them.
+    test "bulk upsert returns records when a multi-field identity leaves a key unset (nil)" do
+      assert %Ash.BulkResult{status: :success, records: records} =
+               Ash.bulk_create(
+                 [
+                   %{title: "one-a", uniq_one: "a", price: 10},
+                   %{title: "one-b", uniq_one: "b", price: 20}
+                 ],
+                 Post,
+                 :create,
+                 upsert?: true,
+                 upsert_identity: :uniq_one_and_two,
+                 upsert_fields: [],
+                 return_records?: true,
+                 return_errors?: true,
+                 select: []
+               )
+
+      assert length(records) == 2
+      assert Enum.all?(records, & &1.id)
+
+      assert [10, 20] == Post |> Ash.read!() |> Enum.map(& &1.price) |> Enum.sort()
+    end
+
     test "bulk upsert returns skipped records with return_skipped_upsert?" do
       assert [
                {:ok, %{title: "fredfoo", uniq_if_contains_foo: "1foo", price: 10}},

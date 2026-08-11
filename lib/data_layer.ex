@@ -2443,7 +2443,7 @@ defmodule AshPostgres.DataLayer do
             |> Enum.filter(fn changeset ->
               not Map.has_key?(
                 results_by_identity,
-                Map.take(changeset.attributes, keys)
+                changeset_correlation_key(changeset, keys)
               )
             end)
             |> Enum.map(fn changeset ->
@@ -2483,9 +2483,7 @@ defmodule AshPostgres.DataLayer do
           results =
             changesets
             |> Enum.map(fn changeset ->
-              identity =
-                changeset.attributes
-                |> Map.take(keys)
+              identity = changeset_correlation_key(changeset, keys)
 
               Map.get(results_by_identity, identity, Map.get(skipped_upserts, identity))
             end)
@@ -2516,9 +2514,7 @@ defmodule AshPostgres.DataLayer do
               if options[:upsert?] do
                 changesets
                 |> Enum.map(fn changeset ->
-                  identity =
-                    changeset.attributes
-                    |> Map.take(keys)
+                  identity = changeset_correlation_key(changeset, keys)
 
                   result_for_changeset = Map.get(results_by_identity, identity)
 
@@ -2584,6 +2580,15 @@ defmodule AshPostgres.DataLayer do
   # neither guaranteed to be in input order nor guaranteed to be one per input.
   defp upsert_correlation_keys(resource, options) do
     Map.get(options[:identity] || %{}, :keys) || Ash.Resource.Info.primary_key(resource)
+  end
+
+  # The correlation key for a changeset. `Map.take/2` would drop identity keys the changeset
+  # never set (a nullable field left `nil`, common with `nils_distinct?: false` identities),
+  # producing a key with fewer fields than the returned row's `Map.take(row, keys)` - so it
+  # would never match and the record would be dropped. Build the key over every identity key,
+  # defaulting the unset ones to `nil`, so both sides have the same shape.
+  defp changeset_correlation_key(changeset, keys) do
+    Map.new(keys, fn key -> {key, Map.get(changeset.attributes, key)} end)
   end
 
   @impl true
