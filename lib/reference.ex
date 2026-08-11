@@ -11,6 +11,7 @@ defmodule AshPostgres.Reference do
     :name,
     :match_with,
     :match_type,
+    :match_tenant?,
     :deferrable,
     :index?,
     :index_where,
@@ -67,6 +68,12 @@ defmodule AshPostgres.Reference do
       match_type: [
         type: {:one_of, [:simple, :partial, :full]},
         doc: "select if the match is `:simple`, `:partial`, or `:full`"
+      ],
+      match_tenant?: [
+        type: :boolean,
+        default: false,
+        doc:
+          "If true, include the multitenancy attribute in the foreign key so tenants must match."
       ],
       index?: [
         type: :boolean,

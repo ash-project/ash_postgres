@@ -87,23 +87,32 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
     def with_match(
           %{
-            primary_key?: false,
             destination_attribute: reference_attribute,
             multitenancy: %{strategy: :attribute, attribute: destination_attribute}
           } = reference,
           source_attribute
         )
         when not is_nil(source_attribute) and reference_attribute != destination_attribute do
-      with_targets =
-        [{as_atom(source_attribute), as_atom(destination_attribute)}]
-        |> Enum.into(reference.match_with || %{})
-        |> with_targets()
+      # Non-primary-key destinations always include the tenant column.
+      # Primary-key destinations only do so when match_tenant?: true (opt-in).
+      if !Map.get(reference, :primary_key?, false) or Map.get(reference, :match_tenant?) do
+        with_targets =
+          [{as_atom(source_attribute), as_atom(destination_attribute)}]
+          |> Enum.into(reference.match_with || %{})
+          |> with_targets()
 
-      # We can only have match: :full here, this gets validated by a Transformer
-      join([with_targets, "match: :full"])
+        # We can only have match: :full here, this gets validated by a Transformer
+        join([with_targets, "match: :full"])
+      else
+        explicit_with_match(reference)
+      end
     end
 
     def with_match(reference, _) do
+      explicit_with_match(reference)
+    end
+
+    defp explicit_with_match(reference) do
       with_targets = with_targets(reference.match_with)
       match_type = match_type(reference.match_type)
 

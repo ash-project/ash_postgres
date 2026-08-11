@@ -4170,6 +4170,87 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[references(:users, column: :id, name: "user_things2_user_id_fkey", type: :uuid, prefix: "public")]
     end
 
+    test "match_tenant? adds tenant matching on primary key references", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource Org, "orgs" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:id)
+        end
+      end
+
+      defresource User, "users" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+        end
+      end
+
+      defresource UserThing, "user_things" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+
+          belongs_to(:user, User) do
+            public?(true)
+          end
+        end
+
+        postgres do
+          references do
+            reference(:user, match_tenant?: true)
+          end
+        end
+      end
+
+      defdomain([Org, User, UserThing])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [file] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert File.read!(file) =~
+               ~S{references(:users, column: :id, with: [org_id: :org_id], match: :full, name: "user_things_user_id_fkey", type: :uuid, prefix: "public")}
+    end
+
     test "references on_delete: {:nilify, columns} works with multitenant resources", %{
       snapshot_path: snapshot_path,
       migration_path: migration_path
