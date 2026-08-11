@@ -12,6 +12,33 @@ defmodule AshPostgres.CombinationTest do
   alias AshPostgres.Test.Author
   alias AshPostgres.Test.Post
 
+  describe "combination_of with aggregates" do
+    test "loading a first aggregate through a from_many? has_one on a combination query" do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "match", score: 5})
+        |> Ash.create!()
+
+      AshPostgres.Test.Comment
+      |> Ash.Changeset.for_create(:create, %{title: "comment1", post_id: post.id})
+      |> Ash.create!()
+
+      results =
+        Post
+        |> Ash.Query.load([:latest_comment_title_agg])
+        |> Ash.Query.sort(created_at: :desc)
+        |> Ash.Query.limit(10)
+        |> Ash.Query.offset(0)
+        |> Ash.Query.combination_of([
+          Ash.Query.Combination.base(filter: expr(score < 15), select: [:id]),
+          Ash.Query.Combination.union(filter: expr(title == "match"), select: [:id])
+        ])
+        |> Ash.read!()
+
+      assert [%{latest_comment_title_agg: "comment1"}] = results
+    end
+  end
+
   describe "combinations in actions" do
     test "with no data" do
       Post
