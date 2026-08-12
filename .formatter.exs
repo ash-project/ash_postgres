@@ -29,6 +29,7 @@ spark_locals_without_parens = [
   index: 2,
   index?: 1,
   index_where: 1,
+  match_tenant?: 1,
   match_type: 1,
   match_with: 1,
   message: 1,

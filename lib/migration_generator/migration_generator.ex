@@ -1169,6 +1169,7 @@ defmodule AshPostgres.MigrationGenerator do
           on_update: merge_uniq!(references, table, :on_update, name),
           match_with: merge_uniq!(references, table, :match_with, name) |> to_map(),
           match_type: merge_uniq!(references, table, :match_type, name),
+          match_tenant?: merge_uniq!(references, table, :match_tenant?, name),
           name: merge_uniq!(references, table, :name, name),
           table: merge_uniq!(references, table, :table, name),
           schema: merge_uniq!(references, table, :schema, name)
@@ -3915,6 +3916,7 @@ defmodule AshPostgres.MigrationGenerator do
             on_update: configured_reference.on_update,
             match_with: configured_reference.match_with,
             match_type: configured_reference.match_type,
+            match_tenant?: configured_reference.match_tenant?,
             name: configured_reference.name,
             primary_key?: destination_attribute.primary_key?,
             schema:
@@ -3946,6 +3948,7 @@ defmodule AshPostgres.MigrationGenerator do
         on_update: nil,
         match_with: nil,
         match_type: nil,
+        match_tenant?: false,
         deferrable: false,
         index?: false,
         index_where: nil,
@@ -4370,6 +4373,7 @@ defmodule AshPostgres.MigrationGenerator do
         |> Map.put_new(:index_where, nil)
         |> Map.put_new(:match_with, nil)
         |> Map.put_new(:match_type, nil)
+        |> Map.put_new(:match_tenant?, false)
         |> Map.update!(
           :match_with,
           &(&1 && Enum.into(&1, %{}, fn {k, v} -> {maybe_to_atom(k), maybe_to_atom(v)} end))
