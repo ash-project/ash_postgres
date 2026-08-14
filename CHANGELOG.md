@@ -11,6 +11,29 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.12.0](https://github.com/ash-project/ash_postgres/compare/v2.11.0...v2.12.0) (2026-08-14)
+
+
+
+
+### Features:
+
+* add match_tenant? option for attribute multitenancy FKs (#813) by TravelCurry02
+
+* add after_tables to custom_statements so raw SQL can depend on another table (#799) by Jechol Lee
+
+### Improvements:
+
+* replace pairwise operation ordering with a dependency-graph topological sort (#798) by Jechol Lee
+
+### Bug Fixes:
+
+* return upsert identity keys and correlate on the full key set so bulk upserts don't drop by Daniel Gollings
+
+* clean up obsolete serial sequences (#806) by Jechol Lee
+
+* fix ordering constraints for composite primary keys by Zach Daniel
+
 ## [v2.11.0](https://github.com/ash-project/ash_postgres/compare/v2.10.0...v2.11.0) (2026-07-22)
 
 

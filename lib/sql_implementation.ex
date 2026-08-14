@@ -20,6 +20,28 @@ defmodule AshPostgres.SqlImplementation do
   @impl true
   def require_extension_for_citext, do: {true, "citext"}
 
+  # Migrations create second-precision columns for these types (e.g.
+  # `timestamp(0)`, see `Ecto.Adapters.Postgres.Connection.column_type_name/2`),
+  # but expression casts render without the typmod. Casting a column reference
+  # to `::timestamp` when the column is `timestamp(0)` is a typmod change, so
+  # postgres keeps a coercion node and can no longer match the bare column
+  # against partial-index predicates or expression indexes. Casting to the
+  # typmod-accurate type makes it an identity cast that the parser deletes.
+  @impl true
+  def ref_cast_type(type) do
+    case ref_storage_type(type) do
+      :utc_datetime -> AshPostgres.Type.Timestamp0
+      :naive_datetime -> AshPostgres.Type.NaiveTimestamp0
+      :time -> AshPostgres.Type.Time0
+      _ -> type
+    end
+  end
+
+  defp ref_storage_type({:parameterized, _} = type), do: Ecto.Type.type(type)
+  defp ref_storage_type({:parameterized, mod, params}), do: mod.type(params)
+  defp ref_storage_type(type) when is_atom(type), do: type
+  defp ref_storage_type(_), do: nil
+
   @impl true
   def storage_type(resource, field) do
     case AshPostgres.DataLayer.Info.storage_types(resource)[field] do

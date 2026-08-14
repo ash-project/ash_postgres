@@ -9,7 +9,7 @@ defmodule AshPostgres.MixProject do
   The PostgreSQL data layer for Ash Framework
   """
 
-  @version "2.11.0"
+  @version "2.12.0"
 
   def project do
     [
@@ -188,7 +188,7 @@ defmodule AshPostgres.MixProject do
     [
       {:ash, ash_version("~> 3.29")},
       {:spark, "~> 2.3 and >= 2.3.4"},
-      {:ash_sql, ash_sql_version("~> 0.6")},
+      {:ash_sql, ash_sql_version("~> 0.6 and >= 0.6.8")},
       {:igniter, "~> 0.6 and >= 0.6.29", optional: true},
       {:ecto_sql, "~> 3.13"},
       {:ecto, "~> 3.13"},
