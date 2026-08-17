@@ -3381,8 +3381,49 @@ defmodule AshPostgres.DataLayer do
     handle_postgrex_error(error, stacktrace, changeset, resource, :insert)
   end
 
+  # Ecto raises this whenever a `%Postgrex.Interval{}` reaches `Ash.Type.Duration`, which
+  # is any repo whose Postgrex types module does not decode intervals as durations. The
+  # raw message names neither the setting nor the module, so it is unactionable on its own.
+  defp handle_raised_error(%ArgumentError{message: message} = error, stacktrace, _, _)
+       when is_binary(message) do
+    if String.contains?(message, "Postgrex.Interval") and
+         String.contains?(message, "Ash.Type.Duration") do
+      {:error,
+       Ash.Error.to_ash_error(
+         %ArgumentError{message: message <> duration_types_hint()},
+         stacktrace
+       )}
+    else
+      {:error, Ash.Error.to_ash_error(error, stacktrace)}
+    end
+  end
+
   defp handle_raised_error(error, stacktrace, _ecto_changeset, _resource) do
     {:error, Ash.Error.to_ash_error(error, stacktrace)}
+  end
+
+  defp duration_types_hint do
+    """
+
+
+    A `:duration` attribute requires the repo's Postgrex types module to decode
+    `interval` columns as `Duration`. Create a file with these contents, not inside
+    of a module:
+
+        Postgrex.Types.define(
+          MyApp.PostgrexTypes,
+          Ecto.Adapters.Postgres.extensions(),
+          interval_decode_type: Duration
+        )
+
+    And refer to it in your repo configuration:
+
+        config :my_app, MyApp.Repo,
+          types: MyApp.PostgrexTypes
+
+    `interval_decode_type` can only be set at `Postgrex.Types.define/3`, never in repo
+    configuration.
+    """
   end
 
   defp handle_postgrex_error(error, stacktrace, changeset, resource, action) do

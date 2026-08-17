@@ -34,6 +34,32 @@ defmodule AshPostgres.Repo do
   end
   ```
 
+  ## Postgrex Types
+
+  A `:duration` attribute requires the repo's Postgrex types module to decode `interval`
+  columns as `Duration`. `interval_decode_type` can only be set at
+  `Postgrex.Types.define/3`, never in repo configuration.
+
+  Create a file with these contents, not inside of a module:
+
+  ```elixir
+  Postgrex.Types.define(
+    MyApp.PostgrexTypes,
+    Ecto.Adapters.Postgres.extensions(),
+    interval_decode_type: Duration
+  )
+  ```
+
+  And refer to it in your repo configuration:
+
+  ```elixir
+  config :my_app, MyApp.Repo,
+    types: MyApp.PostgrexTypes
+  ```
+
+  A repo needing further extensions adds them to the same module — see
+  `AshPostgres.Extensions.Vector`.
+
   ## Transaction Hooks
 
   You can define `on_transaction_begin/1`, which will be invoked whenever a transaction is started for Ash.
