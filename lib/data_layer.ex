@@ -845,6 +845,22 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
+  # We take charge of dumping/loading the stored form for core types whose native
+  # value Postgres can't round-trip directly. `Ash.Type.Range`'s value is an
+  # `%Ash.Range{}`, which Postgrex can neither encode nor produce — it needs a
+  # `%Postgrex.Range{}`. Routing the schema field through `AshPostgres.Type.Range`
+  # makes both `insert_all` (dump) and `repo.all` (load) go through our type.
+  def attribute_ecto_type(_resource, %{type: Ash.Type.Range}) do
+    Ash.Type.ecto_type(AshPostgres.Type.Range)
+  end
+
+  def attribute_ecto_type(_resource, %{type: {:array, Ash.Type.Range}}) do
+    {:array, Ash.Type.ecto_type(AshPostgres.Type.Range)}
+  end
+
+  def attribute_ecto_type(_resource, _attribute), do: nil
+
+  @impl true
   def offset(query, nil, _), do: query
 
   def offset(%{offset: old_offset} = query, 0, _resource) when old_offset in [0, nil] do

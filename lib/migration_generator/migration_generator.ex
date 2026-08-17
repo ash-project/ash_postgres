@@ -3983,6 +3983,9 @@ defmodule AshPostgres.MigrationGenerator do
   defp migration_type(Ash.Type.UUIDv7, _), do: :uuid
   defp migration_type(Ash.Type.Integer, _), do: :bigint
 
+  defp migration_type(Ash.Type.Range, constraints),
+    do: AshPostgres.Type.Range.pg_range_type(constraints)
+
   defp migration_type(Ash.Type.Vector, constraints) do
     if constraints[:dimensions] do
       {:vector, constraints[:dimensions]}
