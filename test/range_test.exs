@@ -67,6 +67,19 @@ defmodule AshPostgres.RangeTest do
     assert %Booking{stay: nil} = reread(booking)
   end
 
+  test "an empty range stores as Postgres's empty, not as every value" do
+    booking = create(%{guests: %Ash.Range{lower: 5, upper: 5}})
+
+    assert %{rows: [[stored, true]]} =
+             AshPostgres.TestRepo.query!(
+               "select guests::text, isempty(guests) from bookings where id = $1",
+               [Ecto.UUID.dump!(booking.id)]
+             )
+
+    assert stored == "empty"
+    assert %Booking{guests: %Ash.Range{empty?: true}} = reread(booking)
+  end
+
   test "the migration generator gives each inner type its native range column" do
     assert AshPostgres.Type.Range.pg_range_type(inner_type: Ash.Type.DateTime) == :tstzrange
     assert AshPostgres.Type.Range.pg_range_type(inner_type: Ash.Type.Date) == :daterange

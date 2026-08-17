@@ -36,6 +36,18 @@ defmodule AshPostgres.Type.Range do
       {:ok, nil} ->
         {:ok, nil}
 
+      # Postgres has one empty range and stores no bounds for it; Postgrex encodes
+      # that from `:empty` bounds. Without this an empty range would dump as two
+      # unbounded ends, i.e. as the range of every value.
+      {:ok, %Ash.Range{empty?: true}} ->
+        {:ok,
+         %Postgrex.Range{
+           lower: :empty,
+           upper: :empty,
+           lower_inclusive: false,
+           upper_inclusive: false
+         }}
+
       {:ok, %Ash.Range{lower: lower, upper: upper, bounds: bounds}} ->
         {lower_inclusive, upper_inclusive} = inclusive(bounds)
 
@@ -54,6 +66,10 @@ defmodule AshPostgres.Type.Range do
 
   @impl true
   def cast_stored(nil, _constraints), do: {:ok, nil}
+
+  def cast_stored(%Postgrex.Range{lower: :empty, upper: :empty}, constraints) do
+    Ash.Type.Range.cast_stored(Ash.Range.empty(), constraints)
+  end
 
   def cast_stored(%Postgrex.Range{} = pg, constraints) do
     range = %Ash.Range{
@@ -88,6 +104,6 @@ defmodule AshPostgres.Type.Range do
   defp bounds_from_inclusive(false, true), do: :"(]"
   defp bounds_from_inclusive(_, _), do: :"[)"
 
-  defp unbound_to_nil(bound) when bound in [:unbound, :empty], do: nil
+  defp unbound_to_nil(:unbound), do: nil
   defp unbound_to_nil(bound), do: bound
 end
