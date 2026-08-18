@@ -32,7 +32,7 @@ defmodule AshPostgres.Test.Booking do
 
     attribute(:guests, :range) do
       public?(true)
-      constraints(inner_type: :integer)
+      constraints(inner_type: :integer, allow_empty?: true)
     end
   end
 end
