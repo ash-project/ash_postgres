@@ -3500,7 +3500,7 @@ defmodule AshPostgres.DataLayer do
               private_vars: [
                 constraint: constraint,
                 constraint_type: type,
-                detail: error.postgres.detail
+                detail: error.postgres[:detail]
               ]
             )
           end)
