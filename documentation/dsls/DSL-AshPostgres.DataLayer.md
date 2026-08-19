@@ -137,6 +137,9 @@ By default, a statement has no declared dependency on other tables, so `down` st
 operation and `up` statements run after all other operations for that statement's table. If your statement's `up`
 depends on structure from another table (e.g. a foreign key referencing a unique index defined via `identities`),
 declare it with `after_tables` so the migration generator orders it correctly relative to that table's operations.
+Use `after_table_structures` when only the target table's structural operations are required and waiting for its
+custom statements would introduce a cycle. Use `after_statements` for dependencies between named custom statements
+on the same resource, such as creating a function before a trigger that invokes it.
 
 Additionally, when changing a custom statement, we must make some assumptions, i.e that we should migrate
 the old structure down using the previously configured `down` and recreate it.
@@ -163,6 +166,13 @@ custom_statements do
     after_tables ["parents"]
     up "ALTER TABLE children ADD CONSTRAINT children_parent_fk FOREIGN KEY (region_id, parent_id) REFERENCES parents (region_id, id);"
     down "ALTER TABLE children DROP CONSTRAINT children_parent_fk;"
+  end
+
+  statement :create_audit_trigger do
+    after_table_structures ["audit_entries"]
+    after_statements [:create_audit_function]
+    up "CREATE TRIGGER ..."
+    down "DROP TRIGGER ..."
   end
 end
 
@@ -207,6 +217,8 @@ end
 | [`code?`](#postgres-custom_statements-statement-code?){: #postgres-custom_statements-statement-code? } | `boolean` | `false` | By default, we place the strings inside of ecto migration's `execute/1` function and assume they are sql. Use this option if you want to provide custom elixir code to be placed directly in the migrations |
 | [`global?`](#postgres-custom_statements-statement-global?){: #postgres-custom_statements-statement-global? } | `boolean` | `false` | By default, a multi-tenant resource's custom statements will be written into the tenant migration folder. Set this to true for statements that create global, shared structures so they are written into the public migration folder even when defined on a tenant resource. |
 | [`after_tables`](#postgres-custom_statements-statement-after_tables){: #postgres-custom_statements-statement-after_tables } | `list(String.t)` | `[]` | Table names that this statement's `up` depends on being fully finalized (including their columns and indexes) before it runs. Use this when a raw SQL statement references structure (e.g. a foreign key referencing a unique index) on another table so the migration generator can order it correctly. |
+| [`after_table_structures`](#postgres-custom_statements-statement-after_table_structures){: #postgres-custom_statements-statement-after_table_structures } | `list(String.t)` | `[]` | Table names whose structural operations must be complete before this statement's `up` runs. Unlike `after_tables`, this does not wait for custom statements declared on those tables. Use this for raw SQL that references another table's columns or indexes when waiting for that table's custom statements would create an unnecessary dependency cycle. |
+| [`after_statements`](#postgres-custom_statements-statement-after_statements){: #postgres-custom_statements-statement-after_statements } | `list(atom)` | `[]` | Names of other custom statements on this resource that must run before this statement's `up`. This is useful for dependencies such as a trigger statement that requires a function created by another statement. |
 
 
 

@@ -11,7 +11,9 @@ defmodule AshPostgres.Statement do
     :down,
     :code?,
     :global?,
-    :after_tables
+    :after_tables,
+    :after_table_structures,
+    :after_statements
   ]
 
   defstruct @fields ++ [:__spark_metadata__]
@@ -57,6 +59,20 @@ defmodule AshPostgres.Statement do
       default: [],
       doc: """
       Table names that this statement's `up` depends on being fully finalized (including their columns and indexes) before it runs. Use this when a raw SQL statement references structure (e.g. a foreign key referencing a unique index) on another table so the migration generator can order it correctly.
+      """
+    ],
+    after_table_structures: [
+      type: {:list, :string},
+      default: [],
+      doc: """
+      Table names whose structural operations must be complete before this statement's `up` runs. Unlike `after_tables`, this does not wait for custom statements declared on those tables. Use this for raw SQL that references another table's columns or indexes when waiting for that table's custom statements would create an unnecessary dependency cycle.
+      """
+    ],
+    after_statements: [
+      type: {:list, :atom},
+      default: [],
+      doc: """
+      Names of other custom statements on this resource that must run before this statement's `up`. This is useful for dependencies such as a trigger statement that requires a function created by another statement.
       """
     ]
   ]

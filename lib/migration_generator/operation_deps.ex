@@ -104,6 +104,11 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
     cross-table reference requires `:table_finalized`, so it also waits for
     the target table's own custom statements.
 
+  Statement-scoped (`key = {schema, table, statement_name}`):
+
+  - `:custom_statement_ready` — a named custom statement on the table has run.
+    `AddCustomStatement` uses this for explicit `after_statements` dependencies.
+
   Column-scoped (`key = {schema, table, column}`):
 
   - `:column_ready` — a specific column (by its current name) exists.
@@ -325,8 +330,11 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
       %Operation.RemovePrimaryKeyDown{table: table, schema: schema} ->
         structure_ready_facts(table, schema)
 
-      %Operation.AddCustomStatement{table: own_table, schema: schema} ->
-        [{:table_finalized, key(own_table, schema)}]
+      %Operation.AddCustomStatement{table: own_table, schema: schema, statement: statement} ->
+        [
+          {:table_finalized, key(own_table, schema)},
+          {:custom_statement_ready, key(own_table, schema, statement.name)}
+        ]
 
       _ ->
         []
@@ -536,6 +544,11 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
       %Operation.AddCustomStatement{table: own_table, schema: schema, statement: statement} ->
         after_tables = statement |> Map.get(:after_tables) |> List.wrap()
 
+        after_table_structures =
+          statement |> Map.get(:after_table_structures) |> List.wrap()
+
+        after_statements = statement |> Map.get(:after_statements) |> List.wrap()
+
         # Own table: the narrower `:table_structure_ready` (not
         # `:table_finalized`) — using the broader fact here would make two
         # custom statements on the same table each require the other's
@@ -544,7 +557,15 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
         # so this statement also waits for *that* table's own custom
         # statements, not just its structure.
         [{:table_structure_ready, key(own_table, schema)}] ++
-          Enum.map(after_tables, &{:table_finalized, key(&1, schema)})
+          Enum.map(after_tables, &{:table_finalized, key(&1, schema)}) ++
+          Enum.map(
+            after_table_structures,
+            &{:table_structure_ready, key(&1, schema)}
+          ) ++
+          Enum.map(
+            after_statements,
+            &{:custom_statement_ready, key(own_table, schema, &1)}
+          )
 
       _ ->
         []

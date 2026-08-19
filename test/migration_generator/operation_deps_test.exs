@@ -657,6 +657,66 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
                &match?({:table_finalized, _}, &1)
              )
     end
+
+    test "after_table_structures waits for table structure without waiting for its custom statements" do
+      create = %Operation.CreateTable{table: "parents", schema: nil}
+
+      parent_statement = %Operation.AddCustomStatement{
+        table: "parents",
+        schema: nil,
+        statement: %{name: :parent_view, up: "", down: "", code?: false}
+      }
+
+      child_statement = %Operation.AddCustomStatement{
+        table: "children",
+        schema: nil,
+        statement: %{
+          name: :child_view,
+          up: "",
+          down: "",
+          code?: false,
+          after_table_structures: ["parents"]
+        }
+      }
+
+      [structure_fact] =
+        OperationDeps.provides(create)
+        |> Enum.filter(&match?({:table_structure_ready, _}, &1))
+
+      assert structure_fact in OperationDeps.requires(child_statement)
+      refute structure_fact in OperationDeps.provides(parent_statement)
+
+      refute Enum.any?(
+               OperationDeps.requires(child_statement),
+               &match?({:table_finalized, {"public", "parents"}}, &1)
+             )
+    end
+
+    test "after_statements orders named statements on the same table" do
+      function_statement = %Operation.AddCustomStatement{
+        table: "widgets",
+        schema: nil,
+        statement: %{name: :create_function, up: "", down: "", code?: false}
+      }
+
+      trigger_statement = %Operation.AddCustomStatement{
+        table: "widgets",
+        schema: nil,
+        statement: %{
+          name: :create_trigger,
+          up: "",
+          down: "",
+          code?: false,
+          after_statements: [:create_function]
+        }
+      }
+
+      statement_fact =
+        {:custom_statement_ready, {"public", "widgets", :create_function}}
+
+      assert statement_fact in OperationDeps.provides(function_statement)
+      assert statement_fact in OperationDeps.requires(trigger_statement)
+    end
   end
 
   describe "early tier" do
