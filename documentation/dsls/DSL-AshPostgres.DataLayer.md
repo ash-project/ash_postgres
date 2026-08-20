@@ -136,10 +136,8 @@ A section for configuring custom statements to be added to migrations.
 By default, a statement has no declared dependency on other tables, so `down` statements run before any other
 operation and `up` statements run after all other operations for that statement's table. If your statement's `up`
 depends on structure from another table (e.g. a foreign key referencing a unique index defined via `identities`),
-declare it with `after_resource` so the migration generator orders it correctly relative to that table's operations.
-Use `after_tables` when only the target table's structural operations are required. Use `after_resource` when the
-target resource's custom statements must also run first. Use `after_statements` for dependencies between named custom statements
-on the same resource, such as creating a function before a trigger that invokes it.
+declare it with `after_tables` so the migration generator orders it correctly relative to that table's structure.
+Custom statements on the same table run in declaration order, such as creating a function before a trigger that invokes it.
 
 Additionally, when changing a custom statement, we must make some assumptions, i.e that we should migrate
 the old structure down using the previously configured `down` and recreate it.
@@ -163,14 +161,13 @@ custom_statements do
 
   statement :children_parent_composite_fk do
     # ensures this runs after `parents`'s columns and unique indexes are finalized
-    after_resource ["parents"]
+    after_tables ["parents"]
     up "ALTER TABLE children ADD CONSTRAINT children_parent_fk FOREIGN KEY (region_id, parent_id) REFERENCES parents (region_id, id);"
     down "ALTER TABLE children DROP CONSTRAINT children_parent_fk;"
   end
 
   statement :create_audit_trigger do
     after_tables ["audit_entries"]
-    after_statements [:create_audit_function]
     up "CREATE TRIGGER ..."
     down "DROP TRIGGER ..."
   end
@@ -216,9 +213,7 @@ end
 | [`down`](#postgres-custom_statements-statement-down){: #postgres-custom_statements-statement-down .spark-required} | `String.t` |  | How to tear down the structure of the statement |
 | [`code?`](#postgres-custom_statements-statement-code?){: #postgres-custom_statements-statement-code? } | `boolean` | `false` | By default, we place the strings inside of ecto migration's `execute/1` function and assume they are sql. Use this option if you want to provide custom elixir code to be placed directly in the migrations |
 | [`global?`](#postgres-custom_statements-statement-global?){: #postgres-custom_statements-statement-global? } | `boolean` | `false` | By default, a multi-tenant resource's custom statements will be written into the tenant migration folder. Set this to true for statements that create global, shared structures so they are written into the public migration folder even when defined on a tenant resource. |
-| [`after_resource`](#postgres-custom_statements-statement-after_resource){: #postgres-custom_statements-statement-after_resource } | `list(String.t)` | `[]` | Table names that this statement's `up` depends on being fully finalized (including their columns and indexes) before it runs. Use this when a raw SQL statement references structure (e.g. a foreign key referencing a unique index) on another table so the migration generator can order it correctly. |
 | [`after_tables`](#postgres-custom_statements-statement-after_tables){: #postgres-custom_statements-statement-after_tables } | `list(String.t)` | `[]` | Table names whose structural operations must be complete before this statement's `up` runs. This does not wait for custom statements declared on those tables. Use this for raw SQL that references another table's columns or indexes. |
-| [`after_statements`](#postgres-custom_statements-statement-after_statements){: #postgres-custom_statements-statement-after_statements } | `list(atom)` | `[]` | Names of other custom statements on this resource that must run before this statement's `up`. This is useful for dependencies such as a trigger statement that requires a function created by another statement. |
 
 
 

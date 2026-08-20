@@ -101,10 +101,8 @@ defmodule AshPostgres.DataLayer do
     By default, a statement has no declared dependency on other tables, so `down` statements run before any other
     operation and `up` statements run after all other operations for that statement's table. If your statement's `up`
     depends on structure from another table (e.g. a foreign key referencing a unique index defined via `identities`),
-    declare it with `after_resource` so the migration generator orders it correctly relative to that table's operations.
-    Use `after_tables` when only the target table's structural operations are required. Use `after_resource` when the
-    target resource's custom statements must also run first. Use `after_statements` for dependencies between named custom statements
-    on the same resource, such as creating a function before a trigger that invokes it.
+    declare it with `after_tables` so the migration generator orders it correctly relative to that table's structure.
+    Custom statements on the same table run in declaration order, such as creating a function before a trigger that invokes it.
 
     Additionally, when changing a custom statement, we must make some assumptions, i.e that we should migrate
     the old structure down using the previously configured `down` and recreate it.
@@ -123,14 +121,13 @@ defmodule AshPostgres.DataLayer do
 
         statement :children_parent_composite_fk do
           # ensures this runs after `parents`'s columns and unique indexes are finalized
-          after_resource ["parents"]
+          after_tables ["parents"]
           up "ALTER TABLE children ADD CONSTRAINT children_parent_fk FOREIGN KEY (region_id, parent_id) REFERENCES parents (region_id, id);"
           down "ALTER TABLE children DROP CONSTRAINT children_parent_fk;"
         end
 
         statement :create_audit_trigger do
           after_tables ["audit_entries"]
-          after_statements [:create_audit_function]
           up "CREATE TRIGGER ..."
           down "DROP TRIGGER ..."
         end

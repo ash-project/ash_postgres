@@ -8,7 +8,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
 
   Each operation may *provide* facts (things that become true once it runs)
   and *require* facts (things that must already be true before it can run).
-  `AshPostgres.MigrationGenerator.MigrationGenerator.toposort_operations/1`
+  `AshPostgres.MigrationGenerator.toposort_operations/1`
   turns these into a dependency graph and topologically sorts it.
 
   There is deliberately no symmetric "late tier" counterpart to
@@ -21,9 +21,9 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
 
   Requiring a fact waits on *every* operation that provides it, not just one
   — see `toposort_operations/1`'s `provides_index`. That's what makes
-  `:table_structure_ready`/`:table_finalized` work as catch-alls: many
-  operation types provide them, so an op that requires one (e.g.
-  `AddCustomStatement`'s own-table or `after_resource` requirement)
+  `:table_structure_ready` works as a catch-all: many operation types provide
+  it, so an op that requires it (e.g.
+  `AddCustomStatement`'s own-table or `after_tables` requirement)
   transparently waits for all of that table's work, without needing to
   enumerate every attribute/index/constraint by hand.
 
@@ -69,8 +69,8 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
   (`CreateTable`/`RenameTable`/`MoveTableSchema`) from `:table_columns_settled`
   (`AddAttribute`/`RenameAttribute`/`AlterAttribute`/`RemoveAttribute`), so
   requiring both together is *not* redundant — neither subsumes the other.
-  Both converge at `:table_structure_ready` and `:table_finalized`, which
-  every structural operation provides:
+  Both converge at `:table_structure_ready`, which every structural operation
+  provides:
 
   - `:table_ready` — the table exists (`CreateTable`/`RenameTable`/
     `MoveTableSchema`).
@@ -92,22 +92,6 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
     `DropForeignKey` operations even though `DropTable` is early-tier (the
     `required_by_early_tier` exemption in `toposort_operations/1` is what lets
     that specific dependency win over the blanket barrier).
-  - `:table_finalized` — this table is *truly* done, including any
-    `custom_statements` declared on it: provided by everything that provides
-    `:table_structure_ready`, plus each `AddCustomStatement` on the table (a
-    table with no custom statements is finalized as soon as its structure is
-    ready). Kept separate from `:table_structure_ready` because
-    `AddCustomStatement`'s own implicit "wait for my own table" requirement
-    must use the narrower fact — were it to require `:table_finalized`, two
-    custom statements on the same table would each provide and require the
-    same fact, a guaranteed cycle. Only the explicit, opt-in `after_resource`
-    cross-table reference requires `:table_finalized`, so it also waits for
-    the target table's own custom statements.
-
-  Statement-scoped (`key = {schema, table, statement_name}`):
-
-  - `:custom_statement_ready` — a named custom statement on the table has run.
-    `AddCustomStatement` uses this for explicit `after_statements` dependencies.
 
   Column-scoped (`key = {schema, table, column}`):
 
@@ -330,19 +314,13 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
       %Operation.RemovePrimaryKeyDown{table: table, schema: schema} ->
         structure_ready_facts(table, schema)
 
-      %Operation.AddCustomStatement{table: own_table, schema: schema, statement: statement} ->
-        [
-          {:table_finalized, key(own_table, schema)},
-          {:custom_statement_ready, key(own_table, schema, statement.name)}
-        ]
-
       _ ->
         []
     end
   end
 
   defp structure_ready_facts(table, schema) do
-    [{:table_structure_ready, key(table, schema)}, {:table_finalized, key(table, schema)}]
+    [{:table_structure_ready, key(table, schema)}]
   end
 
   @doc "Facts that must already be provided (by some other operation) before `op` can run."
@@ -542,29 +520,10 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
         Enum.map(List.wrap(keys), &{:column_fk_dropped, key(table, schema, &1)})
 
       %Operation.AddCustomStatement{table: own_table, schema: schema, statement: statement} ->
-        after_resource = statement |> Map.get(:after_resource) |> List.wrap()
-
         after_tables = statement |> Map.get(:after_tables) |> List.wrap()
 
-        after_statements = statement |> Map.get(:after_statements) |> List.wrap()
-
-        # Own table: the narrower `:table_structure_ready` (not
-        # `:table_finalized`) — using the broader fact here would make two
-        # custom statements on the same table each require the other's
-        # `:table_finalized` (each provides it too), a guaranteed cycle.
-        # Declared `after_resource` targets: the broader `:table_finalized`,
-        # so this statement also waits for *that* table's own custom
-        # statements, not just its structure.
         [{:table_structure_ready, key(own_table, schema)}] ++
-          Enum.map(after_resource, &{:table_finalized, key(&1, schema)}) ++
-          Enum.map(
-            after_tables,
-            &{:table_structure_ready, key(&1, schema)}
-          ) ++
-          Enum.map(
-            after_statements,
-            &{:custom_statement_ready, key(own_table, schema, &1)}
-          )
+          Enum.map(after_tables, &{:table_structure_ready, key(&1, schema)})
 
       _ ->
         []
