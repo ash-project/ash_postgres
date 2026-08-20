@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: MIT
 
 spark_locals_without_parens = [
+  after_resource: 1,
   after_statements: 1,
-  after_table_structures: 1,
   after_tables: 1,
   all_tenants?: 1,
   base_filter_sql: 1,
