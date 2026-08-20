@@ -561,7 +561,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
       statement = %Operation.AddCustomStatement{
         table: "widget",
         schema: nil,
-        statement: %{name: :some_statement, up: "", down: "", code?: false, after_tables: []}
+        statement: %{name: :some_statement, up: "", down: "", code?: false, after_resource: []}
       }
 
       [fact] =
@@ -570,7 +570,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
       assert fact in OperationDeps.requires(statement)
     end
 
-    test "AddCustomStatement with after_tables is satisfied by a CreateTable for the declared table (via table_finalized)" do
+    test "AddCustomStatement with after_resource is satisfied by a CreateTable for the declared table (via table_finalized)" do
       create = %Operation.CreateTable{table: "parents", schema: nil}
 
       statement = %Operation.AddCustomStatement{
@@ -581,7 +581,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
           up: "",
           down: "",
           code?: false,
-          after_tables: ["parents"]
+          after_resource: ["parents"]
         }
       }
 
@@ -590,11 +590,11 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
       assert fact in OperationDeps.requires(statement)
     end
 
-    test "AddCustomStatement with after_tables is satisfied by another custom statement declared on the target table" do
+    test "AddCustomStatement with after_resource is satisfied by another custom statement declared on the target table" do
       # This is the whole point of the two-tier fact split: a shared,
       # foundational custom statement (e.g. one that creates a structure
       # another table's FK needs) can live on the table it actually concerns,
-      # and other resources' `after_tables` will wait for it too — not just
+      # and other resources' `after_resource` will wait for it too — not just
       # for that table's plain structural (DDL) operations.
       parent_statement = %Operation.AddCustomStatement{
         table: "parents",
@@ -604,7 +604,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
           up: "",
           down: "",
           code?: false,
-          after_tables: []
+          after_resource: []
         }
       }
 
@@ -616,7 +616,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
           up: "",
           down: "",
           code?: false,
-          after_tables: ["parents"]
+          after_resource: ["parents"]
         }
       }
 
@@ -631,17 +631,17 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
       statement_a = %Operation.AddCustomStatement{
         table: "widget",
         schema: nil,
-        statement: %{name: :a, up: "", down: "", code?: false, after_tables: []}
+        statement: %{name: :a, up: "", down: "", code?: false, after_resource: []}
       }
 
       statement_b = %Operation.AddCustomStatement{
         table: "widget",
         schema: nil,
-        statement: %{name: :b, up: "", down: "", code?: false, after_tables: []}
+        statement: %{name: :b, up: "", down: "", code?: false, after_resource: []}
       }
 
       # Each provides :table_finalized for their shared table (so *other*
-      # tables' after_tables can depend on either of them), but neither's own
+      # tables' after_resource can depend on either of them), but neither's own
       # implicit requirement is written in terms of that same broad fact —
       # only the narrower :table_structure_ready, which neither custom
       # statement provides. If this ever regresses, `AddCustomStatement`s on
@@ -658,7 +658,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
              )
     end
 
-    test "after_table_structures waits for table structure without waiting for its custom statements" do
+    test "after_tables waits for table structure without waiting for its custom statements" do
       create = %Operation.CreateTable{table: "parents", schema: nil}
 
       parent_statement = %Operation.AddCustomStatement{
@@ -675,7 +675,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
           up: "",
           down: "",
           code?: false,
-          after_table_structures: ["parents"]
+          after_tables: ["parents"]
         }
       }
 

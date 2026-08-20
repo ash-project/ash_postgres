@@ -20,7 +20,7 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 * add match_tenant? option for attribute multitenancy FKs (#813) by TravelCurry02
 
-* add after_tables to custom_statements so raw SQL can depend on another table (#799) by Jechol Lee
+* add after_resource to custom_statements so raw SQL can depend on another resource (#799) by Jechol Lee
 
 ### Improvements:
 
