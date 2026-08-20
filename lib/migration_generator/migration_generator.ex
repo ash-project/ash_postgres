@@ -1807,9 +1807,12 @@ defmodule AshPostgres.MigrationGenerator do
   # dependencies at the same time) are broken by that original index, so
   # unconstrained operations keep their original relative order (matching
   # resource declaration order).
-  defp toposort_operations(operations) do
+  @doc false
+  def toposort_operations(operations) do
     count = length(operations)
     indexed = Enum.with_index(operations)
+
+    declaration_deps_by_index = custom_statement_declaration_dependencies(indexed)
 
     provides_index =
       Enum.reduce(indexed, %{}, fn {op, index}, acc ->
@@ -1846,6 +1849,7 @@ defmodule AshPostgres.MigrationGenerator do
     dependencies =
       Map.new(indexed, fn {op, index} ->
         fact_deps = Map.fetch!(fact_deps_by_index, index)
+        declaration_deps = Map.get(declaration_deps_by_index, index, [])
 
         tier_deps =
           if OperationDeps.early_tier?(op) || MapSet.member?(required_by_early_tier, index) do
@@ -1855,7 +1859,7 @@ defmodule AshPostgres.MigrationGenerator do
           end
 
         deps =
-          (fact_deps ++ tier_deps)
+          (fact_deps ++ declaration_deps ++ tier_deps)
           |> Enum.reject(&(&1 == index))
           |> Enum.uniq()
 
@@ -1916,6 +1920,48 @@ defmodule AshPostgres.MigrationGenerator do
     queue = Enum.sort(rest ++ Enum.uniq(newly_available))
 
     toposort_operation_indices(queue, adjacency, in_degrees, [index | acc])
+  end
+
+  # Preserve custom statement declaration order for additions and reverse it
+  # for removals because their SQL may contain dependencies we cannot inspect.
+  defp custom_statement_declaration_dependencies(indexed) do
+    {dependencies, _last_add, _last_remove} =
+      Enum.reduce(indexed, {%{}, %{}, %{}}, fn
+        {%Operation.AddCustomStatement{table: table, schema: schema}, index},
+        {dependencies, last_add, last_remove} ->
+          key = {schema_key(schema), table}
+
+          dependencies =
+            case Map.fetch(last_add, key) do
+              {:ok, previous_index} ->
+                Map.update(dependencies, index, [previous_index], &[previous_index | &1])
+
+              :error ->
+                dependencies
+            end
+
+          {dependencies, Map.put(last_add, key, index), last_remove}
+
+        {%Operation.RemoveCustomStatement{table: table, schema: schema}, index},
+        {dependencies, last_add, last_remove} ->
+          key = {schema_key(schema), table}
+
+          dependencies =
+            case Map.fetch(last_remove, key) do
+              {:ok, previous_index} ->
+                Map.update(dependencies, previous_index, [index], &[index | &1])
+
+              :error ->
+                dependencies
+            end
+
+          {dependencies, last_add, Map.put(last_remove, key, index)}
+
+        {_operation, _index}, acc ->
+          acc
+      end)
+
+    dependencies
   end
 
   defp fetch_operations(snapshots, opts) do
