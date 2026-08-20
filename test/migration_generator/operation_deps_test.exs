@@ -9,6 +9,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
   """
   use ExUnit.Case, async: true
 
+  alias AshPostgres.MigrationGenerator
   alias AshPostgres.MigrationGenerator.Operation
   alias AshPostgres.MigrationGenerator.OperationDeps
 
@@ -561,7 +562,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
       statement = %Operation.AddCustomStatement{
         table: "widget",
         schema: nil,
-        statement: %{name: :some_statement, up: "", down: "", code?: false, after_tables: []}
+        statement: %{name: :some_statement, up: "", down: "", code?: false}
       }
 
       [fact] =
@@ -570,49 +571,20 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
       assert fact in OperationDeps.requires(statement)
     end
 
-    test "AddCustomStatement with after_tables is satisfied by a CreateTable for the declared table (via table_finalized)" do
+    test "after_tables waits for table structure without waiting for its custom statements" do
       create = %Operation.CreateTable{table: "parents", schema: nil}
 
-      statement = %Operation.AddCustomStatement{
-        table: "widget",
-        schema: nil,
-        statement: %{
-          name: :widget_parent_composite_fk,
-          up: "",
-          down: "",
-          code?: false,
-          after_tables: ["parents"]
-        }
-      }
-
-      [fact] = OperationDeps.provides(create) |> Enum.filter(&match?({:table_finalized, _}, &1))
-
-      assert fact in OperationDeps.requires(statement)
-    end
-
-    test "AddCustomStatement with after_tables is satisfied by another custom statement declared on the target table" do
-      # This is the whole point of the two-tier fact split: a shared,
-      # foundational custom statement (e.g. one that creates a structure
-      # another table's FK needs) can live on the table it actually concerns,
-      # and other resources' `after_tables` will wait for it too — not just
-      # for that table's plain structural (DDL) operations.
       parent_statement = %Operation.AddCustomStatement{
         table: "parents",
         schema: nil,
-        statement: %{
-          name: :parents_composite_unique_index,
-          up: "",
-          down: "",
-          code?: false,
-          after_tables: []
-        }
+        statement: %{name: :parent_view, up: "", down: "", code?: false}
       }
 
       child_statement = %Operation.AddCustomStatement{
-        table: "widget",
+        table: "children",
         schema: nil,
         statement: %{
-          name: :widget_parent_composite_fk,
+          name: :child_view,
           up: "",
           down: "",
           code?: false,
@@ -620,42 +592,114 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
         }
       }
 
-      [fact] =
-        OperationDeps.provides(parent_statement)
-        |> Enum.filter(&match?({:table_finalized, _}, &1))
+      [structure_fact] =
+        OperationDeps.provides(create)
+        |> Enum.filter(&match?({:table_structure_ready, _}, &1))
 
-      assert fact in OperationDeps.requires(child_statement)
+      assert structure_fact in OperationDeps.requires(child_statement)
+      refute structure_fact in OperationDeps.provides(parent_statement)
     end
 
-    test "two custom statements declared on the same table do not require each other (no sibling cycle)" do
-      statement_a = %Operation.AddCustomStatement{
-        table: "widget",
+    test "custom statements preserve declaration order around after_tables dependencies" do
+      table_a = %Operation.CreateTable{table: "widgets", schema: nil}
+      table_b = %Operation.CreateTable{table: "audit_entries", schema: nil}
+
+      function_statement = %Operation.AddCustomStatement{
+        table: "widgets",
         schema: nil,
-        statement: %{name: :a, up: "", down: "", code?: false, after_tables: []}
+        statement: %{
+          name: :create_function,
+          up: "CREATE FUNCTION audit_widget() RETURNS trigger ...",
+          down: "DROP FUNCTION audit_widget()",
+          code?: false,
+          after_tables: ["audit_entries"]
+        }
       }
 
-      statement_b = %Operation.AddCustomStatement{
-        table: "widget",
+      trigger_statement = %Operation.AddCustomStatement{
+        table: "widgets",
         schema: nil,
-        statement: %{name: :b, up: "", down: "", code?: false, after_tables: []}
+        statement: %{
+          name: :create_trigger,
+          up: "CREATE TRIGGER audit_widget EXECUTE FUNCTION audit_widget()",
+          down: "DROP TRIGGER audit_widget ON widgets",
+          code?: false,
+          after_tables: ["audit_entries"]
+        }
       }
 
-      # Each provides :table_finalized for their shared table (so *other*
-      # tables' after_tables can depend on either of them), but neither's own
-      # implicit requirement is written in terms of that same broad fact —
-      # only the narrower :table_structure_ready, which neither custom
-      # statement provides. If this ever regresses, `AddCustomStatement`s on
-      # a shared table would deadlock (a real cycle) via each other's
-      # `:table_finalized`.
-      refute Enum.any?(
-               OperationDeps.provides(statement_a),
-               &match?({:table_structure_ready, _}, &1)
-             )
+      operations =
+        MigrationGenerator.toposort_operations([
+          table_a,
+          function_statement,
+          trigger_statement,
+          table_b
+        ])
 
-      refute Enum.any?(
-               OperationDeps.requires(statement_b),
-               &match?({:table_finalized, _}, &1)
-             )
+      statement_names =
+        for %Operation.AddCustomStatement{statement: statement} <- operations, do: statement.name
+
+      assert statement_names == [:create_function, :create_trigger]
+      assert Enum.reverse(statement_names) == [:create_trigger, :create_function]
+    end
+
+    test "a later custom statement cannot overtake an earlier statement with after_tables" do
+      table_a = %Operation.CreateTable{table: "widgets", schema: nil}
+      table_b = %Operation.CreateTable{table: "audit_entries", schema: nil}
+
+      function_statement = %Operation.AddCustomStatement{
+        table: "widgets",
+        schema: nil,
+        statement: %{
+          name: :create_function,
+          up: "",
+          down: "",
+          code?: false,
+          after_tables: ["audit_entries"]
+        }
+      }
+
+      trigger_statement = %Operation.AddCustomStatement{
+        table: "widgets",
+        schema: nil,
+        statement: %{name: :create_trigger, up: "", down: "", code?: false}
+      }
+
+      operations =
+        MigrationGenerator.toposort_operations([
+          table_a,
+          function_statement,
+          trigger_statement,
+          table_b
+        ])
+
+      statement_names =
+        for %Operation.AddCustomStatement{statement: statement} <- operations, do: statement.name
+
+      assert statement_names == [:create_function, :create_trigger]
+    end
+
+    test "removed custom statements use reverse declaration order" do
+      remove_function = %Operation.RemoveCustomStatement{
+        table: "widgets",
+        schema: nil,
+        statement: %{name: :create_function, up: "", down: "", code?: false}
+      }
+
+      remove_trigger = %Operation.RemoveCustomStatement{
+        table: "widgets",
+        schema: nil,
+        statement: %{name: :create_trigger, up: "", down: "", code?: false}
+      }
+
+      operations =
+        MigrationGenerator.toposort_operations([remove_function, remove_trigger])
+
+      statement_names =
+        for %Operation.RemoveCustomStatement{statement: statement} <- operations,
+            do: statement.name
+
+      assert statement_names == [:create_trigger, :create_function]
     end
   end
 

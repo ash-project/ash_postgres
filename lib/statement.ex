@@ -56,7 +56,7 @@ defmodule AshPostgres.Statement do
       type: {:list, :string},
       default: [],
       doc: """
-      Table names that this statement's `up` depends on being fully finalized (including their columns and indexes) before it runs. Use this when a raw SQL statement references structure (e.g. a foreign key referencing a unique index) on another table so the migration generator can order it correctly.
+      Table names whose structural operations must be complete before this statement's `up` runs. This does not wait for custom statements declared on those tables. Use this for raw SQL that references another table's columns or indexes.
       """
     ]
   ]
