@@ -262,7 +262,12 @@ defmodule AshPostgres.MixProject do
       "test.migrate": "ash_postgres.migrate",
       "test.rollback": "ash_postgres.rollback",
       "test.create": "ash_postgres.create",
-      "test.reset": ["test.drop", "test.create", "test.migrate", "ash_postgres.migrate --tenants"],
+      "test.reset": [
+        "test.drop",
+        "test.create",
+        "test.migrate",
+        fn args -> Mix.Task.rerun("ash_postgres.migrate", ["--tenants" | args]) end
+      ],
       "test.drop": "ash_postgres.drop"
     ]
   end

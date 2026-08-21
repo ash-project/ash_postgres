@@ -639,13 +639,13 @@ defmodule AshPostgres.DataLayer do
 
     []
     |> AshPostgres.Mix.Helpers.repos!(args)
-    |> Enum.all?(&(not has_tenant_migrations?(&1)))
+    |> Enum.any?(&has_tenant_migrations?(&1))
     |> case do
-      true ->
+      false ->
         :ok
 
       _ ->
-        Mix.Task.run("ash_postgres.migrate", ["--tenant" | args])
+        Mix.Task.rerun("ash_postgres.migrate", ["--tenants" | args])
     end
   end
 
@@ -660,6 +660,7 @@ defmodule AshPostgres.DataLayer do
     |> Path.join("**/*.exs")
     |> Path.wildcard()
     |> Enum.empty?()
+    |> Kernel.not()
   end
 
   import Ecto.Query, only: [from: 2, subquery: 1]
