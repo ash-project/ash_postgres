@@ -657,6 +657,9 @@ defmodule AshPostgres.Test.Post do
         fields: [
           display_template: [
             type: :string
+          ],
+          size: [
+            type: :integer
           ]
         ]
       )
