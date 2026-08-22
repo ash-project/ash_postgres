@@ -54,14 +54,28 @@ defmodule AshPostgres.MigrationGenerator do
     tenant_snapshots_to_include_in_global =
       tenant_snapshots
       |> Enum.filter(& &1.multitenancy.global)
-      |> Enum.map(&Map.put(&1, :multitenancy, %{strategy: nil, attribute: nil, global: nil}))
+      |> Enum.map(
+        &Map.put(&1, :multitenancy, %{
+          strategy: nil,
+          attribute: nil,
+          ancestor_attributes: [],
+          global: nil
+        })
+      )
 
     snapshots = snapshots ++ tenant_snapshots_to_include_in_global
 
     unmanaged_tenant_snapshots_to_include_in_global =
       unmanaged_tenant_snapshots
       |> Enum.filter(& &1.multitenancy.global)
-      |> Enum.map(&Map.put(&1, :multitenancy, %{strategy: nil, attribute: nil, global: nil}))
+      |> Enum.map(
+        &Map.put(&1, :multitenancy, %{
+          strategy: nil,
+          attribute: nil,
+          ancestor_attributes: [],
+          global: nil
+        })
+      )
 
     unmanaged_snapshots = unmanaged_snapshots ++ unmanaged_tenant_snapshots_to_include_in_global
 
@@ -2052,6 +2066,7 @@ defmodule AshPostgres.MigrationGenerator do
         empty?: true,
         multitenancy: %{
           attribute: nil,
+          ancestor_attributes: [],
           strategy: nil,
           global: nil
         }
@@ -3212,9 +3227,9 @@ defmodule AshPostgres.MigrationGenerator do
 
     multitenancy =
       if tenant? do
-        %{strategy: :context, attribute: nil, global: nil}
+        %{strategy: :context, attribute: nil, ancestor_attributes: [], global: nil}
       else
-        %{strategy: nil, attribute: nil, global: nil}
+        %{strategy: nil, attribute: nil, ancestor_attributes: [], global: nil}
       end
 
     {drop_ops, rename_map, schema_move_map, loaded} =
@@ -3825,11 +3840,13 @@ defmodule AshPostgres.MigrationGenerator do
   defp multitenancy(resource) do
     strategy = Ash.Resource.Info.multitenancy_strategy(resource)
     attribute = Ash.Resource.Info.multitenancy_attribute(resource)
+    ancestor_attributes = Ash.Resource.Info.multitenancy_ancestor_attributes(resource)
     global = Ash.Resource.Info.multitenancy_global?(resource)
 
     %{
       strategy: strategy,
       attribute: attribute,
+      ancestor_attributes: ancestor_attributes,
       global: global
     }
   end
@@ -4373,6 +4390,10 @@ defmodule AshPostgres.MigrationGenerator do
     multitenancy
     |> Map.update!(:strategy, fn strategy -> strategy && maybe_to_atom(strategy) end)
     |> Map.update!(:attribute, fn attribute -> attribute && maybe_to_atom(attribute) end)
+    |> Map.put_new(:ancestor_attributes, [])
+    |> Map.update!(:ancestor_attributes, fn ancestor_attributes ->
+      Enum.map(ancestor_attributes || [], &maybe_to_atom/1)
+    end)
   end
 
   defp load_attribute(attribute, table) do
