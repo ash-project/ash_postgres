@@ -11,6 +11,15 @@ defmodule AshPostgres.StringPositionExprTest do
   require Ash.Query
   import Ash.Expr
 
+  defp matching(title, filter) do
+    post = Post |> Ash.Changeset.for_create(:create, %{title: title}) |> Ash.create!()
+
+    Post
+    |> Ash.Query.filter(id == ^post.id)
+    |> Ash.Query.do_filter(filter)
+    |> Ash.read!()
+  end
+
   defp position(title, substring) do
     post = Post |> Ash.Changeset.for_create(:create, %{title: title}) |> Ash.create!()
 
@@ -50,5 +59,17 @@ defmodule AshPostgres.StringPositionExprTest do
            |> Ash.read_one!()
            |> Map.get(:calculations)
            |> Map.get(:position) == 2
+  end
+
+  test "a double digit position is greater than a single digit one" do
+    assert [_] = matching("aaaaaaaaaaz", expr(string_position(title, "z") > 9))
+  end
+
+  test "a double digit position is not less than a single digit one" do
+    assert [] = matching("aaaaaaaaaaz", expr(string_position(title, "z") < 9))
+  end
+
+  test "a single digit position is less than a double digit one" do
+    assert [_] = matching("aaz", expr(string_position(title, "z") < 10))
   end
 end
