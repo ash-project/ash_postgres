@@ -525,6 +525,17 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
         [{:table_structure_ready, key(own_table, schema)}] ++
           Enum.map(after_tables, &{:table_structure_ready, key(&1, schema)})
 
+      %Operation.AddPrimaryKey{table: table, schema: schema} ->
+        # Every key column must exist first; on a temporal resource that includes the period.
+        [{:table_ready, key(table, schema)}, {:table_columns_settled, key(table, schema)}]
+
+      %Operation.AddTemporalForeignKey{} = op ->
+        # References the destination's temporal primary key, so both tables must be complete.
+        [
+          {:table_structure_ready, key(op.table, op.schema)},
+          {:table_structure_ready, key(op.destination_table, op.destination_schema)}
+        ]
+
       _ ->
         []
     end
