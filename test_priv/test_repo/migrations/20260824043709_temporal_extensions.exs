@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshPostgres.TestRepo.Migrations.TemporalMoreExtensions1 do
+defmodule AshPostgres.TestRepo.Migrations.TemporalExtensions do
   @moduledoc """
   Installs any extensions that are mentioned in the repo's `installed_extensions/0` callback
 
