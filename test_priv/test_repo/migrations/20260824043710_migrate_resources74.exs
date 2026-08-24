@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshPostgres.TestRepo.Migrations.TemporalMore do
+defmodule AshPostgres.TestRepo.Migrations.MigrateResources74 do
   @moduledoc """
   Updates resources based on their most recent snapshots.
 
@@ -12,25 +12,16 @@ defmodule AshPostgres.TestRepo.Migrations.TemporalMore do
   use Ecto.Migration
 
   def up do
-    create table(:subscription, primary_key: false) do
-      add(:id, :bigint, null: false)
-      add(:tier, :text)
-      add(:tier_id, :bigint)
-      add(:seats, :bigint, default: 0)
-      add(:activated_at, :utc_datetime_usec)
-      add(:valid_at, :tstzrange)
+    create table(:event, primary_key: false) do
+      add(:id, :bigint, null: false, primary_key: true)
+      add(:name, :text)
+      add(:created, :utc_datetime_usec)
     end
 
     create table(:tier, primary_key: false) do
       add(:id, :bigint, null: false)
       add(:name, :text)
-      add(:valid_at, :tstzrange)
-    end
-
-    create table(:event, primary_key: false) do
-      add(:id, :bigint, null: false, primary_key: true)
-      add(:name, :text)
-      add(:created, :utc_datetime_usec)
+      add(:valid_at, :tstzrange, null: false)
     end
 
     if repo().query!("SHOW server_version_num").rows |> hd() |> hd() |> String.to_integer() >=
@@ -38,6 +29,15 @@ defmodule AshPostgres.TestRepo.Migrations.TemporalMore do
       execute("ALTER TABLE \"tier\" ADD PRIMARY KEY (id, valid_at WITHOUT OVERLAPS)")
     else
       execute("ALTER TABLE \"tier\" ADD PRIMARY KEY (id)")
+    end
+
+    create table(:subscription, primary_key: false) do
+      add(:id, :bigint, null: false)
+      add(:tier, :text)
+      add(:tier_id, :bigint)
+      add(:seats, :bigint, default: 0)
+      add(:activated_at, :utc_datetime_usec)
+      add(:valid_at, :tstzrange, null: false)
     end
 
     if repo().query!("SHOW server_version_num").rows |> hd() |> hd() |> String.to_integer() >=
@@ -58,10 +58,10 @@ defmodule AshPostgres.TestRepo.Migrations.TemporalMore do
   def down do
     execute("ALTER TABLE \"subscription\" DROP CONSTRAINT subscription_tier_id_fkey")
 
-    drop(table(:event))
+    drop(table(:subscription))
 
     drop(table(:tier))
 
-    drop(table(:subscription))
+    drop(table(:event))
   end
 end
