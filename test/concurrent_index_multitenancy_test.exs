@@ -9,7 +9,7 @@ defmodule AshPostgres.Test.ConcurrentIndexMultitenancyTest do
 
   alias AshPostgres.MultiTenancy
 
-  @temp_migrations_dir "priv/test_repo/temp_tenant_migrations"
+  @temp_migrations_dir "test_priv/test_repo/temp_tenant_migrations"
 
   setup do
     # Create temporary migrations directory

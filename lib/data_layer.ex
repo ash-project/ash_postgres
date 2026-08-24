@@ -98,9 +98,11 @@ defmodule AshPostgres.DataLayer do
     describe: """
     A section for configuring custom statements to be added to migrations.
 
-    Changing custom statements may require manual intervention, because Ash can't determine what order they should run
-    in (i.e if they depend on table structure that you've added, or vice versa). As such, any `down` statements we run
-    for custom statements happen first, and any `up` statements happen last.
+    By default, a statement has no declared dependency on other tables, so `down` statements run before any other
+    operation and `up` statements run after all other operations for that statement's table. If your statement's `up`
+    depends on structure from another table (e.g. a foreign key referencing a unique index defined via `identities`),
+    declare it with `after_tables` so the migration generator orders it correctly relative to that table's structure.
+    Custom statements on the same table run in declaration order, such as creating a function before a trigger that invokes it.
 
     Additionally, when changing a custom statement, we must make some assumptions, i.e that we should migrate
     the old structure down using the previously configured `down` and recreate it.
@@ -115,6 +117,19 @@ defmodule AshPostgres.DataLayer do
         statement :pgweb_idx do
           up "CREATE INDEX pgweb_idx ON pgweb USING GIN (to_tsvector('english', title || ' ' || body));"
           down "DROP INDEX pgweb_idx;"
+        end
+
+        statement :children_parent_composite_fk do
+          # ensures this runs after `parents`'s columns and unique indexes are finalized
+          after_tables ["parents"]
+          up "ALTER TABLE children ADD CONSTRAINT children_parent_fk FOREIGN KEY (region_id, parent_id) REFERENCES parents (region_id, id);"
+          down "ALTER TABLE children DROP CONSTRAINT children_parent_fk;"
+        end
+
+        statement :create_audit_trigger do
+          after_tables ["audit_entries"]
+          up "CREATE TRIGGER ..."
+          down "DROP TRIGGER ..."
         end
       end
       """
@@ -308,7 +323,7 @@ defmodule AshPostgres.DataLayer do
         type: :keyword_list,
         default: [],
         doc: """
-        A keyword list of attribute names to the ecto migration default that should be used for that attribute. The string you use will be placed verbatim in the migration. Use fragments like `fragment(\\\\"now()\\\\")`, or for `nil`, use `\\\\"nil\\\\"`.
+        A keyword list of attribute names to the ecto migration default that should be used for that attribute. The string you use will be placed verbatim in the migration. Use fragments like `fragment(\\\\"now()\\\\")`, or for `nil`, use `\\\\"nil\\\\"`. For custom `Ash.Type` modules, see `c:AshPostgres.Type.value_to_postgres_default/3`.
         """
       ],
       calculations_to_sql: [
@@ -635,13 +650,13 @@ defmodule AshPostgres.DataLayer do
 
     []
     |> AshPostgres.Mix.Helpers.repos!(args)
-    |> Enum.all?(&(not has_tenant_migrations?(&1)))
+    |> Enum.any?(&has_tenant_migrations?(&1))
     |> case do
-      true ->
+      false ->
         :ok
 
       _ ->
-        Mix.Task.run("ash_postgres.migrate", ["--tenant" | args])
+        Mix.Task.rerun("ash_postgres.migrate", ["--tenants" | args])
     end
   end
 
@@ -656,6 +671,7 @@ defmodule AshPostgres.DataLayer do
     |> Path.join("**/*.exs")
     |> Path.wildcard()
     |> Enum.empty?()
+    |> Kernel.not()
   end
 
   import Ecto.Query, only: [from: 2, subquery: 1]
@@ -842,6 +858,22 @@ defmodule AshPostgres.DataLayer do
   end
 
   @impl true
+  # We take charge of dumping/loading the stored form for core types whose native
+  # value Postgres can't round-trip directly. `Ash.Type.Range`'s value is an
+  # `%Ash.Range{}`, which Postgrex can neither encode nor produce — it needs a
+  # `%Postgrex.Range{}`. Routing the schema field through `AshPostgres.Type.Range`
+  # makes both `insert_all` (dump) and `repo.all` (load) go through our type.
+  def attribute_ecto_type(_resource, %{type: Ash.Type.Range}) do
+    Ash.Type.ecto_type(AshPostgres.Type.Range)
+  end
+
+  def attribute_ecto_type(_resource, %{type: {:array, Ash.Type.Range}}) do
+    {:array, Ash.Type.ecto_type(AshPostgres.Type.Range)}
+  end
+
+  def attribute_ecto_type(_resource, _attribute), do: nil
+
+  @impl true
   def offset(query, nil, _), do: query
 
   def offset(%{offset: old_offset} = query, 0, _resource) when old_offset in [0, nil] do
@@ -871,7 +903,13 @@ defmodule AshPostgres.DataLayer do
       with_savepoint(repo, query, fn ->
         repo.all(
           query,
-          AshSql.repo_opts(repo, AshPostgres.SqlImplementation, nil, nil, resource)
+          AshSql.repo_opts(
+            repo,
+            AshPostgres.SqlImplementation,
+            repo_timeout(query),
+            nil,
+            resource
+          )
         )
         |> AshSql.Query.remap_mapped_fields(query)
         |> then(fn results ->
@@ -896,6 +934,12 @@ defmodule AshPostgres.DataLayer do
 
   defp no_table?(%{from: %{source: {"", _}}}), do: true
   defp no_table?(_), do: false
+
+  defp repo_timeout(%{__ash_bindings__: %{context: context}}) when is_map(context) do
+    get_in(context, [:data_layer, :timeout]) || (context[:action] && context[:action].timeout)
+  end
+
+  defp repo_timeout(_), do: nil
 
   @impl true
   def functions(resource) do
@@ -975,22 +1019,6 @@ defmodule AshPostgres.DataLayer do
       {:ok, query}
     end
   end
-
-  @impl true
-  # We take charge of dumping/loading the stored form for core types whose native
-  # value Postgres can't round-trip directly. `Ash.Type.Range`'s value is an
-  # `%Ash.Range{}`, which Postgrex can neither encode nor produce — it needs a
-  # `%Postgrex.Range{}`. Routing the schema field through `AshPostgres.Type.Range`
-  # makes both `insert_all` (dump) and `repo.all` (load) go through our type.
-  def attribute_ecto_type(_resource, %{type: Ash.Type.Range}) do
-    Ash.Type.ecto_type(AshPostgres.Type.Range)
-  end
-
-  def attribute_ecto_type(_resource, %{type: {:array, Ash.Type.Range}}) do
-    {:array, Ash.Type.ecto_type(AshPostgres.Type.Range)}
-  end
-
-  def attribute_ecto_type(_resource, _attribute), do: nil
 
   @impl true
   def run_aggregate_query_with_lateral_join(
@@ -1090,7 +1118,7 @@ defmodule AshPostgres.DataLayer do
                     AshSql.repo_opts(
                       repo,
                       AshPostgres.SqlImplementation,
-                      nil,
+                      repo_timeout(query),
                       nil,
                       source_resource
                     )
@@ -1147,7 +1175,13 @@ defmodule AshPostgres.DataLayer do
         results =
           repo.all(
             lateral_join_query,
-            AshSql.repo_opts(repo, AshPostgres.SqlImplementation, nil, nil, source_resource)
+            AshSql.repo_opts(
+              repo,
+              AshPostgres.SqlImplementation,
+              repo_timeout(lateral_join_query),
+              nil,
+              source_resource
+            )
           )
           |> AshSql.Query.remap_mapped_fields(
             query,
@@ -1332,13 +1366,28 @@ defmodule AshPostgres.DataLayer do
               start_bindings_at: through_binding
             })
             |> Ash.Query.set_context(Map.get(through_relationship, :context))
-            |> Ash.Query.do_filter(Map.get(through_relationship, :filter))
+            |> then(fn q ->
+              Ash.Query.do_filter(
+                q,
+                fill_relationship_filter_templates(
+                  Map.get(through_relationship, :filter),
+                  source_query,
+                  q
+                )
+              )
+            end)
             |> then(fn q ->
               # For through-list paths, the first relationship's filter applies to the through table
               # For many_to_many, the relationship filter is for the destination, not the through table
               if !is_atom(Map.get(relationship, :through)) ||
                    is_nil(Map.get(relationship, :through)) do
-                Ash.Query.do_filter(q, Map.get(relationship, :filter),
+                Ash.Query.do_filter(
+                  q,
+                  fill_relationship_filter_templates(
+                    Map.get(relationship, :filter),
+                    source_query,
+                    q
+                  ),
                   parent_stack: [relationship.source]
                 )
               else
@@ -1615,7 +1664,12 @@ defmodule AshPostgres.DataLayer do
     resource
     |> Ash.Query.new()
     |> Ash.Query.put_context(:data_layer, %{start_bindings_at: 0})
-    |> Ash.Query.do_filter(Map.get(prev_rel, :filter))
+    |> then(fn q ->
+      Ash.Query.do_filter(
+        q,
+        fill_relationship_filter_templates(Map.get(prev_rel, :filter), source_query, q)
+      )
+    end)
     |> Ash.Query.set_tenant(source_query.tenant)
     |> set_lateral_join_prefix(query)
     |> case do
@@ -1639,6 +1693,23 @@ defmodule AshPostgres.DataLayer do
          {:ok, rest_queries} <- build_through_queries(query, source_query, through_rel, rest) do
       {:ok, rel_query ++ rest_queries}
     end
+  end
+
+  # Relationship filters used by `through` relationships may reference
+  # `^actor/1`, `^context/1`, `^arg/1` or `^tenant/0` templates. These templates
+  # must be resolved before the filter is compiled into SQL, otherwise the raw
+  # template (e.g. `{:_context, :sample_context}`) is handed to the SQL
+  # implementation, which cannot process it. This mirrors how a directly loaded
+  # relationship filter is hydrated (see `Ash.Actions.Read.Relationships`):
+  # actor/args/tenant come from the source query while the context is taken from
+  # the query the filter is being applied to.
+  defp fill_relationship_filter_templates(filter, source_query, related_query) do
+    Ash.Expr.fill_template(filter,
+      actor: source_query.context[:private][:actor],
+      tenant: source_query.to_tenant,
+      args: source_query.arguments,
+      context: related_query.context
+    )
   end
 
   defp lateral_join_source_query(
@@ -1737,12 +1808,7 @@ defmodule AshPostgres.DataLayer do
     Ash.Query.do_filter(query, expr)
   end
 
-  defp get_subquery(query) do
-    case query do
-      %Ecto.SubQuery{query: query} -> query
-      %Ecto.Query{} -> query
-    end
-  end
+  defp get_subquery(%Ecto.SubQuery{query: query}), do: query
 
   @doc false
   def set_subquery_prefix(data_layer_query, source_query, resource) do
@@ -2314,6 +2380,25 @@ defmodule AshPostgres.DataLayer do
             fields -> fields
           end
 
+        # Upserts pair each returned row back up with its changeset by the upsert identity's
+        # keys, so those keys have to be read back even when the action's select doesn't ask
+        # for them - otherwise nothing correlates and every record is dropped from the
+        # result while still being written. `Ash.Actions.Helpers.select/2` masks the extra
+        # fields out of the records afterwards, so this doesn't widen what callers observe.
+        # Identity keys that aren't attributes (an identity over a calculation, e.g.
+        # `upper(thing)`) have no column to return and are left out.
+        returning =
+          if options[:upsert?] && is_list(returning) do
+            correlation_keys =
+              resource
+              |> upsert_correlation_keys(options)
+              |> Enum.filter(&Ash.Resource.Info.attribute(resource, &1))
+
+            Enum.uniq(returning ++ correlation_keys)
+          else
+            returning
+          end
+
         Keyword.put(opts, :returning, returning)
       else
         opts
@@ -2438,7 +2523,7 @@ defmodule AshPostgres.DataLayer do
         end
 
       identity = options[:identity]
-      keys = Map.get(identity || %{}, :keys) || Ash.Resource.Info.primary_key(resource)
+      keys = upsert_correlation_keys(resource, options)
 
       # if it's single the return_skipped_upsert? is handled at the
       # call site https://github.com/ash-project/ash_postgres/blob/0b21d4a99cc3f6d8676947e291ac9b9d57ad6e2e/lib/data_layer.ex#L3046-L3046
@@ -2459,7 +2544,7 @@ defmodule AshPostgres.DataLayer do
             |> Enum.filter(fn changeset ->
               not Map.has_key?(
                 results_by_identity,
-                Map.take(changeset.attributes, keys)
+                changeset_correlation_key(changeset, keys)
               )
             end)
             |> Enum.map(fn changeset ->
@@ -2499,9 +2584,7 @@ defmodule AshPostgres.DataLayer do
           results =
             changesets
             |> Enum.map(fn changeset ->
-              identity =
-                changeset.attributes
-                |> Map.take(keys)
+              identity = changeset_correlation_key(changeset, keys)
 
               Map.get(results_by_identity, identity, Map.get(skipped_upserts, identity))
             end)
@@ -2529,12 +2612,10 @@ defmodule AshPostgres.DataLayer do
               end)
 
             results =
-              if opts[:upsert?] do
+              if options[:upsert?] do
                 changesets
                 |> Enum.map(fn changeset ->
-                  identity =
-                    changeset.attributes
-                    |> Map.take(keys)
+                  identity = changeset_correlation_key(changeset, keys)
 
                   result_for_changeset = Map.get(results_by_identity, identity)
 
@@ -2593,6 +2674,22 @@ defmodule AshPostgres.DataLayer do
           resource
         )
     end
+  end
+
+  # The keys `bulk_create/3` uses to pair returned rows back up with their changesets when
+  # upserting. Positional correlation isn't an option there: the rows PostgreSQL returns are
+  # neither guaranteed to be in input order nor guaranteed to be one per input.
+  defp upsert_correlation_keys(resource, options) do
+    Map.get(options[:identity] || %{}, :keys) || Ash.Resource.Info.primary_key(resource)
+  end
+
+  # The correlation key for a changeset. `Map.take/2` would drop identity keys the changeset
+  # never set (a nullable field left `nil`, common with `nils_distinct?: false` identities),
+  # producing a key with fewer fields than the returned row's `Map.take(row, keys)` - so it
+  # would never match and the record would be dropped. Build the key over every identity key,
+  # defaulting the unset ones to `nil`, so both sides have the same shape.
+  defp changeset_correlation_key(changeset, keys) do
+    Map.new(keys, fn key -> {key, Map.get(changeset.attributes, key)} end)
   end
 
   @impl true
@@ -3401,8 +3498,49 @@ defmodule AshPostgres.DataLayer do
     handle_postgrex_error(error, stacktrace, changeset, resource, :insert)
   end
 
+  # Ecto raises this whenever a `%Postgrex.Interval{}` reaches `Ash.Type.Duration`, which
+  # is any repo whose Postgrex types module does not decode intervals as durations. The
+  # raw message names neither the setting nor the module, so it is unactionable on its own.
+  defp handle_raised_error(%ArgumentError{message: message} = error, stacktrace, _, _)
+       when is_binary(message) do
+    if String.contains?(message, "Postgrex.Interval") and
+         String.contains?(message, "Ash.Type.Duration") do
+      {:error,
+       Ash.Error.to_ash_error(
+         %ArgumentError{message: message <> duration_types_hint()},
+         stacktrace
+       )}
+    else
+      {:error, Ash.Error.to_ash_error(error, stacktrace)}
+    end
+  end
+
   defp handle_raised_error(error, stacktrace, _ecto_changeset, _resource) do
     {:error, Ash.Error.to_ash_error(error, stacktrace)}
+  end
+
+  defp duration_types_hint do
+    """
+
+
+    A `:duration` attribute requires the repo's Postgrex types module to decode
+    `interval` columns as `Duration`. Create a file with these contents, not inside
+    of a module:
+
+        Postgrex.Types.define(
+          MyApp.PostgrexTypes,
+          Ecto.Adapters.Postgres.extensions(),
+          interval_decode_type: Duration
+        )
+
+    And refer to it in your repo configuration:
+
+        config :my_app, MyApp.Repo,
+          types: MyApp.PostgrexTypes
+
+    `interval_decode_type` can only be set at `Postgrex.Types.define/3`, never in repo
+    configuration.
+    """
   end
 
   defp handle_postgrex_error(error, stacktrace, changeset, resource, action) do
@@ -3479,7 +3617,7 @@ defmodule AshPostgres.DataLayer do
               private_vars: [
                 constraint: constraint,
                 constraint_type: type,
-                detail: error.postgres.detail
+                detail: error.postgres[:detail]
               ]
             )
           end)
@@ -3943,80 +4081,85 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def upsert(resource, changeset, keys, identity) do
-    cond do
-      AshPostgres.DataLayer.Info.manage_tenant_update?(resource) ->
-        {:error, "Cannot currently upsert a resource that owns a tenant"}
+    if AshPostgres.DataLayer.Info.manage_tenant_update?(resource) do
+      {:error, "Cannot currently upsert a resource that owns a tenant"}
+    else
+      keys = keys || Ash.Resource.Info.primary_key(keys)
 
-      true ->
-        keys = keys || Ash.Resource.Info.primary_key(keys)
+      touch_update_defaults? =
+        changeset.context[:private][:touch_update_defaults?] != false
 
-        touch_update_defaults? =
-          changeset.context[:private][:touch_update_defaults?] != false
+      update_defaults = update_defaults(resource, Ash.Query.resolve_as_of(changeset.as_of))
 
-        update_defaults = update_defaults(resource, Ash.Query.resolve_as_of(changeset.as_of))
+      explicitly_changing_attributes =
+        changeset.attributes
+        |> Map.keys()
+        |> then(fn attrs ->
+          if touch_update_defaults? do
+            Enum.concat(attrs, Keyword.keys(update_defaults))
+          else
+            attrs
+          end
+        end)
+        |> Kernel.--(Map.get(changeset, :defaults, []))
+        |> Kernel.--(keys)
 
-        explicitly_changing_attributes =
-          changeset.attributes
-          |> Map.keys()
-          |> then(fn attrs ->
-            if touch_update_defaults? do
-              Enum.concat(attrs, Keyword.keys(update_defaults))
-            else
-              attrs
-            end
-          end)
-          |> Kernel.--(Map.get(changeset, :defaults, []))
-          |> Kernel.--(keys)
+      upsert_fields =
+        changeset.context[:private][:upsert_fields] || explicitly_changing_attributes
 
-        upsert_fields =
-          changeset.context[:private][:upsert_fields] || explicitly_changing_attributes
+      case bulk_create(resource, [changeset], %{
+             single?: true,
+             upsert?: true,
+             tenant: changeset.tenant,
+             identity: identity,
+             upsert_keys: keys,
+             action_select: changeset.action_select,
+             upsert_fields: upsert_fields,
+             touch_update_defaults?: touch_update_defaults?,
+             return_records?: true
+           }) do
+        {:ok, []} ->
+          key_filters =
+            Enum.map(keys, fn key ->
+              value =
+                Ash.Changeset.get_attribute(changeset, key) || Map.get(changeset.params, key) ||
+                  Map.get(changeset.params, to_string(key))
 
-        case bulk_create(resource, [changeset], %{
-               single?: true,
-               upsert?: true,
-               tenant: changeset.tenant,
-               identity: identity,
-               upsert_keys: keys,
-               action_select: changeset.action_select,
-               upsert_fields: upsert_fields,
-               touch_update_defaults?: touch_update_defaults?,
-               return_records?: true
-             }) do
-          {:ok, []} ->
-            key_filters =
-              Enum.map(keys, fn key ->
-                {key,
-                 Ash.Changeset.get_attribute(changeset, key) || Map.get(changeset.params, key) ||
-                   Map.get(changeset.params, to_string(key))}
-              end)
+              {key,
+               if is_nil(value) do
+                 [is_nil: true]
+               else
+                 value
+               end}
+            end)
 
-            ash_query =
-              resource
-              |> Ash.Query.do_filter(and: [key_filters])
-              |> then(fn
-                query when is_nil(identity) or is_nil(identity.where) -> query
-                query -> Ash.Query.do_filter(query, identity.where)
-              end)
-              |> Ash.Query.set_tenant(changeset.tenant)
+          ash_query =
+            resource
+            |> Ash.Query.do_filter(and: [key_filters])
+            |> then(fn
+              query when is_nil(identity) or is_nil(identity.where) -> query
+              query -> Ash.Query.do_filter(query, identity.where)
+            end)
+            |> Ash.Query.set_tenant(changeset.tenant)
 
-            {:ok,
-             {:upsert_skipped, ash_query,
-              fn ->
-                with {:ok, ecto_query} <- Ash.Query.data_layer_query(ash_query),
-                     {:ok, [result]} <- run_query(ecto_query, resource) do
-                  {:ok, Ash.Resource.put_metadata(result, :upsert_skipped, true)}
-                end
-              end}}
+          {:ok,
+           {:upsert_skipped, ash_query,
+            fn ->
+              with {:ok, ecto_query} <- Ash.Query.data_layer_query(ash_query),
+                   {:ok, [result]} <- run_query(ecto_query, resource) do
+                {:ok, Ash.Resource.put_metadata(result, :upsert_skipped, true)}
+              end
+            end}}
 
-          {:ok, [result]} ->
-            {:ok, result}
+        {:ok, [result]} ->
+          {:ok, result}
 
-          {:error, :no_rollback, error} ->
-            {:error, :no_rollback, error}
+        {:error, :no_rollback, error} ->
+          {:error, :no_rollback, error}
 
-          {:error, error} ->
-            {:error, error}
-        end
+        {:error, error} ->
+          {:error, error}
+      end
     end
   end
 
@@ -4091,7 +4234,7 @@ defmodule AshPostgres.DataLayer do
     end)
   end
 
-  defp update_defaults(resource, as_of \\ nil) do
+  defp update_defaults(resource, as_of) do
     attributes =
       resource
       |> Ash.Resource.Info.attributes()
@@ -4237,6 +4380,28 @@ defmodule AshPostgres.DataLayer do
         changeset.context
       )
       |> pkey_filter(record)
+      |> then(fn query ->
+        if changeset.tenant do
+          query =
+            set_tenant(resource, query, changeset.tenant)
+            |> elem(1)
+
+          Map.update!(query, :__ash_bindings__, fn bindings ->
+            Map.update(
+              bindings,
+              :context,
+              %{private: %{tenant: changeset.tenant}},
+              fn context ->
+                context
+                |> Map.put_new(:private, %{})
+                |> put_in([:private, :tenant], changeset.tenant)
+              end
+            )
+          end)
+        else
+          query
+        end
+      end)
 
     repo = AshSql.dynamic_repo(resource, AshPostgres.SqlImplementation, changeset)
 

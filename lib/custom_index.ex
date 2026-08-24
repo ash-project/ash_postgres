@@ -21,7 +21,8 @@ defmodule AshPostgres.CustomIndex do
     :include,
     :nulls_distinct,
     :message,
-    :all_tenants?
+    :all_tenants?,
+    :include_base_filter?
   ]
 
   defstruct @fields ++ [:__spark_metadata__]
@@ -93,6 +94,11 @@ defmodule AshPostgres.CustomIndex do
       type: :boolean,
       default: false,
       doc: "Whether or not the index should factor in the multitenancy attribute or not."
+    ],
+    include_base_filter?: [
+      type: :boolean,
+      default: true,
+      doc: "Whether or not the resource base filter should be included in the index predicate."
     ]
   ]
 

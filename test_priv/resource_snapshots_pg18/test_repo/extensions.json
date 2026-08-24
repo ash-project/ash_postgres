@@ -1,0 +1,12 @@
+{
+  "ash_functions_version": 6,
+  "installed": [
+    "ash-functions",
+    "uuid-ossp",
+    "pg_trgm",
+    "citext",
+    "demo-functions_v1",
+    "immutable_raise_error_v2",
+    "ltree"
+  ]
+}

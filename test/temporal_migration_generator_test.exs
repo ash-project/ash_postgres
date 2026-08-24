@@ -27,7 +27,13 @@ defmodule AshPostgres.TemporalMigrationGeneratorTest do
       attribute(:name, :string, public?: true)
 
       attribute(:valid_at, Ash.Type.Range,
-        constraints: [inner_type: :datetime, inner_constraints: [precision: :microsecond]],
+        allow_nil?: false,
+        constraints: [
+          inner_type: :datetime,
+          inner_constraints: [precision: :microsecond],
+          lower: [inclusive?: true],
+          upper: [inclusive?: false]
+        ],
         public?: true
       )
     end
@@ -58,7 +64,13 @@ defmodule AshPostgres.TemporalMigrationGeneratorTest do
       attribute(:tier_id, :integer, public?: true)
 
       attribute(:valid_at, Ash.Type.Range,
-        constraints: [inner_type: :datetime, inner_constraints: [precision: :microsecond]],
+        allow_nil?: false,
+        constraints: [
+          inner_type: :datetime,
+          inner_constraints: [precision: :microsecond],
+          lower: [inclusive?: true],
+          upper: [inclusive?: false]
+        ],
         public?: true
       )
     end

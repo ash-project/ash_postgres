@@ -1,0 +1,49 @@
+{
+  "attributes": [
+    {
+      "default": "fragment(\"gen_random_uuid()\")",
+      "size": null,
+      "type": "uuid",
+      "source": "id",
+      "references": null,
+      "primary_key?": true,
+      "allow_nil?": false,
+      "generated?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "text",
+      "source": "name",
+      "references": null,
+      "primary_key?": false,
+      "allow_nil?": true,
+      "generated?": false
+    }
+  ],
+  "table": "multitenant_orgs",
+  "hash": "8272A81AAF88BCC843DCB78558ECE612D31CD6E3FFB0AEA17A94B0223A4815BB",
+  "repo": "Elixir.AshPostgres.TestRepo",
+  "multitenancy": {
+    "global": true,
+    "attribute": "id",
+    "strategy": "attribute"
+  },
+  "schema": null,
+  "identities": [
+    {
+      "name": "unique_by_name",
+      "keys": [
+        "name"
+      ],
+      "base_filter": null,
+      "all_tenants?": false,
+      "index_name": "multitenant_orgs_unique_by_name_index"
+    }
+  ],
+  "has_create_action": true,
+  "custom_indexes": [],
+  "custom_statements": [],
+  "base_filter": null,
+  "check_constraints": []
+}

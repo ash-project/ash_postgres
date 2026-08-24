@@ -135,7 +135,8 @@
         ## Warnings
         #
         {Credo.Check.Warning.BoolOperationOnSameValues, []},
-        {Credo.Check.Warning.ExpensiveEmptyEnumCheck, []},
+        {Credo.Check.Warning.ExpensiveEmptyEnumCheck,
+         [files: %{excluded: ["test/array_length_expr_test.exs"]}]},
         {Credo.Check.Warning.IExPry, []},
         {Credo.Check.Warning.IoInspect, []},
         {Credo.Check.Warning.LazyLogging, []},

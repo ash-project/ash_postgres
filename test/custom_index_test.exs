@@ -38,4 +38,22 @@ defmodule AshPostgres.Test.CustomIndexTest do
 
     assert index.error_fields == [:tenant_id, :occurred_at]
   end
+
+  test "custom indexes can exclude the resource base filter" do
+    operation = %AshPostgres.MigrationGenerator.Operation.AddCustomIndex{
+      table: "events",
+      schema: nil,
+      base_filter: "archived_at IS NULL",
+      multitenancy: %{strategy: nil},
+      index: %AshPostgres.CustomIndex{
+        fields: [:account_id],
+        name: "events_account_id_fkey_index",
+        nulls_distinct: true,
+        include_base_filter?: false
+      }
+    }
+
+    assert AshPostgres.MigrationGenerator.Operation.AddCustomIndex.up(operation) ==
+             ~S|create index(:events, [:account_id], name: "events_account_id_fkey_index")|
+  end
 end

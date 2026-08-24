@@ -657,6 +657,9 @@ defmodule AshPostgres.Test.Post do
         fields: [
           display_template: [
             type: :string
+          ],
+          size: [
+            type: :integer
           ]
         ]
       )
@@ -1327,6 +1330,7 @@ defmodule AshPostgres.Test.Post do
   end
 
   aggregates do
+    first(:latest_comment_title_agg, [:latest_comment], :title)
     sum(:sum_of_comment_ratings_calc, [:comments, :ratings], :double_score)
     count(:count_of_comments, :comments)
 

@@ -14,6 +14,18 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
   import ExUnit.CaptureLog
 
+  # `uuid_v7_primary_key` renders PostgreSQL 18's builtin `uuidv7()` instead of
+  # Ash's own `uuid_generate_v7()` — see `AshPostgres.TestRepo.init/2`. Tests
+  # that only happen to include a v7 key follow the repo; the "native uuidv7 on
+  # PG 18" describe block below pins the builtin form explicitly.
+  defp uuid_v7_default do
+    if AshPostgres.TestRepo.use_builtin_uuidv7_function?() do
+      ~S[fragment("uuidv7()")]
+    else
+      ~S[fragment("uuid_generate_v7()")]
+    end
+  end
+
   setup %{tmp_dir: tmp_dir} do
     current_shell = Mix.shell()
 
@@ -69,6 +81,22 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  defmacrop defgeneratedpost(default) do
+    quote do
+      defposts do
+        attributes do
+          attribute(:id, :integer,
+            generated?: true,
+            allow_nil?: false,
+            primary_key?: true,
+            public?: true,
+            default: unquote(default)
+          )
+        end
+      end
+    end
+  end
+
   defmacrop defcomments(mod \\ Comment, do: body) do
     quote do
       defresource unquote(mod) do
@@ -109,6 +137,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
       {pos, _len} -> pos
       :nomatch -> nil
     end
+  end
+
+  defp generate_post_migration(domain, snapshot_path, migration_path) do
+    AshPostgres.MigrationGenerator.generate(domain,
+      snapshot_path: snapshot_path,
+      migration_path: migration_path,
+      quiet: true,
+      format: false,
+      auto_name: true
+    )
   end
 
   defp flush_mix_shell do
@@ -393,7 +431,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       # the migration adds the other_id, with its default
       assert file_contents =~
-               ~S[add :other_id, :uuid, null: false, default: fragment("uuid_generate_v7()"), primary_key: true]
+               "add :other_id, :uuid, null: false, default: #{uuid_v7_default()}, primary_key: true"
 
       # the migration adds the id, with its default
       assert file_contents =~
@@ -483,6 +521,22 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert file_contents =~
                ~S[add :id, :uuid, null: false, default: fragment("uuidv7()"), primary_key: true]
     end
+
+    test "the ash-functions extension migration does not create uuid_generate_v7", %{
+      migration_path: migration_path
+    } do
+      files = Path.wildcard("#{migration_path}/**/*extensions*.exs")
+
+      assert files != []
+
+      assert Enum.any?(files, fn file ->
+               File.read!(file) =~ "CREATE OR REPLACE FUNCTION ash_required"
+             end)
+
+      refute Enum.any?(files, fn file ->
+               File.read!(file) =~ "CREATE OR REPLACE FUNCTION uuid_generate_v7"
+             end)
+    end
   end
 
   describe "creating initial snapshots for resources with a schema" do
@@ -563,7 +617,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       # the migration adds the other_id, with its default
       assert file_contents =~
-               ~S[add :other_id, :uuid, null: false, default: fragment("uuid_generate_v7()"), primary_key: true]
+               "add :other_id, :uuid, null: false, default: #{uuid_v7_default()}, primary_key: true"
 
       # the migration adds other attributes
       assert file_contents =~ ~S[add :title, :text]
@@ -937,7 +991,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       [up_side, down_side] = String.split(contents, "def down", parts: 2)
 
-      up_side_parts = String.split(up_side, "\n", trim: true)
+      up_side_parts =
+        String.split(up_side, "\n", trim: true)
+        |> Enum.map(&String.trim/1)
 
       assert Enum.find_index(up_side_parts, fn x ->
                x == "rename table(:posts), :title, to: :title_short"
@@ -946,12 +1002,178 @@ defmodule AshPostgres.MigrationGeneratorTest do
                  x == "create index(:posts, [:title_short])"
                end)
 
-      down_side_parts = String.split(down_side, "\n", trim: true)
+      down_side_parts =
+        String.split(down_side, "\n", trim: true)
+        |> Enum.map(&String.trim/1)
 
       assert Enum.find_index(down_side_parts, fn x ->
                x == "rename table(:posts), :title_short, to: :title"
              end) <
                Enum.find_index(down_side_parts, fn x -> x == "create index(:posts, [:title])" end)
+    end
+  end
+
+  describe "check constraint and column removed together" do
+    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      :ok
+
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:price, :integer, public?: true)
+        end
+
+        postgres do
+          check_constraints do
+            check_constraint(:price, "price_must_be_positive", check: ~S["price" > 0])
+          end
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+    end
+
+    test "the constraint is dropped before the column, so `down` recreates the column before the constraint",
+         %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defdomain([Post])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      contents = File.read!(file2)
+
+      [up_side, down_side] = String.split(contents, "def down", parts: 2)
+
+      up_side_parts = String.split(up_side, "\n", trim: true) |> Enum.map(&String.trim/1)
+
+      # up: drop the constraint before removing the column it covers.
+      assert Enum.find_index(
+               up_side_parts,
+               &(&1 == "drop_if_exists constraint(:posts, :price_must_be_positive)")
+             ) <
+               Enum.find_index(up_side_parts, &(&1 == "remove :price"))
+
+      down_side_parts = String.split(down_side, "\n", trim: true) |> Enum.map(&String.trim/1)
+
+      # down (reversed): recreate the column before recreating the
+      # constraint that references it — otherwise this `down` would fail
+      # against real Postgres with "column price does not exist".
+      assert Enum.find_index(down_side_parts, &(&1 == "add :price, :bigint")) <
+               Enum.find_index(
+                 down_side_parts,
+                 &String.starts_with?(&1, "create constraint(:posts, :price_must_be_positive")
+               )
+    end
+  end
+
+  describe "identity and attribute renamed together" do
+    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      :ok
+
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+
+        identities do
+          identity(:uniq_title, [:title])
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+    end
+
+    test "the old identity's index is dropped before the rename, so `down` recreates the index after undoing the rename",
+         %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title_short, :string, public?: true)
+        end
+
+        identities do
+          identity(:uniq_title, [:title_short])
+        end
+      end
+
+      defdomain([Post])
+
+      send(self(), {:mix_shell_input, :yes?, true})
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      contents = File.read!(file2)
+
+      [up_side, down_side] = String.split(contents, "def down", parts: 2)
+
+      up_side_parts = String.split(up_side, "\n", trim: true) |> Enum.map(&String.trim/1)
+
+      assert Enum.find_index(
+               up_side_parts,
+               &(&1 == "rename table(:posts), :title, to: :title_short")
+             ) <
+               Enum.find_index(
+                 up_side_parts,
+                 &String.starts_with?(&1, "create unique_index(:posts, [:title_short]")
+               )
+
+      down_side_parts = String.split(down_side, "\n", trim: true) |> Enum.map(&String.trim/1)
+
+      # down (reversed): undo the rename before recreating the old index —
+      # otherwise this `down` would try to index a column name that doesn't
+      # exist yet.
+      assert Enum.find_index(
+               down_side_parts,
+               &(&1 == "rename table(:posts), :title_short, to: :title")
+             ) <
+               Enum.find_index(
+                 down_side_parts,
+                 &String.starts_with?(&1, "create unique_index(:posts, [:title]")
+               )
     end
   end
 
@@ -2034,6 +2256,76 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "serial sequence transitions" do
+    test "removes the sequence when a generated integer stops being serial", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defgeneratedpost(nil)
+      defdomain([Post])
+      generate_post_migration(Domain, snapshot_path, migration_path)
+
+      defgeneratedpost(0)
+      defdomain([Post])
+      generate_post_migration(Domain, snapshot_path, migration_path)
+
+      assert [_initial_migration, alter_migration] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+               |> Enum.sort()
+
+      migration = File.read!(alter_migration)
+
+      assert migration =~ ~S[modify :id, :bigint, default: 0]
+      assert migration =~ ~S[format('%I.%I', 'public', 'posts')]
+      assert migration =~ ~S[pg_get_serial_sequence(]
+      assert migration =~ ~S[DROP SEQUENCE %s]
+      assert migration =~ ~S[CREATE SEQUENCE %s AS bigint]
+      refute migration =~ ~S[modify :id, :bigserial]
+
+      [up, down] = String.split(migration, "def down", parts: 2)
+
+      assert position_of_substring(up, ~S[modify :id, :bigint, default: 0]) <
+               position_of_substring(up, ~S[DROP SEQUENCE %s])
+
+      assert position_of_substring(down, ~S[CREATE SEQUENCE %s AS bigint]) <
+               position_of_substring(down, ~S[modify :id, :bigint])
+
+      refute down =~ ~S[modify :id, :bigint, default: nil]
+    end
+
+    test "restores the sequence when a generated integer becomes serial", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defgeneratedpost(0)
+      defdomain([Post])
+      generate_post_migration(Domain, snapshot_path, migration_path)
+
+      defgeneratedpost(nil)
+      defdomain([Post])
+      generate_post_migration(Domain, snapshot_path, migration_path)
+
+      assert [_initial_migration, restore_sequence_migration] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+               |> Enum.sort()
+
+      migration = File.read!(restore_sequence_migration)
+      [up, down] = String.split(migration, "def down", parts: 2)
+
+      assert position_of_substring(up, ~S[CREATE SEQUENCE %s AS bigint]) <
+               position_of_substring(up, ~S[modify :id, :bigint])
+
+      assert up =~ ~S[SET DEFAULT nextval]
+      refute up =~ ~S[modify :id, :bigserial]
+      refute up =~ ~S[modify :id, :bigint, default: nil]
+
+      assert position_of_substring(down, ~S[modify :id, :bigint, default: 0]) <
+               position_of_substring(down, ~S[DROP SEQUENCE %s])
+    end
+  end
+
   describe "migration_types identity" do
     setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
       defresource(IdentityPost) do
@@ -2381,6 +2673,166 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert File.read!(file) =~ ~S{create index(:posts, [:post_id])}
     end
 
+    test "references generate partial indexes with index_where: :not_nil", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource PartialIndexPost, "partial_index_posts" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defresource PartialIndexComment, "partial_index_comments" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        relationships do
+          belongs_to(:post, PartialIndexPost, public?: true)
+        end
+
+        postgres do
+          references do
+            reference(:post, index?: true, index_where: :not_nil)
+          end
+        end
+      end
+
+      defmodule PartialIndexDomain do
+        use Ash.Domain
+
+        resources do
+          resource(PartialIndexPost)
+          resource(PartialIndexComment)
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(PartialIndexDomain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [file] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert File.read!(file) =~
+               ~S{create index(:partial_index_comments, [:post_id], where: "post_id IS NOT NULL")}
+
+      assert [snapshot_file] =
+               Path.wildcard("#{snapshot_path}/**/partial_index_comments/*.json")
+
+      snapshot = snapshot_file |> File.read!() |> Jason.decode!()
+      post_id = Enum.find(snapshot["attributes"], &(&1["source"] == "post_id"))
+
+      assert post_id["references"]["index_where"] == "post_id IS NOT NULL"
+    end
+
+    test "changing only reference index_where replaces the index without changing the foreign key",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      defresource FullIndexPost, "index_where_posts" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defresource FullIndexComment, "index_where_comments" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        relationships do
+          belongs_to(:post, FullIndexPost, public?: true)
+        end
+
+        postgres do
+          references do
+            reference(:post, index?: true)
+          end
+        end
+      end
+
+      defmodule FullIndexDomain do
+        use Ash.Domain
+
+        resources do
+          resource(FullIndexPost)
+          resource(FullIndexComment)
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(FullIndexDomain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      defresource IndexWherePartialPost, "index_where_posts" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defresource IndexWherePartialComment, "index_where_comments" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        relationships do
+          belongs_to(:post, IndexWherePartialPost, public?: true)
+        end
+
+        postgres do
+          references do
+            reference(:post, index?: true, index_where: "post_id IS NOT NULL")
+          end
+        end
+      end
+
+      defmodule IndexWherePartialDomain do
+        use Ash.Domain
+
+        resources do
+          resource(IndexWherePartialPost)
+          resource(IndexWherePartialComment)
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(IndexWherePartialDomain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      [_, file] =
+        Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      content = File.read!(file)
+
+      assert content =~ ~S{drop_if_exists index(:index_where_comments, [:post_id])}
+
+      assert content =~
+               ~S{create index(:index_where_comments, [:post_id], where: "post_id IS NOT NULL")}
+
+      refute content =~
+               ~S{drop constraint(:index_where_comments, "index_where_comments_post_id_fkey")}
+
+      refute content =~ ~S{modify :post_id, references(}
+    end
+
     test "changing only reference index? does not drop and re-add foreign key (issue #611)", %{
       snapshot_path: snapshot_path,
       migration_path: migration_path
@@ -2505,6 +2957,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       refute content =~ ~S{modify :post_id, references(},
              "migration should not modify references when only index? changed (issue #611)"
+
+      refute content =~ ~S{modify :post_id,},
+             "migration should not modify the attribute when only index? changes (issue #611)"
     end
 
     test "references with deferrable modifications generate changes with the correct schema", %{
@@ -3725,6 +4180,87 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[references(:users, column: :id, name: "user_things2_user_id_fkey", type: :uuid, prefix: "public")]
     end
 
+    test "match_tenant? adds tenant matching on primary key references", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource Org, "orgs" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:id)
+        end
+      end
+
+      defresource User, "users" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+        end
+      end
+
+      defresource UserThing, "user_things" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+
+          belongs_to(:user, User) do
+            public?(true)
+          end
+        end
+
+        postgres do
+          references do
+            reference(:user, match_tenant?: true)
+          end
+        end
+      end
+
+      defdomain([Org, User, UserThing])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [file] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert File.read!(file) =~
+               ~S{references(:users, column: :id, with: [org_id: :org_id], match: :full, name: "user_things_user_id_fkey", type: :uuid, prefix: "public")}
+    end
+
     test "references on_delete: {:nilify, columns} works with multitenant resources", %{
       snapshot_path: snapshot_path,
       migration_path: migration_path
@@ -4710,7 +5246,12 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert file_content =~
                ~S[add :id, :decimal, null: false, precision: 10, scale: 0, primary_key: true]
 
-      assert file_content =~ ~S[add :category_id, :decimal, null: false, precision: 10, scale: 0]
+      # `category_id` is a new column with its foreign key known from the
+      # start, so it's emitted as a single `add ..., references(...)` (rather
+      # than a separate `add` followed by a later `modify ... references(...)`)
+      # — this still carries the same decimal precision/scale.
+      assert file_content =~
+               ~S[add :category_id, references(:categories, column: :id, name: "products_category_id_fkey", type: :decimal, prefix: "public"), precision: 10, scale: 0, null: false]
     end
   end
 
@@ -5571,6 +6112,152 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert is_integer(company_pos)
       assert task_pos < project_pos
       assert project_pos < company_pos
+    end
+
+    test "drops dependent foreign keys before dropping referenced table", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource ReferencedDropOrderParent, "referenced_drop_parent_for_fk_drop_order" do
+        attributes do
+          integer_primary_key(:id)
+          attribute(:label, :string, public?: true)
+        end
+      end
+
+      defresource ReferencedDropOrderChildOneBefore,
+                  "referenced_drop_child_one_for_fk_drop_order" do
+        attributes do
+          integer_primary_key(:id)
+          attribute(:parent_id, :integer, public?: true)
+        end
+
+        relationships do
+          belongs_to(:parent, ReferencedDropOrderParent) do
+            source_attribute(:parent_id)
+            public?(true)
+            allow_nil?(true)
+          end
+        end
+
+        postgres do
+          references do
+            reference(:parent)
+          end
+        end
+      end
+
+      defresource ReferencedDropOrderChildTwoBefore,
+                  "referenced_drop_child_two_for_fk_drop_order" do
+        attributes do
+          integer_primary_key(:id)
+          attribute(:parent_id, :integer, public?: true)
+        end
+
+        relationships do
+          belongs_to(:parent, ReferencedDropOrderParent) do
+            source_attribute(:parent_id)
+            public?(true)
+            allow_nil?(true)
+          end
+        end
+
+        postgres do
+          references do
+            reference(:parent)
+          end
+        end
+      end
+
+      defdomain([
+        ReferencedDropOrderParent,
+        ReferencedDropOrderChildOneBefore,
+        ReferencedDropOrderChildTwoBefore
+      ])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        snapshots_only: true
+      )
+
+      defresource ReferencedDropOrderChildOneAfter,
+                  "referenced_drop_child_one_for_fk_drop_order" do
+        attributes do
+          integer_primary_key(:id)
+          attribute(:parent_id, :integer, public?: true)
+        end
+      end
+
+      defresource ReferencedDropOrderChildTwoAfter,
+                  "referenced_drop_child_two_for_fk_drop_order" do
+        attributes do
+          integer_primary_key(:id)
+          attribute(:parent_id, :integer, public?: true)
+        end
+      end
+
+      defdomain([
+        ReferencedDropOrderChildOneAfter,
+        ReferencedDropOrderChildTwoAfter
+      ])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        dev: true,
+        name: "repro_drop_referenced_table"
+      )
+
+      migration_file =
+        Path.wildcard("#{migration_path}/*repro_drop_referenced_table*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> List.first()
+
+      assert migration_file,
+             "Expected a generated migration containing repro_drop_referenced_table, got: #{inspect(Path.wildcard(migration_path <> "/*.exs"))}"
+
+      file = File.read!(migration_file)
+
+      [_, up_and_rest] = String.split(file, "def up do")
+      [up_code, _] = String.split(up_and_rest, "def down do")
+
+      parent_drop_idx =
+        position_of_substring(
+          up_code,
+          "drop table(:referenced_drop_parent_for_fk_drop_order)"
+        )
+
+      child_one_drop_idx =
+        position_of_substring(
+          up_code,
+          ~s[drop constraint(:referenced_drop_child_one_for_fk_drop_order, "referenced_drop_child_one_for_fk_drop_order_parent_id_fkey")]
+        )
+
+      child_two_drop_idx =
+        position_of_substring(
+          up_code,
+          ~s[drop constraint(:referenced_drop_child_two_for_fk_drop_order, "referenced_drop_child_two_for_fk_drop_order_parent_id_fkey")]
+        )
+
+      assert is_integer(parent_drop_idx),
+             "Expected up migration to drop the referenced table before finalizing, got:\n#{up_code}"
+
+      assert is_integer(child_one_drop_idx),
+             "Expected up migration to drop child one foreign key before parent table removal, got:\n#{up_code}"
+
+      assert is_integer(child_two_drop_idx),
+             "Expected up migration to drop child two foreign key before parent table removal, got:\n#{up_code}"
+
+      assert child_one_drop_idx < parent_drop_idx,
+             "Expected child one FK drop (pos #{child_one_drop_idx}) before parent drop (pos #{parent_drop_idx}) in migration:\n#{up_code}"
+
+      assert child_two_drop_idx < parent_drop_idx,
+             "Expected child two FK drop (pos #{child_two_drop_idx}) before parent drop (pos #{parent_drop_idx}) in migration:\n#{up_code}"
     end
   end
 
@@ -6824,6 +7511,57 @@ defmodule AshPostgres.MigrationGeneratorTest do
       refute up =~ "drop table(:referencing_schema_move_posts"
       refute up =~ "drop constraint"
       refute up =~ "references(:referenced_schema_move_authors"
+    end
+  end
+
+  describe "resources with migrate? false (#585)" do
+    test "warns that resources were skipped due to migrate? false", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource SkippedMigrateResource do
+        postgres do
+          table "skipped_migrate_resource"
+          repo AshPostgres.TestRepo
+          migrate? false
+        end
+
+        actions do
+          defaults([:read, :create])
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defdomain([SkippedMigrateResource])
+
+      # First run: creates extension migrations (unrelated to our resource)
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: false,
+        format: false,
+        auto_name: true
+      )
+
+      flush_mix_shell()
+
+      # Second run: extensions already exist, so only the migrate? false
+      # resource remains — which is skipped, producing "No changes detected"
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: false,
+        format: false,
+        auto_name: true
+      )
+
+      output = shell_output()
+
+      assert output =~ "No changes detected"
+      assert output =~ "Some resources have `migrate?` set to `false` and were skipped"
     end
   end
 end
