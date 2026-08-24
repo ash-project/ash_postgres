@@ -4,11 +4,19 @@
 
 defmodule AshPostgres.Type do
   @moduledoc """
-  Postgres specific callbacks for `Ash.Type`.
+  Postgres-specific callbacks for `Ash.Type`.
 
   Use this in addition to `Ash.Type`.
   """
 
+  @doc """
+  Return the text that will be placed into a migration as an attribute default.
+
+  The returned string is placed verbatim into generated migrations.
+
+  If this callback is not implemented, the migration generator falls back to
+  `EctoMigrationDefault`.
+  """
   @callback value_to_postgres_default(Ash.Type.t(), Ash.Type.constraints(), term) ::
               {:ok, String.t()} | :error
 

@@ -12,6 +12,33 @@ defmodule AshPostgres.CombinationTest do
   alias AshPostgres.Test.Author
   alias AshPostgres.Test.Post
 
+  describe "combination_of with aggregates" do
+    test "loading a first aggregate through a from_many? has_one on a combination query" do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "match", score: 5})
+        |> Ash.create!()
+
+      AshPostgres.Test.Comment
+      |> Ash.Changeset.for_create(:create, %{title: "comment1", post_id: post.id})
+      |> Ash.create!()
+
+      results =
+        Post
+        |> Ash.Query.load([:latest_comment_title_agg])
+        |> Ash.Query.sort(created_at: :desc)
+        |> Ash.Query.limit(10)
+        |> Ash.Query.offset(0)
+        |> Ash.Query.combination_of([
+          Ash.Query.Combination.base(filter: expr(score < 15), select: [:id]),
+          Ash.Query.Combination.union(filter: expr(title == "match"), select: [:id])
+        ])
+        |> Ash.read!()
+
+      assert [%{latest_comment_title_agg: "comment1"}] = results
+    end
+  end
+
   describe "combinations in actions" do
     test "with no data" do
       Post
@@ -220,6 +247,34 @@ defmodule AshPostgres.CombinationTest do
 
       assert length(result) == 1
       assert hd(result).title == "post1"
+    end
+
+    test "a third combination part applies to the running result, not to the second part" do
+      for title <- ["alpha", "beta", "gamma", "delta"] do
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: title})
+        |> Ash.create!()
+      end
+
+      # The parts are applied in the order given, so this is
+      # ({alpha, beta} ∪ {gamma}) ∩ {alpha, gamma}.
+      #
+      # Rendered as a flat SQL chain instead, INTERSECT would bind tighter than
+      # UNION and give {alpha, beta} ∪ ({gamma} ∩ {alpha, gamma}), which keeps
+      # beta. `delta` belongs to neither grouping, so a whole-table read cannot
+      # be mistaken for a pass.
+      result =
+        Post
+        |> Ash.Query.combination_of([
+          Ash.Query.Combination.base(filter: expr(title in ["alpha", "beta"])),
+          Ash.Query.Combination.union(filter: expr(title == "gamma")),
+          Ash.Query.Combination.intersect(filter: expr(title in ["alpha", "gamma"]))
+        ])
+        |> Ash.read!()
+        |> Enum.map(& &1.title)
+        |> Enum.sort()
+
+      assert result == ["alpha", "gamma"]
     end
 
     test "combinations with multiple union_all" do

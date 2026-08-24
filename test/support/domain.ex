@@ -13,6 +13,7 @@ defmodule AshPostgres.Test.Domain do
       define(:review, action: :review)
     end
 
+    resource(AshPostgres.Test.Booking)
     resource(AshPostgres.Test.Comedian)
     resource(AshPostgres.Test.Comment)
     resource(AshPostgres.Test.CommentLink)
@@ -77,6 +78,8 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.ProfileInterest)
     resource(AshPostgres.Test.Label)
     resource(AshPostgres.Test.LabelledContent)
+    resource(AshPostgres.Test.BulkUpsertParent)
+    resource(AshPostgres.Test.BulkUpsertChild)
   end
 
   authorization do

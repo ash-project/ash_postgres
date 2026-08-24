@@ -7,7 +7,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   require Logger
 
-  alias AshPostgres.MigrationGenerator.{Operation, Phase}
+  alias AshPostgres.MigrationGenerator.{Operation, OperationCycleError, OperationDeps, Phase}
 
   defstruct snapshot_path: nil,
             migration_path: nil,
@@ -85,9 +85,21 @@ defmodule AshPostgres.MigrationGenerator do
     case extension_migration_files ++ tenant_migration_files ++ migration_files do
       [] ->
         if !opts.check || opts.dry_run do
-          Mix.shell().info(
-            "No changes detected, so no migrations or snapshots have been created."
-          )
+          if Enum.empty?(unmanaged_resources) do
+            Mix.shell().info(
+              "No changes detected, so no migrations or snapshots have been created."
+            )
+          else
+            Mix.shell().info("""
+            No changes detected, so no migrations or snapshots have been created.
+
+            Note: Some resources have `migrate?` set to `false` and were skipped.
+
+            If you expected migrations to be generated for them, remove `migrate?(false)`
+            from their `postgres` block. Resources generated with `mix ash_postgres.gen.resources
+            --no-migrations` have `migrate?` set to `false` by default.
+            """)
+          end
         end
 
         :ok
@@ -370,7 +382,8 @@ defmodule AshPostgres.MigrationGenerator do
           Enum.map_join(to_install, "\n", fn
             "ash-functions" ->
               AshPostgres.MigrationGenerator.AshFunctions.install(
-                extensions_snapshot[:ash_functions_version]
+                extensions_snapshot[:ash_functions_version],
+                use_builtin_uuidv7_function?: repo.use_builtin_uuidv7_function?()
               )
 
             {ext_name, _version, up_fn, _down_fn} when is_function(up_fn, 1) ->
@@ -531,7 +544,7 @@ defmodule AshPostgres.MigrationGenerator do
         Enum.map(rename_map, fn {{new_table, schema}, %{old_table: old_table, snapshot: snapshot}} ->
           %Operation.RenameTable{
             old_table: old_table,
-            new_table: new_table,
+            table: new_table,
             schema: schema,
             multitenancy: snapshot.multitenancy,
             repo: repo
@@ -967,7 +980,7 @@ defmodule AshPostgres.MigrationGenerator do
 
   defp organize_operations(operations) do
     operations
-    |> sort_operations()
+    |> toposort_operations()
     |> streamline()
     |> group_into_phases()
     |> clean_phases()
@@ -1145,6 +1158,7 @@ defmodule AshPostgres.MigrationGenerator do
           destination_attribute: merge_uniq!(references, table, :destination_attribute, name),
           deferrable: merge_uniq!(references, table, :deferrable, name),
           index?: merge_uniq!(references, table, :index?, name),
+          index_where: merge_uniq!(references, table, :index_where, name),
           destination_attribute_default:
             merge_uniq!(references, table, :destination_attribute_default, name),
           destination_attribute_generated:
@@ -1155,6 +1169,7 @@ defmodule AshPostgres.MigrationGenerator do
           on_update: merge_uniq!(references, table, :on_update, name),
           match_with: merge_uniq!(references, table, :match_with, name) |> to_map(),
           match_type: merge_uniq!(references, table, :match_type, name),
+          match_tenant?: merge_uniq!(references, table, :match_tenant?, name),
           name: merge_uniq!(references, table, :name, name),
           table: merge_uniq!(references, table, :table, name),
           schema: merge_uniq!(references, table, :schema, name)
@@ -1621,14 +1636,12 @@ defmodule AshPostgres.MigrationGenerator do
          ],
          acc
        ) do
-    rest
-    |> Enum.take_while(fn
-      %custom{} when custom in [Operation.AddCustomStatement, Operation.RemoveCustomStatement] ->
-        false
-
-      op ->
+    same_table_prefix =
+      Enum.take_while(rest, fn op ->
         op.table == table && op.schema == schema
-    end)
+      end)
+
+    same_table_prefix
     |> Enum.with_index()
     |> Enum.find(fn
       {%Operation.AlterAttribute{
@@ -1646,8 +1659,27 @@ defmodule AshPostgres.MigrationGenerator do
         streamline(rest, [add | acc])
 
       {alter, index} ->
-        new_attribute = Map.put(add.attribute, :references, alter.new_attribute.references)
-        streamline(List.delete_at(rest, index), [%{add | attribute: new_attribute} | acc])
+        # Merging pulls the alter's reference up to the add's position, so it
+        # must not jump over an operation the toposort deliberately placed
+        # before it — e.g. the AddAttribute for a composite FK's `match_with`
+        # source column (issue #805).
+        alter_requires = MapSet.new(OperationDeps.requires(alter))
+
+        safe_to_merge? =
+          same_table_prefix
+          |> Enum.take(index)
+          |> Enum.all?(fn op ->
+            op
+            |> OperationDeps.provides()
+            |> Enum.all?(&(not MapSet.member?(alter_requires, &1)))
+          end)
+
+        if safe_to_merge? do
+          new_attribute = Map.put(add.attribute, :references, alter.new_attribute.references)
+          streamline(List.delete_at(rest, index), [%{add | attribute: new_attribute} | acc])
+        else
+          streamline(rest, [add | acc])
+        end
     end
   end
 
@@ -1777,649 +1809,168 @@ defmodule AshPostgres.MigrationGenerator do
     group_into_phases(operations, nil, [phase | acc])
   end
 
-  defp sort_operations(ops, acc \\ [])
-  defp sort_operations([], acc), do: acc
+  # Topologically sorts operations using the dependency facts declared by
+  # `AshPostgres.MigrationGenerator.OperationDeps`. Operations are indexed by
+  # their position in the input list; ties (operations with no remaining
+  # dependencies at the same time) are broken by that original index, so
+  # unconstrained operations keep their original relative order (matching
+  # resource declaration order).
+  @doc false
+  def toposort_operations(operations) do
+    count = length(operations)
+    indexed = Enum.with_index(operations)
 
-  defp sort_operations([op | rest], []), do: sort_operations(rest, [op])
+    declaration_deps_by_index = custom_statement_declaration_dependencies(indexed)
 
-  defp sort_operations([op | rest], acc) do
-    acc = Enum.reverse(acc)
+    provides_index =
+      Enum.reduce(indexed, %{}, fn {op, index}, acc ->
+        op
+        |> OperationDeps.provides()
+        |> Enum.reduce(acc, fn fact, acc ->
+          Map.update(acc, fact, [index], &[index | &1])
+        end)
+      end)
 
-    after_index = Enum.find_index(acc, &after?(op, &1))
+    early_tier_indices =
+      indexed
+      |> Enum.filter(fn {op, _index} -> OperationDeps.early_tier?(op) end)
+      |> Enum.map(&elem(&1, 1))
 
-    new_acc =
-      if after_index do
-        acc
-        |> List.insert_at(after_index, op)
-        |> Enum.reverse()
-      else
-        [op | Enum.reverse(acc)]
-      end
+    fact_deps_by_index =
+      Map.new(indexed, fn {op, index} ->
+        {index, op |> OperationDeps.requires() |> Enum.flat_map(&Map.get(provides_index, &1, []))}
+      end)
 
-    sort_operations(rest, new_acc)
+    # An early-tier op (e.g. `RemovePrimaryKey`) can itself have a specific
+    # fact dependency on a *non*-early-tier op (e.g. it requires
+    # `DropForeignKey{direction: :up}` to have run first). Blindly forcing
+    # every non-early-tier op to also come after every early-tier op would
+    # contradict that specific dependency and create a two-op cycle. When an
+    # op is itself something an early-tier op specifically depends on, exempt
+    # it from the blanket "after all early-tier ops" rule — the specific fact
+    # dependency wins.
+    required_by_early_tier =
+      early_tier_indices
+      |> Enum.flat_map(&Map.get(fact_deps_by_index, &1, []))
+      |> MapSet.new()
+
+    dependencies =
+      Map.new(indexed, fn {op, index} ->
+        fact_deps = Map.fetch!(fact_deps_by_index, index)
+        declaration_deps = Map.get(declaration_deps_by_index, index, [])
+
+        tier_deps =
+          if OperationDeps.early_tier?(op) || MapSet.member?(required_by_early_tier, index) do
+            []
+          else
+            early_tier_indices
+          end
+
+        deps =
+          (fact_deps ++ declaration_deps ++ tier_deps)
+          |> Enum.reject(&(&1 == index))
+          |> Enum.uniq()
+
+        {index, deps}
+      end)
+
+    adjacency =
+      Enum.reduce(dependencies, Map.new(0..(count - 1), &{&1, []}), fn {index, deps}, acc ->
+        Enum.reduce(deps, acc, fn dep_index, acc ->
+          Map.update!(acc, dep_index, &[index | &1])
+        end)
+      end)
+
+    in_degrees = Map.new(dependencies, fn {index, deps} -> {index, length(deps)} end)
+
+    queue =
+      in_degrees
+      |> Enum.filter(fn {_index, in_degree} -> in_degree == 0 end)
+      |> Enum.map(&elem(&1, 0))
+      |> Enum.sort()
+
+    {ordered_indices, _in_degrees} = toposort_operation_indices(queue, adjacency, in_degrees, [])
+
+    if length(ordered_indices) == count do
+      operations_tuple = List.to_tuple(operations)
+      Enum.map(ordered_indices, &elem(operations_tuple, &1))
+    else
+      operations_tuple = List.to_tuple(operations)
+
+      cyclic_operations =
+        0..(count - 1)
+        |> Enum.reject(&(&1 in ordered_indices))
+        |> Enum.map(&elem(operations_tuple, &1))
+
+      raise OperationCycleError, operations: cyclic_operations
+    end
   end
 
-  defp after?(_, %Operation.AlterDeferrability{direction: :down}), do: true
-  defp after?(%Operation.AlterDeferrability{direction: :up}, _), do: true
-
-  defp after?(
-         %Operation.RemovePrimaryKey{},
-         %Operation.DropForeignKey{}
-       ),
-       do: true
-
-  defp after?(
-         %Operation.DropForeignKey{},
-         %Operation.RemovePrimaryKey{}
-       ),
-       do: false
-
-  defp after?(%Operation.RemovePrimaryKey{}, _), do: false
-  defp after?(_, %Operation.RemovePrimaryKey{}), do: true
-  defp after?(%Operation.RemovePrimaryKeyDown{}, _), do: true
-  defp after?(_, %Operation.RemovePrimaryKeyDown{}), do: false
-
-  defp after?(%Operation.AddPrimaryKeyDown{}, _), do: false
-  defp after?(_, %Operation.AddPrimaryKeyDown{}), do: true
-
-  # Temporal foreign keys reference the destination's temporal primary key, so
-  # they must be emitted after all tables and primary keys exist.
-  defp after?(%Operation.AddTemporalForeignKey{}, _), do: true
-  defp after?(_, %Operation.AddTemporalForeignKey{}), do: false
-
-  defp after?(%Operation.AddPrimaryKey{}, _), do: true
-  defp after?(_, %Operation.AddPrimaryKey{}), do: false
-
-  defp after?(
-         %Operation.AddCustomStatement{},
-         _
-       ),
-       do: true
-
-  defp after?(
-         _,
-         %Operation.RemoveCustomStatement{}
-       ),
-       do: true
-
-  defp after?(
-         %Operation.AddAttribute{attribute: %{order: l}, table: table, schema: schema},
-         %Operation.AddAttribute{attribute: %{order: r}, table: table, schema: schema}
-       ),
-       do: l > r
-
-  defp after?(
-         %Operation.RenameUniqueIndex{
-           table: table,
-           schema: schema
-         },
-         %{table: table, schema: schema}
-       ) do
-    true
+  defp toposort_operation_indices([], _adjacency, in_degrees, acc) do
+    {Enum.reverse(acc), in_degrees}
   end
 
-  # CreateTable must appear before AddUniqueIndex for the same table (table must exist first).
-  defp after?(
-         %Operation.CreateTable{table: table, schema: schema},
-         %Operation.AddUniqueIndex{table: table, schema: schema}
-       ),
-       do: false
+  defp toposort_operation_indices([index | rest], adjacency, in_degrees, acc) do
+    {in_degrees, newly_available} =
+      Enum.reduce(Map.get(adjacency, index, []), {in_degrees, []}, fn dependent_index,
+                                                                      {in_degrees,
+                                                                       newly_available} ->
+        updated_in_degree = Map.fetch!(in_degrees, dependent_index) - 1
+        in_degrees = Map.put(in_degrees, dependent_index, updated_in_degree)
 
-  # Unique index must be created before any alter that adds FKs referencing it.
-  defp after?(
-         %Operation.AddUniqueIndex{table: table, schema: schema},
-         %Operation.AlterAttribute{table: table, schema: schema}
-       ),
-       do: false
+        if updated_in_degree == 0 do
+          {in_degrees, [dependent_index | newly_available]}
+        else
+          {in_degrees, newly_available}
+        end
+      end)
 
-  # AddUniqueIndex must come after CreateTable (table must exist first).
-  defp after?(
-         %Operation.AddUniqueIndex{table: table, schema: schema},
-         %Operation.CreateTable{table: table, schema: schema}
-       ),
-       do: true
+    queue = Enum.sort(rest ++ Enum.uniq(newly_available))
 
-  # Place AddUniqueIndex after a specific attribute (by source) for the same
-  # table so it appears before AlterAttributes (issue #236).
-  defp after?(
-         %Operation.AddUniqueIndex{
-           insert_after_attribute_source: source,
-           table: table,
-           schema: schema
-         },
-         %Operation.AddAttribute{
-           table: table,
-           schema: schema,
-           attribute: %{source: source}
-         }
-       )
-       when not is_nil(source),
-       do: true
-
-  defp after?(
-         %Operation.AddUniqueIndex{
-           insert_after_attribute_source: source,
-           table: table,
-           schema: schema
-         },
-         %Operation.AddAttribute{
-           table: table,
-           schema: schema
-         }
-       )
-       when not is_nil(source),
-       do: true
-
-  defp after?(
-         %Operation.AddUniqueIndex{
-           identity: %{keys: keys},
-           table: table,
-           schema: schema
-         },
-         %Operation.AlterAttribute{
-           table: table,
-           schema: schema,
-           new_attribute: %{
-             references: %{table: table, destination_attribute: destination_attribute}
-           }
-         }
-       ) do
-    destination_attribute not in List.wrap(keys)
+    toposort_operation_indices(queue, adjacency, in_degrees, [index | acc])
   end
 
-  defp after?(
-         %Operation.AddUniqueIndex{
-           table: table,
-           schema: schema
-         },
-         %{table: table, schema: schema}
-       ) do
-    true
+  # Preserve custom statement declaration order for additions and reverse it
+  # for removals because their SQL may contain dependencies we cannot inspect.
+  defp custom_statement_declaration_dependencies(indexed) do
+    {dependencies, _last_add, _last_remove} =
+      Enum.reduce(indexed, {%{}, %{}, %{}}, fn
+        {%Operation.AddCustomStatement{table: table, schema: schema}, index},
+        {dependencies, last_add, last_remove} ->
+          key = {schema_key(schema), table}
+
+          dependencies =
+            case Map.fetch(last_add, key) do
+              {:ok, previous_index} ->
+                Map.update(dependencies, index, [previous_index], &[previous_index | &1])
+
+              :error ->
+                dependencies
+            end
+
+          {dependencies, Map.put(last_add, key, index), last_remove}
+
+        {%Operation.RemoveCustomStatement{table: table, schema: schema}, index},
+        {dependencies, last_add, last_remove} ->
+          key = {schema_key(schema), table}
+
+          dependencies =
+            case Map.fetch(last_remove, key) do
+              {:ok, previous_index} ->
+                Map.update(dependencies, previous_index, [index], &[index | &1])
+
+              :error ->
+                dependencies
+            end
+
+          {dependencies, last_add, Map.put(last_remove, key, index)}
+
+        {_operation, _index}, acc ->
+          acc
+      end)
+
+    dependencies
   end
-
-  defp after?(
-         %Operation.AddReferenceIndex{
-           table: table,
-           schema: schema
-         },
-         %{table: table, schema: schema}
-       ) do
-    true
-  end
-
-  defp after?(
-         %Operation.AddCheckConstraint{
-           constraint: %{attribute: attribute_or_attributes},
-           table: table,
-           multitenancy: multitenancy,
-           schema: schema
-         },
-         %Operation.AddAttribute{table: table, attribute: %{source: source}, schema: schema}
-       ) do
-    source in List.wrap(attribute_or_attributes) ||
-      (multitenancy.attribute && multitenancy.attribute in List.wrap(attribute_or_attributes))
-  end
-
-  defp after?(
-         %Operation.AddCustomIndex{
-           table: table,
-           schema: schema
-         },
-         %Operation.AddAttribute{table: table, schema: schema}
-       ) do
-    true
-  end
-
-  defp after?(
-         %Operation.AddCustomIndex{
-           table: table,
-           schema: schema
-         },
-         %Operation.RenameAttribute{
-           table: table,
-           schema: schema
-         }
-       ) do
-    true
-  end
-
-  defp after?(
-         %Operation.AddReferenceIndex{
-           table: table,
-           schema: schema
-         },
-         %Operation.AddAttribute{table: table, schema: schema}
-       ) do
-    true
-  end
-
-  defp after?(
-         %Operation.AddCustomIndex{
-           table: table,
-           schema: schema,
-           index: %{
-             concurrently: true
-           }
-         },
-         %Operation.AddCustomIndex{
-           table: table,
-           schema: schema,
-           index: %{
-             concurrently: false
-           }
-         }
-       ) do
-    true
-  end
-
-  defp after?(
-         %Operation.AddCheckConstraint{table: table, schema: schema, constraint: %{name: name}},
-         %Operation.RemoveCheckConstraint{
-           table: table,
-           schema: schema,
-           constraint: %{
-             name: name
-           }
-         }
-       ),
-       do: true
-
-  defp after?(
-         %Operation.RemoveCheckConstraint{
-           table: table,
-           schema: schema,
-           constraint: %{
-             name: name
-           }
-         },
-         %Operation.AddCheckConstraint{table: table, schema: schema, constraint: %{name: name}}
-       ),
-       do: false
-
-  defp after?(
-         %Operation.AddCheckConstraint{
-           constraint: %{attribute: attribute_or_attributes},
-           table: table,
-           schema: schema
-         },
-         %Operation.AlterAttribute{table: table, new_attribute: %{source: source}, schema: schema}
-       ) do
-    source in List.wrap(attribute_or_attributes)
-  end
-
-  defp after?(
-         %Operation.AddCheckConstraint{
-           constraint: %{attribute: attribute_or_attributes},
-           table: table,
-           schema: schema
-         },
-         %Operation.RenameAttribute{
-           table: table,
-           new_attribute: %{source: source},
-           schema: schema
-         }
-       ) do
-    source in List.wrap(attribute_or_attributes)
-  end
-
-  defp after?(
-         %Operation.RemoveUniqueIndex{table: table, schema: schema},
-         %Operation.AddUniqueIndex{table: table, schema: schema}
-       ) do
-    false
-  end
-
-  defp after?(
-         %Operation.RemoveCustomIndex{table: table, schema: schema},
-         %Operation.AddCustomIndex{table: table, schema: schema}
-       ) do
-    false
-  end
-
-  defp after?(
-         %Operation.RenameAttribute{
-           old_attribute: %{source: source},
-           table: table,
-           schema: schema
-         },
-         %Operation.RemoveUniqueIndex{
-           identity: %{keys: keys},
-           table: table,
-           schema: schema
-         }
-       ) do
-    source in List.wrap(keys)
-  end
-
-  defp after?(
-         %Operation.RemoveUniqueIndex{table: table, schema: schema},
-         %{table: table, schema: schema}
-       ) do
-    true
-  end
-
-  defp after?(
-         %Operation.RemoveCheckConstraint{
-           constraint: %{attribute: attributes},
-           table: table,
-           schema: schema
-         },
-         %Operation.RemoveAttribute{table: table, attribute: %{source: source}, schema: schema}
-       ) do
-    source in List.wrap(attributes)
-  end
-
-  defp after?(
-         %Operation.RemoveCheckConstraint{
-           constraint: %{attribute: attributes},
-           table: table,
-           schema: schema
-         },
-         %Operation.RenameAttribute{
-           table: table,
-           old_attribute: %{source: source},
-           schema: schema
-         }
-       ) do
-    source in List.wrap(attributes)
-  end
-
-  defp after?(%Operation.AlterAttribute{table: table, schema: schema}, %Operation.DropForeignKey{
-         table: table,
-         schema: schema,
-         direction: :up
-       }),
-       do: true
-
-  defp after?(
-         %Operation.AlterAttribute{table: table, schema: schema},
-         %Operation.DropForeignKey{
-           table: table,
-           schema: schema,
-           direction: :down
-         }
-       ),
-       do: false
-
-  defp after?(
-         %Operation.DropForeignKey{
-           table: table,
-           schema: schema,
-           direction: :down
-         },
-         %Operation.AlterAttribute{table: table, schema: schema}
-       ),
-       do: true
-
-  defp after?(%Operation.AddAttribute{table: table, schema: schema}, %Operation.CreateTable{
-         table: table,
-         schema: schema
-       }) do
-    true
-  end
-
-  defp after?(
-         %Operation.AddAttribute{
-           attribute: %{
-             references: %{table: table, destination_attribute: name}
-           }
-         },
-         %Operation.AddAttribute{table: table, attribute: %{source: name}}
-       ),
-       do: true
-
-  defp after?(
-         %Operation.AddAttribute{
-           table: table,
-           schema: schema,
-           attribute: %{
-             primary_key?: false
-           }
-         },
-         %Operation.AddAttribute{schema: schema, table: table, attribute: %{primary_key?: true}}
-       ),
-       do: true
-
-  defp after?(
-         %Operation.AddAttribute{
-           table: table,
-           schema: schema,
-           attribute: %{
-             primary_key?: true
-           }
-         },
-         %Operation.RemoveAttribute{
-           schema: schema,
-           table: table,
-           attribute: %{primary_key?: true}
-         }
-       ),
-       do: true
-
-  defp after?(
-         %Operation.AddAttribute{
-           table: table,
-           schema: schema,
-           attribute: %{
-             primary_key?: true
-           }
-         },
-         %Operation.AlterAttribute{
-           schema: schema,
-           table: table,
-           new_attribute: %{primary_key?: false},
-           old_attribute: %{primary_key?: true}
-         }
-       ),
-       do: true
-
-  defp after?(
-         %Operation.AddAttribute{
-           table: table,
-           schema: schema,
-           attribute: %{
-             primary_key?: true
-           }
-         },
-         %Operation.AlterAttribute{
-           schema: schema,
-           table: table,
-           new_attribute: %{primary_key?: false},
-           old_attribute: %{primary_key?: true}
-         }
-       ),
-       do: true
-
-  defp after?(
-         %Operation.RemoveAttribute{
-           schema: schema,
-           table: table,
-           attribute: %{primary_key?: true}
-         },
-         %Operation.AlterAttribute{
-           table: table,
-           schema: schema,
-           new_attribute: %{
-             primary_key?: true
-           },
-           old_attribute: %{
-             primary_key?: false
-           }
-         }
-       ),
-       do: true
-
-  defp after?(
-         %Operation.AlterAttribute{
-           schema: schema,
-           table: table,
-           new_attribute: %{primary_key?: false},
-           old_attribute: %{
-             primary_key?: true
-           }
-         },
-         %Operation.AlterAttribute{
-           table: table,
-           schema: schema,
-           new_attribute: %{
-             primary_key?: true
-           },
-           old_attribute: %{
-             primary_key?: false
-           }
-         }
-       ),
-       do: true
-
-  defp after?(
-         %Operation.AlterAttribute{
-           schema: schema,
-           table: table,
-           new_attribute: %{primary_key?: false},
-           old_attribute: %{
-             primary_key?: true
-           }
-         },
-         %Operation.AddAttribute{
-           table: table,
-           schema: schema,
-           attribute: %{
-             primary_key?: true
-           }
-         }
-       ),
-       do: false
-
-  defp after?(
-         %Operation.AlterAttribute{
-           table: table,
-           schema: schema,
-           new_attribute: %{primary_key?: false},
-           old_attribute: %{primary_key?: true}
-         },
-         %Operation.AddAttribute{
-           table: table,
-           schema: schema,
-           attribute: %{
-             primary_key?: true
-           }
-         }
-       ),
-       do: true
-
-  defp after?(
-         %Operation.AlterAttribute{
-           new_attribute: %{
-             references: %{destination_attribute: destination_attribute, table: table}
-           }
-         },
-         %Operation.AddUniqueIndex{identity: %{keys: keys}, table: table}
-       ) do
-    destination_attribute in keys
-  end
-
-  defp after?(
-         %Operation.AlterAttribute{
-           old_attribute: %{
-             source: source
-           },
-           table: table,
-           schema: schema
-         },
-         %Operation.RemoveUniqueIndex{identity: %{keys: keys}, table: table, schema: schema}
-       ) do
-    source in List.wrap(keys)
-  end
-
-  defp after?(
-         %Operation.AlterAttribute{
-           new_attribute: %{references: %{table: table, destination_attribute: source}}
-         },
-         %Operation.AlterAttribute{
-           new_attribute: %{
-             source: source
-           },
-           table: table
-         }
-       ) do
-    true
-  end
-
-  defp after?(
-         %Operation.AlterAttribute{
-           new_attribute: %{
-             source: source
-           },
-           table: table
-         },
-         %Operation.AlterAttribute{
-           new_attribute: %{references: %{table: table, destination_attribute: source}}
-         }
-       ) do
-    false
-  end
-
-  defp after?(
-         %Operation.RemoveAttribute{attribute: %{source: source}, table: table},
-         %Operation.AlterAttribute{
-           old_attribute: %{
-             references: %{table: table, destination_attribute: source}
-           }
-         }
-       ),
-       do: true
-
-  defp after?(
-         %Operation.AlterAttribute{
-           new_attribute: %{
-             references: %{table: table, destination_attribute: name}
-           }
-         },
-         %Operation.AddAttribute{table: table, attribute: %{source: name}}
-       ),
-       do: true
-
-  defp after?(%Operation.AddCheckConstraint{table: table, schema: schema}, %Operation.CreateTable{
-         table: table,
-         schema: schema
-       }) do
-    true
-  end
-
-  defp after?(
-         %Operation.AlterAttribute{new_attribute: %{references: references}, table: table},
-         %{table: table}
-       )
-       when not is_nil(references),
-       do: true
-
-  defp after?(%Operation.AddCheckConstraint{}, _), do: true
-  defp after?(%Operation.RemoveCheckConstraint{}, _), do: true
-
-  defp after?(
-         op,
-         %Operation.RenameTable{
-           new_table: table,
-           schema: schema
-         }
-       ) do
-    match?(%{table: ^table, schema: ^schema}, op)
-  end
-
-  defp after?(%Operation.RenameTable{}, _), do: false
-
-  defp after?(_, %Operation.DropTable{}), do: true
-  defp after?(%Operation.DropTable{}, _), do: false
-
-  defp after?(
-         %{table: table, schema: schema},
-         %Operation.MoveTableSchema{table: table, schema: schema}
-       ),
-       do: true
-
-  defp after?(%Operation.MoveTableSchema{}, _), do: false
-
-  defp after?(_, _), do: false
 
   defp fetch_operations(snapshots, opts) do
     # Reference diffs need to know when a prefix change is caused by moving
@@ -2556,14 +2107,26 @@ defmodule AshPostgres.MigrationGenerator do
       |> Enum.reject(fn statement ->
         Enum.any?(old_snapshot.custom_statements, &(&1.name == statement.name))
       end)
-      |> Enum.map(&%Operation.AddCustomStatement{statement: &1, table: snapshot.table})
+      |> Enum.map(
+        &%Operation.AddCustomStatement{
+          statement: &1,
+          table: snapshot.table,
+          schema: snapshot.schema
+        }
+      )
 
     custom_statements_to_remove =
       old_snapshot.custom_statements
       |> Enum.reject(fn old_statement ->
         Enum.any?(snapshot.custom_statements, &(&1.name == old_statement.name))
       end)
-      |> Enum.map(&%Operation.RemoveCustomStatement{statement: &1, table: snapshot.table})
+      |> Enum.map(
+        &%Operation.RemoveCustomStatement{
+          statement: &1,
+          table: snapshot.table,
+          schema: snapshot.schema
+        }
+      )
 
     custom_statements_to_alter =
       snapshot.custom_statements
@@ -2574,8 +2137,16 @@ defmodule AshPostgres.MigrationGenerator do
              (old_statement.code? != statement.code? ||
                 old_statement.up != statement.up || old_statement.down != statement.down) do
           [
-            %Operation.RemoveCustomStatement{statement: old_statement, table: snapshot.table},
-            %Operation.AddCustomStatement{statement: statement, table: snapshot.table}
+            %Operation.RemoveCustomStatement{
+              statement: old_statement,
+              table: snapshot.table,
+              schema: snapshot.schema
+            },
+            %Operation.AddCustomStatement{
+              statement: statement,
+              table: snapshot.table,
+              schema: snapshot.schema
+            }
           ]
         else
           []
@@ -2610,8 +2181,11 @@ defmodule AshPostgres.MigrationGenerator do
           old_attribute ->
             new_index? = attribute.references && attribute.references[:index?]
             old_index? = old_attribute.references && old_attribute.references[:index?]
+            new_index_where = attribute.references && attribute.references[:index_where]
+            old_index_where = old_attribute.references && old_attribute.references[:index_where]
 
-            old_index? != new_index? ||
+            (new_index? && old_index? != new_index?) ||
+              (new_index? && old_index_where != new_index_where) ||
               (new_index? && multitenancy_changed?)
         end
       end)
@@ -2620,6 +2194,7 @@ defmodule AshPostgres.MigrationGenerator do
           table: snapshot.table,
           schema: snapshot.schema,
           source: attribute.source,
+          where: attribute.references[:index_where],
           multitenancy: snapshot.multitenancy
         }
       end)
@@ -2640,13 +2215,19 @@ defmodule AshPostgres.MigrationGenerator do
           attribute && old_attribute[:references][:index?] && attribute[:references][:index?] &&
             multitenancy_changed?
 
-        has_removed_index? || attribute_doesnt_exist? || multitenancy_change_requires_rewrite?
+        index_where_change_requires_rewrite? =
+          attribute && old_attribute[:references][:index?] && attribute[:references][:index?] &&
+            old_attribute[:references][:index_where] != attribute[:references][:index_where]
+
+        has_removed_index? || attribute_doesnt_exist? || multitenancy_change_requires_rewrite? ||
+          index_where_change_requires_rewrite?
       end)
       |> Enum.map(fn attribute ->
         %Operation.RemoveReferenceIndex{
           table: snapshot.table,
           schema: snapshot.schema,
           source: attribute.source,
+          where: attribute.references[:index_where],
           multitenancy: snapshot.multitenancy,
           old_multitenancy: old_snapshot.multitenancy
         }
@@ -3003,7 +2584,11 @@ defmodule AshPostgres.MigrationGenerator do
 
       {[
          must_drop_pkey? &&
-           %Operation.RemovePrimaryKey{schema: snapshot.schema, table: snapshot.table},
+           %Operation.RemovePrimaryKey{
+             schema: snapshot.schema,
+             table: snapshot.table,
+             keys: pkey_names(old_snapshot.attributes)
+           },
          must_drop_pkey? && drop_in_down? &&
            %Operation.RemovePrimaryKeyDown{
              commented?: opts.dont_drop_columns && drop_in_down_commented?,
@@ -3233,6 +2818,7 @@ defmodule AshPostgres.MigrationGenerator do
         end
         |> Enum.concat(deferrable_ops)
       end)
+      |> Enum.flat_map(&with_serial_sequence_cleanup/1)
 
     remove_attribute_events =
       Enum.map(attributes_to_remove, fn attribute ->
@@ -3298,6 +2884,26 @@ defmodule AshPostgres.MigrationGenerator do
     ] ++ reference_ops
   end
 
+  defp with_serial_sequence_cleanup(%Operation.AlterAttribute{} = operation) do
+    case Operation.AlterAttribute.serial_transition(operation) do
+      :remove -> [operation, serial_sequence_transition(operation)]
+      :add -> [serial_sequence_transition(operation), operation]
+      nil -> [operation]
+    end
+  end
+
+  defp with_serial_sequence_cleanup(operation), do: [operation]
+
+  defp serial_sequence_transition(operation) do
+    %Operation.SerialSequenceTransition{
+      table: operation.table,
+      schema: operation.schema,
+      column: operation.new_attribute.source,
+      transition: Operation.AlterAttribute.serial_transition(operation),
+      statement: Operation.AlterAttribute.serial_sequence_statement(operation)
+    }
+  end
+
   defp differently_deferrable?(%{references: %{deferrable: left}}, %{
          references: %{deferrable: right}
        })
@@ -3342,11 +2948,13 @@ defmodule AshPostgres.MigrationGenerator do
           old_refs
           |> clean_references_for_comparison()
           |> Map.delete(:index?)
+          |> Map.delete(:index_where)
 
         new_without_index =
           new_refs
           |> clean_references_for_comparison()
           |> Map.delete(:index?)
+          |> Map.delete(:index_where)
 
         old_without_index != new_without_index
     end
@@ -3376,6 +2984,9 @@ defmodule AshPostgres.MigrationGenerator do
     {left, right} =
       normalize_attribute_reference_schema_move(left, right, schema_moves)
 
+    left = remove_reference_index_options(left)
+    right = remove_reference_index_options(right)
+
     left =
       if ignore_names? do
         Map.drop(left, [:source, :name])
@@ -3392,6 +3003,13 @@ defmodule AshPostgres.MigrationGenerator do
 
     left != right
   end
+
+  defp remove_reference_index_options(%{references: references} = attribute)
+       when is_map(references) do
+    %{attribute | references: Map.drop(references, [:index?, :index_where])}
+  end
+
+  defp remove_reference_index_options(attribute), do: attribute
 
   defp normalize_attribute_reference_schema_move(left, right, schema_moves) do
     old_refs = Map.get(left, :references)
@@ -4429,11 +4047,14 @@ defmodule AshPostgres.MigrationGenerator do
             destination_attribute: destination_attribute_source,
             deferrable: configured_reference.deferrable,
             index?: configured_reference.index?,
+            index_where:
+              reference_index_where(configured_reference.index_where, attribute.source),
             multitenancy: multitenancy(relationship.destination),
             on_delete: configured_reference.on_delete,
             on_update: configured_reference.on_update,
             match_with: configured_reference.match_with,
             match_type: configured_reference.match_type,
+            match_tenant?: configured_reference.match_tenant?,
             name: configured_reference.name,
             primary_key?: destination_attribute.primary_key?,
             schema:
@@ -4470,6 +4091,10 @@ defmodule AshPostgres.MigrationGenerator do
     end
   end
 
+  defp reference_index_where(:not_nil, source), do: "#{source} IS NOT NULL"
+  defp reference_index_where(index_where, _source) when is_binary(index_where), do: index_where
+  defp reference_index_where(nil, _source), do: nil
+
   defp configured_reference(resource, table, attribute, relationship) do
     ref =
       resource
@@ -4480,8 +4105,10 @@ defmodule AshPostgres.MigrationGenerator do
         on_update: nil,
         match_with: nil,
         match_type: nil,
+        match_tenant?: false,
         deferrable: false,
         index?: false,
+        index_where: nil,
         schema:
           relationship.context[:data_layer][:schema] ||
             AshPostgres.DataLayer.Info.schema(relationship.destination) ||
@@ -4852,6 +4479,7 @@ defmodule AshPostgres.MigrationGenerator do
       |> Map.put_new(:nulls_distinct, true)
       |> Map.put_new(:message, nil)
       |> Map.put_new(:all_tenants?, false)
+      |> Map.put_new(:include_base_filter?, true)
     end)
   end
 
@@ -4913,8 +4541,10 @@ defmodule AshPostgres.MigrationGenerator do
         |> Map.update!(:on_delete, &(&1 && load_references_on_delete(&1)))
         |> Map.update!(:on_update, &(&1 && maybe_to_atom(&1)))
         |> Map.put_new(:index?, false)
+        |> Map.put_new(:index_where, nil)
         |> Map.put_new(:match_with, nil)
         |> Map.put_new(:match_type, nil)
+        |> Map.put_new(:match_tenant?, false)
         |> Map.update!(
           :match_with,
           &(&1 && Enum.into(&1, %{}, fn {k, v} -> {maybe_to_atom(k), maybe_to_atom(v)} end))

@@ -42,7 +42,7 @@ end
 | [`migrate?`](#postgres-migrate?){: #postgres-migrate? } | `boolean` | `true` | Whether or not to include this resource in the generated migrations with `mix ash.generate_migrations` |
 | [`storage_types`](#postgres-storage_types){: #postgres-storage_types } | `keyword` | `[]` | A keyword list of attribute names to the ecto type that should be used for that attribute. Only necessary if you need to override the defaults. |
 | [`migration_types`](#postgres-migration_types){: #postgres-migration_types } | `keyword` | `[]` | A keyword list of attribute names to the ecto migration type that should be used for that attribute. Only necessary if you need to override the defaults. |
-| [`migration_defaults`](#postgres-migration_defaults){: #postgres-migration_defaults } | `keyword` | `[]` | A keyword list of attribute names to the ecto migration default that should be used for that attribute. The string you use will be placed verbatim in the migration. Use fragments like `fragment(\\"now()\\")`, or for `nil`, use `\\"nil\\"`. |
+| [`migration_defaults`](#postgres-migration_defaults){: #postgres-migration_defaults } | `keyword` | `[]` | A keyword list of attribute names to the ecto migration default that should be used for that attribute. The string you use will be placed verbatim in the migration. Use fragments like `fragment(\\"now()\\")`, or for `nil`, use `\\"nil\\"`. For custom `Ash.Type` modules, see `c:AshPostgres.Type.value_to_postgres_default/3`. |
 | [`calculations_to_sql`](#postgres-calculations_to_sql){: #postgres-calculations_to_sql } | `keyword` |  | A keyword list of calculations and their SQL representation. Used when creating unique indexes for identities over calculations |
 | [`identity_wheres_to_sql`](#postgres-identity_wheres_to_sql){: #postgres-identity_wheres_to_sql } | `keyword` |  | A keyword list of identity names and the SQL representation of their `where` clause. See `AshPostgres.DataLayer.Info.identity_wheres_to_sql/1` for more details. |
 | [`base_filter_sql`](#postgres-base_filter_sql){: #postgres-base_filter_sql } | `String.t` |  | A raw sql version of the base_filter, e.g `representative = true`. Required if trying to create a unique constraint on a resource with a base_filter |
@@ -119,6 +119,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
 | [`nulls_distinct`](#postgres-custom_indexes-index-nulls_distinct){: #postgres-custom_indexes-index-nulls_distinct } | `boolean` | `true` | specify whether null values should be considered distinct for a unique index. Requires PostgreSQL 15 or later |
 | [`message`](#postgres-custom_indexes-index-message){: #postgres-custom_indexes-index-message } | `String.t` |  | A custom message to use for unique indexes that have been violated |
 | [`all_tenants?`](#postgres-custom_indexes-index-all_tenants?){: #postgres-custom_indexes-index-all_tenants? } | `boolean` | `false` | Whether or not the index should factor in the multitenancy attribute or not. |
+| [`include_base_filter?`](#postgres-custom_indexes-index-include_base_filter?){: #postgres-custom_indexes-index-include_base_filter? } | `boolean` | `true` | Whether or not the resource base filter should be included in the index predicate. |
 
 
 
@@ -132,9 +133,11 @@ Target: `AshPostgres.CustomIndex`
 ### postgres.custom_statements
 A section for configuring custom statements to be added to migrations.
 
-Changing custom statements may require manual intervention, because Ash can't determine what order they should run
-in (i.e if they depend on table structure that you've added, or vice versa). As such, any `down` statements we run
-for custom statements happen first, and any `up` statements happen last.
+By default, a statement has no declared dependency on other tables, so `down` statements run before any other
+operation and `up` statements run after all other operations for that statement's table. If your statement's `up`
+depends on structure from another table (e.g. a foreign key referencing a unique index defined via `identities`),
+declare it with `after_tables` so the migration generator orders it correctly relative to that table's structure.
+Custom statements on the same table run in declaration order, such as creating a function before a trigger that invokes it.
 
 Additionally, when changing a custom statement, we must make some assumptions, i.e that we should migrate
 the old structure down using the previously configured `down` and recreate it.
@@ -154,6 +157,19 @@ custom_statements do
   statement :pgweb_idx do
     up "CREATE INDEX pgweb_idx ON pgweb USING GIN (to_tsvector('english', title || ' ' || body));"
     down "DROP INDEX pgweb_idx;"
+  end
+
+  statement :children_parent_composite_fk do
+    # ensures this runs after `parents`'s columns and unique indexes are finalized
+    after_tables ["parents"]
+    up "ALTER TABLE children ADD CONSTRAINT children_parent_fk FOREIGN KEY (region_id, parent_id) REFERENCES parents (region_id, id);"
+    down "ALTER TABLE children DROP CONSTRAINT children_parent_fk;"
+  end
+
+  statement :create_audit_trigger do
+    after_tables ["audit_entries"]
+    up "CREATE TRIGGER ..."
+    down "DROP TRIGGER ..."
   end
 end
 
@@ -197,6 +213,7 @@ end
 | [`down`](#postgres-custom_statements-statement-down){: #postgres-custom_statements-statement-down .spark-required} | `String.t` |  | How to tear down the structure of the statement |
 | [`code?`](#postgres-custom_statements-statement-code?){: #postgres-custom_statements-statement-code? } | `boolean` | `false` | By default, we place the strings inside of ecto migration's `execute/1` function and assume they are sql. Use this option if you want to provide custom elixir code to be placed directly in the migrations |
 | [`global?`](#postgres-custom_statements-statement-global?){: #postgres-custom_statements-statement-global? } | `boolean` | `false` | By default, a multi-tenant resource's custom statements will be written into the tenant migration folder. Set this to true for statements that create global, shared structures so they are written into the public migration folder even when defined on a tenant resource. |
+| [`after_tables`](#postgres-custom_statements-statement-after_tables){: #postgres-custom_statements-statement-after_tables } | `list(String.t)` | `[]` | Table names whose structural operations must be complete before this statement's `up` runs. This does not wait for custom statements declared on those tables. Use this for raw SQL that references another table's columns or indexes. |
 
 
 
@@ -308,7 +325,9 @@ reference :post, on_delete: :delete, on_update: :update, name: "comments_to_post
 | [`name`](#postgres-references-reference-name){: #postgres-references-reference-name } | `String.t` |  | The name of the foreign key to generate in the database. Defaults to <table>_<source_attribute>_fkey |
 | [`match_with`](#postgres-references-reference-match_with){: #postgres-references-reference-match_with } | `keyword` |  | Defines additional keys to the foreign key in order to build a composite foreign key. The key should be the name of the source attribute (in the current resource), the value the name of the destination attribute. |
 | [`match_type`](#postgres-references-reference-match_type){: #postgres-references-reference-match_type } | `:simple \| :partial \| :full` |  | select if the match is `:simple`, `:partial`, or `:full` |
+| [`match_tenant?`](#postgres-references-reference-match_tenant?){: #postgres-references-reference-match_tenant? } | `boolean` | `false` | If true, include the multitenancy attribute in the foreign key so tenants must match. |
 | [`index?`](#postgres-references-reference-index?){: #postgres-references-reference-index? } | `boolean` | `false` | Whether to create or not a corresponding index |
+| [`index_where`](#postgres-references-reference-index_where){: #postgres-references-reference-index_where } | `:not_nil \| String.t` |  | A condition to use for the corresponding partial index. Use `:not_nil` to exclude rows where the reference is nil. |
 
 
 

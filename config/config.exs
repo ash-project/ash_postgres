@@ -51,7 +51,8 @@ if Mix.env() == :test do
     database: "ash_postgres_test",
     hostname: "localhost",
     port: 5433,
-    pool: Ecto.Adapters.SQL.Sandbox
+    pool: Ecto.Adapters.SQL.Sandbox,
+    types: AshPostgres.Test.PostgrexTypes
 
   config :ash_postgres, AshPostgres.DevTestRepo,
     username: "postgres",

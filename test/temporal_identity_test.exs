@@ -39,7 +39,13 @@ defmodule AshPostgres.TemporalIdentityTest do
       attribute(:note, :string, public?: true)
 
       attribute(:valid_at, Ash.Type.Range,
-        constraints: [inner_type: :datetime, inner_constraints: [precision: :microsecond]],
+        allow_nil?: false,
+        constraints: [
+          inner_type: :datetime,
+          inner_constraints: [precision: :microsecond],
+          lower: [inclusive?: true],
+          upper: [inclusive?: false]
+        ],
         public?: true
       )
     end
@@ -100,9 +106,7 @@ defmodule AshPostgres.TemporalIdentityTest do
     assert {:ok, _} = create(%{id: 1, name: "x"}, @mar)
 
     rows =
-      TestRepo.query!(
-        "SELECT name FROM temporal_id_thing WHERE id = 1 ORDER BY lower(valid_at)"
-      ).rows
+      TestRepo.query!("SELECT name FROM temporal_id_thing WHERE id = 1 ORDER BY lower(valid_at)").rows
 
     assert rows == [["x"], ["x"]]
   end

@@ -26,7 +26,13 @@ defmodule AshPostgres.Test.Temporal.Subscription do
     attribute(:activated_at, :utc_datetime_usec, public?: true)
 
     attribute(:valid_at, Ash.Type.Range,
-      constraints: [inner_type: :datetime, inner_constraints: [precision: :microsecond]],
+      allow_nil?: false,
+      constraints: [
+        inner_type: :datetime,
+        inner_constraints: [precision: :microsecond],
+        lower: [inclusive?: true],
+        upper: [inclusive?: false]
+      ],
       public?: true
     )
   end

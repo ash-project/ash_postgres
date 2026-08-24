@@ -862,7 +862,12 @@ defmodule AshPostgres.TemporalTest do
             attribute(:id, :integer, primary_key?: true, allow_nil?: false, public?: true)
 
             attribute(:valid_at, Ash.Type.Range,
-              constraints: [inner_type: :datetime],
+              allow_nil?: false,
+              constraints: [
+                inner_type: :datetime,
+                lower: [inclusive?: true],
+                upper: [inclusive?: false]
+              ],
               public?: true
             )
           end

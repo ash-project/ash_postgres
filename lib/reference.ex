@@ -11,8 +11,10 @@ defmodule AshPostgres.Reference do
     :name,
     :match_with,
     :match_type,
+    :match_tenant?,
     :deferrable,
     :index?,
+    :index_where,
     :__spark_metadata__,
     ignore?: false
   ]
@@ -67,10 +69,21 @@ defmodule AshPostgres.Reference do
         type: {:one_of, [:simple, :partial, :full]},
         doc: "select if the match is `:simple`, `:partial`, or `:full`"
       ],
+      match_tenant?: [
+        type: :boolean,
+        default: false,
+        doc:
+          "If true, include the multitenancy attribute in the foreign key so tenants must match."
+      ],
       index?: [
         type: :boolean,
         default: false,
         doc: "Whether to create or not a corresponding index"
+      ],
+      index_where: [
+        type: {:or, [{:one_of, [:not_nil]}, :string]},
+        doc:
+          "A condition to use for the corresponding partial index. Use `:not_nil` to exclude rows where the reference is nil."
       ]
     ]
   end

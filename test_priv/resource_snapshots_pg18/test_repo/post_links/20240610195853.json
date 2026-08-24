@@ -1,0 +1,100 @@
+{
+  "attributes": [
+    {
+      "default": "\"active\"",
+      "size": null,
+      "type": "text",
+      "source": "state",
+      "references": null,
+      "primary_key?": false,
+      "allow_nil?": true,
+      "generated?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "uuid",
+      "source": "source_post_id",
+      "references": {
+        "name": "post_links_source_post_id_fkey",
+        "table": "posts",
+        "multitenancy": {
+          "global": null,
+          "strategy": null,
+          "attribute": null
+        },
+        "primary_key?": true,
+        "destination_attribute": "id",
+        "schema": "public",
+        "deferrable": false,
+        "index?": false,
+        "destination_attribute_default": null,
+        "destination_attribute_generated": null,
+        "on_delete": null,
+        "on_update": null,
+        "match_with": null,
+        "match_type": null
+      },
+      "primary_key?": true,
+      "allow_nil?": false,
+      "generated?": false
+    },
+    {
+      "default": "nil",
+      "size": null,
+      "type": "uuid",
+      "source": "destination_post_id",
+      "references": {
+        "name": "post_links_destination_post_id_fkey",
+        "table": "posts",
+        "multitenancy": {
+          "global": null,
+          "strategy": null,
+          "attribute": null
+        },
+        "primary_key?": true,
+        "destination_attribute": "id",
+        "schema": "public",
+        "deferrable": false,
+        "index?": false,
+        "destination_attribute_default": null,
+        "destination_attribute_generated": null,
+        "on_delete": null,
+        "on_update": null,
+        "match_with": null,
+        "match_type": null
+      },
+      "primary_key?": true,
+      "allow_nil?": false,
+      "generated?": false
+    }
+  ],
+  "table": "post_links",
+  "hash": "AF3FA145E25BB98CD83D51B551C8E623F1CE088DA1DE09B9905CA5E4B085C872",
+  "repo": "Elixir.AshPostgres.TestRepo",
+  "multitenancy": {
+    "global": null,
+    "strategy": null,
+    "attribute": null
+  },
+  "schema": null,
+  "identities": [
+    {
+      "name": "unique_link",
+      "keys": [
+        "destination_post_id",
+        "source_post_id"
+      ],
+      "where": null,
+      "base_filter": null,
+      "all_tenants?": false,
+      "nils_distinct?": true,
+      "index_name": "post_links_unique_link_index"
+    }
+  ],
+  "has_create_action": true,
+  "custom_indexes": [],
+  "custom_statements": [],
+  "base_filter": null,
+  "check_constraints": []
+}
