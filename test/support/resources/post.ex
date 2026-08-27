@@ -1340,6 +1340,10 @@ defmodule AshPostgres.Test.Post do
 
     count(:count_of_linked_posts, :linked_posts)
 
+    count :count_of_comments_in_titles, :comments do
+      read_action(:read_in_titles)
+    end
+
     count :count_of_comments_called_match, :comments do
       filter(title: "match")
     end

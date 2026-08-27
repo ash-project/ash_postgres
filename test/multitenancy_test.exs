@@ -346,13 +346,29 @@ defmodule AshPostgres.Test.MultitenancyTest do
   test "rejects characters other than alphanumericals, - and _ on tenant creation" do
     assert_raise(
       Ash.Error.Unknown,
-      ~r/Tenant name must match ~r\/\^\[a-zA-Z0-9_-]\+\$\/, got:/,
+      ~r/Tenant name must match ~r\/\\A\[a-zA-Z0-9_-]\+\\z\/, got:/,
       fn ->
         NamedOrg
         |> Ash.Changeset.for_create(:create, %{name: "🚫"})
         |> Ash.create!()
       end
     )
+  end
+
+  test "trims whitespace from tenant names on tenant creation" do
+    org =
+      NamedOrg
+      |> Ash.Changeset.for_create(:create, %{name: "trimmed\n"})
+      |> Ash.create!()
+
+    assert %{rows: [["org_trimmed"]]} =
+             AshPostgres.TestRepo.query!(
+               "SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'org_trimmed'"
+             )
+
+    org
+    |> Ash.Changeset.for_update(:update, %{name: "toto1"})
+    |> Ash.update!()
   end
 
   test "rejects characters other than alphanumericals, - and _ when renaming tenant" do
@@ -363,7 +379,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
 
     assert_raise(
       Ash.Error.Unknown,
-      ~r/Tenant name must match ~r\/\^\[a-zA-Z0-9_-]\+\$\/, got:/,
+      ~r/Tenant name must match ~r\/\\A\[a-zA-Z0-9_-]\+\\z\/, got:/,
       fn ->
         org
         |> Ash.Changeset.for_update(:update, %{name: "🚫"})
