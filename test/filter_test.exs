@@ -628,6 +628,21 @@ defmodule AshPostgres.FilterTest do
                |> Ash.Query.filter(contains(comments.title, ^"bb"))
                |> Ash.read!()
     end
+
+    test "a backslash in the search term is treated as a literal, not a LIKE escape" do
+      for title <- ["prefix\\%literal", "prefix\\secret", "prefix-without-backslash"] do
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: title})
+        |> Ash.create!()
+      end
+
+      # Searching for the literal substring "\%" must match only the row that
+      # contains it, not every row with a backslash (LIKE-wildcard injection).
+      assert [%{title: "prefix\\%literal"}] =
+               Post
+               |> Ash.Query.filter(contains(title, ^"\\%"))
+               |> Ash.read!()
+    end
   end
 
   describe "string_starts_with?/2" do
