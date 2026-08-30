@@ -973,6 +973,17 @@ defmodule AshPostgres.CalculationTest do
              |> Ash.read_one!()
   end
 
+  test "string_trim removes tab and newline whitespace, not just spaces" do
+    Author
+    |> Ash.Changeset.for_create(:create, %{first_name: "\tadmin\n"})
+    |> Ash.create!()
+
+    assert %{calculations: %{trimmed: "admin"}} =
+             Author
+             |> Ash.Query.calculate(:trimmed, :string, expr(string_trim(first_name)))
+             |> Ash.read_one!()
+  end
+
   test "an expression calculation that loads a runtime calculation works" do
     Author
     |> Ash.Changeset.for_create(:create, %{
