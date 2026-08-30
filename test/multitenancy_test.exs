@@ -45,6 +45,18 @@ defmodule AshPostgres.Test.MultitenancyTest do
     assert Enum.sort(AshPostgres.TestRepo.all_tenants()) == tenant_ids
   end
 
+  test "rename_tenant raises rather than silently succeeding when the target schema exists" do
+    repo = AshPostgres.TestRepo
+    Ecto.Adapters.SQL.query!(repo, ~s(CREATE SCHEMA IF NOT EXISTS "ash_rename_src"))
+    Ecto.Adapters.SQL.query!(repo, ~s(CREATE SCHEMA IF NOT EXISTS "ash_rename_dest"))
+
+    # Renaming onto an existing schema is rejected by PostgreSQL; the caller must
+    # see the failure so the surrounding transaction rolls back (not a false :ok).
+    assert_raise Postgrex.Error, fn ->
+      AshPostgres.MultiTenancy.rename_tenant(repo, "ash_rename_src", "ash_rename_dest")
+    end
+  end
+
   test "lateral joining attribute multitenancy to context multitenancy works", %{org1: org1} do
     Org
     |> Ash.Query.for_read(:read, %{}, tenant: org1)

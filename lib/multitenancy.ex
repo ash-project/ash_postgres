@@ -95,7 +95,7 @@ defmodule AshPostgres.MultiTenancy do
     validate_tenant_name!(new_name)
 
     if to_string(old_name) != to_string(new_name) do
-      Ecto.Adapters.SQL.query(repo, "ALTER SCHEMA \"#{old_name}\" RENAME TO \"#{new_name}\"")
+      Ecto.Adapters.SQL.query!(repo, "ALTER SCHEMA \"#{old_name}\" RENAME TO \"#{new_name}\"")
     end
 
     :ok
