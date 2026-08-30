@@ -417,6 +417,36 @@ defmodule AshPostgres.Test.MultitenancyTest do
                |> Ash.read!()
     end
 
+    test "a distinct aggregate on a context-multitenant resource stays within the tenant schema",
+         %{org1: org1} do
+      tenant = tenant(org1)
+
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{name: "keep"}, authorize?: false, tenant: tenant)
+        |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "keep"}, authorize?: false, tenant: tenant)
+      |> Ash.Changeset.manage_relationship(:linked_posts, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      # Filtering across a to-many relationship makes the aggregate query
+      # `distinct`, which takes the branch that used to drop the tenant prefix.
+      aggregate_query =
+        Post
+        |> Ash.Query.filter(linked_posts.name == "keep")
+        |> Ash.Query.set_tenant(tenant)
+
+      assert %{cnt: 1} =
+               Post
+               |> Ash.Query.set_tenant(tenant)
+               |> Ash.aggregate!({:cnt, :count, query: aggregate_query},
+                 tenant: tenant,
+                 authorize?: false
+               )
+    end
+
     test "loading context multitenant relationship from attribute multitenant resource inherits prefix",
          %{org1: org1} do
       user =
