@@ -29,6 +29,20 @@ defmodule AshPostgres.Test.CompositeTypeTest do
     refute Post |> Ash.Query.filter(composite_point[:x] == 2) |> Ash.read_one!()
   end
 
+  test "an unresolved composite path segment is rejected rather than spliced into SQL" do
+    {:ok, get_path} =
+      Ash.Query.Function.GetPath.new([
+        Ash.Expr.ref(:composite_point),
+        [:"x /*ASH_SQL_INJECTED*/"]
+      ])
+
+    assert_raise Ash.Error.Query.InvalidExpression, fn ->
+      Post
+      |> Ash.Query.filter(^get_path == 0)
+      |> Ash.Query.data_layer_query()
+    end
+  end
+
   test "composite types can be constructed" do
     Post
     |> Ash.Changeset.for_create(:create, %{title: "locked", composite_point: %{x: 1, y: 2}})
