@@ -18,6 +18,42 @@ defmodule AshSql.AggregateTest do
            |> Ash.read!() == []
   end
 
+  test "same-named aggregates with different filters are not conflated" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "post"})
+      |> Ash.create!()
+
+    for title <- ["a", "b"] do
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: title})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+    end
+
+    broad = Ash.Query.Aggregate.new!(Post, :cnt, :count, path: [:comments], authorize?: false)
+
+    narrow =
+      Ash.Query.Aggregate.new!(Post, :cnt, :count,
+        path: [:comments],
+        query: Ash.Query.filter(Comment, title == "a"),
+        authorize?: false
+      )
+
+    {:ok, base_query} = Post |> Ash.Query.new() |> Ash.Query.data_layer_query()
+    {:ok, with_dependency} = AshSql.Aggregate.add_aggregates(base_query, [broad], Post, false, 0)
+
+    {:ok, selecting_narrow} =
+      AshSql.Aggregate.add_aggregates(with_dependency, [narrow], Post, true, 0)
+
+    {sql, params} = Ecto.Adapters.SQL.to_sql(:all, AshPostgres.TestRepo, selecting_narrow)
+
+    # The narrow aggregate's filter (title == "a") must reach the SQL as its own
+    # subquery; before the fix it was conflated with the broad same-named
+    # aggregate and the predicate was never emitted.
+    assert "a" in params, "narrow aggregate filter was dropped; SQL: #{sql}"
+  end
+
   test "count aggregate on no cast enum field" do
     Organization |> Ash.read!(load: [:no_cast_open_posts_count])
   end
