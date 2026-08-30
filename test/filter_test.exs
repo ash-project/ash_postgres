@@ -828,6 +828,34 @@ defmodule AshPostgres.FilterTest do
                |> Ash.read!()
     end
 
+    test "a predicate is not dropped when the relationship has a limit and a parent() filter" do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "match", score: 0})
+        |> Ash.create!()
+
+      # The only qualifying child (likes > parent score) does not satisfy the predicate.
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "denied", likes: 1})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      assert [] =
+               Post
+               |> Ash.Query.filter(exists(limited_comments_over_score, title == ^"allowed"))
+               |> Ash.read!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "allowed", likes: 2})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      assert [%{title: "match"}] =
+               Post
+               |> Ash.Query.filter(exists(limited_comments_over_score, title == ^"allowed"))
+               |> Ash.read!()
+    end
+
     test "it works with many to many relationships" do
       post =
         Post
