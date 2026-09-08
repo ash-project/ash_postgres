@@ -59,11 +59,9 @@ defmodule AshPostgres.ErrorExprTest do
     end
   end
 
-  # On PostgreSQL 17+ upserts run as a MERGE whose WHEN MATCHED condition is rendered from a
-  # query separate from the SET clause. The savepoint that turns a raised expression into a
-  # regular Ash error (rather than a raw Postgrex error that aborts the transaction) must
-  # account for that condition query too, not just the SET clause.
-  @tag :postgres_17
+  # The savepoint that turns a raised expression into a regular Ash error (rather than a raw
+  # Postgrex error that aborts the transaction) must cover the upsert condition too, not just
+  # the SET clause.
   test "exceptions raised by an upsert condition are treated as regular Ash exceptions" do
     id = Ash.UUID.generate()
 
