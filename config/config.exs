@@ -30,6 +30,7 @@ if Mix.env() == :test do
 
   config :ash, :validate_domain_resource_inclusion?, false
   config :ash, :validate_domain_config_inclusion?, false
+  config :ash, :default_string_length_count, :codepoints
 
   config :ash, :policies, show_policy_breakdowns?: true
 

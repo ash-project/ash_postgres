@@ -939,6 +939,54 @@ defmodule AshPostgres.FilterTest do
                |> Ash.read!()
     end
 
+    test "it joins the tail of the path when the first hop is a `from_many?` relationship" do
+      post_with_rated_older_comment =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "a"})
+        |> Ash.create!()
+
+      older_comment =
+        Comment
+        |> Ash.Changeset.for_create(:create, %{title: "older"})
+        |> Ash.Changeset.manage_relationship(:post, post_with_rated_older_comment,
+          type: :append_and_remove
+        )
+        |> Ash.create!()
+
+      AshPostgres.Test.Rating
+      |> Ash.Changeset.for_create(:create, %{score: 10, resource_id: older_comment.id})
+      |> Ash.create!(context: %{data_layer: %{table: "comment_ratings"}})
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "latest"})
+      |> Ash.Changeset.manage_relationship(:post, post_with_rated_older_comment,
+        type: :append_and_remove
+      )
+      |> Ash.create!()
+
+      post_with_rated_latest_comment =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "b"})
+        |> Ash.create!()
+
+      latest_comment =
+        Comment
+        |> Ash.Changeset.for_create(:create, %{title: "latest"})
+        |> Ash.Changeset.manage_relationship(:post, post_with_rated_latest_comment,
+          type: :append_and_remove
+        )
+        |> Ash.create!()
+
+      AshPostgres.Test.Rating
+      |> Ash.Changeset.for_create(:create, %{score: 10, resource_id: latest_comment.id})
+      |> Ash.create!(context: %{data_layer: %{table: "comment_ratings"}})
+
+      assert [%{title: "b"}] =
+               Post
+               |> Ash.Query.filter(exists(latest_comment.ratings, score > 5))
+               |> Ash.read!()
+    end
+
     test "it works with an `at_path`" do
       post =
         Post
