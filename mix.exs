@@ -9,7 +9,7 @@ defmodule AshPostgres.MixProject do
   The PostgreSQL data layer for Ash Framework
   """
 
-  @version "2.12.0"
+  @version "2.13.1"
 
   def project do
     [
@@ -119,6 +119,7 @@ defmodule AshPostgres.MixProject do
         "documentation/topics/advanced/partitioned-tables.md",
         "documentation/topics/advanced/schema-based-multitenancy.md",
         "documentation/topics/advanced/using-multiple-repos.md",
+        "documentation/topics/advanced/upserts.md",
         {"documentation/dsls/DSL-AshPostgres.DataLayer.md",
          search_data: Spark.Docs.search_data_for(AshPostgres.DataLayer)},
         "CHANGELOG.md"

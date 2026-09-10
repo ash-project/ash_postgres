@@ -11,12 +11,12 @@ defmodule AshPostgres.BulkUpsertManagedRelationshipTest do
   parent record must be correlated back to *its own* input changeset before the
   child is built (the child's foreign key is taken from the parent record).
 
-  On PostgreSQL 17+ the upsert is implemented as a single `MERGE ... RETURNING`
-  statement, whose output rows are **not** guaranteed to be in input order. The
-  data layer previously fell back to zipping the returned rows against the input
+  The rows of a `RETURNING` clause are **not** guaranteed to come back in input
+  order (`MERGE ... RETURNING` reorders them freely, and
+  `INSERT ... ON CONFLICT ... RETURNING` only happens to preserve it). The data
+  layer previously fell back to zipping the returned rows against the input
   changesets *by position*, so a reordered `RETURNING` attached children to the
-  wrong parents. Below PG 17 (`INSERT ... ON CONFLICT ... RETURNING`) the order
-  happens to be preserved, which is why the bug only surfaces on the MERGE path.
+  wrong parents.
 
   Each input `i` builds a parent and a child both tagged with `number: i`, so a
   correct association always joins a parent to the child carrying the same number.
@@ -47,9 +47,7 @@ defmodule AshPostgres.BulkUpsertManagedRelationshipTest do
     rows
   end
 
-  describe "bulk upsert with managed has_one child (MERGE, PostgreSQL 17+)" do
-    @describetag :postgres_17
-
+  describe "bulk upsert with managed has_one child" do
     test "keeps each child attached to its own parent (fresh insert)" do
       bulk =
         Ash.bulk_create(inputs(150), BulkUpsertParent, :upsert_with_child,

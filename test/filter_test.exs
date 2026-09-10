@@ -628,6 +628,21 @@ defmodule AshPostgres.FilterTest do
                |> Ash.Query.filter(contains(comments.title, ^"bb"))
                |> Ash.read!()
     end
+
+    test "a backslash in the search term is treated as a literal, not a LIKE escape" do
+      for title <- ["prefix\\%literal", "prefix\\secret", "prefix-without-backslash"] do
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: title})
+        |> Ash.create!()
+      end
+
+      # Searching for the literal substring "\%" must match only the row that
+      # contains it, not every row with a backslash (LIKE-wildcard injection).
+      assert [%{title: "prefix\\%literal"}] =
+               Post
+               |> Ash.Query.filter(contains(title, ^"\\%"))
+               |> Ash.read!()
+    end
   end
 
   describe "string_starts_with?/2" do
@@ -828,6 +843,34 @@ defmodule AshPostgres.FilterTest do
                |> Ash.read!()
     end
 
+    test "a predicate is not dropped when the relationship has a limit and a parent() filter" do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "match", score: 0})
+        |> Ash.create!()
+
+      # The only qualifying child (likes > parent score) does not satisfy the predicate.
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "denied", likes: 1})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      assert [] =
+               Post
+               |> Ash.Query.filter(exists(limited_comments_over_score, title == ^"allowed"))
+               |> Ash.read!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "allowed", likes: 2})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      assert [%{title: "match"}] =
+               Post
+               |> Ash.Query.filter(exists(limited_comments_over_score, title == ^"allowed"))
+               |> Ash.read!()
+    end
+
     test "it works with many to many relationships" do
       post =
         Post
@@ -893,6 +936,54 @@ defmodule AshPostgres.FilterTest do
       assert [%{title: "b"}] =
                Post
                |> Ash.Query.filter(exists(linked_posts.comments, title == ^"comment"))
+               |> Ash.read!()
+    end
+
+    test "it joins the tail of the path when the first hop is a `from_many?` relationship" do
+      post_with_rated_older_comment =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "a"})
+        |> Ash.create!()
+
+      older_comment =
+        Comment
+        |> Ash.Changeset.for_create(:create, %{title: "older"})
+        |> Ash.Changeset.manage_relationship(:post, post_with_rated_older_comment,
+          type: :append_and_remove
+        )
+        |> Ash.create!()
+
+      AshPostgres.Test.Rating
+      |> Ash.Changeset.for_create(:create, %{score: 10, resource_id: older_comment.id})
+      |> Ash.create!(context: %{data_layer: %{table: "comment_ratings"}})
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "latest"})
+      |> Ash.Changeset.manage_relationship(:post, post_with_rated_older_comment,
+        type: :append_and_remove
+      )
+      |> Ash.create!()
+
+      post_with_rated_latest_comment =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "b"})
+        |> Ash.create!()
+
+      latest_comment =
+        Comment
+        |> Ash.Changeset.for_create(:create, %{title: "latest"})
+        |> Ash.Changeset.manage_relationship(:post, post_with_rated_latest_comment,
+          type: :append_and_remove
+        )
+        |> Ash.create!()
+
+      AshPostgres.Test.Rating
+      |> Ash.Changeset.for_create(:create, %{score: 10, resource_id: latest_comment.id})
+      |> Ash.create!(context: %{data_layer: %{table: "comment_ratings"}})
+
+      assert [%{title: "b"}] =
+               Post
+               |> Ash.Query.filter(exists(latest_comment.ratings, score > 5))
                |> Ash.read!()
     end
 

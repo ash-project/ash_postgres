@@ -940,6 +940,13 @@ defmodule AshPostgres.Test.Post do
       destination_attribute_on_join_resource: :follower_id
     )
 
+    # For testing that an exists/2 predicate survives a limit + parent() filter
+    has_many :limited_comments_over_score, AshPostgres.Test.Comment do
+      filter(expr(likes > parent(score)))
+      sort(:likes)
+      limit(1)
+    end
+
     many_to_many(:sorted_followers, AshPostgres.Test.User,
       public?: true,
       through: AshPostgres.Test.PostFollower,
@@ -1339,6 +1346,10 @@ defmodule AshPostgres.Test.Post do
     end
 
     count(:count_of_linked_posts, :linked_posts)
+
+    count :count_of_comments_in_titles, :comments do
+      read_action(:read_in_titles)
+    end
 
     count :count_of_comments_called_match, :comments do
       filter(title: "match")

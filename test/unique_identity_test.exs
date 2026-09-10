@@ -81,7 +81,6 @@ defmodule AshPostgres.Test.UniqueIdentityTest do
     assert new_post.price == 10
   end
 
-  @tag :postgres_17
   test "upsert on a calculation-backed identity matches via the calculation expression" do
     post =
       Post

@@ -80,6 +80,9 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.LabelledContent)
     resource(AshPostgres.Test.BulkUpsertParent)
     resource(AshPostgres.Test.BulkUpsertChild)
+    resource(AshPostgres.Test.TwoHopExistsTest.Entry)
+    resource(AshPostgres.Test.TwoHopExistsTest.Bucket)
+    resource(AshPostgres.Test.TwoHopExistsTest.Item)
   end
 
   authorization do

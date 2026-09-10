@@ -109,6 +109,19 @@ defmodule AshPostgres.LtreeTest do
     test "unescapes segments" do
       assert {:ok, ["1.", "2"]} = Ltree.cast_stored("1_2E.2", escape?: true)
     end
+
+    test "returns :error for stored segments the escaped encoding can't have produced" do
+      # unescaped non-alphanumeric byte (valid ltree label on Postgres 16+)
+      assert :error = Ltree.cast_stored("a-b.2", escape?: true)
+      # unescaped UTF-8
+      assert :error = Ltree.cast_stored("héllo", escape?: true)
+      # truncated escape sequences
+      assert :error = Ltree.cast_stored("1_", escape?: true)
+      assert :error = Ltree.cast_stored("1_2", escape?: true)
+      # non-hex escape sequence
+      assert :error = Ltree.cast_stored("1_zz", escape?: true)
+      assert :error = Ltree.cast_stored("1_2g", escape?: true)
+    end
   end
 
   describe inspect(&Ltree.dump_to_native/2) do

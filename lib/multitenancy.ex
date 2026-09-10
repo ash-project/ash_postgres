@@ -9,6 +9,7 @@ defmodule AshPostgres.MultiTenancy do
 
   # sobelow_skip ["SQL.Query"]
   def create_tenant!(tenant_name, repo) do
+    tenant_name = trim_tenant_name(tenant_name)
     validate_tenant_name!(tenant_name)
     Ecto.Adapters.SQL.query!(repo, "CREATE SCHEMA IF NOT EXISTS \"#{tenant_name}\"", [])
 
@@ -88,11 +89,13 @@ defmodule AshPostgres.MultiTenancy do
 
   # sobelow_skip ["SQL"]
   def rename_tenant(repo, old_name, new_name) do
+    old_name = trim_tenant_name(old_name)
+    new_name = trim_tenant_name(new_name)
     validate_tenant_name!(old_name)
     validate_tenant_name!(new_name)
 
     if to_string(old_name) != to_string(new_name) do
-      Ecto.Adapters.SQL.query(repo, "ALTER SCHEMA \"#{old_name}\" RENAME TO \"#{new_name}\"")
+      Ecto.Adapters.SQL.query!(repo, "ALTER SCHEMA \"#{old_name}\" RENAME TO \"#{new_name}\"")
     end
 
     :ok
@@ -129,6 +132,10 @@ defmodule AshPostgres.MultiTenancy do
     end
   end
 
+  defp trim_tenant_name(tenant_name) do
+    tenant_name |> to_string() |> String.trim()
+  end
+
   defp validate_tenant_name!(tenant_name) do
     if !Regex.match?(tenant_name_regex(), tenant_name) do
       raise "Tenant name must match #{inspect(tenant_name_regex())}, got: #{tenant_name}"
@@ -145,7 +152,7 @@ defmodule AshPostgres.MultiTenancy do
   end
 
   defp tenant_name_regex do
-    ~r/^[a-zA-Z0-9_-]+$/
+    ~r/\A[a-zA-Z0-9_-]+\z/
   end
 
   # Check if a migration requires no transaction by examining the compiled module's

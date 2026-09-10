@@ -16,6 +16,10 @@ defmodule AshPostgres.Test.Comment do
       # Check that the comment is in the same org (via post) as actor
       authorize_if(relates_to_actor_via([:post, :organization, :users]))
     end
+
+    policy action(:read_in_titles) do
+      authorize_if(expr(title_in_list?(titles: ^actor(:titles))))
+    end
   end
 
   postgres do
@@ -41,6 +45,8 @@ defmodule AshPostgres.Test.Comment do
     read :with_modify_query do
       modify_query({AshPostgres.Test.Comment.ModifyQuery, :modify, []})
     end
+
+    read(:read_in_titles)
 
     # Create actions with manage_relationship from hooks
     create :create_with_post_from_before_transaction do
@@ -163,6 +169,10 @@ defmodule AshPostgres.Test.Comment do
       :integer,
       expr(post.count_of_comments)
     )
+
+    calculate :title_in_list?, :boolean, AshPostgres.Test.Comment.TitleInList do
+      argument(:titles, {:array, :string}, allow_nil?: false)
+    end
   end
 
   relationships do
