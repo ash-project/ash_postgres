@@ -235,6 +235,10 @@ defmodule AshPostgres.Temporal do
     Map.new(rows, fn [name, type] -> {name, type} end)
   end
 
+  # A period passes through; an instant opens one at it, unbounded above.
+  defp portion(%Ash.Range{} = period), do: period
+  defp portion(instant), do: %Ash.Range{lower: instant, upper: nil, bounds: :"[)"}
+
   @doc "Run an UPDATE ... FOR PORTION OF. Returns `{count, loaded_records | nil}`."
   def update_all(repo, query, resource, as_of) do
     run(repo, :update_all, query, resource, as_of)
@@ -248,13 +252,17 @@ defmodule AshPostgres.Temporal do
   defp run(repo, kind, query, resource, as_of) do
     attribute = Ash.Resource.Info.temporal_attribute(resource)
     returning? = not is_nil(query.select)
+    %Ash.Range{lower: lower, upper: upper} = portion(as_of)
 
-    # Render with the bound reserved as $1.
+    # Render with the portion's bounds reserved as $1 (and $2 when it has an upper).
+    counter = if upper, do: 2, else: 1
+
     {sql, params} =
-      Ecto.Adapters.SQL.to_sql(kind, repo, Map.delete(query, :__ash_bindings__), counter: 1)
+      Ecto.Adapters.SQL.to_sql(kind, repo, Map.delete(query, :__ash_bindings__), counter: counter)
 
-    sql = splice_for_portion_of(sql, kind, attribute)
-    result = repo.query!(sql, [as_of | params])
+    sql = splice_for_portion_of(sql, kind, attribute, not is_nil(upper))
+    bounds = if upper, do: [lower, upper], else: [lower]
+    result = repo.query!(sql, bounds ++ params)
 
     if returning? do
       rows = result.rows || []
@@ -264,17 +272,19 @@ defmodule AshPostgres.Temporal do
     end
   end
 
-  # Insert ` FOR PORTION OF "<attr>" FROM $1::timestamptz TO NULL` immediately
-  # after the table name and before the ` AS <alias>` that Ecto emits. `TO NULL` is
-  # the open/unbounded upper — see the moduledoc for why not `'infinity'`.
-  defp splice_for_portion_of(sql, kind, attribute) do
+  # Insert ` FOR PORTION OF "<attr>" FROM $1::timestamptz TO …` immediately after the
+  # table name and before the ` AS <alias>` that Ecto emits. The upper is `$2` when
+  # `as_of` names a period, else `NULL` — see the moduledoc for why not `'infinity'`.
+  defp splice_for_portion_of(sql, kind, attribute, upper?) do
     {head, rest} = split_on_set_or_where(sql, kind)
     alias_token = head |> String.trim() |> String.split() |> List.last()
     table_part = String.replace_suffix(head, " AS #{alias_token}", "")
 
+    to = if upper?, do: "$2::timestamptz", else: "NULL"
+
     clause =
       " FOR PORTION OF " <>
-        quote_name(attribute) <> " FROM $1::timestamptz TO NULL"
+        quote_name(attribute) <> " FROM $1::timestamptz TO " <> to
 
     table_part <> clause <> " AS " <> alias_token <> rest
   end
