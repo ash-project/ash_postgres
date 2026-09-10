@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshPostgres.TestRepo.Migrations.MigrateResources74 do
+defmodule AshPostgres.TestRepo.Migrations.MigrateResources75 do
   @moduledoc """
   Updates resources based on their most recent snapshots.
 
