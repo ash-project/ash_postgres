@@ -973,6 +973,38 @@ defmodule AshPostgres.CalculationTest do
              |> Ash.read_one!()
   end
 
+  test "string_length can count codepoints or bytes" do
+    # "é" is one codepoint and two bytes
+    Author
+    |> Ash.Changeset.for_create(:create, %{first_name: "Zoé"})
+    |> Ash.create!()
+
+    assert %{calculations: %{codepoints: 3, bytes: 4}} =
+             Author
+             |> Ash.Query.calculate(
+               :codepoints,
+               :integer,
+               expr(string_length(first_name, :codepoints))
+             )
+             |> Ash.Query.calculate(:bytes, :integer, expr(string_length(first_name, :bytes)))
+             |> Ash.read_one!()
+
+    assert Author
+           |> Ash.Query.filter(string_length(first_name, :bytes) == 4)
+           |> Ash.read_one!()
+  end
+
+  test "string_trim removes tab and newline whitespace, not just spaces" do
+    Author
+    |> Ash.Changeset.for_create(:create, %{first_name: "\tadmin\n"})
+    |> Ash.create!()
+
+    assert %{calculations: %{trimmed: "admin"}} =
+             Author
+             |> Ash.Query.calculate(:trimmed, :string, expr(string_trim(first_name)))
+             |> Ash.read_one!()
+  end
+
   test "an expression calculation that loads a runtime calculation works" do
     Author
     |> Ash.Changeset.for_create(:create, %{

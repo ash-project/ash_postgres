@@ -6,6 +6,7 @@ defmodule AshSql.AggregateTest do
   use AshPostgres.RepoCase, async: false
   import ExUnit.CaptureIO
   alias AshPostgres.Test.{Author, Chat, Comment, Organization, Post, Rating, User}
+  alias AshPostgres.Test.TwoHopExistsTest
 
   require Ash.Query
   require Ash.Sort
@@ -16,6 +17,42 @@ defmodule AshSql.AggregateTest do
     assert Post
            |> Ash.Query.load(:sum_of_comment_ratings_calc)
            |> Ash.read!() == []
+  end
+
+  test "same-named aggregates with different filters are not conflated" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "post"})
+      |> Ash.create!()
+
+    for title <- ["a", "b"] do
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: title})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+    end
+
+    broad = Ash.Query.Aggregate.new!(Post, :cnt, :count, path: [:comments], authorize?: false)
+
+    narrow =
+      Ash.Query.Aggregate.new!(Post, :cnt, :count,
+        path: [:comments],
+        query: Ash.Query.filter(Comment, title == "a"),
+        authorize?: false
+      )
+
+    {:ok, base_query} = Post |> Ash.Query.new() |> Ash.Query.data_layer_query()
+    {:ok, with_dependency} = AshSql.Aggregate.add_aggregates(base_query, [broad], Post, false, 0)
+
+    {:ok, selecting_narrow} =
+      AshSql.Aggregate.add_aggregates(with_dependency, [narrow], Post, true, 0)
+
+    {sql, params} = Ecto.Adapters.SQL.to_sql(:all, AshPostgres.TestRepo, selecting_narrow)
+
+    # The narrow aggregate's filter (title == "a") must reach the SQL as its own
+    # subquery; before the fix it was conflated with the broad same-named
+    # aggregate and the predicate was never emitted.
+    assert "a" in params, "narrow aggregate filter was dropped; SQL: #{sql}"
   end
 
   test "count aggregate on no cast enum field" do
@@ -641,6 +678,193 @@ defmodule AshSql.AggregateTest do
       assert Post |> Ash.exists?()
 
       refute Post |> Ash.exists?(query: [filter: [title: "non-match"]])
+    end
+
+    # TwoHopExistsTest: Entry belongs_to :bucket, Bucket has_many :items.
+    # Regression: exists over a multi-hop path dropped every hop after the
+    # first when the predicate had no refs (e.g. exists(path, true)).
+
+    test "multi-hop exists aggregate and exists/2 are false with zero related rows" do
+      bucket =
+        TwoHopExistsTest.Bucket
+        |> Ash.Changeset.for_create(:create, %{name: "empty bucket"})
+        |> Ash.create!()
+
+      entry =
+        TwoHopExistsTest.Entry
+        |> Ash.Changeset.for_create(:create, %{name: "entry", bucket_id: bucket.id})
+        |> Ash.create!()
+
+      fields = [:item_count, :has_item_agg?, :has_item_true?, :has_item_id?]
+
+      # the tail hop of the path must be part of the generated query
+      {sql, _params} =
+        TwoHopExistsTest.Entry
+        |> Ash.Query.load(fields)
+        |> Ash.Query.for_read(:read)
+        |> Ash.data_layer_query!()
+        |> Map.get(:query)
+        |> then(&AshPostgres.TestRepo.to_sql(:all, &1))
+
+      assert sql =~ "two_hop_items"
+
+      loaded = Ash.load!(entry, fields)
+
+      assert loaded.item_count == 0
+      assert loaded.has_item_agg? == false
+      assert loaded.has_item_true? == false
+      assert loaded.has_item_id? == false
+    end
+
+    test "multi-hop exists aggregate and exists/2 are true with one related row" do
+      bucket =
+        TwoHopExistsTest.Bucket
+        |> Ash.Changeset.for_create(:create, %{name: "bucket with item"})
+        |> Ash.create!()
+
+      TwoHopExistsTest.Item
+      |> Ash.Changeset.for_create(:create, %{name: "item", bucket_id: bucket.id})
+      |> Ash.create!()
+
+      entry =
+        TwoHopExistsTest.Entry
+        |> Ash.Changeset.for_create(:create, %{name: "entry", bucket_id: bucket.id})
+        |> Ash.create!()
+
+      loaded =
+        Ash.load!(entry, [:item_count, :has_item_agg?, :has_item_true?, :has_item_id?])
+
+      assert loaded.item_count == 1
+      assert loaded.has_item_agg? == true
+      assert loaded.has_item_true? == true
+      assert loaded.has_item_id? == true
+    end
+
+    test "three-hop exists aggregate and exists/2 only count fully reachable rows" do
+      bucket =
+        TwoHopExistsTest.Bucket
+        |> Ash.Changeset.for_create(:create, %{name: "bucket"})
+        |> Ash.create!()
+
+      entry =
+        TwoHopExistsTest.Entry
+        |> Ash.Changeset.for_create(:create, %{name: "entry", bucket_id: bucket.id})
+        |> Ash.create!()
+
+      fields = [:has_item_entry_agg?, :has_item_entry_true?]
+
+      # no items at all -> chain broken at hop 2
+      loaded = Ash.load!(entry, fields)
+      assert loaded.has_item_entry_agg? == false
+      assert loaded.has_item_entry_true? == false
+
+      # item exists but has no entry -> chain broken at hop 3
+      item =
+        TwoHopExistsTest.Item
+        |> Ash.Changeset.for_create(:create, %{name: "item", bucket_id: bucket.id})
+        |> Ash.create!()
+
+      loaded = Ash.load!(entry, fields)
+      assert loaded.has_item_entry_agg? == false
+      assert loaded.has_item_entry_true? == false
+
+      # full chain reachable
+      item
+      |> Ash.Changeset.for_update(:update, %{entry_id: entry.id})
+      |> Ash.update!()
+
+      loaded = Ash.load!(entry, fields)
+      assert loaded.has_item_entry_agg? == true
+      assert loaded.has_item_entry_true? == true
+    end
+
+    test "a broken middle hop is not masked by a no_attributes? hop later in the path" do
+      # the no_attributes? (on: true) join would find this row if the broken
+      # middle hop were not anchored
+      TwoHopExistsTest.Entry
+      |> Ash.Changeset.for_create(:create, %{name: "other entry"})
+      |> Ash.create!()
+
+      bucket =
+        TwoHopExistsTest.Bucket
+        |> Ash.Changeset.for_create(:create, %{name: "bucket without items"})
+        |> Ash.create!()
+
+      entry =
+        TwoHopExistsTest.Entry
+        |> Ash.Changeset.for_create(:create, %{name: "entry", bucket_id: bucket.id})
+        |> Ash.create!()
+
+      fields = [:has_item_any_entry_agg?, :has_item_any_entry_true?]
+
+      # bucket has no items -> chain broken at hop 2, despite entries existing
+      loaded = Ash.load!(entry, fields)
+      assert loaded.has_item_any_entry_agg? == false
+      assert loaded.has_item_any_entry_true? == false
+
+      # once an item exists, the no_attributes? hop is reachable
+      TwoHopExistsTest.Item
+      |> Ash.Changeset.for_create(:create, %{name: "item", bucket_id: bucket.id})
+      |> Ash.create!()
+
+      loaded = Ash.load!(entry, fields)
+      assert loaded.has_item_any_entry_agg? == true
+      assert loaded.has_item_any_entry_true? == true
+    end
+
+    test "single-hop exists aggregate and exists/2 are false with zero related rows" do
+      entry =
+        TwoHopExistsTest.Entry
+        |> Ash.Changeset.for_create(:create, %{name: "entry without items"})
+        |> Ash.create!()
+
+      loaded = Ash.load!(entry, [:has_direct_item_agg?, :has_direct_item_true?])
+
+      assert loaded.has_direct_item_agg? == false
+      assert loaded.has_direct_item_true? == false
+    end
+
+    test "multi-hop exists predicate is scoped to the last resource in the path" do
+      # every table in the chain has a `name` column, and every row except
+      # the leaf is named "target" - so this only passes if the predicate
+      # binds to the leaf and not to an earlier hop (or the outer row)
+      bucket =
+        TwoHopExistsTest.Bucket
+        |> Ash.Changeset.for_create(:create, %{name: "target"})
+        |> Ash.create!()
+
+      leaf_entry =
+        TwoHopExistsTest.Entry
+        |> Ash.Changeset.for_create(:create, %{name: "leaf"})
+        |> Ash.create!()
+
+      TwoHopExistsTest.Item
+      |> Ash.Changeset.for_create(:create, %{
+        name: "target",
+        bucket_id: bucket.id,
+        entry_id: leaf_entry.id
+      })
+      |> Ash.create!()
+
+      outer_entry =
+        TwoHopExistsTest.Entry
+        |> Ash.Changeset.for_create(:create, %{name: "target", bucket_id: bucket.id})
+        |> Ash.create!()
+
+      refute TwoHopExistsTest.Entry
+             |> Ash.Query.filter(exists(bucket.items.entry, name == "target"))
+             |> Ash.read_one!()
+
+      leaf_entry
+      |> Ash.Changeset.for_update(:update, %{name: "target"})
+      |> Ash.update!()
+
+      assert %{id: outer_id} =
+               TwoHopExistsTest.Entry
+               |> Ash.Query.filter(exists(bucket.items.entry, name == "target"))
+               |> Ash.read_one!()
+
+      assert outer_id == outer_entry.id
     end
   end
 

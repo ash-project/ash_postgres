@@ -45,6 +45,18 @@ defmodule AshPostgres.Test.MultitenancyTest do
     assert Enum.sort(AshPostgres.TestRepo.all_tenants()) == tenant_ids
   end
 
+  test "rename_tenant raises rather than silently succeeding when the target schema exists" do
+    repo = AshPostgres.TestRepo
+    Ecto.Adapters.SQL.query!(repo, ~s(CREATE SCHEMA IF NOT EXISTS "ash_rename_src"))
+    Ecto.Adapters.SQL.query!(repo, ~s(CREATE SCHEMA IF NOT EXISTS "ash_rename_dest"))
+
+    # Renaming onto an existing schema is rejected by PostgreSQL; the caller must
+    # see the failure so the surrounding transaction rolls back (not a false :ok).
+    assert_raise Postgrex.Error, fn ->
+      AshPostgres.MultiTenancy.rename_tenant(repo, "ash_rename_src", "ash_rename_dest")
+    end
+  end
+
   test "lateral joining attribute multitenancy to context multitenancy works", %{org1: org1} do
     Org
     |> Ash.Query.for_read(:read, %{}, tenant: org1)
@@ -346,13 +358,29 @@ defmodule AshPostgres.Test.MultitenancyTest do
   test "rejects characters other than alphanumericals, - and _ on tenant creation" do
     assert_raise(
       Ash.Error.Unknown,
-      ~r/Tenant name must match ~r\/\^\[a-zA-Z0-9_-]\+\$\/, got:/,
+      ~r/Tenant name must match ~r\/\\A\[a-zA-Z0-9_-]\+\\z\/, got:/,
       fn ->
         NamedOrg
         |> Ash.Changeset.for_create(:create, %{name: "🚫"})
         |> Ash.create!()
       end
     )
+  end
+
+  test "trims whitespace from tenant names on tenant creation" do
+    org =
+      NamedOrg
+      |> Ash.Changeset.for_create(:create, %{name: "trimmed\n"})
+      |> Ash.create!()
+
+    assert %{rows: [["org_trimmed"]]} =
+             AshPostgres.TestRepo.query!(
+               "SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'org_trimmed'"
+             )
+
+    org
+    |> Ash.Changeset.for_update(:update, %{name: "toto1"})
+    |> Ash.update!()
   end
 
   test "rejects characters other than alphanumericals, - and _ when renaming tenant" do
@@ -363,7 +391,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
 
     assert_raise(
       Ash.Error.Unknown,
-      ~r/Tenant name must match ~r\/\^\[a-zA-Z0-9_-]\+\$\/, got:/,
+      ~r/Tenant name must match ~r\/\\A\[a-zA-Z0-9_-]\+\\z\/, got:/,
       fn ->
         org
         |> Ash.Changeset.for_update(:update, %{name: "🚫"})
@@ -399,6 +427,36 @@ defmodule AshPostgres.Test.MultitenancyTest do
                |> Ash.Query.load(:count_visited)
                |> Ash.Query.set_tenant(tenant(org1))
                |> Ash.read!()
+    end
+
+    test "a distinct aggregate on a context-multitenant resource stays within the tenant schema",
+         %{org1: org1} do
+      tenant = tenant(org1)
+
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{name: "keep"}, authorize?: false, tenant: tenant)
+        |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "keep"}, authorize?: false, tenant: tenant)
+      |> Ash.Changeset.manage_relationship(:linked_posts, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      # Filtering across a to-many relationship makes the aggregate query
+      # `distinct`, which takes the branch that used to drop the tenant prefix.
+      aggregate_query =
+        Post
+        |> Ash.Query.filter(linked_posts.name == "keep")
+        |> Ash.Query.set_tenant(tenant)
+
+      assert %{cnt: 1} =
+               Post
+               |> Ash.Query.set_tenant(tenant)
+               |> Ash.aggregate!({:cnt, :count, query: aggregate_query},
+                 tenant: tenant,
+                 authorize?: false
+               )
     end
 
     test "loading context multitenant relationship from attribute multitenant resource inherits prefix",

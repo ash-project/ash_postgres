@@ -142,18 +142,23 @@ defmodule AshPostgres.Ltree do
   def cast_stored(nil, _constraints), do: {:ok, nil}
 
   def cast_stored(ltree, constraints) when is_binary(ltree) do
-    segments =
-      ltree
-      |> String.split(".", trim: true)
-      |> then(
-        if constraints[:escape?] do
-          fn segments -> Enum.map(segments, &unescape_segment/1) end
-        else
-          & &1
-        end
-      )
+    segments = String.split(ltree, ".", trim: true)
 
-    {:ok, segments}
+    if constraints[:escape?] do
+      segments
+      |> Enum.reduce_while([], fn segment, acc ->
+        case unescape_segment(segment) do
+          {:ok, unescaped} -> {:cont, [unescaped | acc]}
+          :error -> {:halt, :error}
+        end
+      end)
+      |> case do
+        :error -> :error
+        segments -> {:ok, Enum.reverse(segments)}
+      end
+    else
+      {:ok, segments}
+    end
   end
 
   def cast_stored(_ltree, _constraints), do: :error
@@ -208,18 +213,25 @@ defmodule AshPostgres.Ltree do
     <<?_, escape_code::binary, escape_segment(rest)::binary>>
   end
 
-  @spec unescape_segment(segment :: String.t()) :: String.t()
-  defp unescape_segment(segment)
-  defp unescape_segment(<<>>), do: <<>>
+  @spec unescape_segment(segment :: String.t(), acc :: binary()) :: {:ok, String.t()} | :error
+  defp unescape_segment(segment, acc \\ <<>>)
+  defp unescape_segment(<<>>, acc), do: {:ok, acc}
 
-  defp unescape_segment(<<letter, rest::binary>>)
+  defp unescape_segment(<<letter, rest::binary>>, acc)
        when letter in ?0..?9
        when letter in ?a..?z
        when letter in ?A..?Z,
-       do: <<letter, unescape_segment(rest)::binary>>
+       do: unescape_segment(rest, <<acc::binary, letter>>)
 
-  defp unescape_segment(<<?_, h, l, rest::binary>>) do
-    {letter, ""} = Integer.parse(<<h, l>>, 16)
-    <<letter, unescape_segment(rest)::binary>>
+  defp unescape_segment(<<?_, h, l, rest::binary>>, acc) do
+    case Integer.parse(<<h, l>>, 16) do
+      {letter, ""} -> unescape_segment(rest, <<acc::binary, letter>>)
+      _other -> :error
+    end
   end
+
+  # a byte the escaped encoding can't have produced: an unescaped
+  # non-alphanumeric byte (`-` on Postgres 16+, UTF-8, etc.) or a
+  # truncated escape sequence
+  defp unescape_segment(_segment, _acc), do: :error
 end

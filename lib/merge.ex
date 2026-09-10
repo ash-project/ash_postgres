@@ -4,11 +4,16 @@
 
 defmodule AshPostgres.Merge do
   @moduledoc false
-  # Builds and executes PostgreSQL `MERGE` statements, used to implement upserts.
+  # Builds and executes PostgreSQL `MERGE` statements, used to implement `update_many`: many
+  # heterogeneous updates in a single statement, each row of the `USING` source updating the
+  # target row it matches. Both `MERGE ... RETURNING` and `merge_action()` require PostgreSQL 17,
+  # so callers must gate on the server version.
   #
-  # `MERGE` performs the upsert in a single statement and, via `merge_action()`, reports per
-  # row whether that row was inserted or updated. Both `MERGE ... RETURNING` and
-  # `merge_action()` require PostgreSQL 17, so callers must gate on the server version.
+  # Upserts deliberately do not use `MERGE` (see `AshPostgres.Upsert`): it evaluates its `ON`
+  # condition against a snapshot and does not arbitrate concurrent inserts of the same key, so
+  # two concurrent upserts would both take `WHEN NOT MATCHED` and the loser would fail with a
+  # unique violation. `INSERT ... ON CONFLICT` instead waits for the concurrent insert and then
+  # runs the update.
   #
   # Ecto has no `MERGE` query type, so the statement text is assembled here. To avoid
   # re-implementing SQL generation, each piece is still produced by Ecto:
@@ -48,21 +53,22 @@ defmodule AshPostgres.Merge do
     * `:prefix` - the schema/prefix for the target table
     * `:entries` (required) - a list of attribute maps for the `USING (VALUES ...)` source
     * `:source_fields` - attribute names that must exist on the source in addition to the entry
-      columns (e.g. upsert keys or calculation-key dependencies referenced via `EXCLUDED`); any not
-      set by the entries are supplied as NULL and are not inserted
+      columns (e.g. match keys or calculation-key dependencies referenced via `EXCLUDED`); any not
+      set by the entries are supplied as NULL
     * `:extra_source_columns` - synthetic (non-attribute) columns to add to the source, each
       `%{name: atom, type: ecto_type, values: [value_per_entry]}` (e.g. per-row present? flags for
-      `update_many`). Exposed on `EXCLUDED` but never inserted.
+      `update_many`). Exposed on `EXCLUDED`.
     * `:on_query` (required) - an `Ecto.Query` (`select: 1`, `where: <pred>`) whose WHERE is the
-      full `ON` condition (per-key matching plus base_filter / identity where)
+      full `ON` condition (per-key matching plus base_filter)
     * `:set_query` - an `Ecto.Query` carrying `update: [set: ...]` (no `where`); rendered into
       `WHEN MATCHED THEN UPDATE SET ...`. When absent/`:do_nothing`, `WHEN MATCHED` is omitted.
     * `:when_matched_condition_query` - optional `Ecto.Query` (`select: 1`, `where: <cond>`) whose
-      WHERE becomes `WHEN MATCHED AND (<cond>)` (the upsert condition; may reference `EXCLUDED`)
-    * `:on_not_matched` - `:insert` (default) or `:do_nothing`
+      WHERE becomes `WHEN MATCHED AND (<cond>)` (may reference `EXCLUDED`)
     * `:returning` - `true`, a list of fields, or `false`/`nil`
     * `:report_action?` - when true, append `merge_action()` and tag returned records with
-      `:upsert_action` (`:insert`/`:update`) metadata
+      `:upsert_action` (`:update`) metadata
+
+  Source rows that match no target row are ignored (`WHEN NOT MATCHED THEN DO NOTHING`).
 
   Returns `{count, records | nil}`.
   """
@@ -84,7 +90,7 @@ defmodule AshPostgres.Merge do
     prefix = opts[:prefix]
 
     # 1. USING (VALUES ...) AS EXCLUDED(cols) -- rendered, dumped, and cast by Ecto.
-    {insert_header, values_sql, values_params} =
+    {values_sql, values_params} =
       build_values_source(
         repo,
         resource,
@@ -95,7 +101,7 @@ defmodule AshPostgres.Merge do
 
     counter = length(values_params)
 
-    # 2. ON <predicate> -- key matching + base_filter + identity where, rendered upstream.
+    # 2. ON <predicate> -- key matching + base_filter, rendered upstream.
     {on_predicate_sql, on_predicate_params, counter, target_alias_from_on} =
       render_optional_where(repo, Keyword.fetch!(opts, :on_query), counter)
 
@@ -116,7 +122,7 @@ defmodule AshPostgres.Merge do
       ])
 
     on_sql = [" ON ", on_predicate_sql]
-    not_matched_sql = build_when_not_matched(opts[:on_not_matched] || :insert, insert_header)
+    not_matched_sql = " WHEN NOT MATCHED THEN DO NOTHING"
     {returning_sql, returning_fields} = build_returning(opts, resource, target_alias)
 
     sql =
@@ -143,7 +149,11 @@ defmodule AshPostgres.Merge do
     # When we requested RETURNING, the affected count is the number of returned rows.
     count = if is_list(result.rows), do: length(result.rows), else: result.num_rows
 
-    {count, load_returning(repo, resource, result.rows, returning_fields, opts)}
+    {count,
+     load_returned_rows(repo, resource, result.rows, returning_fields, %{
+       source: table,
+       prefix: prefix
+     })}
   end
 
   defp build_values_source(repo, resource, entries, extra_fields, extra_columns) do
@@ -151,16 +161,14 @@ defmodule AshPostgres.Merge do
 
     # The source is referenced as `EXCLUDED` in the ON/SET/condition clauses. Beyond the entry
     # columns it must also expose any attribute referenced there but not set by these entries
-    # (e.g. an upsert key with no provided value, or an attribute a calculation key depends on);
-    # those are supplied as NULL. Only the entry columns are inserted (below), so database
-    # defaults still apply to the rest.
+    # (e.g. a match key with no provided value, or an attribute a calculation key depends on);
+    # those are supplied as NULL.
     source_fields = Enum.uniq(entry_fields ++ extra_fields)
 
-    insert_cols = source_columns(resource, entry_fields)
     attr_cols = source_columns(resource, source_fields)
 
     # Synthetic, non-attribute columns (e.g. per-row "is this column present?" flags for
-    # update_many). They are exposed on `EXCLUDED` for the SET clause but never inserted.
+    # update_many), exposed on `EXCLUDED` for the SET clause.
     types =
       attr_cols
       |> Map.new(fn {_field, source_col, type} -> {source_col, type} end)
@@ -186,8 +194,7 @@ defmodule AshPostgres.Merge do
     {values_sql, values_params} =
       Ecto.Adapters.SQL.to_sql(:all, repo, from(v in values(rows, types)), counter: 0)
 
-    insert_header = Enum.map(insert_cols, fn {_field, source_col, _type} -> source_col end)
-    {insert_header, values_sql, values_params}
+    {values_sql, values_params}
   end
 
   defp source_columns(resource, fields) do
@@ -258,7 +265,8 @@ defmodule AshPostgres.Merge do
   # The database column for a field, as Ecto knows it. This is the name used in the rendered
   # VALUES header, in `EXCLUDED.<col>`/`<target_alias>.<col>` references, and as the
   # `repo.load/2` key (which maps by source column, not field name).
-  defp db_column(resource, field) do
+  @doc false
+  def db_column(resource, field) do
     resource.__schema__(:field_source, field) || field
   end
 
@@ -273,14 +281,6 @@ defmodule AshPostgres.Merge do
 
     cond_part = if cond_sql, do: [" AND ", cond_sql], else: []
     {[" WHEN MATCHED", cond_part, " THEN UPDATE SET ", set_clause], params, target_alias}
-  end
-
-  defp build_when_not_matched(:do_nothing, _header), do: " WHEN NOT MATCHED THEN DO NOTHING"
-
-  defp build_when_not_matched(:insert, header) do
-    cols = Enum.map_join(header, ", ", &quote_name/1)
-    vals = Enum.map_join(header, ", ", fn col -> "#{@source_alias}.#{quote_name(col)}" end)
-    " WHEN NOT MATCHED THEN INSERT (#{cols}) VALUES (#{vals})"
   end
 
   defp build_returning(opts, resource, target_alias) do
@@ -308,23 +308,27 @@ defmodule AshPostgres.Merge do
 
     action_sql = if report_action?, do: ", merge_action()", else: ""
 
-    {" RETURNING " <> col_sql <> action_sql, %{sources: sources, report_action?: report_action?}}
+    {" RETURNING " <> col_sql <> action_sql,
+     %{sources: sources, action: if(report_action?, do: :merge_action)}}
   end
 
-  defp load_returning(_repo, _resource, _rows, nil, _opts), do: nil
+  @doc false
+  # Loads the rows of a `RETURNING` clause into resource records.
+  #
+  # `returning_fields` is `nil` (nothing was returned) or `%{sources: [column], action: mode}`:
+  # each row holds one value per source column followed, when `mode` is set, by a trailing
+  # action value that becomes `:upsert_action` metadata. `mode` is `:merge_action` for the
+  # `INSERT`/`UPDATE`/`DELETE` strings of `merge_action()`, or `:from_inserted_flag` for the
+  # boolean of `(xmax = 0)` in an `INSERT ... ON CONFLICT` (`true` -> `:insert`, `false` ->
+  # `:update`).
+  def load_returned_rows(_repo, _resource, _rows, nil, _meta), do: nil
 
-  defp load_returning(
-         repo,
-         resource,
-         rows,
-         %{sources: sources, report_action?: report_action?},
-         _opts
-       ) do
+  def load_returned_rows(repo, resource, rows, %{sources: sources, action: mode}, meta) do
     Enum.map(rows, fn row ->
       {source_values, action} =
-        if report_action? do
+        if mode do
           {action_value, values} = List.pop_at(row, length(sources))
-          {Enum.zip(sources, values), action_value}
+          {Enum.zip(sources, values), upsert_action(mode, action_value)}
         else
           {Enum.zip(sources, row), nil}
         end
@@ -333,18 +337,26 @@ defmodule AshPostgres.Merge do
         repo.load(resource, Map.new(source_values))
         |> Map.put(:__meta__, %Ecto.Schema.Metadata{
           state: :loaded,
-          source: AshPostgres.DataLayer.Info.table(resource),
+          source: meta.source,
+          prefix: meta[:prefix],
           schema: resource
         })
 
-      case action do
-        "INSERT" -> Ash.Resource.put_metadata(record, :upsert_action, :insert)
-        "UPDATE" -> Ash.Resource.put_metadata(record, :upsert_action, :update)
-        "DELETE" -> Ash.Resource.put_metadata(record, :upsert_action, :delete)
-        _ -> record
+      if action do
+        Ash.Resource.put_metadata(record, :upsert_action, action)
+      else
+        record
       end
     end)
   end
+
+  defp upsert_action(:merge_action, "INSERT"), do: :insert
+  defp upsert_action(:merge_action, "UPDATE"), do: :update
+  defp upsert_action(:merge_action, "DELETE"), do: :delete
+  defp upsert_action(:merge_action, _), do: nil
+  defp upsert_action(:from_inserted_flag, true), do: :insert
+  defp upsert_action(:from_inserted_flag, false), do: :update
+  defp upsert_action(:from_inserted_flag, _), do: nil
 
   # Deterministically pull clauses out of rendered SQL (no alias rewriting).
   # `UPDATE "table" AS <alias> SET <set>` -> {alias, set}
@@ -380,7 +392,8 @@ defmodule AshPostgres.Merge do
 
   # The alias Ecto emits for the (single) source. In `... "table" AS p0 ...` it is the last
   # whitespace-delimited token before the split keyword.
-  defp read_trailing_alias(before_keyword) do
+  @doc false
+  def read_trailing_alias(before_keyword) do
     before_keyword
     |> String.trim()
     |> String.split()
@@ -404,7 +417,8 @@ defmodule AshPostgres.Merge do
   end
 
   # Scans for a top-level SQL keyword, skipping quoted strings and parens (not a regex).
-  defp split_sql_keyword!(sql, keyword) do
+  @doc false
+  def split_sql_keyword!(sql, keyword) do
     case split_sql_keyword(sql, keyword) do
       nil -> raise ArgumentError, "Expected #{keyword} in rendered SQL: #{inspect(sql)}"
       split -> split
@@ -489,9 +503,10 @@ defmodule AshPostgres.Merge do
     end
   end
 
-  defp quote_name(name) when is_atom(name), do: quote_name(Atom.to_string(name))
+  @doc false
+  def quote_name(name) when is_atom(name), do: quote_name(Atom.to_string(name))
 
-  defp quote_name(name) when is_binary(name) do
+  def quote_name(name) when is_binary(name) do
     if String.contains?(name, "\"") do
       raise ArgumentError, "bad field/table name #{inspect(name)}"
     end
@@ -499,6 +514,7 @@ defmodule AshPostgres.Merge do
     <<?", name::binary, ?">>
   end
 
-  defp quote_table(nil, table), do: quote_name(table)
-  defp quote_table(prefix, table), do: "#{quote_name(prefix)}.#{quote_name(table)}"
+  @doc false
+  def quote_table(nil, table), do: quote_name(table)
+  def quote_table(prefix, table), do: "#{quote_name(prefix)}.#{quote_name(table)}"
 end

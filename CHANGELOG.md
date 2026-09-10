@@ -11,6 +11,42 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.13.1](https://github.com/ash-project/ash_postgres/compare/v2.13.0...v2.13.1) (2026-09-08)
+
+
+
+
+### Bug Fixes:
+
+* don't use `merge` for upserts by Zach Daniel
+
+## [v2.13.0](https://github.com/ash-project/ash_postgres/compare/v2.12.0...v2.13.0) (2026-08-30)
+
+
+
+
+### Features:
+
+* store a range in a native Postgres range column (#818) by Matt Beanland
+
+### Improvements:
+
+* teach the Postgrex types module a :duration attribute needs (#815) by Matt Beanland
+
+### Bug Fixes:
+
+* raise on a failed tenant rename instead of silently returning :ok (CVE-2026-78699) by Zach Daniel
+
+* update ltree casting failure mode by Zach Daniel
+
+* tighten tenant validation by Zach Daniel
+
+* run tenant migrations from mix ash.setup (#836) by TravelCurry02
+
+* only await table structure for custom statement dependencies (#826) by Alt-iOS
+
+* do not KeyError when Postgres omits DETAIL on a constraint violation (#824) by Michael Kuk
+
 ## [v2.12.0](https://github.com/ash-project/ash_postgres/compare/v2.11.0...v2.12.0) (2026-08-14)
 
 

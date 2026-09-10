@@ -40,10 +40,8 @@ defmodule AshPostgres.Test.UpsertTest do
 
     identities do
       # `nils_distinct?: false` matches the `NULLS NOT DISTINCT` index, so two
-      # nil `uniq_two` values conflict. Both upsert implementations need it:
-      # `INSERT ... ON CONFLICT` renders a conflict target Postgres resolves
-      # against that index, and `MERGE` (17+) widens its `ON` comparison to be
-      # nil-safe.
+      # nil `uniq_two` values conflict: the upsert's conflict target is resolved
+      # by Postgres against that index.
       identity(:uniq_one_and_two, [:uniq_one, :uniq_two]) do
         nils_distinct?(false)
       end
@@ -238,11 +236,8 @@ defmodule AshPostgres.Test.UpsertTest do
     assert DateTime.compare(upserted.updated_at, past) == :eq
   end
 
-  describe "upsert_action metadata (MERGE, PostgreSQL 17+)" do
-    # Below PG 17, upserts use INSERT ... ON CONFLICT, which cannot report whether each row
-    # was inserted or updated; this metadata is only populated on the MERGE path.
-    @describetag :postgres_17
-
+  describe "upsert_action metadata" do
+    # Derived from `RETURNING (xmax = 0)` on the `INSERT ... ON CONFLICT` statement.
     test "a created record is tagged :insert and an updated record is tagged :update" do
       id = Ash.UUID.generate()
 
@@ -289,6 +284,84 @@ defmodule AshPostgres.Test.UpsertTest do
 
       assert actions[existing_id] == :update
       assert actions[new_id] == :insert
+    end
+  end
+
+  # Upserts render their own `INSERT ... ON CONFLICT` statement (see `AshPostgres.Upsert`), so
+  # these pin down the details `repo.insert_all/3` would otherwise have handled.
+  describe "INSERT ... ON CONFLICT rendering" do
+    test "rows omitting an attribute get the column default, and array values stay intact" do
+      %Ash.BulkResult{records: records} =
+        Ash.bulk_create!(
+          [
+            %{title: "with", price: 10, list_of_stuff: [%{"a" => 1}, %{"b" => 2}]},
+            %{title: "without"}
+          ],
+          Post,
+          :create,
+          upsert?: true,
+          upsert_fields: [:title],
+          return_records?: true
+        )
+
+      by_title = Map.new(records, &{&1.title, &1})
+
+      assert by_title["with"].price == 10
+      assert by_title["with"].list_of_stuff == [%{"a" => 1}, %{"b" => 2}]
+      assert is_nil(by_title["without"].price)
+      assert is_nil(by_title["without"].list_of_stuff)
+    end
+
+    test "atomic insert values are rendered as subqueries alongside plain values" do
+      id = Ash.UUID.generate()
+
+      created =
+        Post
+        |> Ash.Changeset.for_create(:create_with_atomic_set, %{id: id, title: "title"})
+        |> Ash.create!(upsert?: true)
+
+      assert created.score == 100
+      assert Ash.Resource.get_metadata(created, :upsert_action) == :insert
+
+      updated =
+        Post
+        |> Ash.Changeset.for_create(:create_with_atomic_set, %{id: id, title: "title2"})
+        |> Ash.create!(upsert?: true, upsert_fields: [:title])
+
+      assert updated.id == id
+      assert updated.title == "title2"
+      assert updated.score == 100
+      assert Ash.Resource.get_metadata(updated, :upsert_action) == :update
+    end
+
+    test "an upsert with a condition renders it as the DO UPDATE WHERE clause" do
+      id = Ash.UUID.generate()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{id: id, title: "title", price: 10})
+      |> Ash.create!()
+
+      # Condition false: the row is left alone and nothing is returned for it.
+      %Ash.BulkResult{records: []} =
+        Ash.bulk_create!([%{id: id, title: "skipped", price: 10}], Post, :create,
+          upsert?: true,
+          upsert_fields: [:title],
+          upsert_condition: Ash.Expr.expr(price != upsert_conflict(:price)),
+          return_records?: true
+        )
+
+      # Condition true: the row is updated and tagged as such.
+      %Ash.BulkResult{records: [updated]} =
+        Ash.bulk_create!([%{id: id, title: "updated", price: 20}], Post, :create,
+          upsert?: true,
+          upsert_fields: [:title, :price],
+          upsert_condition: Ash.Expr.expr(price != upsert_conflict(:price)),
+          return_records?: true
+        )
+
+      assert updated.title == "updated"
+      assert updated.price == 20
+      assert Ash.Resource.get_metadata(updated, :upsert_action) == :update
     end
   end
 end
