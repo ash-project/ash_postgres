@@ -812,11 +812,6 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
 
   describe "foreign key deferrability" do
     test "AlterDeferrability{direction: :up} requires table_columns_settled, satisfied by the AddAttribute that adds the foreign key it alters" do
-      # `ALTER CONSTRAINT ... DEFERRABLE` runs against a foreign key an
-      # `AddAttribute` carrying `references:` creates in the same batch. As a
-      # `no_phase` op it otherwise floats to the front and alters a constraint
-      # that does not exist yet (reproduced when a composite `with:` key pushes
-      # the foreign key into a later phase).
       alter_def = %Operation.AlterDeferrability{
         table: "comments",
         schema: nil,
@@ -860,8 +855,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
         direction: :up
       }
 
-      # The input lists the deferrability alter first on purpose: only the
-      # dependency edge, not input order, can put the column add ahead of it.
+      # Alter listed first on purpose: only the dependency edge can reorder it.
       operations = MigrationGenerator.toposort_operations([alter_def, add_fk_column])
 
       add_index = Enum.find_index(operations, &match?(%Operation.AddAttribute{}, &1))
@@ -873,11 +867,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
 
   describe "primary key columns" do
     test "AddPrimaryKey requires column_ready for each key, satisfied by the AddAttribute that adds a new composite-pkey column" do
-      # Widening a primary key from (id) to (id, cell_id) and adding cell_id in
-      # the same batch (list-partitioning by cell_id) emits `AddAttribute` for
-      # the column plus `AddPrimaryKey` over both columns. `ADD PRIMARY KEY (id,
-      # cell_id)` must run after the column is added, or it references a column
-      # that does not exist yet.
+      # Widening the primary key to include a newly added column (cell_id).
       add_pk = %Operation.AddPrimaryKey{table: "accounts", schema: nil, keys: [:id, :cell_id]}
 
       add_cell_id = %Operation.AddAttribute{
@@ -902,9 +892,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
 
       add_pk = %Operation.AddPrimaryKey{table: "accounts", schema: nil, keys: [:id, :cell_id]}
 
-      # The input lists the primary key first on purpose: `AddPrimaryKey` is a
-      # `no_phase` op that floats, so only the dependency edge (not input order)
-      # can put the column add ahead of it.
+      # AddPrimaryKey listed first on purpose: only the dependency edge can reorder it.
       operations = MigrationGenerator.toposort_operations([add_pk, add_cell_id])
 
       add_index = Enum.find_index(operations, &match?(%Operation.AddAttribute{}, &1))

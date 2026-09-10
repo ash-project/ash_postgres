@@ -19,20 +19,12 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
   barrier would need it to run last — contradictory. Give each operation
   type the ordering it needs via `requires/1` instead.
 
-  Operations flagged `no_phase: true` are not grouped into the create/alter
-  phases that order the rest (see `group_into_phases/3`); they carry no
-  implicit ordering and float freely unless `requires/1` gives them an edge.
-  Any such operation whose `up` SQL names an object another operation can
-  create in the same batch (a column, a foreign key, a table, an index) has to
-  require that object's creation fact, or it can run before the object exists.
-  Most need no such requirement: they act only on objects that predate the
-  batch (a rename or drop of something an earlier migration made, e.g.
-  `RenameTable`, `RemoveCustomIndex`), render nothing in `up` (the `*Down`
-  helpers, which exist only to shape the reversed `down`), or are held in place
-  by the consumers that require their facts. The two that act on an
-  in-batch-created object are `AlterDeferrability` (the foreign key a new
-  `belongs_to` adds) and `AddPrimaryKey` (a column a new attribute adds); each
-  requires the relevant fact in `requires/1` below.
+  Operations flagged `no_phase: true` float freely (they skip the create/alter
+  phases; see `group_into_phases/3`) unless `requires/1` gives them an edge. One
+  whose `up` SQL names an object another operation creates in the same batch must
+  require that object's fact, or it runs first. Only `AlterDeferrability` and
+  `AddPrimaryKey` do; the rest act on pre-existing objects, render nothing in
+  `up`, or are ordered by their facts' consumers.
 
   Requiring a fact waits on *every* operation that provides it, not just one
   — see `toposort_operations/1`'s `provides_index`. That's what makes
@@ -345,26 +337,15 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
         [{:table_ready, key(table, schema)}] ++
           reference_requirements(attribute, table, schema)
 
-      # An `ALTER CONSTRAINT ... DEFERRABLE` runs against a foreign key that a column
-      # operation on this table creates in the same batch (an `add`/`modify` carrying
-      # `references:`, which provides `table_columns_settled`). Without a requirement it
-      # floats to the front and fails with "constraint ... does not exist" whenever the
-      # referenced table forces the FK into a later phase, e.g. a composite `with:` key
-      # to a table created later in the same batch. The `:down` direction drops
-      # deferrability ahead of everything via `early_tier?`, so only `:up` orders here.
+      # `ALTER CONSTRAINT ... DEFERRABLE` runs against a foreign key an `AddAttribute`
+      # in this batch creates (it provides `table_columns_settled`); without this it
+      # floats ahead and fails "constraint does not exist". `:down` drops it early_tier.
       %Operation.AlterDeferrability{table: table, schema: schema, direction: :up} ->
         [{:table_columns_settled, key(table, schema)}]
 
-      # `ALTER TABLE ... ADD PRIMARY KEY (keys)` runs against columns an `AddAttribute`
-      # in the same batch can create: a new attribute folded into a composite primary
-      # key (e.g. list-partitioning that adds a partition-key column and widens the
-      # primary key to include it) emits `AddAttribute` for that column plus this op.
-      # As a `no_phase` op with no requirement it otherwise floats to the front and adds
-      # the primary key before the column exists. Require each key column's existence;
-      # the requirement is vacuous for a key that already exists from an earlier
-      # migration (nothing in this batch provides its `column_ready`). No cycle: this
-      # provides only `table_structure_ready`, and `AddAttribute` requires `table_ready`
-      # and its references' facts, never `table_structure_ready` of its own table.
+      # `ADD PRIMARY KEY (keys)` runs against columns an `AddAttribute` in this batch can
+      # add (a new attribute folded into a composite key), so require each; without this
+      # it floats ahead of the add. Vacuous for pre-existing keys, and no cycle.
       %Operation.AddPrimaryKey{table: table, schema: schema, keys: keys} ->
         Enum.map(keys, &{:column_ready, key(table, schema, &1)})
 
