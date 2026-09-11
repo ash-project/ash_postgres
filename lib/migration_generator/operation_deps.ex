@@ -19,6 +19,13 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
   barrier would need it to run last — contradictory. Give each operation
   type the ordering it needs via `requires/1` instead.
 
+  Operations flagged `no_phase: true` float freely (they skip the create/alter
+  phases; see `group_into_phases/3`) unless `requires/1` gives them an edge. One
+  whose `up` SQL names an object another operation creates in the same batch must
+  require that object's fact, or it runs first. Only `AlterDeferrability` and
+  `AddPrimaryKey` do; the rest act on pre-existing objects, render nothing in
+  `up`, or are ordered by their facts' consumers.
+
   Requiring a fact waits on *every* operation that provides it, not just one
   — see `toposort_operations/1`'s `provides_index`. That's what makes
   `:table_structure_ready` works as a catch-all: many operation types provide
@@ -329,6 +336,18 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
       %Operation.AddAttribute{table: table, schema: schema, attribute: attribute} ->
         [{:table_ready, key(table, schema)}] ++
           reference_requirements(attribute, table, schema)
+
+      # `ALTER CONSTRAINT ... DEFERRABLE` runs against a foreign key an `AddAttribute`
+      # in this batch creates (it provides `table_columns_settled`); without this it
+      # floats ahead and fails "constraint does not exist". `:down` drops it early_tier.
+      %Operation.AlterDeferrability{table: table, schema: schema, direction: :up} ->
+        [{:table_columns_settled, key(table, schema)}]
+
+      # `ADD PRIMARY KEY (keys)` runs against columns an `AddAttribute` in this batch can
+      # add (a new attribute folded into a composite key), so require each; without this
+      # it floats ahead of the add. Vacuous for pre-existing keys, and no cycle.
+      %Operation.AddPrimaryKey{table: table, schema: schema, keys: keys} ->
+        Enum.map(keys, &{:column_ready, key(table, schema, &1)})
 
       %Operation.AlterAttribute{
         table: table,
