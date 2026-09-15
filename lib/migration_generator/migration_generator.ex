@@ -1068,7 +1068,8 @@ defmodule AshPostgres.MigrationGenerator do
         | attributes: merge_attributes(attributes, snapshot.table, count_with_create),
           identities: snapshots |> Enum.flat_map(& &1.identities) |> Enum.uniq(),
           custom_indexes: snapshots |> Enum.flat_map(& &1.custom_indexes) |> Enum.uniq(),
-          custom_statements: snapshots |> Enum.flat_map(& &1.custom_statements) |> Enum.uniq()
+          custom_statements: snapshots |> Enum.flat_map(& &1.custom_statements) |> Enum.uniq(),
+          check_constraints: merge_check_constraints(snapshots, snapshot.table)
       }
 
       all_identities =
@@ -1106,6 +1107,61 @@ defmodule AshPostgres.MigrationGenerator do
         },
         existing_snapshot
       }
+    end)
+  end
+
+  defp merge_check_constraints(snapshots, table) do
+    constraints =
+      snapshots
+      |> Enum.flat_map(& &1.check_constraints)
+      |> Enum.uniq()
+
+    constraints
+    |> Enum.map(& &1.name)
+    |> Enum.uniq()
+    |> Enum.map(fn name ->
+      constraints
+      |> Enum.filter(&(&1.name == name))
+      |> case do
+        [constraint] ->
+          constraint
+
+        [constraint | _] = matching ->
+          case Enum.uniq_by(matching, & &1.check) do
+            [_] ->
+              :ok
+
+            conflicting ->
+              raise """
+              Conflicting check constraints named `#{name}` on table `#{table}`.
+
+              Multiple resources use this table and define a check constraint with this name, but with different checks:
+
+              #{Enum.map_join(conflicting, "\n", &"  * #{&1.check}")}
+
+              Check constraints on a shared table must agree on their `check`, or use different names.
+              """
+          end
+
+          base_filter =
+            if Enum.any?(matching, &is_nil(&1.base_filter)) do
+              nil
+            else
+              matching
+              |> Enum.map(& &1.base_filter)
+              |> Enum.uniq()
+              |> case do
+                [base_filter] -> base_filter
+                base_filters -> Enum.map_join(base_filters, " OR ", &"(#{&1})")
+              end
+            end
+
+          %{
+            constraint
+            | base_filter: base_filter,
+              attribute: matching |> Enum.flat_map(& &1.attribute) |> Enum.uniq()
+          }
+      end
     end)
   end
 
@@ -2309,9 +2365,7 @@ defmodule AshPostgres.MigrationGenerator do
     constraints_to_add =
       snapshot.check_constraints
       |> Enum.reject(fn constraint ->
-        Enum.find(old_snapshot.check_constraints, fn old_constraint ->
-          old_constraint.check == constraint.check && old_constraint.name == constraint.name
-        end)
+        Enum.find(old_snapshot.check_constraints, &check_constraints_match?(&1, constraint))
       end)
       |> Enum.map(fn constraint ->
         %Operation.AddCheckConstraint{
@@ -2324,9 +2378,7 @@ defmodule AshPostgres.MigrationGenerator do
     constraints_to_remove =
       old_snapshot.check_constraints
       |> Enum.reject(fn old_constraint ->
-        Enum.find(snapshot.check_constraints, fn constraint ->
-          old_constraint.check == constraint.check && old_constraint.name == constraint.name
-        end)
+        Enum.find(snapshot.check_constraints, &check_constraints_match?(old_constraint, &1))
       end)
       |> Enum.map(fn old_constraint ->
         %Operation.RemoveCheckConstraint{
@@ -2381,6 +2433,11 @@ defmodule AshPostgres.MigrationGenerator do
     |> add_custom_index_name(snapshot.table)
     |> Map.put(:where, {snapshot.base_filter, index.where})
     |> Map.delete(:error_fields)
+  end
+
+  defp check_constraints_match?(left, right) do
+    left.name == right.name && left.check == right.check &&
+      Map.get(left, :base_filter) == Map.get(right, :base_filter)
   end
 
   @identity_match_keys [:name, :keys, :base_filter, :all_tenants?, :nils_distinct?, :where]
@@ -4312,8 +4369,15 @@ defmodule AshPostgres.MigrationGenerator do
     |> Map.update!(:custom_indexes, &load_custom_indexes/1)
     |> Map.put_new(:custom_statements, [])
     |> Map.update!(:custom_statements, &load_custom_statements/1)
+    |> Map.put_new(:base_filter, nil)
     |> Map.put_new(:check_constraints, [])
-    |> Map.update!(:check_constraints, &load_check_constraints/1)
+    |> then(fn snapshot ->
+      Map.update!(
+        snapshot,
+        :check_constraints,
+        &load_check_constraints(&1, snapshot.base_filter)
+      )
+    end)
     |> Map.update!(:repo, &maybe_to_atom/1)
     |> Map.put_new(:multitenancy, %{
       attribute: nil,
@@ -4321,13 +4385,14 @@ defmodule AshPostgres.MigrationGenerator do
       global: nil
     })
     |> Map.update!(:multitenancy, &load_multitenancy/1)
-    |> Map.put_new(:base_filter, nil)
     |> Map.put_new(:drop_table_opted_out, false)
   end
 
-  defp load_check_constraints(constraints) do
+  defp load_check_constraints(constraints, snapshot_base_filter) do
     Enum.map(constraints, fn constraint ->
-      Map.update!(constraint, :attribute, fn attribute ->
+      constraint
+      |> Map.put_new(:base_filter, snapshot_base_filter)
+      |> Map.update!(:attribute, fn attribute ->
         attribute
         |> List.wrap()
         |> Enum.map(&maybe_to_atom/1)

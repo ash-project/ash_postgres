@@ -4537,6 +4537,361 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert File.read!(file) =~
                ~S[drop_if_exists constraint(:posts, :price_must_be_positive)]
     end
+
+    test "when multiple resources share a table, a constraint named without `check` on the first resource does not drop the constraint",
+         %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      # The subtype only names the constraint (for the error mapping) and is declared first
+      defposts TextPost do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:kind, :string, public?: true)
+          attribute(:body, :string, public?: true)
+        end
+
+        resource do
+          base_filter(expr(kind == "text"))
+        end
+
+        postgres do
+          base_filter_sql "kind = 'text'"
+
+          check_constraints do
+            check_constraint(:body, "text_has_body", message: "text notes need a body")
+          end
+        end
+      end
+
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:kind, :string, public?: true)
+          attribute(:body, :string, public?: true)
+        end
+
+        postgres do
+          check_constraints do
+            check_constraint(:body, "text_has_body", check: "kind <> 'text' OR body IS NOT NULL")
+          end
+        end
+      end
+
+      defdomain([TextPost, Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert file =
+               "#{migration_path}/**/*_migrate_resources*.exs"
+               |> Path.wildcard()
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+               |> Enum.sort()
+               |> Enum.at(0)
+               |> File.read!()
+
+      assert file =~
+               ~S'''
+               create constraint(:posts, :text_has_body, check: """
+                 kind <> 'text' OR body IS NOT NULL
+               """)
+               '''
+    end
+
+    test "when multiple resources share a table, a constraint defined without a base filter is not wrapped in another resource's base filter",
+         %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defposts TextPost do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:kind, :string, public?: true)
+          attribute(:body, :string, public?: true)
+        end
+
+        resource do
+          base_filter(expr(kind == "text"))
+        end
+
+        postgres do
+          base_filter_sql "kind = 'text'"
+
+          check_constraints do
+            check_constraint(:body, "text_has_body", check: "kind <> 'text' OR body IS NOT NULL")
+          end
+        end
+      end
+
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:kind, :string, public?: true)
+          attribute(:body, :string, public?: true)
+        end
+
+        postgres do
+          check_constraints do
+            check_constraint(:body, "text_has_body", check: "kind <> 'text' OR body IS NOT NULL")
+          end
+        end
+      end
+
+      defdomain([TextPost, Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert file =
+               "#{migration_path}/**/*_migrate_resources*.exs"
+               |> Path.wildcard()
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+               |> Enum.sort()
+               |> Enum.at(0)
+               |> File.read!()
+
+      assert file =~
+               ~S'''
+               create constraint(:posts, :text_has_body, check: """
+                 kind <> 'text' OR body IS NOT NULL
+               """)
+               '''
+
+      refute file =~ "OR NOT"
+    end
+
+    test "when multiple resources share a table and define the same constraint under different base filters, the base filters are combined",
+         %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defposts TextPost do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:kind, :string, public?: true)
+          attribute(:body, :string, public?: true)
+        end
+
+        resource do
+          base_filter(expr(kind == "text"))
+        end
+
+        postgres do
+          base_filter_sql "kind = 'text'"
+
+          check_constraints do
+            check_constraint(:body, "has_body", check: "body IS NOT NULL")
+          end
+        end
+      end
+
+      defposts FlagPost do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:kind, :string, public?: true)
+          attribute(:body, :string, public?: true)
+        end
+
+        resource do
+          base_filter(expr(kind == "flag"))
+        end
+
+        postgres do
+          base_filter_sql "kind = 'flag'"
+
+          check_constraints do
+            check_constraint(:body, "has_body", check: "body IS NOT NULL")
+          end
+        end
+      end
+
+      defdomain([TextPost, FlagPost])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert file =
+               "#{migration_path}/**/*_migrate_resources*.exs"
+               |> Path.wildcard()
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+               |> Enum.sort()
+               |> Enum.at(0)
+               |> File.read!()
+
+      assert file =~
+               ~S'''
+               create constraint(:posts, :has_body, check: """
+                 (body IS NOT NULL) OR NOT ((kind = 'text') OR (kind = 'flag'))
+               """)
+               '''
+    end
+
+    test "when multiple resources share a table and define conflicting checks under the same constraint name, it raises",
+         %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defposts TextPost do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+
+        postgres do
+          check_constraints do
+            check_constraint(:body, "has_body", check: "body IS NOT NULL")
+          end
+        end
+      end
+
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, public?: true)
+        end
+
+        postgres do
+          check_constraints do
+            check_constraint(:body, "has_body", check: "body <> ''")
+          end
+        end
+      end
+
+      defdomain([TextPost, Post])
+
+      assert_raise RuntimeError, ~r/conflicting check constraints named `has_body`/i, fn ->
+        AshPostgres.MigrationGenerator.generate(Domain,
+          snapshot_path: snapshot_path,
+          migration_path: migration_path,
+          quiet: true,
+          format: false,
+          auto_name: true
+        )
+      end
+    end
+
+    test "when a constraint with a base filter is removed, the down recreates it composed with the base filter",
+         %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:price, :integer, public?: true)
+        end
+
+        postgres do
+          base_filter_sql "price > -10"
+
+          check_constraints do
+            check_constraint(:price, "price_must_be_positive", check: "price > 0")
+          end
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:price, :integer, public?: true)
+        end
+
+        postgres do
+          base_filter_sql "price > -10"
+        end
+      end
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert file =
+               "#{migration_path}/**/*_migrate_resources*.exs"
+               |> Path.wildcard()
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+               |> Enum.sort()
+               |> Enum.at(1)
+               |> File.read!()
+
+      assert file =~ ~S[drop_if_exists constraint(:posts, :price_must_be_positive)]
+
+      assert file =~
+               ~S'''
+               create constraint(:posts, :price_must_be_positive, check: """
+                 (price > 0) OR NOT (price > -10)
+               """)
+               '''
+
+      refute file =~ "price > -10 AND price > 0"
+    end
+
+    test "when an existing snapshot has no base filter recorded on a constraint, it is not recreated",
+         %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:price, :integer, public?: true)
+        end
+
+        postgres do
+          base_filter_sql "price > -10"
+
+          check_constraints do
+            check_constraint(:price, "price_must_be_positive", check: "price > 0")
+          end
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      # Simulate a snapshot written before constraints recorded their base filter
+      [snapshot_file] = Path.wildcard("#{snapshot_path}/**/posts/*.json")
+
+      snapshot_file
+      |> File.read!()
+      |> Jason.decode!()
+      |> Map.update!("check_constraints", fn constraints ->
+        Enum.map(constraints, &Map.delete(&1, "base_filter"))
+      end)
+      |> Jason.encode!(pretty: true)
+      |> then(&File.write!(snapshot_file, &1))
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [_] =
+               "#{migration_path}/**/*_migrate_resources*.exs"
+               |> Path.wildcard()
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+    end
   end
 
   describe "polymorphic resources" do

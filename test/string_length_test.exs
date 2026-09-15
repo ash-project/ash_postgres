@@ -8,7 +8,6 @@ defmodule AshPostgres.StringLengthTest do
   alias Ash.Query.Function.StringLength
   alias AshPostgres.Test.Post
 
-  require Ash.Query
   import Ash.Expr
 
   # Decomposed, so the stored value is 11 codepoints and its NFC form is 7.

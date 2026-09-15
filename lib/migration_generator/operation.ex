@@ -1623,7 +1623,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       if base_filter do
         ~s'''
         create constraint(:#{as_atom(table)}, :#{as_atom(name)}, check: """
-          #{base_filter} AND #{check}
+          (#{check}) OR NOT (#{base_filter})
         """#{prefix})
         '''
       else
