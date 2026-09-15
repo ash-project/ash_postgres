@@ -28,7 +28,15 @@ defmodule MyApp.Repo do
   ]
 
   def replica do
-    Enum.random(@replicas)
+    case Process.get(:replica) do
+      nil ->
+        replica = Enum.random(@replicas)
+        Process.put(:replica, replica)
+        replica
+
+      replica ->
+        replica
+    end
   end
 
   for repo <- @replicas do
@@ -60,3 +68,39 @@ defmodule MyApp.MyDomain.MyResource do
   end
 end
 ```
+
+## The repo function must answer the same way for a whole query
+
+The function is called every time a repo is needed, and separate calls are compared
+against each other. `AshPostgres.DataLayer.can?(resource, {:join, other_resource})` requires
+the two resources to share a data layer *and* `repo(resource, :read)` to equal
+`repo(other_resource, :read)`, while `can?(resource, {:lateral_join, resources})` compares
+every resource in the list against `repo(resource, :read)`. Nothing memoizes those lookups,
+so a function that picks at random per call answers differently within a single query, and
+any expression that reaches through a relationship fails:
+
+```
+** (Ash.Error.Query.InvalidExpression) cannot access multiple resources for a data layer
+   that can't be joined from within a single expression
+```
+
+Lateral joins are chosen from the same comparison, and there the source resource is itself
+part of the list being checked — so even loading a plain relationship asks about one resource
+twice and compares the two answers. When they disagree, related records are loaded with a
+different query plan, and there is no error to show for it.
+
+This is why the example above remembers its choice in the process dictionary rather than
+calling `Enum.random/1` each time. Two further points for a real application:
+
+- A process that has just written should read from the primary until replication catches up.
+  The `:read` branch of the `repo` function is where that belongs — return `MyApp.Repo`
+  rather than a replica for a short while after a mutation.
+- A long-lived process (a `Phoenix.LiveView`, a channel, a `GenServer`) keeps the repo it
+  first chose. Clear it between units of work — at the start of a LiveView callback, or per
+  request — so it can go back to a replica:
+
+  ```elixir
+  Process.delete(:replica)
+  ```
+
+  Never clear it while a query is being built.
