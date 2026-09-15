@@ -166,9 +166,8 @@ defmodule AshPostgres.ResourceGeenratorTests do
         repo(AshPostgres.TestRepo)
 
         # NOTE: Source is a PostgreSQL VIEW, not a base table.
-        # migrate? false prevents Ash from trying to manage its schema.
-        # TODO: Migrations need to be handled manually for views.
-        migrate?(false)
+        # view? true excludes it from generated migrations, which must be handled manually.
+        view?(true)
       end
 
       attributes do
@@ -234,9 +233,8 @@ defmodule AshPostgres.ResourceGeenratorTests do
         repo(AshPostgres.TestRepo)
 
         # NOTE: Source is a PostgreSQL MATERIALIZED VIEW, not a base table.
-        # migrate? false prevents Ash from trying to manage its schema.
-        # TODO: Migrations need to be handled manually for views.
-        migrate?(false)
+        # view? true excludes it from generated migrations, which must be handled manually.
+        view?(true)
 
         identity_index_names(id_unique: "example_mv_id_unique")
       end

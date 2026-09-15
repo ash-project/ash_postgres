@@ -53,6 +53,120 @@ defmodule AshPostgres.Test.UpsertTest do
     end
   end
 
+  # Backed by a view (created by the test) over a table. Views have no `xmax` system column,
+  # so `view? true` drops the `:upsert_action` metadata.
+  defmodule ViewRecord do
+    @moduledoc false
+    use Ash.Resource,
+      domain: Domain,
+      data_layer: AshPostgres.DataLayer
+
+    postgres do
+      table("upsert_view_records_view")
+      repo(AshPostgres.TestRepo)
+      view?(true)
+    end
+
+    attributes do
+      uuid_primary_key(:id)
+      attribute(:key, :string, public?: true, allow_nil?: false)
+      attribute(:price, :integer, public?: true)
+    end
+
+    identities do
+      identity(:unique_key, [:key])
+    end
+
+    actions do
+      default_accept(:*)
+      defaults([:read, create: :*])
+    end
+  end
+
+  # The same view without `view? true`, to check the error it produces.
+  defmodule UntrackedViewRecord do
+    @moduledoc false
+    use Ash.Resource,
+      domain: Domain,
+      data_layer: AshPostgres.DataLayer
+
+    postgres do
+      table("upsert_view_records_view")
+      repo(AshPostgres.TestRepo)
+      migrate?(false)
+    end
+
+    attributes do
+      uuid_primary_key(:id)
+      attribute(:key, :string, public?: true, allow_nil?: false)
+      attribute(:price, :integer, public?: true)
+    end
+
+    identities do
+      identity(:unique_key, [:key])
+    end
+
+    actions do
+      default_accept(:*)
+      defaults([:read, create: :*])
+    end
+  end
+
+  describe "upserting into a view" do
+    setup do
+      AshPostgres.TestRepo.query!("""
+      CREATE TABLE upsert_view_records (
+        id uuid PRIMARY KEY,
+        key text NOT NULL UNIQUE,
+        price integer
+      )
+      """)
+
+      AshPostgres.TestRepo.query!(
+        "CREATE VIEW upsert_view_records_view AS SELECT id, key, price FROM upsert_view_records"
+      )
+
+      :ok
+    end
+
+    test "works with `view? true`, without `:upsert_action` metadata" do
+      inserted =
+        ViewRecord
+        |> Ash.Changeset.for_create(:create, %{key: "a", price: 1})
+        |> Ash.create!(upsert?: true, upsert_identity: :unique_key)
+
+      assert inserted.price == 1
+      refute Ash.Resource.get_metadata(inserted, :upsert_action)
+
+      updated =
+        ViewRecord
+        |> Ash.Changeset.for_create(:create, %{key: "a", price: 2})
+        |> Ash.create!(upsert?: true, upsert_identity: :unique_key)
+
+      assert updated.id == inserted.id
+      assert updated.price == 2
+      refute Ash.Resource.get_metadata(updated, :upsert_action)
+
+      assert [%{price: 2}] = Ash.read!(ViewRecord)
+
+      assert %Ash.BulkResult{records: [%{price: 3}]} =
+               Ash.bulk_create!([%{key: "a", price: 3}], ViewRecord, :create,
+                 upsert?: true,
+                 upsert_identity: :unique_key,
+                 upsert_fields: [:price],
+                 return_records?: true
+               )
+    end
+
+    test "explains the missing `xmax` column when `view?` is not set" do
+      assert_raise Ash.Error.Unknown, ~r/view\? true/, fn ->
+        UntrackedViewRecord
+        |> Ash.Changeset.for_create(:create, %{key: "a", price: 1})
+        |> Ash.create!(upsert?: true, upsert_identity: :unique_key)
+      end
+    end
+  end
+
   test "empty upserts" do
     id = Ash.UUID.generate()
 

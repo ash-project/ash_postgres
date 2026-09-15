@@ -361,9 +361,8 @@ if Code.ensure_loaded?(Igniter) do
         view?(table_spec) ->
           """
           # NOTE: Source is a PostgreSQL #{view_kind_label(table_spec)}, not a base table.
-          # migrate? false prevents Ash from trying to manage its schema.
-          # TODO: Migrations need to be handled manually for views.
-          migrate? false
+          # view? true excludes it from generated migrations, which must be handled manually.
+          view? true
           """
 
         opts[:no_migrations] ->

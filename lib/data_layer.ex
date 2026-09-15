@@ -307,6 +307,14 @@ defmodule AshPostgres.DataLayer do
         doc:
           "Whether or not to include this resource in the generated migrations with `mix ash.generate_migrations`"
       ],
+      view?: [
+        type: :boolean,
+        default: false,
+        doc: """
+        Declares that the table is a PostgreSQL view (or materialized view) rather than a base table.
+        View resources are excluded from generated migrations, and records returned from upserts into them carry no `:upsert_action` metadata, since views have no `xmax` system column.
+        """
+      ],
       storage_types: [
         type: :keyword_list,
         default: [],

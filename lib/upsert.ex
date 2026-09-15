@@ -115,7 +115,17 @@ defmodule AshPostgres.Upsert do
         opts[:query_opts] || []
       )
 
-    result = repo.query!(sql, params, query_opts)
+    result =
+      try do
+        repo.query!(sql, params, query_opts)
+      rescue
+        e in Postgrex.Error ->
+          if returning_fields[:action] && xmax_missing?(e) do
+            reraise xmax_missing_message(resource, table), __STACKTRACE__
+          else
+            reraise e, __STACKTRACE__
+          end
+      end
 
     count = if is_list(result.rows), do: length(result.rows), else: result.num_rows
 
@@ -234,7 +244,34 @@ defmodule AshPostgres.Upsert do
 
     col_sql = Enum.map_join(sources, ", ", &"#{target_alias}.#{quote_name(&1)}")
 
-    {" RETURNING " <> col_sql <> ", (#{target_alias}.xmax = 0)",
-     %{sources: sources, action: :from_inserted_flag}}
+    # Views have no system columns, so `xmax` is not read for resources declared `view? true`,
+    # and their records carry no `:upsert_action` metadata.
+    if AshPostgres.DataLayer.Info.view?(resource) do
+      {" RETURNING " <> col_sql, %{sources: sources, action: nil}}
+    else
+      {" RETURNING " <> col_sql <> ", (#{target_alias}.xmax = 0)",
+       %{sources: sources, action: :from_inserted_flag}}
+    end
+  end
+
+  defp xmax_missing?(%Postgrex.Error{postgres: %{code: :undefined_column, message: message}}) do
+    String.contains?(message, "xmax")
+  end
+
+  defp xmax_missing?(_), do: false
+
+  defp xmax_missing_message(resource, table) do
+    """
+    Cannot determine `:upsert_action` metadata for #{inspect(resource)}: `#{table}` has no `xmax` system column, so it is a view rather than a table.
+
+    Declare the resource as a view with `view? true` in its `postgres` section:
+
+        postgres do
+          table #{inspect(table)}
+          view? true
+        end
+
+    Records returned from upserts into a view carry no `:upsert_action` metadata.
+    """
   end
 end

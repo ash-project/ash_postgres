@@ -61,6 +61,7 @@ spark_locals_without_parens = [
   up: 1,
   update?: 1,
   using: 1,
+  view?: 1,
   where: 1
 ]
 

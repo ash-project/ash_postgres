@@ -192,9 +192,14 @@ defmodule AshPostgres.DataLayer.Info do
     Extension.get_opt(resource, [:postgres], :foreign_key_names, [], true)
   end
 
-  @doc "Whether or not the resource should be included when generating migrations"
+  @doc "Whether or not the resource should be included when generating migrations. Always `false` for views."
   def migrate?(resource) do
-    Extension.get_opt(resource, [:postgres], :migrate?, nil, true)
+    not view?(resource) and Extension.get_opt(resource, [:postgres], :migrate?, nil, true)
+  end
+
+  @doc "Whether the resource's table is a view rather than a base table"
+  def view?(resource) do
+    Extension.get_opt(resource, [:postgres], :view?, false, true)
   end
 
   @doc "A list of keys to always include in upserts."

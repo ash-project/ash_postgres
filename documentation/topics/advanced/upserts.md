@@ -20,6 +20,8 @@ Ash.Resource.get_metadata(post, :upsert_action)
 
 This works on every supported PostgreSQL version. It is derived from the row's system column in the statement's `RETURNING` clause (`xmax = 0` for a freshly inserted row version, non-zero for one written by the `DO UPDATE` branch).
 
+Views have no system columns, so a resource backed by a view must declare it with `view? true` in its `postgres` section. Upserts into that resource work as usual (PostgreSQL supports `INSERT ... ON CONFLICT` on simple updatable views), but the returned records carry no `:upsert_action` metadata. Without the option the upsert fails with an error pointing at it.
+
 Records that were skipped because the `upsert_condition` did not hold are not returned unless you pass `return_skipped_upsert?: true`, in which case they are tagged with `:upsert_skipped` metadata instead.
 
 ## Identities that need SQL
