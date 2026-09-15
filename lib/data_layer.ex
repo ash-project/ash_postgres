@@ -1003,7 +1003,7 @@ defmodule AshPostgres.DataLayer do
     # range containment predicate: `valid_at @> $as_of`. Postgres has no native
     # AS OF / system-versioning, so this is the idiomatic mechanism, and the
     # GiST index backing the temporal PK makes it index-supported.
-    as_of = Ash.Query.resolve_as_of(as_of)
+    as_of = Ash.Temporal.resolve_as_of(as_of)
 
     if Ash.Resource.Info.temporal_strategy(resource) == :context && as_of do
       import Ecto.Query, only: [from: 2]
@@ -2866,21 +2866,29 @@ defmodule AshPostgres.DataLayer do
   defp temporal_from_bound(query, changeset) do
     bindings = Map.get(query, :__ash_bindings__) || %{}
 
-    (get_in(bindings, [:context, :private, :as_of]) || changeset.as_of)
-    |> Ash.Query.resolve_as_of()
-    |> case do
-      nil -> DateTime.utc_now()
-      as_of -> as_of
+    case get_in(bindings, [:context, :private, :as_of]) || changeset.as_of do
+      nil -> now_in_extent(changeset.resource)
+      as_of -> Ash.Temporal.resolve_as_of(as_of)
     end
   end
 
-  # A temporal create establishes validity from `as_of` onward — `[as_of, ∞)`. The
-  # period attribute is never accepted as input; the data layer sets it here.
+  # The wall clock in the resource's own extent, so a declared precision is honoured.
+  defp now_in_extent(resource) do
+    case Ash.Temporal.write_instant(resource, :now) do
+      {:ok, instant} -> instant
+      :error -> DateTime.utc_now()
+    end
+  end
+
+  # A temporal create establishes the period `as_of` names. The period attribute is never
+  # accepted as input; the data layer sets it here.
   defp maybe_put_temporal_period(attributes, nil, _changeset), do: attributes
 
   defp maybe_put_temporal_period(attributes, temporal_attribute, changeset) do
-    as_of = Ash.Query.resolve_as_of(changeset.as_of) || DateTime.utc_now()
-    Map.put(attributes, temporal_attribute, %Ash.Range{lower: as_of, upper: nil, bounds: :"[)"})
+    case Ash.Temporal.write_period(changeset.resource, changeset.as_of) do
+      {:ok, period} -> Map.put(attributes, temporal_attribute, period)
+      :error -> attributes
+    end
   end
 
   defp with_savepoint(
@@ -2943,7 +2951,7 @@ defmodule AshPostgres.DataLayer do
 
     as_of =
       case changesets do
-        [changeset | _] -> Ash.Query.resolve_as_of(changeset.as_of)
+        [changeset | _] -> Ash.Temporal.resolve_as_of(changeset.as_of)
         _ -> nil
       end
 
@@ -4004,7 +4012,7 @@ defmodule AshPostgres.DataLayer do
       touch_update_defaults? =
         changeset.context[:private][:touch_update_defaults?] != false
 
-      update_defaults = update_defaults(resource, Ash.Query.resolve_as_of(changeset.as_of))
+      update_defaults = update_defaults(resource, Ash.Temporal.resolve_as_of(changeset.as_of))
 
       explicitly_changing_attributes =
         changeset.attributes
