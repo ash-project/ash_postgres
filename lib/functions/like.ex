@@ -9,5 +9,11 @@ defmodule AshPostgres.Functions.Like do
 
   use Ash.Query.Function, name: :like, predicate?: true
 
-  def args, do: [[:string, :string]]
+  def args,
+    do: [
+      [:string, :string],
+      [:string, :ci_string],
+      [:ci_string, :string],
+      [:ci_string, :ci_string]
+    ]
 end
