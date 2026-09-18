@@ -55,6 +55,79 @@ defmodule AshSql.AggregateTest do
     assert "a" in params, "narrow aggregate filter was dropped; SQL: #{sql}"
   end
 
+  describe "sorted `first` aggregates over to-many relationships" do
+    setup do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "post"})
+        |> Ash.create!()
+
+      # "stuff" is neither first nor last in title order, so a filter that is
+      # applied *after* a `LIMIT 1` would produce `nil` instead of "stuff".
+      for title <- ["b", "stuff", "a", "c"] do
+        Comment
+        |> Ash.Changeset.for_create(:create, %{title: title})
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Ash.create!()
+      end
+
+      %{post: post}
+    end
+
+    test "are compiled to a correlated `LIMIT 1` subquery, one lateral join each", %{post: post} do
+      fields = [:last_comment, :first_comment_nils_first_called_stuff, :count_of_comments]
+
+      {sql, _params} =
+        Post
+        |> Ash.Query.load(fields)
+        |> Ash.Query.for_read(:read)
+        |> Ash.data_layer_query!()
+        |> Map.get(:query)
+        |> then(&AshPostgres.TestRepo.to_sql(:all, &1))
+
+      # both `first` aggregates get their own `LIMIT 1` inner subquery; the
+      # count is unaffected
+      assert length(String.split(sql, "LIMIT 1")) == 3, sql
+
+      loaded = Ash.load!(post, fields)
+      assert loaded.last_comment == "stuff"
+      assert loaded.first_comment_nils_first_called_stuff == "stuff"
+      assert loaded.count_of_comments == 4
+    end
+
+    test "push the aggregate filter below the limit", %{post: post} do
+      # filter matches nothing -> nil, not the first row by sort
+      assert %{first_comment_nils_first_called_stuff: nil} =
+               Post
+               |> Ash.Changeset.for_create(:create, %{title: "other"})
+               |> Ash.create!()
+               |> Ash.load!(:first_comment_nils_first_called_stuff)
+
+      assert %{first_comment_nils_first_called_stuff: "stuff"} =
+               Ash.load!(post, :first_comment_nils_first_called_stuff)
+    end
+
+    test "work for inline `first` expressions with an argument-driven filter", %{post: post} do
+      # mirrors ash_double_entry's `balance_as_of` calculation
+      loaded =
+        Post
+        |> Ash.Query.filter(id == ^post.id)
+        |> Ash.Query.calculate(
+          :latest_before_c,
+          :string,
+          expr(
+            first(comments,
+              field: :title,
+              query: [sort: [title: :desc], filter: title < ^"c"]
+            )
+          )
+        )
+        |> Ash.read_one!()
+
+      assert loaded.calculations.latest_before_c == "b"
+    end
+  end
+
   test "count aggregate on no cast enum field" do
     Organization |> Ash.read!(load: [:no_cast_open_posts_count])
   end
