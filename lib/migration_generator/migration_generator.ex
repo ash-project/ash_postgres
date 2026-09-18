@@ -325,6 +325,7 @@ defmodule AshPostgres.MigrationGenerator do
                     |> Path.basename()
                     |> String.split("_#{opts.name}_extensions", parts: 2)
                     |> Enum.at(1)
+                    |> String.trim_leading("_")
                     |> Integer.parse()
                     |> case do
                       {integer, _} ->
@@ -349,6 +350,7 @@ defmodule AshPostgres.MigrationGenerator do
                     |> Path.basename()
                     |> String.split("_migrate_resources_extensions", parts: 2)
                     |> Enum.at(1)
+                    |> String.trim_leading("_")
                     |> Integer.parse()
                     |> case do
                       {integer, _} ->

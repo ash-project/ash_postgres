@@ -7909,4 +7909,52 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert output =~ "Some resources have `migrate?` set to `false` and were skipped"
     end
   end
+
+  describe "extension migration numbering" do
+    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      # simulate an existing extensions migration from a previous run
+      File.mkdir_p!(migration_path)
+
+      File.write!(
+        Path.join(migration_path, "20200101000000_migrate_resources_extensions_1.exs"),
+        "# placeholder"
+      )
+
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      :ok
+    end
+
+    test "a new extensions migration increments past the existing one", %{
+      migration_path: migration_path
+    } do
+      # the test config shares one migration path across all test repos, so one
+      # extensions migration is generated per repo. Each must be numbered past
+      # the pre-existing `_1` rather than colliding with it.
+      new_files =
+        Path.wildcard("#{migration_path}/**/*_migrate_resources_extensions_*.exs")
+        |> Enum.reject(&String.starts_with?(Path.basename(&1), "20200101000000_"))
+
+      assert new_files != []
+
+      for file <- new_files do
+        assert Path.basename(file) =~ ~r/^\d+_migrate_resources_extensions_2\.exs$/
+        assert File.read!(file) =~ "MigrateResourcesExtensions2 do"
+      end
+    end
+  end
 end
