@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshPostgres.MigrationGenerator.AshFunctions do
-  @latest_version 6
+  @latest_version 7
+  @error_prefix "ash_error: "
 
   def latest_version, do: @latest_version
 
@@ -184,6 +185,12 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     """
   end
 
+  def install(6, _opts) do
+    """
+    #{ash_required()}
+    """
+  end
+
   def drop(version, opts \\ [])
 
   def drop(4, _opts) do
@@ -197,6 +204,10 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
 
   def drop(5, _opts) do
     "execute(\"DROP FUNCTION IF EXISTS ash_required(ANYCOMPATIBLE, jsonb)\")"
+  end
+
+  def drop(6, _opts) do
+    "# ash_required/2 was redefined in place in version 7; nothing to roll back"
   end
 
   def drop(3, opts) do
@@ -230,7 +241,7 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     RETURNS ANYCOMPATIBLE AS $$
     BEGIN
       IF value IS NULL THEN
-        RETURN ash_raise_error(payload, value);
+        RAISE EXCEPTION '#{@error_prefix}%', payload::text;
       END IF;
 
       RETURN value;
@@ -243,8 +254,6 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
   end
 
   defp ash_raise_error do
-    prefix = "ash_error: "
-
     """
     execute(\"\"\"
     CREATE OR REPLACE FUNCTION ash_raise_error(json_data jsonb)
@@ -252,7 +261,7 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     BEGIN
         -- Raise an error with the provided JSON data.
         -- The JSON object is converted to text for inclusion in the error message.
-        RAISE EXCEPTION '#{prefix}%', json_data::text;
+        RAISE EXCEPTION '#{@error_prefix}%', json_data::text;
         RETURN NULL;
     END;
     $$ LANGUAGE plpgsql
@@ -266,7 +275,7 @@ defmodule AshPostgres.MigrationGenerator.AshFunctions do
     BEGIN
         -- Raise an error with the provided JSON data.
         -- The JSON object is converted to text for inclusion in the error message.
-        RAISE EXCEPTION '#{prefix}%', json_data::text;
+        RAISE EXCEPTION '#{@error_prefix}%', json_data::text;
         RETURN NULL;
     END;
     $$ LANGUAGE plpgsql

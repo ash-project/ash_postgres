@@ -148,15 +148,20 @@ defmodule AshPostgres.DevMigrationsTest do
         auto_name: true
       )
 
-      assert [_extensions, migration, _migration] =
-               Path.wildcard(
-                 AshPostgres.TestPaths.path([
-                   "dev_test_repo",
-                   "migrations/**/*_migrate_resources*.exs"
-                 ])
-               )
+      # `migrate/1` replays every file sorted after its argument, so anchor on the
+      # last committed migration to run only the newly generated one.
+      {existing, [_new_migration]} =
+        Path.wildcard(
+          AshPostgres.TestPaths.path([
+            "dev_test_repo",
+            "migrations/**/*_migrate_resources*.exs"
+          ])
+        )
+        |> Enum.split(-1)
 
-      migrate(migration)
+      last_committed = List.last(existing)
+
+      migrate(last_committed)
       assert table_exists?("posts")
 
       # Generating without dev: true rolls back the dev migration (dropping the table)
@@ -169,7 +174,7 @@ defmodule AshPostgres.DevMigrationsTest do
 
       refute table_exists?("posts")
 
-      migrate(migration)
+      migrate(last_committed)
       assert table_exists?("posts")
     end
   end
