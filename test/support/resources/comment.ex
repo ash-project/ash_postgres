@@ -180,6 +180,13 @@ defmodule AshPostgres.Test.Comment do
       public?(true)
     end
 
+    belongs_to(:sorted_post, AshPostgres.Test.Post) do
+      public?(true)
+      define_attribute?(false)
+      source_attribute(:post_id)
+      read_action(:sorted_by_title)
+    end
+
     belongs_to(:author, AshPostgres.Test.Author) do
       public?(true)
     end
