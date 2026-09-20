@@ -520,6 +520,84 @@ defmodule AshPostgres.TemporalTest do
     end
   end
 
+  # Postgres carves on the intersection of the portion with each row's period, so a bounded
+  # portion leaves validity intact on both sides.
+  describe "an as_of naming a period" do
+    @portion %Ash.Range{
+      lower: ~U[2026-02-10 00:00:00.000000Z],
+      upper: ~U[2026-03-10 00:00:00.000000Z],
+      bounds: :"[)"
+    }
+
+    test "a create takes the period outright, not merely its lower bound" do
+      created =
+        Tier
+        |> Ash.Changeset.for_create(:create, %{id: 20, name: "ranged"}, as_of: @portion)
+        |> Ash.create!()
+
+      # An instant-valued `as_of` leaves the upper unbounded.
+      assert %Ash.Range{
+               lower: ~U[2026-02-10 00:00:00.000000Z],
+               upper: ~U[2026-03-10 00:00:00.000000Z]
+             } = created.valid_at
+    end
+
+    test "an update carves the portion out, and the prior version resumes after it" do
+      [gold] =
+        Subscription
+        |> Ash.Query.filter(id == 1)
+        |> Ash.Query.as_of(@portion.lower)
+        |> Ash.read!()
+
+      gold
+      |> Ash.Changeset.for_update(:change_tier, %{tier: "platinum"})
+      |> Ash.Changeset.as_of(@portion)
+      |> Ash.update!()
+
+      # `gold` held [2026-02-01, 2026-04-01); the portion splits it in three.
+      assert [
+               ["bronze", ~U[2026-01-01 00:00:00.000000Z], ~U[2026-02-01 00:00:00.000000Z]],
+               ["gold", ~U[2026-02-01 00:00:00.000000Z], ~U[2026-02-10 00:00:00.000000Z]],
+               ["platinum", ~U[2026-02-10 00:00:00.000000Z], ~U[2026-03-10 00:00:00.000000Z]],
+               ["gold", ~U[2026-03-10 00:00:00.000000Z], ~U[2026-04-01 00:00:00.000000Z]]
+             ] = subscription_timeline(1)
+    end
+
+    test "a destroy removes validity over the portion, and it resumes after" do
+      [gold] =
+        Subscription
+        |> Ash.Query.filter(id == 1)
+        |> Ash.Query.as_of(@portion.lower)
+        |> Ash.read!()
+
+      gold
+      |> Ash.Changeset.for_destroy(:destroy)
+      |> Ash.Changeset.as_of(@portion)
+      |> Ash.destroy!()
+
+      # The hole is the portion; `gold` survives either side of it.
+      assert [
+               ["bronze", ~U[2026-01-01 00:00:00.000000Z], ~U[2026-02-01 00:00:00.000000Z]],
+               ["gold", ~U[2026-02-01 00:00:00.000000Z], ~U[2026-02-10 00:00:00.000000Z]],
+               ["gold", ~U[2026-03-10 00:00:00.000000Z], ~U[2026-04-01 00:00:00.000000Z]]
+             ] = subscription_timeline(1)
+    end
+
+    # `TO NULL` must survive: an instant still means "from here onward", and a bounded
+    # portion would silently close an open version.
+    test "an instant-valued as_of still writes an unbounded portion" do
+      [gold] = Subscription |> Ash.Query.filter(id == 1) |> Ash.Query.as_of(@mar1) |> Ash.read!()
+
+      updated =
+        gold
+        |> Ash.Changeset.for_update(:change_tier, %{tier: "platinum"})
+        |> Ash.Changeset.as_of(@mar1)
+        |> Ash.update!()
+
+      assert %Ash.Range{lower: @mar1, upper: ~U[2026-04-01 00:00:00.000000Z]} = updated.valid_at
+    end
+  end
+
   describe "range_overlaps/2" do
     test "renders the && operator and filters by overlap" do
       probe = %Ash.Range{lower: @jan15, upper: ~U[2026-01-20 00:00:00.000000Z], bounds: :"[)"}

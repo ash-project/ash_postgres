@@ -21,6 +21,10 @@ defmodule AshPostgres.Test.Temporal.BeforeNow do
   @impl true
   def supports(_opts), do: [Ash.Changeset]
 
+  # Anchored to the changeset's `as_of` in both paths, never the wall clock.
+  @impl true
+  def temporal_safe?(_opts), do: true
+
   # Atomic check: invalid when `field >= now()` (i.e. not before now). The `now()`
   # here is anchored to the changeset's `as_of` when the data layer renders it.
   @impl true
