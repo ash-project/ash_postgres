@@ -1003,7 +1003,7 @@ defmodule AshPostgres.DataLayer do
     # range containment predicate: `valid_at @> $as_of`. Postgres has no native
     # AS OF / system-versioning, so this is the idiomatic mechanism, and the
     # GiST index backing the temporal PK makes it index-supported.
-    as_of = Ash.Temporal.resolve_as_of(as_of)
+    as_of = Ash.Temporal.resolve_read_as_of(as_of)
 
     if Ash.Resource.Info.temporal_strategy(resource) == :context && as_of do
       import Ecto.Query, only: [from: 2]
@@ -2868,7 +2868,7 @@ defmodule AshPostgres.DataLayer do
 
     case get_in(bindings, [:context, :private, :as_of]) || changeset.as_of do
       nil -> now_in_extent(changeset.resource)
-      as_of -> Ash.Temporal.resolve_as_of(as_of)
+      as_of -> Ash.Temporal.resolve_write_as_of(as_of)
     end
   end
 
@@ -2951,7 +2951,7 @@ defmodule AshPostgres.DataLayer do
 
     as_of =
       case changesets do
-        [changeset | _] -> Ash.Temporal.resolve_as_of(changeset.as_of)
+        [changeset | _] -> Ash.Temporal.resolve_write_as_of(changeset.as_of)
         _ -> nil
       end
 
@@ -4012,7 +4012,8 @@ defmodule AshPostgres.DataLayer do
       touch_update_defaults? =
         changeset.context[:private][:touch_update_defaults?] != false
 
-      update_defaults = update_defaults(resource, Ash.Temporal.resolve_as_of(changeset.as_of))
+      update_defaults =
+        update_defaults(resource, Ash.Temporal.resolve_write_as_of(changeset.as_of))
 
       explicitly_changing_attributes =
         changeset.attributes
