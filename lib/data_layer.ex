@@ -2867,13 +2867,14 @@ defmodule AshPostgres.DataLayer do
     bindings = Map.get(query, :__ash_bindings__) || %{}
 
     case get_in(bindings, [:context, :private, :as_of]) || changeset.as_of do
-      nil -> now_in_extent(changeset.resource)
+      nil -> now_for_resource(changeset.resource)
       as_of -> Ash.Temporal.resolve_write_as_of(as_of)
     end
   end
 
-  # The wall clock in the resource's own extent, so a declared precision is honoured.
-  defp now_in_extent(resource) do
+  # The wall clock in the type the resource builds its periods from, so a declared
+  # precision is honoured.
+  defp now_for_resource(resource) do
     case Ash.Temporal.write_instant(resource, :now) do
       {:ok, instant} -> instant
       :error -> DateTime.utc_now()
