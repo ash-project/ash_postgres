@@ -24,7 +24,10 @@ defmodule AshPostgres.UniqAggregateSortTest do
 
   test "uniq? aggregate sorted by the aggregated field still works" do
     assert ["a", "b"] ==
-             Post |> Ash.read_one!() |> Ash.load!(:uniq_comment_titles) |> Map.get(:uniq_comment_titles)
+             Post
+             |> Ash.read_one!()
+             |> Ash.load!(:uniq_comment_titles)
+             |> Map.get(:uniq_comment_titles)
   end
 
   test "uniq? aggregate sorted by a different field discards the sort instead of erroring" do
