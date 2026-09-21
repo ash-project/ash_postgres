@@ -7,21 +7,24 @@ ExUnit.start(capture_log: true)
 Logger.configure(level: :debug)
 
 # A `@tag :postgres_<n>` marks a test as requiring PostgreSQL >= n. Exclude any whose required
-# version is newer than the version under test. Defaults to 16 to match `TestRepo.min_pg_version/0`.
+# version is newer than the version under test. Read from `TestRepo.min_pg_version/0` so the two
+# cannot disagree about what an unset `PG_VERSION` means.
+default_pg_version = AshPostgres.TestRepo.min_pg_version().major
+
 pg_version =
   case System.get_env("PG_VERSION") do
     nil ->
-      16
+      default_pg_version
 
     version ->
       case Integer.parse(version) do
         {major, _} -> major
-        :error -> 16
+        :error -> default_pg_version
       end
   end
 
 exclude_tags =
-  for n <- [14, 15, 16, 17, 18], n > pg_version, do: :"postgres_#{n}"
+  for n <- [14, 15, 16, 17, 18, 19], n > pg_version, do: :"postgres_#{n}"
 
 ExUnit.configure(stacktrace_depth: 100, exclude: exclude_tags)
 
