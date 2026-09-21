@@ -59,10 +59,16 @@ defmodule AshPostgres.CombinationTest do
       |> Ash.Changeset.for_create(:create, %{title: "title3"})
       |> Ash.create!()
 
-      assert [%{title: "title1"}, %{title: "title3"}] =
-               Post
-               |> Ash.Query.for_read(:first_and_last_post)
-               |> Ash.read!()
+      # The outer query has no sort, so the union promises no order. `with data
+      # and sort` covers the ordered case.
+      titles =
+        Post
+        |> Ash.Query.for_read(:first_and_last_post)
+        |> Ash.read!()
+        |> Enum.map(& &1.title)
+        |> Enum.sort()
+
+      assert titles == ["title1", "title3"]
     end
 
     test "with data and sort" do
