@@ -6,6 +6,7 @@ defmodule AshPostgres.TemporalMigrationGeneratorTest do
   @moduledoc "Asserts the migration generator emits temporal DDL (PG19)."
   use AshPostgres.RepoCase, async: false
   @moduletag :temporal
+  @moduletag :postgres_19
   @moduletag :tmp_dir
 
   defmodule GenTier do

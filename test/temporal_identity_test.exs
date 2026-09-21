@@ -6,6 +6,7 @@ defmodule AshPostgres.TemporalIdentityTest do
   @moduledoc "Identities on temporal resources: period-aware uniqueness + as_of-anchored eager checks (PG19)."
   use AshPostgres.RepoCase, async: false
   @moduletag :temporal
+  @moduletag :postgres_19
 
   require Ash.Query
   alias AshPostgres.TestRepo

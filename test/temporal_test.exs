@@ -17,6 +17,7 @@ defmodule AshPostgres.TemporalTest do
   use AshPostgres.RepoCase, async: false
 
   @moduletag :temporal
+  @moduletag :postgres_19
 
   require Ash.Query
   require Ash.Expr
