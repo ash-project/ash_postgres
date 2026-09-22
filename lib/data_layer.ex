@@ -989,6 +989,9 @@ defmodule AshPostgres.DataLayer do
       resource,
       AshPostgres.SqlImplementation
     )
+  rescue
+    e ->
+      handle_raised_error(e, __STACKTRACE__, original_query, resource)
   end
 
   @impl true
@@ -1118,13 +1121,16 @@ defmodule AshPostgres.DataLayer do
       {:error, error} ->
         {:error, error}
     end
+  rescue
+    e ->
+      handle_raised_error(e, __STACKTRACE__, query, destination_resource)
   end
 
   @impl true
   def run_query_with_lateral_join(
         query,
         root_data,
-        _destination_resource,
+        destination_resource,
         path
       ) do
     {calculations_require_rewrite, aggregates_require_rewrite, query} =
@@ -1174,6 +1180,9 @@ defmodule AshPostgres.DataLayer do
       {:error, error} ->
         {:error, error}
     end
+  rescue
+    e ->
+      handle_raised_error(e, __STACKTRACE__, query, destination_resource)
   end
 
   defp lateral_join_query(
@@ -3292,6 +3301,14 @@ defmodule AshPostgres.DataLayer do
        )
        when action in [:insert, :update, :delete] do
     handle_postgrex_error(error, stacktrace, changeset, resource, action)
+  end
+
+  # Ecto wraps an exception raised while compiling a subquery (a paginated or limited
+  # query, a lateral join) and keeps the original in `exception`. Handle that one, so a
+  # cast error inside a subquery converts the same way as one at the top level.
+  defp handle_raised_error(%Ecto.SubQueryError{exception: inner}, stacktrace, context, resource)
+       when is_exception(inner) do
+    handle_raised_error(inner, stacktrace, context, resource)
   end
 
   defp handle_raised_error(%Ecto.Query.CastError{} = e, stacktrace, context, resource) do
