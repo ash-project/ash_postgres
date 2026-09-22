@@ -3294,6 +3294,25 @@ defmodule AshPostgres.DataLayer do
     handle_postgrex_error(error, stacktrace, changeset, resource, action)
   end
 
+  # Postgrex raises this when a parameter cannot be encoded for its column type. The
+  # common case is an integer outside the `bigint` range: `Ash.Type.Integer` accepts any
+  # Elixir integer, because other data layers have no such limit, so only the data layer
+  # can reject it. The error carries text only, so the value is read back from it.
+  defp handle_raised_error(
+         %DBConnection.EncodeError{message: message} = error,
+         stacktrace,
+         context,
+         resource
+       ) do
+    case parse_encode_error(message) do
+      {:ok, value, reason} ->
+        handle_raised_error(encode_error(context, value, reason), stacktrace, context, resource)
+
+      :error ->
+        {:error, Ash.Error.to_ash_error(error, stacktrace)}
+    end
+  end
+
   defp handle_raised_error(%Ecto.Query.CastError{} = e, stacktrace, context, resource) do
     handle_raised_error(
       Ash.Error.Query.InvalidFilterValue.exception(value: e.value, context: context),
@@ -3331,6 +3350,44 @@ defmodule AshPostgres.DataLayer do
 
   defp handle_raised_error(error, stacktrace, _ecto_changeset, _resource) do
     {:error, Ash.Error.to_ash_error(error, stacktrace)}
+  end
+
+  defp parse_encode_error(message) do
+    case Regex.run(~r/^Postgrex expected (.+?), got (.+?)\. Please make sure/s, message) do
+      [_, expected, observed] -> {:ok, parse_observed(observed), "expected " <> expected}
+      _ -> :error
+    end
+  end
+
+  defp parse_observed(observed) do
+    case Integer.parse(observed) do
+      {integer, ""} -> integer
+      _ -> observed
+    end
+  end
+
+  defp encode_error({:ecto_changeset, _action, %Ecto.Changeset{changes: changes}}, value, reason) do
+    case Enum.find(changes, fn {_field, change} -> change == value end) do
+      {field, _} ->
+        Ash.Error.Changes.InvalidAttribute.exception(field: field, value: value, message: reason)
+
+      nil ->
+        Ash.Error.Changes.InvalidChanges.exception(
+          value: value,
+          message: "#{reason}, got #{inspect(value)}"
+        )
+    end
+  end
+
+  defp encode_error({:bulk_create, _fake_changeset}, value, reason) do
+    Ash.Error.Changes.InvalidChanges.exception(
+      value: value,
+      message: "#{reason}, got #{inspect(value)}"
+    )
+  end
+
+  defp encode_error(_query, value, reason) do
+    Ash.Error.Query.InvalidFilterValue.exception(value: value, message: reason)
   end
 
   defp duration_types_hint do
