@@ -641,6 +641,85 @@ defmodule AshPostgres.TemporalTest do
                ["gold", 6, ~U[2026-03-01 00:00:00.000000Z]]
              ] = seats_timeline(1)
     end
+
+    test "an atomic update whose range spans two stored versions carves both" do
+      [bronze] =
+        Subscription
+        |> Ash.Query.filter(id == 1)
+        |> Ash.Query.as_of(~U[2026-01-01 00:00:00.000000Z])
+        |> Ash.read!()
+
+      # bronze [Jan,Feb), gold [Feb,Apr) - the portion crosses the boundary between them.
+      portion = %Ash.Range{
+        lower: ~U[2026-01-15 00:00:00.000000Z],
+        upper: ~U[2026-03-01 00:00:00.000000Z],
+        bounds: :"[)"
+      }
+
+      bronze
+      |> Ash.Changeset.for_update(:change_tier, %{tier: "platinum"})
+      |> Ash.Changeset.as_of(portion)
+      |> Ash.update!()
+
+      assert [
+               ["bronze", ~U[2026-01-01 00:00:00.000000Z], ~U[2026-01-15 00:00:00.000000Z]],
+               ["platinum", ~U[2026-01-15 00:00:00.000000Z], ~U[2026-02-01 00:00:00.000000Z]],
+               ["platinum", ~U[2026-02-01 00:00:00.000000Z], ~U[2026-03-01 00:00:00.000000Z]],
+               ["gold", ~U[2026-03-01 00:00:00.000000Z], ~U[2026-04-01 00:00:00.000000Z]]
+             ] = subscription_timeline(1)
+    end
+
+    test "an atomic update whose range is entirely inside a version other than the one fetched still targets it" do
+      [gold] = Subscription |> Ash.Query.filter(id == 1) |> Ash.Query.as_of(@mar1) |> Ash.read!()
+
+      # gold [Feb,Apr) - the portion is entirely inside bronze [Jan,Feb), never fetched.
+      portion = %Ash.Range{
+        lower: ~U[2026-01-05 00:00:00.000000Z],
+        upper: ~U[2026-01-10 00:00:00.000000Z],
+        bounds: :"[)"
+      }
+
+      gold
+      |> Ash.Changeset.for_update(:change_tier, %{tier: "platinum"})
+      |> Ash.Changeset.as_of(portion)
+      |> Ash.update!()
+
+      assert [
+               ["bronze", ~U[2026-01-01 00:00:00.000000Z], ~U[2026-01-05 00:00:00.000000Z]],
+               ["platinum", ~U[2026-01-05 00:00:00.000000Z], ~U[2026-01-10 00:00:00.000000Z]],
+               ["bronze", ~U[2026-01-10 00:00:00.000000Z], ~U[2026-02-01 00:00:00.000000Z]],
+               ["gold", ~U[2026-02-01 00:00:00.000000Z], ~U[2026-04-01 00:00:00.000000Z]]
+             ] = subscription_timeline(1)
+    end
+  end
+
+  describe "soft destroy (an update under a different name)" do
+    test "an atomic soft destroy whose range spans two stored versions carves both" do
+      [bronze] =
+        Subscription
+        |> Ash.Query.filter(id == 1)
+        |> Ash.Query.as_of(~U[2026-01-01 00:00:00.000000Z])
+        |> Ash.read!()
+
+      # bronze [Jan,Feb), gold [Feb,Apr) - the portion crosses the boundary between them.
+      portion = %Ash.Range{
+        lower: ~U[2026-01-15 00:00:00.000000Z],
+        upper: ~U[2026-03-01 00:00:00.000000Z],
+        bounds: :"[)"
+      }
+
+      bronze
+      |> Ash.Changeset.for_destroy(:cancel)
+      |> Ash.Changeset.as_of(portion)
+      |> Ash.destroy!()
+
+      assert [
+               ["bronze", ~U[2026-01-01 00:00:00.000000Z], ~U[2026-01-15 00:00:00.000000Z]],
+               ["cancelled", ~U[2026-01-15 00:00:00.000000Z], ~U[2026-02-01 00:00:00.000000Z]],
+               ["cancelled", ~U[2026-02-01 00:00:00.000000Z], ~U[2026-03-01 00:00:00.000000Z]],
+               ["gold", ~U[2026-03-01 00:00:00.000000Z], ~U[2026-04-01 00:00:00.000000Z]]
+             ] = subscription_timeline(1)
+    end
   end
 
   describe "validations anchored to as_of" do
