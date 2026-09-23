@@ -103,5 +103,13 @@ defmodule AshPostgres.Test.Temporal.Subscription do
     destroy :expire do
       require_atomic?(true)
     end
+
+    # A soft destroy is an update under a different name — `Ash.Actions.Destroy.run/4`
+    # delegates `soft?: true` straight to `Ash.Actions.Update.run/4`.
+    destroy :cancel do
+      soft?(true)
+      require_atomic?(true)
+      change(set_attribute(:tier, "cancelled"))
+    end
   end
 end
