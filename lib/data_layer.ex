@@ -1969,7 +1969,10 @@ defmodule AshPostgres.DataLayer do
                 end)
 
               if options[:return_records?] do
-                results = AshSql.Query.remap_mapped_fields(results, query)
+                results =
+                  results
+                  |> AshSql.Query.remap_mapped_fields(query)
+                  |> first_versions(resource)
 
                 if changeset.context[:data_layer][:use_atomic_update_data?] &&
                      Enum.count_until(results, 2) == 1 do
@@ -2012,6 +2015,26 @@ defmodule AshPostgres.DataLayer do
               resource
             )
         end
+    end
+  end
+
+  # A range can carve several versions of one record; the write returns the first of them.
+  defp first_versions(results, resource) do
+    case Ash.Resource.Info.temporal_attribute(resource) do
+      nil ->
+        results
+
+      attribute ->
+        primary_key = Ash.Resource.Info.primary_key(resource)
+
+        firsts =
+          results
+          |> Enum.group_by(&Map.take(&1, primary_key))
+          |> Map.new(fn {key, versions} ->
+            {key, Enum.min_by(versions, &Map.get(&1, attribute).lower, Comp)}
+          end)
+
+        Enum.filter(results, &(Map.fetch!(firsts, Map.take(&1, primary_key)) == &1))
     end
   end
 
