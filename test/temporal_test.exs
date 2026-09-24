@@ -746,6 +746,32 @@ defmodule AshPostgres.TemporalTest do
                ["gold", ~U[2026-03-01 00:00:00.000000Z], ~U[2026-04-01 00:00:00.000000Z]]
              ] = subscription_timeline(1)
     end
+
+    test "an atomic soft destroy whose range spans two stored versions returns the first it wrote" do
+      [bronze] =
+        Subscription
+        |> Ash.Query.filter(id == 1)
+        |> Ash.Query.as_of(~U[2026-01-01 00:00:00.000000Z])
+        |> Ash.read!()
+
+      destroyed =
+        bronze
+        |> Ash.Changeset.for_destroy(:cancel)
+        |> Ash.Changeset.as_of(%Ash.Range{
+          lower: ~U[2026-01-15 00:00:00.000000Z],
+          upper: ~U[2026-03-01 00:00:00.000000Z],
+          bounds: :"[)"
+        })
+        |> Ash.destroy!(return_destroyed?: true)
+
+      assert %{
+               tier: "cancelled",
+               valid_at: %Ash.Range{
+                 lower: ~U[2026-01-15 00:00:00.000000Z],
+                 upper: ~U[2026-02-01 00:00:00.000000Z]
+               }
+             } = destroyed
+    end
   end
 
   describe "validations anchored to as_of" do
