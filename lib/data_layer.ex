@@ -3303,6 +3303,15 @@ defmodule AshPostgres.DataLayer do
     handle_postgrex_error(error, stacktrace, changeset, resource, action)
   end
 
+  # Postgrex raises this when a parameter cannot be encoded for its column type. The
+  # common case is an integer outside the `bigint` range: `Ash.Type.Integer` accepts any
+  # Elixir integer, because other data layers have no such limit, so only the data layer
+  # can reject it. The error carries only a message, which is not parsed, so the value
+  # and the attribute are not reported.
+  defp handle_raised_error(%DBConnection.EncodeError{}, stacktrace, context, resource) do
+    handle_raised_error(encode_error(context), stacktrace, context, resource)
+  end
+
   # Ecto wraps an exception raised while compiling a subquery (a paginated or limited
   # query, a lateral join) and keeps the original in `exception`. Handle that one, so a
   # cast error inside a subquery converts the same way as one at the top level.
@@ -3349,6 +3358,17 @@ defmodule AshPostgres.DataLayer do
   defp handle_raised_error(error, stacktrace, _ecto_changeset, _resource) do
     {:error, Ash.Error.to_ash_error(error, stacktrace)}
   end
+
+  @encode_error_message "a value does not fit the type of its column"
+
+  defp encode_error({:ecto_changeset, _action, _changeset}),
+    do: Ash.Error.Changes.InvalidChanges.exception(message: @encode_error_message)
+
+  defp encode_error({:bulk_create, _fake_changeset}),
+    do: Ash.Error.Changes.InvalidChanges.exception(message: @encode_error_message)
+
+  defp encode_error(_query),
+    do: Ash.Error.Query.InvalidFilterValue.exception(message: @encode_error_message)
 
   defp duration_types_hint do
     """
