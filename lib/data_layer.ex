@@ -3275,6 +3275,20 @@ defmodule AshPostgres.DataLayer do
     {:error, :no_rollback, Ash.Error.from_json(exception, input)}
   end
 
+  # PostgreSQL rejects text that is not valid UTF-8 or contains a NUL byte with
+  # `22021 character_not_in_repertoire`. Only the data layer knows this storage has that
+  # limit (ETS and Mnesia store such values), and the error names no column, so the
+  # attribute is found by looking at the changes. This clause has to come before the
+  # generic `Postgrex.Error` clauses below, which only look for constraint violations.
+  defp handle_raised_error(
+         %Postgrex.Error{postgres: %{code: :character_not_in_repertoire, message: message}},
+         stacktrace,
+         context,
+         resource
+       ) do
+    handle_raised_error(repertoire_error(context, message), stacktrace, context, resource)
+  end
+
   defp handle_raised_error(
          %Postgrex.Error{} = error,
          stacktrace,
@@ -3429,6 +3443,37 @@ defmodule AshPostgres.DataLayer do
   end
 
   defp maybe_foreign_key_violation_constraints(_), do: []
+
+  defp repertoire_error({:ecto_changeset, _action, %Ecto.Changeset{changes: changes}}, message) do
+    case Enum.filter(changes, fn {_field, value} -> unstorable_text?(value) end) do
+      [] ->
+        Ash.Error.Changes.InvalidChanges.exception(message: message)
+
+      fields ->
+        Enum.map(fields, fn {field, value} ->
+          Ash.Error.Changes.InvalidAttribute.exception(
+            field: field,
+            value: value,
+            message: message
+          )
+        end)
+    end
+  end
+
+  # The changeset built for a create's rescue carries no changes, so the attribute
+  # cannot be named here
+  defp repertoire_error({:bulk_create, _fake_changeset}, message) do
+    Ash.Error.Changes.InvalidChanges.exception(message: message)
+  end
+
+  defp repertoire_error(_query, message) do
+    Ash.Error.Query.InvalidFilterValue.exception(message: message)
+  end
+
+  defp unstorable_text?(value) when is_binary(value),
+    do: not String.valid?(value) or String.contains?(value, <<0>>)
+
+  defp unstorable_text?(_value), do: false
 
   defp constraints_to_errors(
          %{constraints: user_constraints} = changeset,
