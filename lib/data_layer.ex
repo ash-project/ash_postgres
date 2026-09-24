@@ -865,7 +865,35 @@ defmodule AshPostgres.DataLayer do
   # value Postgres can't round-trip directly. `Ash.Type.Range`'s value is an
   # `%Ash.Range{}`, which Postgrex can neither encode nor produce — it needs a
   # `%Postgrex.Range{}`. Routing the schema field through `AshPostgres.Type.Range`
-  # makes both `insert_all` (dump) and `repo.all` (load) go through our type.
+  # makes both `insert_all` (dump) and `repo.all` (load) go through our type
+
+  def attribute_ecto_type(resource, %{type: Ash.Type.DateTime, constraints: constraints}) do
+    repo = AshPostgres.DataLayer.Info.repo(resource, :mutate)
+
+    if repo do
+      case Code.ensure_compiled(repo) do
+        {:module, _} ->
+          if function_exported?(repo, :use_timestamptz?, 0) &&
+               repo.use_timestamptz?() do
+            case Keyword.get(constraints, :precision) do
+              :microsecond ->
+                Ash.Type.ecto_type(AshPostgres.TimestamptzUsec)
+
+              _ ->
+                Ash.Type.ecto_type(AshPostgres.Timestamptz)
+            end
+          else
+            nil
+          end
+
+        _ ->
+          nil
+      end
+    else
+      nil
+    end
+  end
+
   def attribute_ecto_type(_resource, %{type: Ash.Type.Range}) do
     Ash.Type.ecto_type(AshPostgres.Type.Range)
   end
