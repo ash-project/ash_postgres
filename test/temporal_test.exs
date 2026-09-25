@@ -669,6 +669,32 @@ defmodule AshPostgres.TemporalTest do
              ] = subscription_timeline(1)
     end
 
+    test "an atomic update whose range spans two stored versions returns the first it wrote" do
+      [bronze] =
+        Subscription
+        |> Ash.Query.filter(id == 1)
+        |> Ash.Query.as_of(~U[2026-01-01 00:00:00.000000Z])
+        |> Ash.read!()
+
+      updated =
+        bronze
+        |> Ash.Changeset.for_update(:change_tier, %{tier: "platinum"})
+        |> Ash.Changeset.as_of(%Ash.Range{
+          lower: ~U[2026-01-15 00:00:00.000000Z],
+          upper: ~U[2026-03-01 00:00:00.000000Z],
+          bounds: :"[)"
+        })
+        |> Ash.update!()
+
+      assert %{
+               tier: "platinum",
+               valid_at: %Ash.Range{
+                 lower: ~U[2026-01-15 00:00:00.000000Z],
+                 upper: ~U[2026-02-01 00:00:00.000000Z]
+               }
+             } = updated
+    end
+
     test "an atomic update whose range is entirely inside a version other than the one fetched still targets it" do
       [gold] = Subscription |> Ash.Query.filter(id == 1) |> Ash.Query.as_of(@mar1) |> Ash.read!()
 
@@ -719,6 +745,32 @@ defmodule AshPostgres.TemporalTest do
                ["cancelled", ~U[2026-02-01 00:00:00.000000Z], ~U[2026-03-01 00:00:00.000000Z]],
                ["gold", ~U[2026-03-01 00:00:00.000000Z], ~U[2026-04-01 00:00:00.000000Z]]
              ] = subscription_timeline(1)
+    end
+
+    test "an atomic soft destroy whose range spans two stored versions returns the first it wrote" do
+      [bronze] =
+        Subscription
+        |> Ash.Query.filter(id == 1)
+        |> Ash.Query.as_of(~U[2026-01-01 00:00:00.000000Z])
+        |> Ash.read!()
+
+      destroyed =
+        bronze
+        |> Ash.Changeset.for_destroy(:cancel)
+        |> Ash.Changeset.as_of(%Ash.Range{
+          lower: ~U[2026-01-15 00:00:00.000000Z],
+          upper: ~U[2026-03-01 00:00:00.000000Z],
+          bounds: :"[)"
+        })
+        |> Ash.destroy!(return_destroyed?: true)
+
+      assert %{
+               tier: "cancelled",
+               valid_at: %Ash.Range{
+                 lower: ~U[2026-01-15 00:00:00.000000Z],
+                 upper: ~U[2026-02-01 00:00:00.000000Z]
+               }
+             } = destroyed
     end
   end
 

@@ -261,6 +261,7 @@ defmodule AshPostgres.Temporal do
       Ecto.Adapters.SQL.to_sql(kind, repo, Map.delete(query, :__ash_bindings__), counter: counter)
 
     sql = splice_for_portion_of(sql, kind, attribute, not is_nil(upper))
+    sql = if returning? and kind == :update_all, do: first_versions(sql, resource), else: sql
     bounds = if upper, do: [lower, upper], else: [lower]
     result = repo.query!(sql, bounds ++ params)
 
@@ -270,6 +271,19 @@ defmodule AshPostgres.Temporal do
     else
       {result.num_rows, nil}
     end
+  end
+
+  # A range can carve several versions of one record; the write returns the first of them.
+  defp first_versions(sql, resource) do
+    keys =
+      resource
+      |> Ash.Resource.Info.primary_key()
+      |> Enum.map_join(", ", &quote_name(source_col(resource, &1)))
+
+    period = quote_name(source_col(resource, Ash.Resource.Info.temporal_attribute(resource)))
+
+    "WITH first_versions AS (#{sql}) SELECT DISTINCT ON (#{keys}) * FROM first_versions " <>
+      "ORDER BY #{keys}, lower(#{period})"
   end
 
   # Insert ` FOR PORTION OF "<attr>" FROM $1::timestamptz TO …` immediately after the
