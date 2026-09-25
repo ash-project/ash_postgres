@@ -1095,7 +1095,6 @@ defmodule AshPostgres.TemporalTest do
       # tier 10 [jan,jun); id=1 subs: bronze [jan,feb), gold [feb,apr)
       [tier] = Tier |> Ash.Query.filter(id == 10) |> Ash.Query.as_of(@mar1) |> Ash.read!()
 
-      # as_of via the action opt so it's set before the cascade change captures context
       tier
       |> Ash.Changeset.for_destroy(:archive, %{}, as_of: @mar1)
       |> Ash.destroy!()
@@ -1111,6 +1110,80 @@ defmodule AshPostgres.TemporalTest do
                TestRepo.query!(
                  "SELECT lower(valid_at)::text, upper(valid_at)::text FROM tier WHERE id = 10"
                ).rows
+    end
+  end
+
+  describe "cascade destroy carries the destroy's as_of" do
+    defp tier_timeline do
+      TestRepo.query!(
+        "SELECT lower(valid_at)::text, upper(valid_at)::text FROM tier WHERE id = 10 ORDER BY lower(valid_at)"
+      ).rows
+    end
+
+    defp tier_at_mar1 do
+      [tier] = Tier |> Ash.Query.filter(id == 10) |> Ash.Query.as_of(@mar1) |> Ash.read!()
+      tier
+    end
+
+    defp archive(as_of, :option, action),
+      do: tier_at_mar1() |> Ash.Changeset.for_destroy(action, %{}, as_of: as_of) |> Ash.destroy()
+
+    defp archive(as_of, :set_after, action),
+      do:
+        tier_at_mar1()
+        |> Ash.Changeset.for_destroy(action)
+        |> Ash.Changeset.as_of(as_of)
+        |> Ash.destroy()
+
+    test "an as_of set after the changeset is built ends the children at that instant" do
+      assert :ok = archive(@mar1, :set_after, :archive)
+
+      assert [
+               ["bronze", ~U[2026-01-01 00:00:00.000000Z], ~U[2026-02-01 00:00:00.000000Z]],
+               ["gold", ~U[2026-02-01 00:00:00.000000Z], ~U[2026-03-01 00:00:00.000000Z]]
+             ] = subscription_timeline(1)
+
+      assert [["2026-01-01 00:00:00+00", "2026-03-01 00:00:00+00"]] = tier_timeline()
+    end
+
+    for form <- [:option, :set_after] do
+      test "a range as_of, given as #{form}, carves the children over the same span" do
+        span = %Ash.Range{
+          lower: @mar1,
+          upper: ~U[2026-03-15 00:00:00.000000Z],
+          bounds: :"[)"
+        }
+
+        assert :ok = archive(span, unquote(form), :archive)
+
+        assert [
+                 ["bronze", ~U[2026-01-01 00:00:00.000000Z], ~U[2026-02-01 00:00:00.000000Z]],
+                 ["gold", ~U[2026-02-01 00:00:00.000000Z], ~U[2026-03-01 00:00:00.000000Z]],
+                 ["gold", ~U[2026-03-15 00:00:00.000000Z], ~U[2026-04-01 00:00:00.000000Z]]
+               ] = subscription_timeline(1)
+
+        assert [
+                 ["2026-01-01 00:00:00+00", "2026-03-01 00:00:00+00"],
+                 ["2026-03-15 00:00:00+00", "2026-06-01 00:00:00+00"]
+               ] = tier_timeline()
+      end
+    end
+
+    test "the default order destroys the tier first, which the PERIOD foreign key refuses" do
+      assert {:error,
+              %Ash.Error.Invalid{
+                errors: [%Ash.Error.Changes.InvalidAttribute{private_vars: refusal}]
+              }} = archive(@mar1, :option, :archive_parent_first)
+
+      assert refusal[:constraint] == "subscription_tier_id_fkey"
+      assert refusal[:detail] =~ "(id, valid_at)"
+
+      assert [
+               ["bronze", ~U[2026-01-01 00:00:00.000000Z], ~U[2026-02-01 00:00:00.000000Z]],
+               ["gold", ~U[2026-02-01 00:00:00.000000Z], ~U[2026-04-01 00:00:00.000000Z]]
+             ] = subscription_timeline(1)
+
+      assert [["2026-01-01 00:00:00+00", "2026-06-01 00:00:00+00"]] = tier_timeline()
     end
   end
 
