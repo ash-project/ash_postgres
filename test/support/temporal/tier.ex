@@ -59,5 +59,11 @@ defmodule AshPostgres.Test.Temporal.Tier do
       require_atomic?(false)
       change(cascade_destroy(:subscriptions, after_action?: false))
     end
+
+    # The default order: the tier is destroyed before its subscriptions.
+    destroy :archive_parent_first do
+      require_atomic?(false)
+      change(cascade_destroy(:subscriptions))
+    end
   end
 end
