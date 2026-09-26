@@ -584,6 +584,52 @@ defmodule AshPostgres.TemporalTest do
              ] = subscription_timeline(1)
     end
 
+    test "a destroy over a portion spanning two versions carves both" do
+      [bronze] =
+        Subscription
+        |> Ash.Query.filter(id == 1)
+        |> Ash.Query.as_of(~U[2026-01-20 00:00:00.000000Z])
+        |> Ash.read!()
+
+      bronze
+      |> Ash.Changeset.for_destroy(:destroy)
+      |> Ash.Changeset.as_of(%Ash.Range{
+        lower: ~U[2026-01-15 00:00:00.000000Z],
+        upper: ~U[2026-02-15 00:00:00.000000Z],
+        bounds: :"[)"
+      })
+      |> Ash.destroy!()
+
+      assert [
+               ["bronze", ~U[2026-01-01 00:00:00.000000Z], ~U[2026-01-15 00:00:00.000000Z]],
+               ["gold", ~U[2026-02-15 00:00:00.000000Z], ~U[2026-04-01 00:00:00.000000Z]]
+             ] = subscription_timeline(1)
+    end
+
+    test "a bulk destroy of a record over a portion spanning two versions carves both" do
+      [bronze] =
+        Subscription
+        |> Ash.Query.filter(id == 1)
+        |> Ash.Query.as_of(~U[2026-01-20 00:00:00.000000Z])
+        |> Ash.read!()
+
+      assert %Ash.BulkResult{status: :success} =
+               Ash.bulk_destroy([bronze], :destroy, %{},
+                 as_of: %Ash.Range{
+                   lower: ~U[2026-01-15 00:00:00.000000Z],
+                   upper: ~U[2026-02-15 00:00:00.000000Z],
+                   bounds: :"[)"
+                 },
+                 strategy: [:stream],
+                 return_errors?: true
+               )
+
+      assert [
+               ["bronze", ~U[2026-01-01 00:00:00.000000Z], ~U[2026-01-15 00:00:00.000000Z]],
+               ["gold", ~U[2026-02-15 00:00:00.000000Z], ~U[2026-04-01 00:00:00.000000Z]]
+             ] = subscription_timeline(1)
+    end
+
     # `TO NULL` must survive: an instant still means "from here onward", and a bounded
     # portion would silently close an open version.
     test "an instant-valued as_of still writes an unbounded portion" do
