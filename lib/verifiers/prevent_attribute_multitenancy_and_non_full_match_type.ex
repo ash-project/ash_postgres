@@ -51,7 +51,8 @@ defmodule AshPostgres.Verifiers.PreventAttributeMultitenancyAndNonFullMatchType 
   end
 
   defp targets_multitenancy_attribute?(relationship) do
-    relationship.destination_attribute ==
-      Ash.Resource.Info.multitenancy_attribute(relationship.destination)
+    relationship.destination_attribute in Ash.Resource.Info.multitenancy_attributes(
+      relationship.destination
+    )
   end
 end
