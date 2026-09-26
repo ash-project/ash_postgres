@@ -1084,6 +1084,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       :old_multitenancy,
       :insert_after_attribute_source,
       :temporal,
+      citext_keys: [],
       no_phase: true,
       concurrently: false
     ]
@@ -1152,7 +1153,16 @@ defmodule AshPostgres.MigrationGenerator.Operation do
               true -> nil
             end
 
-          exclude_cols = Enum.map_join(keys, ", ", &"#{&1} WITH =") <> ", #{period} WITH &&"
+          citext_keys = op |> Map.get(:citext_keys, []) |> Enum.map(&to_string/1)
+
+          # GiST has no operator class for citext, so compare it the way citext does.
+          exclude_cols =
+            Enum.map_join(keys, ", ", fn key ->
+              if to_string(key) in citext_keys,
+                do: "(lower(#{key}::text)) WITH =",
+                else: "#{key} WITH ="
+            end) <> ", #{period} WITH &&"
+
           where_sql = if predicate, do: " WHERE (#{predicate})", else: ""
 
           body =

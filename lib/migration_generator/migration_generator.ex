@@ -2310,6 +2310,12 @@ defmodule AshPostgres.MigrationGenerator do
           schema: snapshot.schema,
           table: snapshot.table,
           temporal: snapshot.temporal,
+          citext_keys:
+            for(
+              %{source: source, type: :citext} <- snapshot.attributes,
+              source in identity.keys,
+              do: source
+            ),
           insert_after_attribute_source: insert_after_attribute_source,
           concurrently: opts.concurrent_indexes
         }

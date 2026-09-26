@@ -26,6 +26,7 @@ defmodule AshPostgres.TemporalMigrationGeneratorTest do
     attributes do
       attribute(:id, :integer, primary_key?: true, allow_nil?: false, public?: true)
       attribute(:name, :string, public?: true)
+      attribute(:email, :ci_string, public?: true)
 
       attribute(:valid_at, Ash.Type.Range,
         allow_nil?: false,
@@ -43,6 +44,7 @@ defmodule AshPostgres.TemporalMigrationGeneratorTest do
       # On a temporal resource this must be emitted as a period-aware (WITHOUT OVERLAPS)
       # exclusion, not a plain unique index — see the migration assertions below.
       identity(:unique_name, [:name])
+      identity(:unique_email, [:email])
     end
   end
 
@@ -140,6 +142,9 @@ defmodule AshPostgres.TemporalMigrationGeneratorTest do
     # version-guarded with a plain unique-index fallback on pre-PG19 servers.
     assert migration =~ "EXCLUDE USING gist (name WITH =, valid_at WITH &&)"
     assert migration =~ ~r/create unique_index\(:gen_tier, \[:name\]/
+
+    # GiST has no citext operator class, so citext keys compare as citext does
+    assert migration =~ "EXCLUDE USING gist ((lower(email::text)) WITH =, valid_at WITH &&)"
 
     # btree_gist installed via the extensions migration, not inline
     refute migration =~ "btree_gist"
