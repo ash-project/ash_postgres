@@ -4380,13 +4380,18 @@ defmodule AshPostgres.DataLayer do
 
             with_savepoint(repo, query, fn ->
               if Ash.Resource.Info.temporal?(resource) do
-                # A temporal destroy ends validity from `as_of` forward on the
-                # period valid at `as_of` (NOT the whole `id` timeline), via
-                # DELETE FOR PORTION OF. Scope to that period with `valid_at @> as_of`.
+                # An instant ends the version valid at it; a range reaches every version it overlaps.
                 portion = temporal_portion(query, changeset)
 
-                {:ok, query} =
-                  set_as_of(resource, query, Ash.Temporal.resolve_write_as_of(portion))
+                query =
+                  case portion do
+                    %Ash.Range{} ->
+                      query
+
+                    instant ->
+                      {:ok, query} = set_as_of(resource, query, instant)
+                      query
+                  end
 
                 AshPostgres.Temporal.delete_all(repo, query, resource, portion)
               else
