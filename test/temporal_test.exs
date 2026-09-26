@@ -21,7 +21,7 @@ defmodule AshPostgres.TemporalTest do
 
   require Ash.Query
   require Ash.Expr
-  alias AshPostgres.Test.Temporal.{Event, Subscription, Tier}
+  alias AshPostgres.Test.Temporal.{Event, Member, Subscription, Tier}
   alias AshPostgres.TestRepo
 
   @jan15 ~U[2026-01-15 00:00:00.000000Z]
@@ -1253,6 +1253,31 @@ defmodule AshPostgres.TemporalTest do
                TestRepo.query!(
                  "SELECT lower(valid_at)::text, upper(valid_at) FROM tier WHERE id = 30"
                ).rows
+    end
+  end
+
+  describe "identities" do
+    test "a value taken at the same instant is an invalid attribute, not a crash" do
+      Ash.create!(Member, %{id: 1, email: "zach@example.com"})
+
+      assert {:error, %Ash.Error.Invalid{errors: [%{field: :email} = error]}} =
+               Ash.create(Member, %{id: 2, email: "zach@example.com"})
+
+      assert Exception.message(error) =~ "has already been taken"
+    end
+
+    test "a citext value is taken regardless of case" do
+      Ash.create!(Member, %{id: 1, email: "Zach@example.com"})
+
+      assert {:error, %Ash.Error.Invalid{}} =
+               Ash.create(Member, %{id: 2, email: "zach@EXAMPLE.com"})
+    end
+
+    test "a value may be reused once its holder's history has ended" do
+      member = Ash.create!(Member, %{id: 1, email: "zach@example.com"}, as_of: @jan15)
+      Ash.destroy!(member, as_of: @mar1)
+
+      assert %Member{id: 2} = Ash.create!(Member, %{id: 2, email: "zach@example.com"})
     end
   end
 end

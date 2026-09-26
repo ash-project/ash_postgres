@@ -3912,7 +3912,16 @@ defmodule AshPostgres.DataLayer do
               keys
           end
 
-        Ecto.Changeset.unique_constraint(changeset, fields, opts)
+        # On a temporal resource an identity is an exclusion constraint over its period.
+        if Ash.Resource.Info.temporal?(resource) do
+          Ecto.Changeset.exclusion_constraint(
+            changeset,
+            List.first(fields),
+            Keyword.put_new(opts, :message, "has already been taken")
+          )
+        else
+          Ecto.Changeset.unique_constraint(changeset, fields, opts)
+        end
       end)
 
     changeset =

@@ -10,5 +10,6 @@ defmodule AshPostgres.Test.Temporal.Domain do
     resource(AshPostgres.Test.Temporal.Subscription)
     resource(AshPostgres.Test.Temporal.Tier)
     resource(AshPostgres.Test.Temporal.Event)
+    resource(AshPostgres.Test.Temporal.Member)
   end
 end
