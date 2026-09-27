@@ -266,7 +266,7 @@ defmodule AshPostgres.Temporal do
       Ecto.Adapters.SQL.to_sql(kind, repo, Map.delete(query, :__ash_bindings__), counter: counter)
 
     sql = splice_for_portion_of(sql, kind, attribute, not is_nil(upper))
-    sql = if returning? and kind == :update_all, do: first_versions(sql, resource), else: sql
+    sql = if returning?, do: first_versions(sql, resource), else: sql
     bounds = if upper, do: [lower, upper], else: [lower]
     result = repo.query!(sql, bounds ++ params)
 
