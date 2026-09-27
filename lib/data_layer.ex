@@ -443,13 +443,17 @@ defmodule AshPostgres.DataLayer do
 
   use Spark.Dsl.Extension,
     sections: @sections,
+    transformers: [
+      AshPostgres.Transformers.ValidateTemporalReferences
+    ],
     verifiers: [
       AshPostgres.Verifiers.PreventMultidimensionalArrayAggregates,
       AshPostgres.Verifiers.ValidateReferences,
       AshPostgres.Verifiers.ValidateCheckConstraints,
       AshPostgres.Verifiers.PreventAttributeMultitenancyAndNonFullMatchType,
       AshPostgres.Verifiers.EnsureTableOrPolymorphic,
-      AshPostgres.Verifiers.ValidateIdentityIndexNames
+      AshPostgres.Verifiers.ValidateIdentityIndexNames,
+      AshPostgres.Verifiers.VerifyTemporal
     ]
 
   def migrate(args) do
@@ -781,6 +785,7 @@ defmodule AshPostgres.DataLayer do
   def can?(_, :limit), do: true
   def can?(_, :offset), do: true
   def can?(_, :multitenancy), do: true
+  def can?(_, :temporal), do: true
 
   def can?(_, {:filter_relationship, %{manual: {module, _}}}) do
     Spark.implements_behaviour?(module, AshPostgres.ManualRelationship)
@@ -998,6 +1003,29 @@ defmodule AshPostgres.DataLayer do
   def set_tenant(resource, query, tenant) do
     if Ash.Resource.Info.multitenancy_strategy(resource) == :context && tenant do
       {:ok, Map.put(Ecto.Query.put_query_prefix(query, to_string(tenant)), :__tenant__, tenant)}
+    else
+      {:ok, query}
+    end
+  end
+
+  @impl true
+  def set_as_of(resource, query, as_of) do
+    # Point-in-time ("as of") reads against an application-period table are a
+    # range containment predicate: `valid_at @> $as_of`. Postgres has no native
+    # AS OF / system-versioning, so this is the idiomatic mechanism, and the
+    # GiST index backing the temporal PK makes it index-supported.
+    as_of = Ash.Temporal.resolve_read_as_of(as_of)
+
+    if Ash.Resource.Info.temporal_strategy(resource) == :context && as_of do
+      import Ecto.Query, only: [from: 2]
+      attribute = Ash.Resource.Info.temporal_attribute(resource)
+
+      query =
+        from(row in query,
+          where: fragment("? @> ?::timestamptz", field(row, ^attribute), ^as_of)
+        )
+
+      {:ok, Map.put(query, :__as_of__, as_of)}
     else
       {:ok, query}
     end
@@ -1941,11 +1969,20 @@ defmodule AshPostgres.DataLayer do
 
               {_, results} =
                 with_savepoint(repo, query, fn ->
-                  repo.update_all(
-                    Map.delete(query, :__ash_bindings__),
-                    [],
-                    repo_opts
-                  )
+                  if Ash.Resource.Info.temporal?(resource) do
+                    AshPostgres.Temporal.update_all(
+                      repo,
+                      Map.delete(query, :__ash_bindings__),
+                      resource,
+                      temporal_portion(query, changeset)
+                    )
+                  else
+                    repo.update_all(
+                      Map.delete(query, :__ash_bindings__),
+                      [],
+                      repo_opts
+                    )
+                  end
                 end)
 
               if options[:return_records?] do
@@ -1953,9 +1990,19 @@ defmodule AshPostgres.DataLayer do
 
                 if changeset.context[:data_layer][:use_atomic_update_data?] &&
                      Enum.count_until(results, 2) == 1 do
+                  # For temporal resources `FOR PORTION OF` truncates `valid_at` to
+                  # the affected slice; include it so the returned record reflects
+                  # the slice rather than the pre-split range.
+                  temporal_attrs =
+                    case Ash.Resource.Info.temporal_attribute(resource) do
+                      nil -> []
+                      attribute -> [attribute]
+                    end
+
                   modifying =
                     Map.keys(changeset.attributes) ++
-                      Keyword.keys(changeset.atomics) ++ Ash.Resource.Info.primary_key(resource)
+                      Keyword.keys(changeset.atomics) ++
+                      Ash.Resource.Info.primary_key(resource) ++ temporal_attrs
 
                   result = hd(results)
 
@@ -2236,10 +2283,19 @@ defmodule AshPostgres.DataLayer do
 
           {_, results} =
             with_savepoint(repo, query, fn ->
-              repo.delete_all(
-                query,
-                repo_opts
-              )
+              if Ash.Resource.Info.temporal?(resource) do
+                AshPostgres.Temporal.delete_all(
+                  repo,
+                  query,
+                  resource,
+                  temporal_portion(query, changeset)
+                )
+              else
+                repo.delete_all(
+                  query,
+                  repo_opts
+                )
+              end
             end)
 
           if options[:return_records?] do
@@ -2312,6 +2368,20 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def bulk_create(resource, stream, options) do
+    if options[:upsert?] && Ash.Resource.Info.temporal?(resource) do
+      # Temporal upsert (single or bulk): one atomic `FOR PORTION OF`-update-or-insert CTE
+      # per `as_of` (see `AshPostgres.Temporal.upsert_all/5`).
+      changesets = Enum.to_list(stream)
+      repo = AshSql.dynamic_repo(resource, AshPostgres.SqlImplementation, Enum.at(changesets, 0))
+      keys = options[:upsert_keys] || Ash.Resource.Info.primary_key(resource)
+
+      AshPostgres.Temporal.upsert_all(repo, resource, changesets, keys, options[:upsert_fields])
+    else
+      do_bulk_create(resource, stream, options)
+    end
+  end
+
+  defp do_bulk_create(resource, stream, options) do
     changesets = Enum.to_list(stream)
 
     repo = AshSql.dynamic_repo(resource, AshPostgres.SqlImplementation, Enum.at(changesets, 0))
@@ -2439,9 +2509,16 @@ defmodule AshPostgres.DataLayer do
           %{}
         end
 
+      temporal_attribute =
+        if Ash.Resource.Info.temporal?(resource) do
+          Ash.Resource.Info.temporal_attribute(resource)
+        end
+
       ecto_changesets =
         Enum.map(changesets, fn cs ->
-          Map.merge(cs.attributes, atomic_insert_values)
+          cs.attributes
+          |> Map.merge(atomic_insert_values)
+          |> maybe_put_temporal_period(temporal_attribute, cs)
         end)
 
       opts =
@@ -2797,6 +2874,47 @@ defmodule AshPostgres.DataLayer do
     end)
   end
 
+  # The `FOR PORTION OF` portion for a temporal mutation. A range on the changeset
+  # names it outright and is the only place a period survives; otherwise the query's
+  # threaded `as_of` (set for both single and bulk operations), the changeset's
+  # `as_of` (single), or the wall clock each give `[as_of, ∞)`.
+  # Upserts can't be expressed on a `WITHOUT OVERLAPS` table (Postgres has no
+  # `ON CONFLICT` for GiST exclusion constraints); use create or update instead.
+  defp temporal_portion(query, changeset) do
+    bindings = Map.get(query, :__ash_bindings__) || %{}
+
+    case changeset.as_of do
+      %Ash.Range{} = period ->
+        period
+
+      as_of ->
+        case get_in(bindings, [:context, :private, :as_of]) || as_of do
+          nil -> now_for_resource(changeset.resource)
+          resolved -> Ash.Temporal.resolve_write_as_of(resolved)
+        end
+    end
+  end
+
+  # The wall clock in the type the resource builds its periods from, so a declared
+  # precision is honoured.
+  defp now_for_resource(resource) do
+    case Ash.Temporal.write_instant(resource, :now) do
+      {:ok, instant} -> instant
+      :error -> DateTime.utc_now()
+    end
+  end
+
+  # A temporal create establishes the period `as_of` names. The period attribute is never
+  # accepted as input; the data layer sets it here.
+  defp maybe_put_temporal_period(attributes, nil, _changeset), do: attributes
+
+  defp maybe_put_temporal_period(attributes, temporal_attribute, changeset) do
+    case Ash.Temporal.write_period(changeset.resource, changeset.as_of) do
+      {:ok, period} -> Map.put(attributes, temporal_attribute, period)
+      :error -> attributes
+    end
+  end
+
   defp with_savepoint(
          repo,
          %{
@@ -2855,7 +2973,13 @@ defmodule AshPostgres.DataLayer do
     attributes_changing_anywhere =
       changesets |> Enum.flat_map(&Map.keys(&1.attributes)) |> Enum.uniq()
 
-    update_defaults = update_defaults(resource)
+    as_of =
+      case changesets do
+        [changeset | _] -> Ash.Temporal.resolve_write_as_of(changeset.as_of)
+        _ -> nil
+      end
+
+    update_defaults = update_defaults(resource, as_of)
     # We can't reference EXCLUDED if at least one of the changesets in the stream is not
     # changing the value (and we wouldn't want to even if we could as it would be unnecessary)
 
@@ -3519,14 +3643,33 @@ defmodule AshPostgres.DataLayer do
           end)
 
         nil ->
-          Ecto.ConstraintError.exception(
-            action: action,
-            type: type,
-            constraint: constraint,
-            changeset: changeset
-          )
+          if type == :exclusion and temporal_overlap_constraint?(resource, constraint) do
+            Ash.Error.Changes.InvalidAttribute.exception(
+              field: Ash.Resource.Info.temporal_attribute(resource),
+              message: "overlaps the period of an existing record",
+              private_vars: [
+                constraint: constraint,
+                constraint_type: :exclusion,
+                detail: error.postgres.detail
+              ]
+            )
+          else
+            Ecto.ConstraintError.exception(
+              action: action,
+              type: type,
+              constraint: constraint,
+              changeset: changeset
+            )
+          end
       end
     end)
+  end
+
+  # The temporal `WITHOUT OVERLAPS` primary key is a GiST exclusion named
+  # `<table>_pkey`; a violation means the written period overlaps an existing one.
+  defp temporal_overlap_constraint?(resource, constraint) do
+    Ash.Resource.Info.temporal?(resource) and
+      constraint == "#{AshPostgres.DataLayer.Info.table(resource)}_pkey"
   end
 
   defp set_table(record, changeset, operation, table_error?) do
@@ -3859,7 +4002,16 @@ defmodule AshPostgres.DataLayer do
               keys
           end
 
-        Ecto.Changeset.unique_constraint(changeset, fields, opts)
+        # On a temporal resource an identity is an exclusion constraint over its period.
+        if Ash.Resource.Info.temporal?(resource) do
+          Ecto.Changeset.exclusion_constraint(
+            changeset,
+            List.first(fields),
+            Keyword.put_new(opts, :message, "has already been taken")
+          )
+        else
+          Ecto.Changeset.unique_constraint(changeset, fields, opts)
+        end
       end)
 
     changeset =
@@ -3966,7 +4118,8 @@ defmodule AshPostgres.DataLayer do
       touch_update_defaults? =
         changeset.context[:private][:touch_update_defaults?] != false
 
-      update_defaults = update_defaults(resource)
+      update_defaults =
+        update_defaults(resource, Ash.Temporal.resolve_write_as_of(changeset.as_of))
 
       explicitly_changing_attributes =
         changeset.attributes
@@ -4111,7 +4264,7 @@ defmodule AshPostgres.DataLayer do
     end)
   end
 
-  defp update_defaults(resource) do
+  defp update_defaults(resource, as_of) do
     attributes =
       resource
       |> Ash.Resource.Info.attributes()
@@ -4119,8 +4272,8 @@ defmodule AshPostgres.DataLayer do
 
     attributes
     |> static_defaults()
-    |> Enum.concat(lazy_matching_defaults(attributes))
-    |> Enum.concat(lazy_non_matching_defaults(attributes))
+    |> Enum.concat(lazy_matching_defaults(attributes, as_of))
+    |> Enum.concat(lazy_non_matching_defaults(attributes, as_of))
   end
 
   defp static_defaults(attributes) do
@@ -4129,42 +4282,30 @@ defmodule AshPostgres.DataLayer do
     |> Enum.map(&{&1.name, &1.update_default})
   end
 
-  defp lazy_non_matching_defaults(attributes) do
+  # A `&DateTime.utc_now/0` update default resolves to the write's `as_of` (temporal time
+  # travel) rather than the wall clock — see `Ash.Helpers.resolve_default/2`.
+  defp lazy_non_matching_defaults(attributes, as_of) do
     attributes
     |> Enum.filter(&(!&1.match_other_defaults? && get_default_fun(&1)))
     |> Enum.map(fn attribute ->
-      default_value =
-        case attribute.update_default do
-          function when is_function(function) ->
-            function.()
-
-          {m, f, a} when is_atom(m) and is_atom(f) and is_list(a) ->
-            apply(m, f, a)
-        end
-
       {:ok, default_value} =
-        Ash.Type.cast_input(attribute.type, default_value, attribute.constraints)
+        attribute.update_default
+        |> Ash.Helpers.resolve_default(as_of)
+        |> then(&Ash.Type.cast_input(attribute.type, &1, attribute.constraints))
 
       {attribute.name, default_value}
     end)
   end
 
-  defp lazy_matching_defaults(attributes) do
+  defp lazy_matching_defaults(attributes, as_of) do
     attributes
     |> Enum.filter(&(&1.match_other_defaults? && get_default_fun(&1)))
     |> Enum.group_by(&{&1.update_default, &1.type, &1.constraints})
     |> Enum.flat_map(fn {{default_fun, type, constraints}, attributes} ->
-      default_value =
-        case default_fun do
-          function when is_function(function) ->
-            function.()
-
-          {m, f, a} when is_atom(m) and is_atom(f) and is_list(a) ->
-            apply(m, f, a)
-        end
-
       {:ok, default_value} =
-        Ash.Type.cast_input(type, default_value, constraints)
+        default_fun
+        |> Ash.Helpers.resolve_default(as_of)
+        |> then(&Ash.Type.cast_input(type, &1, constraints))
 
       Enum.map(attributes, &{&1.name, default_value})
     end)
@@ -4202,6 +4343,23 @@ defmodule AshPostgres.DataLayer do
           :__ash_bindings__,
           Map.put_new(query.__ash_bindings__, :tenant, changeset.tenant)
         )
+      end)
+      |> then(fn query ->
+        # A temporal update targets the period valid at `as_of` (the pkey filter
+        # alone matches every period of the id), and `update_query` splits it via
+        # FOR PORTION OF. Scope to that period with `valid_at @> as_of`.
+        if Ash.Resource.Info.temporal?(resource) do
+          {:ok, query} =
+            set_as_of(
+              resource,
+              query,
+              Ash.Temporal.resolve_write_as_of(temporal_portion(query, changeset))
+            )
+
+          query
+        else
+          query
+        end
       end)
 
     changeset =
@@ -4320,10 +4478,27 @@ defmodule AshPostgres.DataLayer do
             query = Ecto.Query.exclude(query, :select)
 
             with_savepoint(repo, query, fn ->
-              repo.delete_all(
-                query,
-                repo_opts
-              )
+              if Ash.Resource.Info.temporal?(resource) do
+                # An instant ends the version valid at it; a range reaches every version it overlaps.
+                portion = temporal_portion(query, changeset)
+
+                query =
+                  case portion do
+                    %Ash.Range{} ->
+                      query
+
+                    instant ->
+                      {:ok, query} = set_as_of(resource, query, instant)
+                      query
+                  end
+
+                AshPostgres.Temporal.delete_all(repo, query, resource, portion)
+              else
+                repo.delete_all(
+                  query,
+                  repo_opts
+                )
+              end
               |> case do
                 {0, _} ->
                   {:error,
@@ -4472,6 +4647,16 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
+  # For a temporal resource the row identity is `id + period`; append the period attribute
+  # so the combination back-join keys on it (and matches the projected fieldset).
+  defp with_temporal_field(fields, resource) do
+    if Ash.Resource.Info.temporal?(resource) do
+      Enum.uniq(fields ++ [Ash.Resource.Info.temporal_attribute(resource)])
+    else
+      fields
+    end
+  end
+
   defp maybe_subquery_upgrade(
          %{__ash_bindings__: %{subquery_upgrade?: true}} = query,
          _
@@ -4526,7 +4711,16 @@ defmodule AshPostgres.DataLayer do
       resource = query.__ash_bindings__.resource
 
       if requires_join? do
-        primary_key = Ash.Resource.Info.primary_key(query.__ash_bindings__.resource)
+        # The back-join re-fetches non-combination-selected columns from the base table by
+        # matching on the row's identity. For a temporal resource the identity is
+        # `id + period` (the DB key is `(id, valid_at WITHOUT OVERLAPS)`); joining on the
+        # Ash primary key (`[:id]`) alone would multiply rows across periods, so include the
+        # period attribute. `with_temporal_field/1` ensures it's in the fieldset.
+        primary_key =
+          with_temporal_field(
+            Ash.Resource.Info.primary_key(query.__ash_bindings__.resource),
+            query.__ash_bindings__.resource
+          )
 
         if primary_key != [] && primary_key -- fieldset == [] do
           dynamic =

@@ -326,6 +326,12 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
     end
   end
 
+  defp temporal_key_columns(%{temporal: %{strategy: :context, attribute: attribute}})
+       when is_binary(attribute),
+       do: [attribute]
+
+  defp temporal_key_columns(_op), do: []
+
   defp structure_ready_facts(table, schema) do
     [{:table_structure_ready, key(table, schema)}]
   end
@@ -345,9 +351,12 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
 
       # `ADD PRIMARY KEY (keys)` runs against columns an `AddAttribute` in this batch can
       # add (a new attribute folded into a composite key), so require each; without this
-      # it floats ahead of the add. Vacuous for pre-existing keys, and no cycle.
-      %Operation.AddPrimaryKey{table: table, schema: schema, keys: keys} ->
-        Enum.map(keys, &{:column_ready, key(table, schema, &1)})
+      # it floats ahead of the add. Vacuous for pre-existing keys, and no cycle. On a
+      # temporal resource the key also covers the period column.
+      %Operation.AddPrimaryKey{table: table, schema: schema, keys: keys} = op ->
+        keys
+        |> Enum.concat(temporal_key_columns(op))
+        |> Enum.map(&{:column_ready, key(table, schema, &1)})
 
       %Operation.AlterAttribute{
         table: table,
@@ -543,6 +552,13 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
 
         [{:table_structure_ready, key(own_table, schema)}] ++
           Enum.map(after_tables, &{:table_structure_ready, key(&1, schema)})
+
+      %Operation.AddTemporalForeignKey{} = op ->
+        # References the destination's temporal primary key, so both tables must be complete.
+        [
+          {:table_structure_ready, key(op.table, op.schema)},
+          {:table_structure_ready, key(op.destination_table, op.destination_schema)}
+        ]
 
       _ ->
         []

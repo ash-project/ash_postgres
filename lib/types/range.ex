@@ -85,7 +85,7 @@ defmodule AshPostgres.Type.Range do
 
   @doc "The concrete Postgres range type for an `Ash.Type.Range`'s constraints."
   def pg_range_type(constraints) do
-    case Ash.Type.get_type(constraints[:inner_type]) do
+    case Ash.Type.Range.base_type(constraints[:inner_type]) do
       Ash.Type.Date -> :daterange
       Ash.Type.NaiveDatetime -> :tsrange
       Ash.Type.Integer -> :int8range
