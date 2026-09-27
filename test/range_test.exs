@@ -85,6 +85,12 @@ defmodule AshPostgres.RangeTest do
     assert AshPostgres.Type.Range.pg_range_type(inner_type: Ash.Type.Date) == :daterange
     assert AshPostgres.Type.Range.pg_range_type(inner_type: Ash.Type.NaiveDatetime) == :tsrange
     assert AshPostgres.Type.Range.pg_range_type(inner_type: Ash.Type.Integer) == :int8range
+
+    # NewTypes resolve to the type they wrap
+    assert AshPostgres.Type.Range.pg_range_type(inner_type: Ash.Type.UtcDatetimeUsec) ==
+             :tstzrange
+
+    assert AshPostgres.Type.Range.pg_range_type(inner_type: Ash.Type.UtcDatetime) == :tstzrange
   end
 
   test "the stored column really is a native range, readable by Postgres operators" do
