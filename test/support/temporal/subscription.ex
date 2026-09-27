@@ -16,6 +16,7 @@ defmodule AshPostgres.Test.Temporal.Subscription do
   temporal do
     strategy(:context)
     attribute(:valid_at)
+    recorded_at(:recorded_at)
   end
 
   attributes do

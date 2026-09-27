@@ -1280,4 +1280,81 @@ defmodule AshPostgres.TemporalTest do
       assert %Member{id: 2} = Ash.create!(Member, %{id: 2, email: "zach@example.com"})
     end
   end
+
+  describe "recorded_at is the wall clock, not as_of" do
+    defp recorded_timeline(id) do
+      TestRepo.query!(
+        "SELECT tier, recorded_at FROM subscription WHERE id = $1 ORDER BY lower(valid_at)",
+        [id]
+      ).rows
+    end
+
+    defp subscription_at(id, as_of) do
+      Subscription
+      |> Ash.Query.filter(id == ^id)
+      |> Ash.Query.as_of(as_of)
+      |> Ash.read_one!()
+    end
+
+    defp recorded_since?(recorded_at, before) do
+      DateTime.compare(DateTime.from_naive!(recorded_at, "Etc/UTC"), before) in [:eq, :gt]
+    end
+
+    test "a back-dated create is recorded now" do
+      TestRepo.query!(
+        "INSERT INTO tier (id, name, valid_at) VALUES (20, 'open', tstzrange('2026-01-01', NULL, '[)'))"
+      )
+
+      before = DateTime.utc_now()
+
+      created =
+        Ash.create!(Subscription, %{id: 2, tier: "new", tier_id: 20}, as_of: @jan15)
+
+      assert created.valid_at.lower == @jan15
+      assert DateTime.compare(created.recorded_at, before) in [:eq, :gt]
+    end
+
+    test "a write that isn't back-dated records the instant its period starts at" do
+      created = Ash.create!(Subscription, %{id: 2, tier: "new"})
+      assert created.recorded_at == created.valid_at.lower
+    end
+
+    for action <- [:change_tier, :change_tier_nonatomic] do
+      test "#{action} restamps the version it opens and leaves the one it split alone" do
+        before = DateTime.utc_now()
+
+        @mar1
+        |> then(&subscription_at(1, &1))
+        |> Ash.Changeset.for_update(unquote(action), %{tier: "platinum"}, as_of: @mar1)
+        |> Ash.update!()
+
+        assert [["bronze", _], ["gold", gold_recorded], ["platinum", platinum_recorded]] =
+                 recorded_timeline(1)
+
+        refute recorded_since?(gold_recorded, before)
+        assert recorded_since?(platinum_recorded, before)
+      end
+    end
+
+    test "a bulk upsert restamps the version it opens even when recorded_at isn't an upsert field" do
+      before = DateTime.utc_now()
+
+      assert %Ash.BulkResult{status: :success} =
+               Ash.bulk_create!(
+                 [%{id: 1, tier: "platinum", tier_id: 10, seats: 9}],
+                 Subscription,
+                 :create,
+                 upsert?: true,
+                 upsert_fields: [:tier, :tier_id, :seats],
+                 as_of: @mar1,
+                 return_errors?: true
+               )
+
+      assert [["bronze", _], ["gold", gold_recorded], ["platinum", platinum_recorded]] =
+               recorded_timeline(1)
+
+      refute recorded_since?(gold_recorded, before)
+      assert recorded_since?(platinum_recorded, before)
+    end
+  end
 end

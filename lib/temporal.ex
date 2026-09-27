@@ -96,8 +96,13 @@ defmodule AshPostgres.Temporal do
 
     # On a match, set the configured `upsert_fields` (or all written columns), minus the
     # keys and the range itself.
+    #
+    # A match opens a new version, so it always takes the `recorded_at` the write was
+    # stamped with, whether or not that is one of the `upsert_fields`.
     set_fields =
       (upsert_fields || insert_cols)
+      |> Enum.concat(List.wrap(Ash.Resource.Info.temporal_recorded_at(resource)))
+      |> Enum.uniq()
       |> Enum.filter(&(&1 in insert_cols))
       |> Kernel.--(upsert_keys)
       |> Kernel.--([attribute])
