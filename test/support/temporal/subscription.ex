@@ -93,6 +93,13 @@ defmodule AshPostgres.Test.Temporal.Subscription do
       change(atomic_update(:seats, expr(seats + 1)))
     end
 
+    # Only writes while `now()` is before April; `now()` must be the write's `as_of`.
+    update :add_seat_before_april do
+      require_atomic?(true)
+      change(filter(expr(now() < ^~U[2026-04-01 00:00:00.000000Z])))
+      change(atomic_update(:seats, expr(seats + 1)))
+    end
+
     # Atomic validation that references `now()`; must be evaluated at the
     # changeset's `as_of` rather than the wall clock.
     update :validated_touch do

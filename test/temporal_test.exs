@@ -606,14 +606,17 @@ defmodule AshPostgres.TemporalTest do
              ] = subscription_timeline(1)
     end
 
-    test "a bulk destroy of a record over a portion spanning two versions carves both" do
+    test "a bulk destroy of a record over a portion refuses to stream" do
       [bronze] =
         Subscription
         |> Ash.Query.filter(id == 1)
         |> Ash.Query.as_of(~U[2026-01-20 00:00:00.000000Z])
         |> Ash.read!()
 
-      assert %Ash.BulkResult{status: :success} =
+      assert %Ash.BulkResult{
+               status: :error,
+               errors: [%Ash.Error.Framework{errors: [%Ash.Error.Framework.NotAtomicOverRange{}]}]
+             } =
                Ash.bulk_destroy([bronze], :destroy, %{},
                  as_of: %Ash.Range{
                    lower: ~U[2026-01-15 00:00:00.000000Z],
@@ -625,8 +628,8 @@ defmodule AshPostgres.TemporalTest do
                )
 
       assert [
-               ["bronze", ~U[2026-01-01 00:00:00.000000Z], ~U[2026-01-15 00:00:00.000000Z]],
-               ["gold", ~U[2026-02-15 00:00:00.000000Z], ~U[2026-04-01 00:00:00.000000Z]]
+               ["bronze", ~U[2026-01-01 00:00:00.000000Z], ~U[2026-02-01 00:00:00.000000Z]],
+               ["gold", ~U[2026-02-01 00:00:00.000000Z], ~U[2026-04-01 00:00:00.000000Z]]
              ] = subscription_timeline(1)
     end
 
@@ -817,6 +820,110 @@ defmodule AshPostgres.TemporalTest do
                  upper: ~U[2026-02-01 00:00:00.000000Z]
                }
              } = destroyed
+    end
+  end
+
+  describe "an atomic bulk write by list over a range" do
+    @spanning %Ash.Range{
+      lower: ~U[2026-01-15 00:00:00.000000Z],
+      upper: ~U[2026-03-01 00:00:00.000000Z],
+      bounds: :"[)"
+    }
+
+    defp bronze do
+      [bronze] =
+        Subscription
+        |> Ash.Query.filter(id == 1)
+        |> Ash.Query.as_of(~U[2026-01-01 00:00:00.000000Z])
+        |> Ash.read!()
+
+      bronze
+    end
+
+    for strategy <- [:atomic, :atomic_batches] do
+      test "an update spanning two stored versions carves both, each from its own value, #{strategy}" do
+        assert %Ash.BulkResult{status: :success, records: [written]} =
+                 Ash.bulk_update([bronze()], :add_seat, %{},
+                   as_of: @spanning,
+                   strategy: [unquote(strategy)],
+                   return_records?: true,
+                   return_errors?: true
+                 )
+
+        assert %{
+                 seats: 4,
+                 valid_at: %Ash.Range{
+                   lower: ~U[2026-01-15 00:00:00.000000Z],
+                   upper: ~U[2026-02-01 00:00:00.000000Z]
+                 }
+               } = written
+
+        assert [
+                 ["bronze", 3, ~U[2026-01-01 00:00:00.000000Z]],
+                 ["bronze", 4, ~U[2026-01-15 00:00:00.000000Z]],
+                 ["gold", 6, ~U[2026-02-01 00:00:00.000000Z]],
+                 ["gold", 5, ~U[2026-03-01 00:00:00.000000Z]]
+               ] = seats_timeline(1)
+      end
+
+      test "an update spanning two stored versions anchors `now()` to its as_of, #{strategy}" do
+        assert %Ash.BulkResult{status: :success} =
+                 Ash.bulk_update([bronze()], :add_seat_before_april, %{},
+                   as_of: @spanning,
+                   strategy: [unquote(strategy)],
+                   return_errors?: true
+                 )
+
+        assert [
+                 ["bronze", 3, ~U[2026-01-01 00:00:00.000000Z]],
+                 ["bronze", 4, ~U[2026-01-15 00:00:00.000000Z]],
+                 ["gold", 6, ~U[2026-02-01 00:00:00.000000Z]],
+                 ["gold", 5, ~U[2026-03-01 00:00:00.000000Z]]
+               ] = seats_timeline(1)
+      end
+
+      test "a soft destroy spanning two stored versions carves both, #{strategy}" do
+        assert %Ash.BulkResult{status: :success} =
+                 Ash.bulk_destroy([bronze()], :cancel, %{},
+                   as_of: @spanning,
+                   strategy: [unquote(strategy)],
+                   return_errors?: true
+                 )
+
+        assert [
+                 ["bronze", ~U[2026-01-01 00:00:00.000000Z], ~U[2026-01-15 00:00:00.000000Z]],
+                 ["cancelled", ~U[2026-01-15 00:00:00.000000Z], ~U[2026-02-01 00:00:00.000000Z]],
+                 ["cancelled", ~U[2026-02-01 00:00:00.000000Z], ~U[2026-03-01 00:00:00.000000Z]],
+                 ["gold", ~U[2026-03-01 00:00:00.000000Z], ~U[2026-04-01 00:00:00.000000Z]]
+               ] = subscription_timeline(1)
+      end
+
+      test "a hard destroy spanning two stored versions carves both, #{strategy}" do
+        bronze = bronze()
+
+        assert %Ash.BulkResult{status: :success, records: [destroyed]} =
+                 Ash.bulk_destroy([bronze], :expire, %{},
+                   as_of: @spanning,
+                   strategy: [unquote(strategy)],
+                   return_records?: true,
+                   return_errors?: true
+                 )
+
+        assert destroyed.tier == "bronze"
+
+        assert [
+                 ["bronze", ~U[2026-01-01 00:00:00.000000Z], ~U[2026-01-15 00:00:00.000000Z]],
+                 ["gold", ~U[2026-03-01 00:00:00.000000Z], ~U[2026-04-01 00:00:00.000000Z]]
+               ] = subscription_timeline(1)
+
+        assert %Ash.BulkResult{status: :success, records: []} =
+                 Ash.bulk_destroy([bronze], :expire, %{},
+                   as_of: @spanning,
+                   strategy: [unquote(strategy)],
+                   return_records?: true,
+                   return_errors?: true
+                 )
+      end
     end
   end
 
