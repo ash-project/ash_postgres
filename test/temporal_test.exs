@@ -691,6 +691,35 @@ defmodule AshPostgres.TemporalTest do
              ] = seats_timeline(1)
     end
 
+    test "an atomic update through an exists applies only to the version valid at as_of" do
+      [bronze] =
+        Subscription |> Ash.Query.filter(id == 1) |> Ash.Query.as_of(@jan15) |> Ash.read!()
+
+      bronze
+      |> Ash.Changeset.for_update(:add_seat_if_basic)
+      |> Ash.Changeset.as_of(@jan15)
+      |> Ash.update!()
+
+      # Only bronze [Jan,Feb) is split at jan-15; gold, which begins later, is untouched
+      assert [
+               ["bronze", 3, ~U[2026-01-01 00:00:00.000000Z]],
+               ["bronze", 4, ~U[2026-01-15 00:00:00.000000Z]],
+               ["gold", 5, ~U[2026-02-01 00:00:00.000000Z]]
+             ] = seats_timeline(1)
+    end
+
+    test "a bulk atomic update through an exists applies only to the version valid at as_of" do
+      Subscription
+      |> Ash.Query.filter(id == 1)
+      |> Ash.bulk_update!(:add_seat_if_basic, %{}, as_of: @jan15, strategy: :atomic)
+
+      assert [
+               ["bronze", 3, ~U[2026-01-01 00:00:00.000000Z]],
+               ["bronze", 4, ~U[2026-01-15 00:00:00.000000Z]],
+               ["gold", 5, ~U[2026-02-01 00:00:00.000000Z]]
+             ] = seats_timeline(1)
+    end
+
     test "an atomic update whose range spans two stored versions carves both" do
       [bronze] =
         Subscription

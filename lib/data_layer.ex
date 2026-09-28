@@ -2032,6 +2032,24 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
+  # Every version of a temporal record shares its primary key, so a query rebuilt to join
+  # its rows against the rows to write on the primary key alone would write every version.
+  # Scope it to the version valid at the original query's `as_of`, as that query was.
+  defp scope_to_as_of(faked_query, resource, query) do
+    case Map.get(query, :__as_of__) do
+      nil ->
+        faked_query
+
+      as_of ->
+        if Ash.Resource.Info.temporal?(resource) do
+          {:ok, faked_query} = set_as_of(resource, faked_query, as_of)
+          faked_query
+        else
+          faked_query
+        end
+    end
+  end
+
   defp bulk_updatable_query(query, resource, atomics, calculations, context, type \\ :update) do
     Enum.reduce_while(atomics, {:ok, query}, fn {_, expr}, {:ok, query} ->
       used_aggregates =
@@ -2174,6 +2192,7 @@ defmodule AshPostgres.DataLayer do
                       query
                     end
                   end)
+                  |> scope_to_as_of(resource, query)
 
                 {:ok, faked_query}
 

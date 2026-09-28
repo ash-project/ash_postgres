@@ -93,6 +93,19 @@ defmodule AshPostgres.Test.Temporal.Subscription do
       change(atomic_update(:seats, expr(seats + 1)))
     end
 
+    # Atomic update through an `exists`, which rebuilds the update as a join against a
+    # subquery of the rows to write.
+    update :add_seat_if_basic do
+      require_atomic?(true)
+
+      change(
+        atomic_update(
+          :seats,
+          expr(if exists(tier_record, name == "basic"), do: seats + 1, else: seats)
+        )
+      )
+    end
+
     # Only writes while `now()` is before April; `now()` must be the write's `as_of`.
     update :add_seat_before_april do
       require_atomic?(true)
