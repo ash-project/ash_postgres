@@ -1018,6 +1018,12 @@ defmodule AshPostgres.Test.Post do
   end
 
   calculations do
+    calculate(
+      :count_of_comments_titled_by_actor_plus_one,
+      :integer,
+      expr(count_of_comments_titled_by_actor + 1)
+    )
+
     calculate :relevance_score,
               :integer,
               expr(
@@ -1350,6 +1356,10 @@ defmodule AshPostgres.Test.Post do
     first(:latest_comment_title_agg, [:latest_comment], :title)
     sum(:sum_of_comment_ratings_calc, [:comments, :ratings], :double_score)
     count(:count_of_comments, :comments)
+
+    count :count_of_comments_titled_by_actor, :comments do
+      filter(expr(title == ^actor(:title)))
+    end
 
     count :count_of_comments_with_same_name, :comments do
       filter(expr(title == parent(title)))
