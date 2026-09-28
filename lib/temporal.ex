@@ -86,6 +86,7 @@ defmodule AshPostgres.Temporal do
     tname = quote_name(AshPostgres.DataLayer.Info.table(resource))
     qattr = quote_name(attribute)
     adapter = repo.__adapter__()
+    {range_type, bound} = period_types(resource)
 
     # The columns to write — every changeset attribute in the group except the temporal
     # range, which we build from `as_of`.
@@ -158,9 +159,9 @@ defmodule AshPostgres.Temporal do
       if has_update? do
         set_sql = Enum.map_join(set_fields, ", ", fn f -> "#{qsrc.(f)} = src.#{qsrc.(f)}" end)
 
-        "upd AS (UPDATE #{qtable} FOR PORTION OF #{qattr} FROM $1::timestamptz TO NULL " <>
+        "upd AS (UPDATE #{qtable} FOR PORTION OF #{qattr} FROM $1::#{bound} TO NULL " <>
           "SET #{set_sql} FROM src " <>
-          "WHERE #{key_match.(tname)} AND #{tname}.#{qattr} @> $1::timestamptz RETURNING #{tname}.*)"
+          "WHERE #{key_match.(tname)} AND #{tname}.#{qattr} @> $1::#{bound} RETURNING #{tname}.*)"
       end
 
     not_exists =
@@ -168,14 +169,14 @@ defmodule AshPostgres.Temporal do
         "NOT EXISTS (SELECT 1 FROM upd WHERE #{key_match.("upd")})"
       else
         "NOT EXISTS (SELECT 1 FROM #{qtable} ex WHERE #{key_match.("ex")} " <>
-          "AND ex.#{qattr} @> $1::timestamptz)"
+          "AND ex.#{qattr} @> $1::#{bound})"
       end
 
     # Bound the inserted range to this key's next period (gap-fill), else unbounded above
     # (NULL upper — the temporal "current" period; `'infinity'` can't be decoded).
     range_sql =
-      "tstzrange($1::timestamptz, (SELECT min(lower(#{qattr})) FROM #{qtable} s2 " <>
-        "WHERE #{key_match.("s2")} AND lower(#{qattr}) > $1::timestamptz))"
+      "#{range_type}($1::#{bound}, (SELECT min(lower(#{qattr})) FROM #{qtable} s2 " <>
+        "WHERE #{key_match.("s2")} AND lower(#{qattr}) > $1::#{bound}))"
 
     insert_cols_sql = Enum.map_join(insert_cols ++ [attribute], ", ", qsrc)
 
@@ -265,7 +266,8 @@ defmodule AshPostgres.Temporal do
     {sql, params} =
       Ecto.Adapters.SQL.to_sql(kind, repo, Map.delete(query, :__ash_bindings__), counter: counter)
 
-    sql = splice_for_portion_of(sql, kind, attribute, not is_nil(upper))
+    {_range_type, bound} = period_types(resource)
+    sql = splice_for_portion_of(sql, kind, attribute, bound, not is_nil(upper))
     sql = if returning?, do: first_versions(sql, resource), else: sql
     bounds = if upper, do: [lower, upper], else: [lower]
     result = repo.query!(sql, bounds ++ params)
@@ -276,6 +278,14 @@ defmodule AshPostgres.Temporal do
     else
       {result.num_rows, nil}
     end
+  end
+
+  # The Postgres types of the resource's period and of one of its bounds.
+  defp period_types(resource) do
+    constraints = Ash.Resource.Info.temporal_period(resource).constraints
+
+    {AshPostgres.Type.Range.pg_range_type(constraints),
+     AshPostgres.Type.Range.pg_element_type(constraints)}
   end
 
   # A range can carve several versions of one record; the write returns the first of them.
@@ -291,19 +301,19 @@ defmodule AshPostgres.Temporal do
       "ORDER BY #{keys}, lower(#{period})"
   end
 
-  # Insert ` FOR PORTION OF "<attr>" FROM $1::timestamptz TO …` immediately after the
+  # Insert ` FOR PORTION OF "<attr>" FROM $1::<bound> TO …` immediately after the
   # table name and before the ` AS <alias>` that Ecto emits. The upper is `$2` when
   # `as_of` names a period, else `NULL` — see the moduledoc for why not `'infinity'`.
-  defp splice_for_portion_of(sql, kind, attribute, upper?) do
+  defp splice_for_portion_of(sql, kind, attribute, bound, upper?) do
     {head, rest} = split_on_set_or_where(sql, kind)
     alias_token = head |> String.trim() |> String.split() |> List.last()
     table_part = String.replace_suffix(head, " AS #{alias_token}", "")
 
-    to = if upper?, do: "$2::timestamptz", else: "NULL"
+    to = if upper?, do: "$2::#{bound}", else: "NULL"
 
     clause =
       " FOR PORTION OF " <>
-        quote_name(attribute) <> " FROM $1::timestamptz TO " <> to
+        quote_name(attribute) <> " FROM $1::#{bound} TO " <> to
 
     table_part <> clause <> " AS " <> alias_token <> rest
   end

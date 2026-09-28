@@ -93,6 +93,16 @@ defmodule AshPostgres.Type.Range do
     end
   end
 
+  @doc "The Postgres type of a bound of an `Ash.Type.Range` with these constraints."
+  def pg_element_type(constraints) do
+    case pg_range_type(constraints) do
+      :daterange -> :date
+      :tsrange -> :timestamp
+      :int8range -> :bigint
+      :tstzrange -> :timestamptz
+    end
+  end
+
   defp inclusive(:"[)"), do: {true, false}
   defp inclusive(:"[]"), do: {true, true}
   defp inclusive(:"()"), do: {false, false}

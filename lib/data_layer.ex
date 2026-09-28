@@ -1020,10 +1020,27 @@ defmodule AshPostgres.DataLayer do
       import Ecto.Query, only: [from: 2]
       attribute = Ash.Resource.Info.temporal_attribute(resource)
 
+      # A fragment is a literal, so the bound's type is chosen, not interpolated.
       query =
-        from(row in query,
-          where: fragment("? @> ?::timestamptz", field(row, ^attribute), ^as_of)
-        )
+        case AshPostgres.Type.Range.pg_element_type(
+               Ash.Resource.Info.temporal_period(resource).constraints
+             ) do
+          :date ->
+            from(row in query, where: fragment("? @> ?::date", field(row, ^attribute), ^as_of))
+
+          :timestamp ->
+            from(row in query,
+              where: fragment("? @> ?::timestamp", field(row, ^attribute), ^as_of)
+            )
+
+          :bigint ->
+            from(row in query, where: fragment("? @> ?::bigint", field(row, ^attribute), ^as_of))
+
+          :timestamptz ->
+            from(row in query,
+              where: fragment("? @> ?::timestamptz", field(row, ^attribute), ^as_of)
+            )
+        end
 
       {:ok, Map.put(query, :__as_of__, as_of)}
     else
