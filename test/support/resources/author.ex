@@ -121,6 +121,7 @@ defmodule AshPostgres.Test.Author do
   aggregates do
     first(:profile_description, :profile, :description)
     count(:count_of_posts, :posts)
+    first(:latest_comment_title_across_posts, [:posts, :latest_comment], :title)
   end
 
   calculations do
