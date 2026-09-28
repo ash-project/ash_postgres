@@ -89,6 +89,45 @@ defmodule AshPostgres.TemporalMigrationGeneratorTest do
     end
   end
 
+  # Sorts before the table it references, so its columns are added after it's created
+  defmodule GenBadge do
+    @moduledoc false
+    use Ash.Resource, domain: nil, data_layer: AshPostgres.DataLayer
+
+    postgres do
+      table("gen_a_badge")
+      repo(AshPostgres.TestRepo)
+    end
+
+    temporal do
+      strategy(:context)
+      attribute(:valid_at)
+    end
+
+    attributes do
+      attribute(:id, :integer, primary_key?: true, allow_nil?: false, public?: true)
+
+      attribute(:valid_at, Ash.Type.Range,
+        allow_nil?: false,
+        constraints: [
+          inner_type: :datetime,
+          inner_constraints: [precision: :microsecond],
+          lower: [inclusive?: true],
+          upper: [inclusive?: false]
+        ],
+        public?: true
+      )
+    end
+
+    relationships do
+      belongs_to :tier_record, AshPostgres.TemporalMigrationGeneratorTest.GenTier do
+        attribute_type(:integer)
+        temporal_keys({:valid_at, :valid_at})
+        public?(true)
+      end
+    end
+  end
+
   defmodule Domain do
     @moduledoc false
     use Ash.Domain, validate_config_inclusion?: false
@@ -96,6 +135,7 @@ defmodule AshPostgres.TemporalMigrationGeneratorTest do
     resources do
       resource(AshPostgres.TemporalMigrationGeneratorTest.GenTier)
       resource(AshPostgres.TemporalMigrationGeneratorTest.GenSub)
+      resource(AshPostgres.TemporalMigrationGeneratorTest.GenBadge)
     end
   end
 
@@ -156,5 +196,35 @@ defmodule AshPostgres.TemporalMigrationGeneratorTest do
 
     assert extensions, "expected an extensions migration"
     assert File.read!(extensions) =~ "btree_gist"
+  end
+
+  test "adds a temporal primary key only once its period column exists", %{
+    snapshot_path: snapshot_path,
+    migration_path: migration_path
+  } do
+    AshPostgres.MigrationGenerator.generate(Domain,
+      snapshot_path: snapshot_path,
+      migration_path: migration_path,
+      quiet: true,
+      format: false,
+      auto_name: true
+    )
+
+    migration =
+      "#{migration_path}/**/*_migrate_resources*.exs"
+      |> Path.wildcard()
+      |> Enum.reject(&String.contains?(&1, "extensions"))
+      |> Enum.at(0)
+      |> File.read!()
+
+    [up | _] = String.split(migration, "def down")
+    {created, _} = :binary.match(up, "create table(:gen_a_badge")
+    {primary_key, _} = :binary.match(up, ~s|ALTER TABLE \\"gen_a_badge\\" ADD PRIMARY KEY|)
+
+    # The period column is added after the table is created, in a later `alter table`
+    {period, _} =
+      :binary.match(binary_part(up, created, byte_size(up) - created), "add :valid_at")
+
+    assert created + period < primary_key
   end
 end

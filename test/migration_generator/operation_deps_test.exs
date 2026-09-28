@@ -57,6 +57,39 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
     end
   end
 
+  describe "temporal primary key" do
+    test "a temporal primary key waits for its period column, as well as its key columns" do
+      add_key = %Operation.AddAttribute{
+        table: "posts",
+        schema: nil,
+        attribute: %{source: :id, primary_key?: true}
+      }
+
+      add_period = %Operation.AddAttribute{
+        table: "posts",
+        schema: nil,
+        attribute: %{source: :valid_at, primary_key?: false}
+      }
+
+      # The period attribute is loaded from the snapshot as a string
+      primary_key = %Operation.AddPrimaryKey{
+        table: "posts",
+        schema: nil,
+        keys: [:id],
+        temporal: %{strategy: :context, attribute: "valid_at"}
+      }
+
+      required = OperationDeps.requires(primary_key)
+
+      for column <- [add_key, add_period] do
+        [column_ready_fact] =
+          OperationDeps.provides(column) |> Enum.filter(&match?({:column_ready, _}, &1))
+
+        assert column_ready_fact in required
+      end
+    end
+  end
+
   describe "cross-table structural FK" do
     test "an AddAttribute with a structural reference is satisfied by the referenced table's column and unique index" do
       referenced_column = %Operation.AddAttribute{
