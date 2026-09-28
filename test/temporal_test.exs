@@ -720,6 +720,30 @@ defmodule AshPostgres.TemporalTest do
              ] = seats_timeline(1)
     end
 
+    test "an atomic update through an exists at the current instant leaves later versions alone" do
+      TestRepo.query!("""
+      INSERT INTO subscription (id, tier, seats, valid_at) VALUES
+        (2, 'now', 1, tstzrange(now() - interval '1 day', now() + interval '1 day', '[)')),
+        (2, 'later', 9, tstzrange(now() + interval '1 day', NULL, '[)'))
+      """)
+
+      Subscription
+      |> Ash.Query.filter(id == 2)
+      |> Ash.bulk_update!(:add_seat_if_basic, %{}, strategy: :atomic)
+
+      assert [["now", 1, _], ["now", 1, _], ["later", 9, _]] = seats_timeline(2)
+    end
+
+    test "an atomic update through an exists, by code interface, applies only to the version valid at as_of" do
+      AshPostgres.Test.Temporal.Domain.add_seat_if_basic!(1, as_of: @jan15)
+
+      assert [
+               ["bronze", 3, ~U[2026-01-01 00:00:00.000000Z]],
+               ["bronze", 4, ~U[2026-01-15 00:00:00.000000Z]],
+               ["gold", 5, ~U[2026-02-01 00:00:00.000000Z]]
+             ] = seats_timeline(1)
+    end
+
     test "an atomic update whose range spans two stored versions carves both" do
       [bronze] =
         Subscription
