@@ -11,5 +11,7 @@ defmodule AshPostgres.Test.Temporal.Domain do
     resource(AshPostgres.Test.Temporal.Tier)
     resource(AshPostgres.Test.Temporal.Event)
     resource(AshPostgres.Test.Temporal.Member)
+    resource(AshPostgres.Test.Temporal.Licence)
+    resource(AshPostgres.Test.Temporal.Shift)
   end
 end

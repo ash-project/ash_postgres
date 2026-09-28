@@ -1464,4 +1464,122 @@ defmodule AshPostgres.TemporalTest do
       assert recorded_since?(platinum_recorded, before)
     end
   end
+
+  for {inner_type, resource, table, period} <- [
+        {:date, AshPostgres.Test.Temporal.Licence, "licence", "valid_on"},
+        {:naive_datetime, AshPostgres.Test.Temporal.Shift, "shift", "valid_during"}
+      ] do
+    describe "a period built from #{inner_type}" do
+      @resource resource
+      @inner_type inner_type
+      @timeline "SELECT holder, lower(#{period}), upper(#{period}) FROM #{table} WHERE id = $1 ORDER BY lower(#{period})"
+
+      test "a create with no as_of opens its period now" do
+        before = at(@inner_type, :now)
+        Ash.create!(@resource, %{id: 1, holder: "now"})
+
+        assert [["now", lower, nil]] = TestRepo.query!(@timeline, [1]).rows
+        assert compare(lower, before) in [:eq, :gt]
+      end
+
+      test "a create as of an instant opens its period then" do
+        then = at(@inner_type, ~D[2020-06-15])
+        Ash.create!(@resource, %{id: 1, holder: "then"}, as_of: then)
+
+        assert [["then", ^then, nil]] = TestRepo.query!(@timeline, [1]).rows
+      end
+
+      test "a read as of an instant answers the version holding it" do
+        Ash.create!(@resource, %{id: 1, holder: "first"}, as_of: at(@inner_type, ~D[2020-01-01]))
+
+        assert [] = holders_at(@resource, at(@inner_type, ~D[2019-06-15]))
+        assert ["first"] = holders_at(@resource, at(@inner_type, ~D[2020-06-15]))
+
+        assert ["first"] =
+                 @resource
+                 |> Ash.read!(as_of: at(@inner_type, ~D[2020-06-15]))
+                 |> Enum.map(& &1.holder)
+      end
+
+      test "a read naming no instant, or :now, answers the current version" do
+        Ash.create!(@resource, %{id: 1, holder: "first"}, as_of: at(@inner_type, ~D[2020-01-01]))
+
+        assert ["first"] = @resource |> Ash.read!() |> Enum.map(& &1.holder)
+        assert ["first"] = @resource |> Ash.read!(as_of: :now) |> Enum.map(& &1.holder)
+      end
+
+      test "an update as of an instant supersedes the version from then" do
+        opened = at(@inner_type, ~D[2020-01-01])
+        changed = at(@inner_type, ~D[2021-01-01])
+        Ash.create!(@resource, %{id: 1, holder: "first"}, as_of: opened)
+
+        @resource
+        |> Ash.Query.as_of(at(@inner_type, ~D[2020-03-01]))
+        |> Ash.read_one!()
+        |> Ash.Changeset.for_update(:update, %{holder: "second"}, as_of: changed)
+        |> Ash.update!()
+
+        assert [["first", ^opened, ^changed], ["second", ^changed, nil]] =
+                 TestRepo.query!(@timeline, [1]).rows
+      end
+
+      test "an update over a range carves that range" do
+        opened = at(@inner_type, ~D[2020-01-01])
+        from = at(@inner_type, ~D[2020-06-01])
+        to = at(@inner_type, ~D[2020-09-01])
+        Ash.create!(@resource, %{id: 1, holder: "first"}, as_of: opened)
+
+        @resource
+        |> Ash.Query.as_of(at(@inner_type, ~D[2020-03-01]))
+        |> Ash.read_one!()
+        |> Ash.Changeset.for_update(:update, %{holder: "second"},
+          as_of: %Ash.Range{lower: from, upper: to, bounds: :"[)"}
+        )
+        |> Ash.update!()
+
+        assert [["first", ^opened, ^from], ["second", ^from, ^to], ["first", ^to, nil]] =
+                 TestRepo.query!(@timeline, [1]).rows
+      end
+
+      test "a destroy as of an instant ends the version then" do
+        opened = at(@inner_type, ~D[2020-01-01])
+        ended = at(@inner_type, ~D[2021-01-01])
+        Ash.create!(@resource, %{id: 1, holder: "first"}, as_of: opened)
+
+        assert :ok =
+                 @resource
+                 |> Ash.Query.as_of(at(@inner_type, ~D[2020-03-01]))
+                 |> Ash.read_one!()
+                 |> Ash.Changeset.for_destroy(:destroy, %{}, as_of: ended)
+                 |> Ash.destroy()
+
+        assert [["first", ^opened, ^ended]] = TestRepo.query!(@timeline, [1]).rows
+      end
+
+      test "an upsert as of an instant supersedes the version holding it" do
+        opened = at(@inner_type, ~D[2020-01-01])
+        changed = at(@inner_type, ~D[2021-01-01])
+        Ash.create!(@resource, %{id: 1, holder: "first"}, as_of: opened)
+
+        @resource
+        |> Ash.Changeset.for_create(:upsert, %{id: 1, holder: "second"}, as_of: changed)
+        |> Ash.create!()
+
+        assert [["first", ^opened, ^changed], ["second", ^changed, nil]] =
+                 TestRepo.query!(@timeline, [1]).rows
+      end
+    end
+  end
+
+  defp at(:date, :now), do: Date.utc_today()
+  defp at(:naive_datetime, :now), do: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+  defp at(:date, date), do: date
+  defp at(:naive_datetime, date), do: NaiveDateTime.new!(date, ~T[00:00:00.000000])
+
+  defp compare(%Date{} = left, right), do: Date.compare(left, right)
+  defp compare(%NaiveDateTime{} = left, right), do: NaiveDateTime.compare(left, right)
+
+  defp holders_at(resource, instant) do
+    resource |> Ash.Query.as_of(instant) |> Ash.read!() |> Enum.map(& &1.holder)
+  end
 end
