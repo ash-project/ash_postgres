@@ -40,7 +40,7 @@ end
 |------|------|---------|------|
 | [`repo`](#postgres-repo){: #postgres-repo .spark-required} | `module \| (any, any -> any)` |  | The repo that will be used to fetch your data. See the `AshPostgres.Repo` documentation for more. Can also be a function that takes a resource and a type `:read \| :mutate` and returns the repo |
 | [`migrate?`](#postgres-migrate?){: #postgres-migrate? } | `boolean` | `true` | Whether or not to include this resource in the generated migrations with `mix ash.generate_migrations` |
-| [`view?`](#postgres-view?){: #postgres-view? } | `boolean` | `false` | Declares that the table is a PostgreSQL view (or materialized view) rather than a base table. View resources are excluded from generated migrations, and records returned from upserts into them carry no `:upsert_action` metadata, since views have no `xmax` system column. |
+| [`view?`](#postgres-view?){: #postgres-view? } | `boolean` | `false` | Declares that the table is a PostgreSQL view (or materialized view) rather than a base table. View resources are excluded from generated migrations, and records returned from upserts into them carry no `:upsert_action` metadata, since views have no `xmax` system column. |
 | [`storage_types`](#postgres-storage_types){: #postgres-storage_types } | `keyword` | `[]` | A keyword list of attribute names to the ecto type that should be used for that attribute. Only necessary if you need to override the defaults. |
 | [`migration_types`](#postgres-migration_types){: #postgres-migration_types } | `keyword` | `[]` | A keyword list of attribute names to the ecto migration type that should be used for that attribute. Only necessary if you need to override the defaults. |
 | [`migration_defaults`](#postgres-migration_defaults){: #postgres-migration_defaults } | `keyword` | `[]` | A keyword list of attribute names to the ecto migration default that should be used for that attribute. The string you use will be placed verbatim in the migration. Use fragments like `fragment(\\"now()\\")`, or for `nil`, use `\\"nil\\"`. For custom `Ash.Type` modules, see `c:AshPostgres.Type.value_to_postgres_default/3`. |
@@ -104,7 +104,7 @@ index ["column", "column2"], unique: true, where: "thing = TRUE"
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`fields`](#postgres-custom_indexes-index-fields){: #postgres-custom_indexes-index-fields } | `atom \| String.t \| {:asc \| :desc, atom \| String.t} \| list(atom \| String.t \| {:asc \| :desc, atom \| String.t})` |  | The fields to include in the index.  Each entry can be an atom, string, or a tuple with an order using :desc or :asc and a field. |
+| [`fields`](#postgres-custom_indexes-index-fields){: #postgres-custom_indexes-index-fields } | `atom \| String.t \| {:asc \| :desc, atom \| String.t} \| list(atom \| String.t \| {:asc \| :desc, atom \| String.t})` |  | The fields to include in the index. Each entry can be an atom, string, or a tuple with an order using :desc or :asc and a field. |
 ### Options
 
 | Name | Type | Default | Docs |
