@@ -326,6 +326,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
     end
   end
 
+  # sobelow_skip ["DOS.StringToAtom"]
   defp temporal_key_columns(%{temporal: %{strategy: :context, attribute: attribute}})
        when is_binary(attribute),
        do: [String.to_atom(attribute)]
