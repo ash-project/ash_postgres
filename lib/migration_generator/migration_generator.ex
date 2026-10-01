@@ -4013,9 +4013,25 @@ defmodule AshPostgres.MigrationGenerator do
     |> Enum.map(fn attribute ->
       default = default(attribute, resource, repo)
 
+      migration_type_override =
+        AshPostgres.DataLayer.Info.migration_types(resource)[attribute.name]
+
       type =
-        AshPostgres.DataLayer.Info.migration_types(resource)[attribute.name] ||
+        migration_type_override ||
           migration_type(attribute.type, attribute.constraints)
+
+      type =
+        if is_nil(migration_type_override) &&
+             function_exported?(repo, :use_timestamptz?, 0) &&
+             repo.use_timestamptz?() do
+          case type do
+            :utc_datetime -> :timestamptz
+            :utc_datetime_usec -> :"timestamptz(6)"
+            type -> type
+          end
+        else
+          type
+        end
 
       type =
         if function_exported?(repo, :override_migration_type, 1) do
