@@ -322,6 +322,146 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  defmodule TimestamptzToggleRepo do
+    use AshPostgres.Repo,
+      otp_app: :ash_postgres
+
+    def use_timestamptz?, do: true
+
+    def min_pg_version do
+      %Version{major: 16, minor: 0, patch: 0}
+    end
+  end
+
+  defmodule TimestamptzPost do
+    use Ash.Resource,
+      domain: nil,
+      data_layer: AshPostgres.DataLayer
+
+    postgres do
+      table "timestamptz_posts"
+      repo TimestamptzToggleRepo
+      migration_types(explicit_type: :utc_datetime)
+    end
+
+    attributes do
+      uuid_primary_key(:id)
+      attribute(:starts_at, :datetime, public?: true)
+      attribute(:explicit_type, :datetime, public?: true)
+    end
+
+    actions do
+      create :create do
+        accept([:starts_at])
+      end
+
+      read :read do
+        primary?(true)
+      end
+    end
+  end
+
+  defmodule TimestamptzDomain do
+    use Ash.Domain
+
+    resources do
+      resource(TimestamptzPost)
+    end
+  end
+
+  describe "timestamptz datetime toggle" do
+    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      {:ok, _pid} =
+        TimestamptzToggleRepo.start_link(
+          username: "postgres",
+          password: "postgres",
+          database: "ash_postgres_test",
+          hostname: "localhost",
+          pool: Ecto.Adapters.SQL.Sandbox,
+          types: AshPostgres.Test.PostgrexTypes
+        )
+
+      :ok = Ecto.Adapters.SQL.Sandbox.checkout(TimestamptzToggleRepo)
+
+      Ecto.Adapters.SQL.Sandbox.mode(
+        TimestamptzToggleRepo,
+        {:shared, self()}
+      )
+
+      Ecto.Adapters.SQL.query!(
+        TimestamptzToggleRepo,
+        """
+        CREATE TABLE timestamptz_posts (
+          id uuid PRIMARY KEY,
+          starts_at timestamptz,
+          explicit_type timestamp without time zone
+        )
+        """
+      )
+
+      assert AshPostgres.SqlImplementation.storage_type(
+               TimestamptzPost,
+               :starts_at
+             ) == nil
+
+      AshPostgres.MigrationGenerator.generate(
+        TimestamptzDomain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      {:ok, timestamptz_post: TimestamptzPost}
+    end
+
+    test "uses timestamptz for :datetime when enabled", %{
+      migration_path: migration_path
+    } do
+      files =
+        Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert [file] = files
+
+      file_contents = File.read!(file)
+
+      assert file_contents =~ ~S[add :starts_at, :timestamptz]
+      assert file_contents =~ ~S[add :explicit_type, :utc_datetime]
+    end
+
+    test "uses timestamptz Ecto type when enabled", %{timestamptz_post: resource} do
+      assert resource.__schema__(:type, :starts_at) ==
+               {:parameterized,
+                {AshPostgres.Timestamptz.EctoType,
+                 [precision: :second, cast_dates_as: :start_of_day, timezone: :utc]}}
+    end
+
+    test "preserves datetime across database timezone changes", %{
+      timestamptz_post: resource
+    } do
+      datetime = ~U[2026-01-15 12:00:00Z]
+
+      post =
+        resource
+        |> Ash.Changeset.for_create(:create, %{starts_at: datetime}, domain: TimestamptzDomain)
+        |> Ash.create!()
+
+      {:ok, _result} =
+        Ecto.Adapters.SQL.query(
+          TimestamptzToggleRepo,
+          "SET timezone = 'America/Los_Angeles'"
+        )
+
+      loaded =
+        resource
+        |> Ash.get!(post.id, domain: TimestamptzDomain)
+
+      assert DateTime.compare(loaded.starts_at, datetime) == :eq
+    end
+  end
+
   describe "get_operations_from_snapshots" do
     test "explicit fk attribute order does not change create table emission" do
       # This also reproduces if a non-identity attribute like :note appears between
