@@ -30,6 +30,15 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     def in_quotes(nil), do: nil
     def in_quotes(value), do: "\"#{value}\""
 
+    # Escapes raw SQL for the body of a `"""` heredoc in a generated migration,
+    # so that the string Elixir reads back is the SQL as written.
+    def escape_heredoc(sql) do
+      sql
+      |> String.replace("\\", "\\\\")
+      |> String.replace("\#{", "\\\#{")
+      |> String.replace(~s("""), ~S(\"""))
+    end
+
     def as_atom(value) when is_atom(value), do: Macro.inspect_atom(:remote_call, value)
     # sobelow_skip ["DOS.StringToAtom"]
     def as_atom(value), do: Macro.inspect_atom(:remote_call, String.to_atom(value))
@@ -1123,7 +1132,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           base_filter ->
             base_filter = "(#{base_filter})"
 
-            "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), concurrently_option])})"
+            "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: #{inspect(base_filter, printable_limit: :infinity)}, #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), concurrently_option])})"
 
           where ->
             where = "(#{where})"
@@ -1241,10 +1250,12 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     @moduledoc false
     defstruct [:statement, :table, :schema, no_phase: true]
 
+    import Helper, only: [escape_heredoc: 1]
+
     def up(%{statement: %{up: up, code?: false}}) do
       """
       execute(\"\"\"
-      #{String.trim(up)}
+      #{escape_heredoc(String.trim(up))}
       \"\"\")
       """
     end
@@ -1256,7 +1267,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     def down(%{statement: %{down: down, code?: false}}) do
       """
       execute(\"\"\"
-      #{String.trim(down)}
+      #{escape_heredoc(String.trim(down))}
       \"\"\")
       """
     end
@@ -1734,13 +1745,13 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       if base_filter do
         ~s'''
         create constraint(:#{as_atom(table)}, :#{as_atom(name)}, check: """
-          (#{check}) OR NOT (#{base_filter})
+          #{escape_heredoc("(#{check}) OR NOT (#{base_filter})")}
         """#{prefix})
         '''
       else
         ~s'''
         create constraint(:#{as_atom(table)}, :#{as_atom(name)}, check: """
-          #{check}
+          #{escape_heredoc(check)}
         """#{prefix})
         '''
       end
@@ -1779,13 +1790,13 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       if base_filter do
         ~s'''
         create constraint(:#{as_atom(table)}, :#{as_atom(name)}, check: """
-          (#{check}) OR NOT (#{base_filter})
+          #{escape_heredoc("(#{check}) OR NOT (#{base_filter})")}
         """#{prefix})
         '''
       else
         ~s'''
         create constraint(:#{as_atom(table)}, :#{as_atom(name)}, check: """
-          #{check}
+          #{escape_heredoc(check)}
         """#{prefix})
         '''
       end

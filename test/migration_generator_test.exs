@@ -139,6 +139,59 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  # The strings Elixir reads from a generated migration, which is what reaches
+  # the database, as opposed to the migration's source text. `direction` picks
+  # the body of `def up` or `def down`.
+  defp migration_values(file, direction, fun) do
+    {_, [body]} =
+      file
+      |> Code.string_to_quoted!()
+      |> Macro.prewalk([], fn
+        {:def, _, [{^direction, _, _}, [do: body]]} = node, acc -> {node, [body | acc]}
+        node, acc -> {node, acc}
+      end)
+
+    body
+    |> Macro.prewalk([], fn node, acc ->
+      case fun.(node) do
+        nil -> {node, acc}
+        value when is_binary(value) -> {node, [String.trim(value) | acc]}
+        value -> {node, [value | acc]}
+      end
+    end)
+    |> elem(1)
+    |> Enum.reverse()
+  end
+
+  defp check_sql(file, name, direction \\ :up) do
+    migration_values(file, direction, fn
+      {:constraint, _, [_table, ^name, opts]} -> Keyword.fetch!(opts, :check)
+      _ -> nil
+    end)
+  end
+
+  defp execute_sql(file, direction) do
+    migration_values(file, direction, fn
+      {:execute, _, [sql]} -> sql
+      _ -> nil
+    end)
+  end
+
+  defp unique_index_where(file) do
+    migration_values(file, :up, fn
+      {:unique_index, _, [_table, _columns, opts]} -> Keyword.get(opts, :where)
+      _ -> nil
+    end)
+  end
+
+  defp migration_files(migration_path) do
+    "#{migration_path}/**/*_migrate_resources*.exs"
+    |> Path.wildcard()
+    |> Enum.reject(&String.contains?(&1, "extensions"))
+    |> Enum.sort()
+    |> Enum.map(&File.read!/1)
+  end
+
   defp generate_post_migration(domain, snapshot_path, migration_path) do
     AshPostgres.MigrationGenerator.generate(domain,
       snapshot_path: snapshot_path,
@@ -4535,12 +4588,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
                """)
                '''
 
-      assert file =~
-               ~S'''
-               create constraint(:posts, :title_must_conform_to_format, check: """
-                 title ~= '("\"\\"\\\"\\\\"\\\\\")'
-               """)
-               '''
+      assert check_sql(file, :title_must_conform_to_format) == [
+               ~S[title ~= '("\"\\"\\\"\\\\"\\\\\")']
+             ]
 
       defposts do
         attributes do
@@ -5041,6 +5091,145 @@ defmodule AshPostgres.MigrationGeneratorTest do
                "#{migration_path}/**/*_migrate_resources*.exs"
                |> Path.wildcard()
                |> Enum.reject(&String.contains?(&1, "extensions"))
+    end
+  end
+
+  describe "raw SQL in generated migrations" do
+    # Each ~S string below is SQL as written: `\d` is a regex class, `#{x}` is
+    # literal text, and `"archived"` is a quoted identifier.
+
+    test "check constraint SQL reaches the migration as written", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:code, :string, public?: true)
+        end
+
+        postgres do
+          check_constraints do
+            check_constraint(:code, "code_is_four_digits", check: ~S[code ~ '^\d{4}$'])
+            check_constraint(:code, "code_is_not_a_template", check: ~S[code <> '#{x}'])
+            check_constraint(:code, "code_has_no_triple_quote", check: ~S[code NOT LIKE '%"""%'])
+          end
+        end
+      end
+
+      defdomain([Post])
+      generate_post_migration(Domain, snapshot_path, migration_path)
+
+      [file] = migration_files(migration_path)
+
+      assert check_sql(file, :code_is_four_digits) == [~S[code ~ '^\d{4}$']]
+      assert check_sql(file, :code_is_not_a_template) == [~S[code <> '#{x}']]
+      assert check_sql(file, :code_has_no_triple_quote) == [~S[code NOT LIKE '%"""%']]
+
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:code, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+      generate_post_migration(Domain, snapshot_path, migration_path)
+
+      [_, file] = migration_files(migration_path)
+
+      assert check_sql(file, :code_is_four_digits, :down) == [~S[code ~ '^\d{4}$']]
+      assert check_sql(file, :code_is_not_a_template, :down) == [~S[code <> '#{x}']]
+    end
+
+    test "check constraint SQL combined with a base filter reaches the migration as written",
+         %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:code, :string, public?: true)
+          attribute(:kind, :string, public?: true)
+        end
+
+        resource do
+          base_filter(expr(kind == "digits"))
+        end
+
+        postgres do
+          base_filter_sql ~S["kind" ~ '^\w+$']
+
+          check_constraints do
+            check_constraint(:code, "code_is_four_digits", check: ~S[code ~ '^\d{4}$'])
+          end
+        end
+      end
+
+      defdomain([Post])
+      generate_post_migration(Domain, snapshot_path, migration_path)
+
+      [file] = migration_files(migration_path)
+
+      assert check_sql(file, :code_is_four_digits) == [
+               ~S[(code ~ '^\d{4}$') OR NOT ("kind" ~ '^\w+$')]
+             ]
+    end
+
+    test "custom statement SQL reaches the migration as written", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        postgres do
+          custom_statements do
+            statement :comment do
+              up(~S[COMMENT ON TABLE posts IS 'a\db #{x}'])
+              down(~S[COMMENT ON TABLE posts IS '\N'])
+            end
+          end
+        end
+      end
+
+      defdomain([Post])
+      generate_post_migration(Domain, snapshot_path, migration_path)
+
+      [file] = migration_files(migration_path)
+
+      assert execute_sql(file, :up) == [~S[COMMENT ON TABLE posts IS 'a\db #{x}']]
+      assert execute_sql(file, :down) == [~S[COMMENT ON TABLE posts IS '\N']]
+    end
+
+    test "an identity under a base_filter_sql with quotes and backslashes generates a valid where",
+         %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:archived, :boolean, public?: true, default: false)
+        end
+
+        identities do
+          identity(:unique_title, [:title])
+        end
+
+        resource do
+          base_filter(expr(archived == false))
+        end
+
+        postgres do
+          base_filter_sql ~S["archived" = false AND "title" !~ '\s']
+        end
+      end
+
+      defdomain([Post])
+      generate_post_migration(Domain, snapshot_path, migration_path)
+
+      [file] = migration_files(migration_path)
+
+      assert ~S[("archived" = false AND "title" !~ '\s')] in unique_index_where(file)
     end
   end
 
