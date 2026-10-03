@@ -11,6 +11,35 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.14.0](https://github.com/ash-project/ash_postgres/compare/v2.13.1...v2.14.0) (2026-10-03)
+
+
+
+
+### Features:
+
+* Add timestamptz option (#874) by Joseph Tolley
+
+* add temporal features by Zach Daniel
+
+### Bug Fixes:
+
+* convert a character_not_in_repertoire error to an invalid-class error (#866) by grempe
+
+* convert DBConnection.EncodeError to an invalid-class error (#863) by grempe
+
+* convert Ecto.Query.CastError on every query path (#864) by grempe
+
+* make ash_required standalone and actually use it by Zach Daniel
+
+* add more type signatures for like/ilike by Zach Daniel
+
+* add `view? true` option to support not returning `xmax` by Zach Daniel
+
+* properly merge check constraints/base filters by Zach Daniel
+
+* order no_phase operations after the objects they act on (#848) by Aaron Paterson
+
 ## [v2.13.1](https://github.com/ash-project/ash_postgres/compare/v2.13.0...v2.13.1) (2026-09-08)
 
 
