@@ -25,16 +25,16 @@
       "type": "text"
     },
     {
-      "allow_nil?": true,
+      "allow_nil?": false,
       "default": "nil",
-      "generated?": false,
+      "generated?": true,
       "precision": null,
       "primary_key?": false,
       "references": null,
       "scale": null,
       "size": null,
-      "source": "created",
-      "type": "utc_datetime_usec"
+      "source": "valid_at",
+      "type": "tstzrange"
     }
   ],
   "base_filter": null,
@@ -42,16 +42,19 @@
   "create_table_options": null,
   "custom_indexes": [],
   "custom_statements": [],
-  "has_create_action": false,
-  "hash": "E7967071B2D8054BFE5787408ED2DE625F213CCD28C592078468D413C2BB5B8C",
+  "has_create_action": true,
+  "hash": "4C05418764E40BBAC82177FD5660CB06CD04C36A81D47C40D53A1FBFA02BCF00",
   "identities": [],
   "multitenancy": {
     "attribute": null,
     "global": null,
     "strategy": null
   },
-  "repo": "Elixir.AshPostgres.TestRepo",
+  "repo": "Elixir.AshPostgres.TemporalTestRepo",
   "schema": null,
-  "table": "event",
-  "temporal": null
+  "table": "tier",
+  "temporal": {
+    "attribute": "valid_at",
+    "strategy": "context"
+  }
 }

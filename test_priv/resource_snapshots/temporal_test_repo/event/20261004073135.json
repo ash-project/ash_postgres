@@ -21,20 +21,20 @@
       "references": null,
       "scale": null,
       "size": null,
-      "source": "email",
-      "type": "citext"
+      "source": "name",
+      "type": "text"
     },
     {
-      "allow_nil?": false,
+      "allow_nil?": true,
       "default": "nil",
-      "generated?": true,
+      "generated?": false,
       "precision": null,
       "primary_key?": false,
       "references": null,
       "scale": null,
       "size": null,
-      "source": "valid_at",
-      "type": "tstzrange"
+      "source": "created",
+      "type": "utc_datetime_usec"
     }
   ],
   "base_filter": null,
@@ -42,34 +42,16 @@
   "create_table_options": null,
   "custom_indexes": [],
   "custom_statements": [],
-  "has_create_action": true,
-  "hash": "82A6392870511BE46BFCBE836F3527E4D4969B8C418C08DA4FC7D34D423850B1",
-  "identities": [
-    {
-      "all_tenants?": false,
-      "base_filter": null,
-      "index_name": "member_unique_email_index",
-      "keys": [
-        {
-          "type": "atom",
-          "value": "email"
-        }
-      ],
-      "name": "unique_email",
-      "nils_distinct?": true,
-      "where": null
-    }
-  ],
+  "has_create_action": false,
+  "hash": "EA6BD551D1DD7BB8A2CD2B99E3009290FF8F1AE54431BBF8699E289B65148F58",
+  "identities": [],
   "multitenancy": {
     "attribute": null,
     "global": null,
     "strategy": null
   },
-  "repo": "Elixir.AshPostgres.TestRepo",
+  "repo": "Elixir.AshPostgres.TemporalTestRepo",
   "schema": null,
-  "table": "member",
-  "temporal": {
-    "attribute": "valid_at",
-    "strategy": "context"
-  }
+  "table": "event",
+  "temporal": null
 }

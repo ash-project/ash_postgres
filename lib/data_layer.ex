@@ -2018,7 +2018,7 @@ defmodule AshPostgres.DataLayer do
 
                 if changeset.context[:data_layer][:use_atomic_update_data?] &&
                      Enum.count_until(results, 2) == 1 do
-                  # For temporal resources `FOR PORTION OF` truncates `valid_at` to
+                  # For temporal resources the split truncates `valid_at` to
                   # the affected slice; include it so the returned record reflects
                   # the slice rather than the pre-split range.
                   temporal_attrs =
@@ -2416,13 +2416,25 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def bulk_create(resource, stream, options) do
     if options[:upsert?] && Ash.Resource.Info.temporal?(resource) do
-      # Temporal upsert (single or bulk): one atomic `FOR PORTION OF`-update-or-insert CTE
+      # Temporal upsert (single or bulk): one atomic split-or-insert CTE
       # per `as_of` (see `AshPostgres.Temporal.upsert_all/5`).
       changesets = Enum.to_list(stream)
       repo = AshSql.dynamic_repo(resource, AshPostgres.SqlImplementation, Enum.at(changesets, 0))
       keys = options[:upsert_keys] || Ash.Resource.Info.primary_key(resource)
 
-      AshPostgres.Temporal.upsert_all(repo, resource, changesets, keys, options[:upsert_fields])
+      try do
+        AshPostgres.Temporal.upsert_all(repo, resource, changesets, keys, options[:upsert_fields])
+      rescue
+        e ->
+          changeset = Ash.Changeset.new(resource)
+
+          handle_raised_error(
+            e,
+            __STACKTRACE__,
+            {:bulk_create, ecto_changeset(changeset.data, changeset, :create, repo, false)},
+            resource
+          )
+      end
     else
       do_bulk_create(resource, stream, options)
     end
@@ -2921,7 +2933,7 @@ defmodule AshPostgres.DataLayer do
     end)
   end
 
-  # The `FOR PORTION OF` portion for a temporal mutation. A range on the changeset
+  # The portion a temporal mutation splits out. A range on the changeset
   # names it outright and is the only place a period survives; otherwise the query's
   # threaded `as_of` (set for both single and bulk operations), the changeset's
   # `as_of` (single), or the wall clock each give `[as_of, ∞)`.
@@ -4394,7 +4406,7 @@ defmodule AshPostgres.DataLayer do
       |> then(fn query ->
         # A temporal update targets the period valid at `as_of` (the pkey filter
         # alone matches every period of the id), and `update_query` splits it via
-        # FOR PORTION OF. Scope to that period with `valid_at @> as_of`.
+        # splitting it at as_of. Scope to that period with `valid_at @> as_of`.
         if Ash.Resource.Info.temporal?(resource) do
           {:ok, query} =
             set_as_of(

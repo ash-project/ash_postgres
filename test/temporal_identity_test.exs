@@ -3,12 +3,12 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshPostgres.TemporalIdentityTest do
-  @moduledoc "Identities on temporal resources: period-aware uniqueness + as_of-anchored eager checks (PG19)."
+  @moduledoc "Identities on temporal resources: period-aware uniqueness + as_of-anchored eager checks (PG18+)."
   use AshPostgres.RepoCase, async: false
   @moduletag :temporal
-  @moduletag :postgres_19
+  @moduletag :postgres_18
 
-  alias AshPostgres.TestRepo
+  alias AshPostgres.TemporalTestRepo
 
   defmodule Domain do
     @moduledoc false
@@ -25,7 +25,7 @@ defmodule AshPostgres.TemporalIdentityTest do
 
     postgres do
       table("temporal_id_thing")
-      repo(AshPostgres.TestRepo)
+      repo(AshPostgres.TemporalTestRepo)
     end
 
     temporal do
@@ -70,7 +70,7 @@ defmodule AshPostgres.TemporalIdentityTest do
   setup do
     # Mirror what the migration generator now emits for an identity on a temporal
     # resource: a period-aware GiST exclusion rather than a plain unique index.
-    TestRepo.query!("""
+    TemporalTestRepo.query!("""
     CREATE TABLE temporal_id_thing (
       id integer NOT NULL,
       name text,
@@ -95,7 +95,7 @@ defmodule AshPostgres.TemporalIdentityTest do
 
   test "an identity allows the same value across non-overlapping periods (history)" do
     # bounded historical "x" in [jan, mar) (the prior period of entity 1)
-    TestRepo.query!(
+    TemporalTestRepo.query!(
       "INSERT INTO temporal_id_thing (id, name, valid_at) VALUES (1, 'x', tstzrange('2026-01-01','2026-03-01','[)'))"
     )
 
@@ -104,7 +104,9 @@ defmodule AshPostgres.TemporalIdentityTest do
     assert {:ok, _} = create(%{id: 1, name: "x"}, @mar)
 
     rows =
-      TestRepo.query!("SELECT name FROM temporal_id_thing WHERE id = 1 ORDER BY lower(valid_at)").rows
+      TemporalTestRepo.query!(
+        "SELECT name FROM temporal_id_thing WHERE id = 1 ORDER BY lower(valid_at)"
+      ).rows
 
     assert rows == [["x"], ["x"]]
   end
@@ -118,7 +120,7 @@ defmodule AshPostgres.TemporalIdentityTest do
     near_future = DateTime.add(now, 365, :day)
     far_future = DateTime.add(now, 730, :day)
 
-    TestRepo.query!(
+    TemporalTestRepo.query!(
       "INSERT INTO temporal_id_thing (id, name, valid_at) VALUES (9, 'z', tstzrange($1, $2, '[)'))",
       [past, near_future]
     )
@@ -131,7 +133,7 @@ defmodule AshPostgres.TemporalIdentityTest do
 
   test "eager_check is anchored at as_of: a create conflicting at that instant is rejected" do
     # "z" valid across [jan, jun)
-    TestRepo.query!(
+    TemporalTestRepo.query!(
       "INSERT INTO temporal_id_thing (id, name, valid_at) VALUES (9, 'z', tstzrange('2026-01-01','2026-06-01','[)'))"
     )
 

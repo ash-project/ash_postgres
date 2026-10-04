@@ -32,6 +32,11 @@ AshPostgres.TestRepo.start_link()
 AshPostgres.DevTestRepo.start_link()
 AshPostgres.TestNoSandboxRepo.start_link()
 
+# Only migrated on PostgreSQL 18+ (see `AshPostgres.TemporalTestRepo`).
+if pg_version >= 18 do
+  AshPostgres.TemporalTestRepo.start_link()
+end
+
 format_sql_query =
   try do
     case System.shell("which pg_format") do

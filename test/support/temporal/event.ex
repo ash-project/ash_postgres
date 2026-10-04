@@ -10,7 +10,7 @@ defmodule AshPostgres.Test.Temporal.Event do
 
   postgres do
     table("event")
-    repo(AshPostgres.TestRepo)
+    repo(AshPostgres.TemporalTestRepo)
   end
 
   attributes do

@@ -10,7 +10,7 @@ defmodule AshPostgres.Test.Temporal.Member do
 
   postgres do
     table("member")
-    repo(AshPostgres.TestRepo)
+    repo(AshPostgres.TemporalTestRepo)
   end
 
   temporal do

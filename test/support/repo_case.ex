@@ -21,10 +21,17 @@ defmodule AshPostgres.RepoCase do
   end
 
   setup tags do
-    :ok = Sandbox.checkout(AshPostgres.TestRepo)
+    # `AshPostgres.TemporalTestRepo` is only started on PostgreSQL 18+.
+    repos =
+      [AshPostgres.TestRepo, AshPostgres.TemporalTestRepo]
+      |> Enum.filter(&Process.whereis/1)
 
-    if !tags[:async] do
-      Sandbox.mode(AshPostgres.TestRepo, {:shared, self()})
+    for repo <- repos do
+      :ok = Sandbox.checkout(repo)
+
+      if !tags[:async] do
+        Sandbox.mode(repo, {:shared, self()})
+      end
     end
 
     :ok

@@ -10,6 +10,7 @@ defmodule AshPostgres.Test.Temporal.Domain do
     resource AshPostgres.Test.Temporal.Subscription do
       define(:add_seat_if_basic, action: :add_seat_if_basic, get_by: [:id])
     end
+
     resource(AshPostgres.Test.Temporal.Tier)
     resource(AshPostgres.Test.Temporal.Event)
     resource(AshPostgres.Test.Temporal.Member)

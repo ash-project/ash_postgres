@@ -1140,11 +1140,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
         period ->
           # Period-aware uniqueness: the same key values may recur across non-overlapping
-          # periods (history), but never within a single instant. PG19+ enforces this with
-          # a `WITHOUT OVERLAPS`-style GiST exclusion (`key WITH =`, `period WITH &&`,
-          # needs `btree_gist`). Version-guarded so the migration is portable — on servers
-          # older than PG19 (where temporal isn't supported) it degrades to a plain unique
-          # index rather than failing.
+          # periods (history), but never within a single instant. Enforced with a
+          # `WITHOUT OVERLAPS`-style GiST exclusion (`key WITH =`, `period WITH &&`,
+          # needs `btree_gist`).
           predicate =
             cond do
               base_filter && where -> "(#{where}) AND (#{base_filter})"
@@ -1168,13 +1166,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           body =
             "ADD CONSTRAINT \\\"#{index_name}\\\" EXCLUDE USING gist (#{exclude_cols})#{where_sql}"
 
-          """
-          if repo().query!("SHOW server_version_num").rows |> hd() |> hd() |> String.to_integer() >= 190_000 do
-            #{alter_table(table, schema, multitenancy, body)}
-          else
-            #{plain}
-          end
-          """
+          alter_table(table, schema, multitenancy, body)
       end
     end
 
@@ -1205,13 +1197,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         _period ->
           body = "DROP CONSTRAINT IF EXISTS \\\"#{index_name}\\\""
 
-          """
-          if repo().query!("SHOW server_version_num").rows |> hd() |> hd() |> String.to_integer() >= 190_000 do
-            #{alter_table(table, schema, multitenancy, body)}
-          else
-            #{plain}
-          end
-          """
+          alter_table(table, schema, multitenancy, body)
       end
     end
 
@@ -1435,18 +1421,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         # Temporal primary key: the period column is checked for non-overlap
         # rather than equality (SQL:2011 / PG18+, `WITHOUT OVERLAPS`, backed by a
         # GiST exclusion constraint requiring `btree_gist` — enforced via
-        # `installed_extensions`, see VerifyTemporal). Guarded at migration time so
-        # the migration is portable: on servers older than PG19 it degrades to a
-        # plain primary key rather than failing.
-        temporal_keys = plain_keys <> ", #{op.temporal.attribute} WITHOUT OVERLAPS"
-
-        """
-        if repo().query!("SHOW server_version_num").rows |> hd() |> hd() |> String.to_integer() >= 190_000 do
-          #{alter_for.(temporal_keys)}
-        else
-          #{alter_for.(plain_keys)}
-        end
-        """
+        # `installed_extensions`, see VerifyTemporal). Needs PG18+, which VerifyTemporal
+        # requires of the repo's `min_pg_version/0`.
+        alter_for.(plain_keys <> ", #{op.temporal.attribute} WITHOUT OVERLAPS") <> "\n"
       else
         alter_for.(plain_keys) <> "\n"
       end
@@ -1545,12 +1522,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "\\\"#{op.destination_table}\\\""
         end
 
-      # PERIOD foreign keys need PG18+; guarded at migration time so the migration
-      # is portable (skipped entirely on servers older than PG19).
+      # PERIOD foreign keys need PG18+, which VerifyTemporal requires of the repo's
+      # `min_pg_version/0`.
       """
-      if repo().query!("SHOW server_version_num").rows |> hd() |> hd() |> String.to_integer() >= 190_000 do
-        execute("ALTER TABLE \\\"#{op.table}\\\" ADD CONSTRAINT #{name} FOREIGN KEY (#{op.column}, PERIOD #{op.source_period}) REFERENCES #{destination} (#{op.destination_attribute}, PERIOD #{op.destination_period})")
-      end
+      execute("ALTER TABLE \\\"#{op.table}\\\" ADD CONSTRAINT #{name} FOREIGN KEY (#{op.column}, PERIOD #{op.source_period}) REFERENCES #{destination} (#{op.destination_attribute}, PERIOD #{op.destination_period})")
       """
     end
 
