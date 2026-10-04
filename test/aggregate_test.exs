@@ -1286,6 +1286,40 @@ defmodule AshSql.AggregateTest do
                |> Ash.read_one!()
     end
 
+    test "sorting by an aggregate with a false default uses the default" do
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "title", public: true})
+        |> Ash.create!()
+
+      %{id: with_public_post} =
+        Comment
+        |> Ash.Changeset.for_create(:create, %{title: "with post"})
+        |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+        |> Ash.create!()
+
+      %{id: without_post} =
+        Comment
+        |> Ash.Changeset.for_create(:create, %{title: "without post"})
+        |> Ash.create!()
+
+      # Without its default the comment without a post would sort as `nil`, which
+      # comes last in ascending order, rather than as `false`, which comes first.
+      assert [%{id: ^without_post}, %{id: ^with_public_post}] =
+               Comment
+               |> Ash.Query.sort(post_public_or_false: :asc)
+               |> Ash.read!()
+
+      assert [
+               %{id: ^without_post, post_public_or_false: false},
+               %{id: ^with_public_post, post_public_or_false: true}
+             ] =
+               Comment
+               |> Ash.Query.load(:post_public_or_false)
+               |> Ash.Query.sort(post_public_or_false: :asc)
+               |> Ash.read!()
+    end
+
     test "first aggregates can be sorted on" do
       author =
         Author

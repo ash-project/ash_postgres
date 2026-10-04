@@ -131,6 +131,7 @@ defmodule AshPostgres.Test.Comment do
 
   aggregates do
     first(:post_category, :post, :category)
+    first(:post_public_or_false, :post, :public, default: false)
     count(:co_popular_comments, [:post, :popular_comments])
     count(:count_of_comments_containing_title, [:post, :comments_containing_title])
     list(:posts_for_comments_containing_title, [:post, :comments_containing_title, :post], :title)
