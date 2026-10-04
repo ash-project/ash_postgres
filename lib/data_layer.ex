@@ -336,18 +336,27 @@ defmodule AshPostgres.DataLayer do
       ],
       calculations_to_sql: [
         type: :keyword_list,
-        doc:
-          "A keyword list of calculations and their SQL representation. Used when creating unique indexes for identities over calculations"
+        doc: ~S"""
+        A keyword list of calculations and their SQL representation. Used when creating unique indexes for identities over calculations.
+
+        On a temporal resource, the migration generator writes this SQL into an `execute("...")` call in the migration's Elixir source as is, so Elixir interprets backslash escapes and `#{` in it and a `"` ends the string; escape them for Elixir there. On other resources it is escaped for you.
+        """
       ],
       identity_wheres_to_sql: [
         type: :keyword_list,
-        doc:
-          "A keyword list of identity names and the SQL representation of their `where` clause. See `AshPostgres.DataLayer.Info.identity_wheres_to_sql/1` for more details."
+        doc: ~S"""
+        A keyword list of identity names and the SQL representation of their `where` clause. See `AshPostgres.DataLayer.Info.identity_wheres_to_sql/1` for more details.
+
+        On a temporal resource, the migration generator writes this SQL into an `execute("...")` call in the migration's Elixir source as is, so Elixir interprets backslash escapes and `#{` in it and a `"` ends the string; escape them for Elixir there. On other resources it is escaped for you.
+        """
       ],
       base_filter_sql: [
         type: :string,
-        doc:
-          "A raw sql version of the base_filter, e.g `representative = true`. Required if trying to create a unique constraint on a resource with a base_filter"
+        doc: ~S"""
+        A raw sql version of the base_filter, e.g `representative = true`. Required if trying to create a unique constraint on a resource with a base_filter.
+
+        The migration generator does not escape this SQL consistently. It is written into the migration's Elixir source as is in check constraints (inside a `\"""` heredoc), in the unique index of an identity without a `where`, and in the identities of a temporal resource (both inside a double-quoted string). There, Elixir interprets backslash escapes and `#{` in it, and a `"` ends a double-quoted string. In custom indexes and in the unique index of an identity with a `where`, it is escaped for you. Prefer SQL without backslashes, double quotes and `#{` here, and check the generated migration if you need them.
+        """
       ],
       simple_join_first_aggregates: [
         type: {:list, :atom},

@@ -1121,6 +1121,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
             "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), option("where", where), concurrently_option])})"
 
           base_filter ->
+            # 3.0: escape `base_filter` here, as the other branches do through `option/2`.
+            # Today it is written into a plain string as is: a `"` in `base_filter_sql` ends
+            # the string and Elixir reinterprets backslash escapes and `#{`, so the same SQL
+            # comes out differently here than with an identity `where`. See #876.
             base_filter = "(#{base_filter})"
 
             "create unique_index(:#{as_atom(table)}, [#{Enum.map_join(keys, ", ", &inspect/1)}], where: \"#{base_filter}\", #{join(["name: \"#{index_name}\"", option("prefix", schema), option("nulls_distinct", nils_distinct?), concurrently_option])})"
@@ -1163,6 +1167,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
 
           where_sql = if predicate, do: " WHERE (#{predicate})", else: ""
 
+          # 3.0: escape `predicate` and `exclude_cols` (from `identity_wheres_to_sql`,
+          # `base_filter_sql` and `calculations_to_sql`) for the generated `execute("...")`.
+          # Today they are written into it as is: a `"` ends the string and Elixir
+          # reinterprets backslash escapes and `#{`, unlike the non-temporal branches,
+          # which escape the same SQL through `option/2`. See #876.
           body =
             "ADD CONSTRAINT \\\"#{index_name}\\\" EXCLUDE USING gist (#{exclude_cols})#{where_sql}"
 
@@ -1227,6 +1236,11 @@ defmodule AshPostgres.MigrationGenerator.Operation do
     @moduledoc false
     defstruct [:statement, :table, :schema, no_phase: true]
 
+    # 3.0: escape `up` and `down` in the generated `execute("""...""")` heredoc
+    # when `code?` is false. Today they are written into it as is, so Elixir
+    # reinterprets backslash escapes and `#{` in the SQL, and users escape it
+    # themselves to compensate (see #876). `SerialSequenceTransition` also renders
+    # through here and relies on `#{prefix()}` being interpolated at runtime.
     def up(%{statement: %{up: up, code?: false}}) do
       """
       execute(\"\"\"
@@ -1706,6 +1720,10 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         }) do
       prefix = if schema, do: ", " <> option(:prefix, schema), else: ""
 
+      # 3.0: escape `check` and `base_filter` in the generated migration, for example
+      # with a `~S"""` heredoc. Today they are written into the `"""` heredoc as is, so
+      # Elixir reinterprets backslash escapes and `#{` in the SQL, and users escape it
+      # themselves to compensate (see #876). Escaping it changes what those users get.
       if base_filter do
         ~s'''
         create constraint(:#{as_atom(table)}, :#{as_atom(name)}, check: """
@@ -1751,6 +1769,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
         }) do
       prefix = if schema, do: ", " <> option(:prefix, schema), else: ""
 
+      # 3.0: escape `check` and `base_filter` here too; see `AddCheckConstraint.up/1`.
       if base_filter do
         ~s'''
         create constraint(:#{as_atom(table)}, :#{as_atom(name)}, check: """
