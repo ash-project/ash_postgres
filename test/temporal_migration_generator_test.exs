@@ -3,10 +3,10 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshPostgres.TemporalMigrationGeneratorTest do
-  @moduledoc "Asserts the migration generator emits temporal DDL (PG19)."
+  @moduledoc "Asserts the migration generator emits temporal DDL (PG18+)."
   use AshPostgres.RepoCase, async: false
   @moduletag :temporal
-  @moduletag :postgres_19
+  @moduletag :postgres_18
   @moduletag :tmp_dir
 
   defmodule GenTier do
@@ -15,7 +15,7 @@ defmodule AshPostgres.TemporalMigrationGeneratorTest do
 
     postgres do
       table("gen_tier")
-      repo(AshPostgres.TestRepo)
+      repo(AshPostgres.TemporalTestRepo)
     end
 
     temporal do
@@ -54,7 +54,7 @@ defmodule AshPostgres.TemporalMigrationGeneratorTest do
 
     postgres do
       table("gen_sub")
-      repo(AshPostgres.TestRepo)
+      repo(AshPostgres.TemporalTestRepo)
     end
 
     temporal do
@@ -96,7 +96,7 @@ defmodule AshPostgres.TemporalMigrationGeneratorTest do
 
     postgres do
       table("gen_a_badge")
-      repo(AshPostgres.TestRepo)
+      repo(AshPostgres.TemporalTestRepo)
     end
 
     temporal do
@@ -146,7 +146,7 @@ defmodule AshPostgres.TemporalMigrationGeneratorTest do
     }
   end
 
-  test "emits range column, WITHOUT OVERLAPS PK, PERIOD FK and btree_gist, version-guarded", %{
+  test "emits range column, WITHOUT OVERLAPS PK, PERIOD FK and btree_gist", %{
     snapshot_path: snapshot_path,
     migration_path: migration_path
   } do
@@ -168,20 +168,20 @@ defmodule AshPostgres.TemporalMigrationGeneratorTest do
     # range period column
     assert migration =~ ":tstzrange"
 
-    # temporal WITHOUT OVERLAPS primary key, version-guarded with a plain-PK fallback
+    # temporal WITHOUT OVERLAPS primary key, with no fallback: the repo's
+    # `min_pg_version/0` guarantees PostgreSQL 18+, so nothing is checked at migration time
     assert migration =~ "ADD PRIMARY KEY (id, valid_at WITHOUT OVERLAPS)"
-    assert migration =~ "ADD PRIMARY KEY (id)"
-    assert migration =~ "server_version_num"
-    assert migration =~ "190_000"
+    refute migration =~ "ADD PRIMARY KEY (id)"
+    refute migration =~ "server_version_num"
 
-    # temporal PERIOD foreign key (also version-guarded)
+    # temporal PERIOD foreign key
     assert migration =~ "FOREIGN KEY (tier_id, PERIOD valid_at)"
     assert migration =~ "PERIOD valid_at)"
 
     # identity on a temporal resource -> period-aware exclusion (WITHOUT OVERLAPS),
-    # version-guarded with a plain unique-index fallback on pre-PG19 servers.
+    # never a plain unique index
     assert migration =~ "EXCLUDE USING gist (name WITH =, valid_at WITH &&)"
-    assert migration =~ ~r/create unique_index\(:gen_tier, \[:name\]/
+    refute migration =~ ~r/create unique_index\(:gen_tier, \[:name\]/
 
     # GiST has no citext operator class, so citext keys compare as citext does
     assert migration =~ "EXCLUDE USING gist ((lower(email::text)) WITH =, valid_at WITH &&)"

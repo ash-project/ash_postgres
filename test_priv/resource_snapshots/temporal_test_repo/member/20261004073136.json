@@ -21,8 +21,8 @@
       "references": null,
       "scale": null,
       "size": null,
-      "source": "name",
-      "type": "text"
+      "source": "email",
+      "type": "citext"
     },
     {
       "allow_nil?": false,
@@ -43,16 +43,31 @@
   "custom_indexes": [],
   "custom_statements": [],
   "has_create_action": true,
-  "hash": "94A1C6C459EB720CC502D358935D76F39DD1D36D15A5868B67BCA4A16860BA1E",
-  "identities": [],
+  "hash": "D2D92A32204963CA53D91F4E82EA30039FFEBDF4CCF3D62641344C50E8610746",
+  "identities": [
+    {
+      "all_tenants?": false,
+      "base_filter": null,
+      "index_name": "member_unique_email_index",
+      "keys": [
+        {
+          "type": "atom",
+          "value": "email"
+        }
+      ],
+      "name": "unique_email",
+      "nils_distinct?": true,
+      "where": null
+    }
+  ],
   "multitenancy": {
     "attribute": null,
     "global": null,
     "strategy": null
   },
-  "repo": "Elixir.AshPostgres.TestRepo",
+  "repo": "Elixir.AshPostgres.TemporalTestRepo",
   "schema": null,
-  "table": "tier",
+  "table": "member",
   "temporal": {
     "attribute": "valid_at",
     "strategy": "context"

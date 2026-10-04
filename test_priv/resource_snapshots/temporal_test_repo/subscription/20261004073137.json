@@ -116,14 +116,14 @@
   "custom_indexes": [],
   "custom_statements": [],
   "has_create_action": true,
-  "hash": "FA1ADDB90BF620ACD6E8BEFFE489DD56995132A8BE5F05281DFAC3C5858087BB",
+  "hash": "0D9D101FE4C593F8EFFC03DC84F5B4249ECEC5C08E2F699816D74C9D37FE3F0E",
   "identities": [],
   "multitenancy": {
     "attribute": null,
     "global": null,
     "strategy": null
   },
-  "repo": "Elixir.AshPostgres.TestRepo",
+  "repo": "Elixir.AshPostgres.TemporalTestRepo",
   "schema": null,
   "table": "subscription",
   "temporal": {

@@ -6,9 +6,9 @@ defmodule AshPostgres.Transformers.ValidateTemporalReferences do
   @moduledoc false
   # A temporal relationship (`temporal_keys` with both a source and destination period
   # attribute) is backed by a Postgres `PERIOD` foreign key. PostgreSQL only supports
-  # `NO ACTION` for those — "PostgreSQL supports temporal foreign keys with action
-  # NO ACTION, but not RESTRICT, CASCADE, SET NULL, or SET DEFAULT" (PG19 docs, 5.7
-  # Temporal Tables). So reject an `on_delete`/`on_update` referential action on such a
+  # `NO ACTION` for those, not RESTRICT, CASCADE, SET NULL, or SET DEFAULT ("unsupported
+  # ON DELETE action for foreign key constraint using PERIOD"). So reject an
+  # `on_delete`/`on_update` referential action on such a
   # relationship's `references` — it can't be expressed at the database level and must be
   # handled in the application (e.g. an `Ash.Resource.Change.CascadeDestroy`).
   #

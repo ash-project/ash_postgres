@@ -4,10 +4,10 @@
 
 defmodule AshPostgres.TemporalTest do
   @moduledoc """
-  End-to-end temporal (bitemporal) tests against Postgres 19.
+  End-to-end temporal (bitemporal) tests against PostgreSQL 18+.
 
   Exercises `as_of` time-travel reads, `now()` anchoring (filters/calcs/atomics),
-  the `Ash.Type.Range` <-> `Postgrex.Range` bridge, `FOR PORTION OF` mutations,
+  the `Ash.Type.Range` <-> `Postgrex.Range` bridge, period-splitting mutations,
   `range_overlaps/2`, and `temporal_keys` relationships.
 
   Tagged `:temporal`; run with:
@@ -17,12 +17,12 @@ defmodule AshPostgres.TemporalTest do
   use AshPostgres.RepoCase, async: false
 
   @moduletag :temporal
-  @moduletag :postgres_19
+  @moduletag :postgres_18
 
   require Ash.Query
   require Ash.Expr
   alias AshPostgres.Test.Temporal.{Event, Member, Subscription, Tier}
-  alias AshPostgres.TestRepo
+  alias AshPostgres.TemporalTestRepo
 
   @jan15 ~U[2026-01-15 00:00:00.000000Z]
   @mar1 ~U[2026-03-01 00:00:00.000000Z]
@@ -30,17 +30,17 @@ defmodule AshPostgres.TemporalTest do
   setup do
     # tier first: the temporal PERIOD foreign key requires the referenced tier
     # period to exist (and cover the subscription's period) before insert.
-    TestRepo.query!(
+    TemporalTestRepo.query!(
       "INSERT INTO tier (id, name, valid_at) VALUES (10, 'basic', tstzrange('2026-01-01','2026-06-01','[)'))"
     )
 
-    TestRepo.query!("""
+    TemporalTestRepo.query!("""
     INSERT INTO subscription (id, tier, tier_id, seats, activated_at, valid_at) VALUES
       (1, 'bronze', 10, 3, '2026-02-15', tstzrange('2026-01-01','2026-02-01','[)')),
       (1, 'gold',   10, 5, '2026-02-15', tstzrange('2026-02-01','2026-04-01','[)'))
     """)
 
-    TestRepo.query!("""
+    TemporalTestRepo.query!("""
     INSERT INTO event (id, name, created) VALUES
       (1, 'early', '2026-01-01'), (2, 'late', '2026-02-01')
     """)
@@ -51,14 +51,14 @@ defmodule AshPostgres.TemporalTest do
   defp tiers(records), do: records |> Enum.map(& &1.tier) |> Enum.sort()
 
   defp subscription_timeline(id) do
-    TestRepo.query!(
+    TemporalTestRepo.query!(
       "SELECT tier, lower(valid_at), upper(valid_at) FROM subscription WHERE id = $1 ORDER BY lower(valid_at)",
       [id]
     ).rows
   end
 
   defp seats_timeline(id) do
-    TestRepo.query!(
+    TemporalTestRepo.query!(
       "SELECT tier, seats, lower(valid_at) FROM subscription WHERE id = $1 ORDER BY lower(valid_at)",
       [id]
     ).rows
@@ -67,7 +67,7 @@ defmodule AshPostgres.TemporalTest do
   describe "default as_of (reads are current-state by default)" do
     test "get / read without as_of returns the currently-valid period, not all history" do
       # id=8: a past period + a current open-ended one (tier_id NULL avoids the PERIOD FK)
-      TestRepo.query!("""
+      TemporalTestRepo.query!("""
       INSERT INTO subscription (id, tier, tier_id, valid_at) VALUES
         (8, 'old',     NULL, tstzrange('2020-01-01','2021-01-01','[)')),
         (8, 'current', NULL, tstzrange('2021-01-01', NULL, '[)'))
@@ -102,7 +102,7 @@ defmodule AshPostgres.TemporalTest do
   describe "sorting through a temporal relationship" do
     setup do
       # tier 30 changes name across two adjacent periods; tier 40 is constant.
-      TestRepo.query!("""
+      TemporalTestRepo.query!("""
       INSERT INTO tier (id, name, valid_at) VALUES
         (30, 'mango',  tstzrange('2026-01-01','2026-03-01','[)')),
         (30, 'apple',  tstzrange('2026-03-01','2026-06-01','[)')),
@@ -111,7 +111,7 @@ defmodule AshPostgres.TemporalTest do
 
       # Each subscription spans the whole window (sub 5's span covers BOTH of tier 30's
       # periods — the as_of join must pick the single covering tier row, not both).
-      TestRepo.query!("""
+      TemporalTestRepo.query!("""
       INSERT INTO subscription (id, tier, tier_id, valid_at) VALUES
         (5, 'sub5', 30, tstzrange('2026-01-01','2026-06-01','[)')),
         (6, 'sub6', 40, tstzrange('2026-01-01','2026-06-01','[)'))
@@ -173,13 +173,13 @@ defmodule AshPostgres.TemporalTest do
   describe "Ash.load carries as_of (like tenant)" do
     setup do
       # tier 50 changes name across periods; subscription 7 spans both.
-      TestRepo.query!("""
+      TemporalTestRepo.query!("""
       INSERT INTO tier (id, name, valid_at) VALUES
         (50, 'old', tstzrange('2026-01-01','2026-03-01','[)')),
         (50, 'new', tstzrange('2026-03-01','2026-06-01','[)'))
       """)
 
-      TestRepo.query!("""
+      TemporalTestRepo.query!("""
       INSERT INTO subscription (id, tier, tier_id, valid_at) VALUES
         (7, 'sub7', 50, tstzrange('2026-01-01','2026-06-01','[)'))
       """)
@@ -287,14 +287,14 @@ defmodule AshPostgres.TemporalTest do
     end
   end
 
-  describe "FOR PORTION OF preserves an unbounded (NULL) upper" do
+  describe "splitting preserves an unbounded (NULL) upper" do
     test "updating a current row yields [as_of, ∞) with no 'infinity' upper or junk row" do
       # open-ended "current" row ([2026-01-01, ∞)); tier_id NULL avoids the PERIOD FK
-      TestRepo.query!(
+      TemporalTestRepo.query!(
         "INSERT INTO subscription (id, tier, tier_id, seats, valid_at) VALUES (20, 'x', NULL, 1, tstzrange('2026-01-01', NULL, '[)'))"
       )
 
-      # An atomic FOR PORTION OF update at @mar1 splits [jan,∞) -> [jan,mar1) + [mar1,∞).
+      # An atomic update at @mar1 splits [jan,∞) -> [jan,mar1) + [mar1,∞).
       # Returning the new slice previously crashed (literal 'infinity' upper); now it's NULL.
       updated =
         Subscription
@@ -307,13 +307,13 @@ defmodule AshPostgres.TemporalTest do
 
       # exactly two contiguous periods, the later one unbounded, and NO [infinity, ) junk row
       rows =
-        TestRepo.query!(
+        TemporalTestRepo.query!(
           "SELECT upper_inf(valid_at), seats FROM subscription WHERE id = 20 ORDER BY lower(valid_at)"
         ).rows
 
       assert rows == [[false, 1], [true, 2]]
 
-      assert TestRepo.query!(
+      assert TemporalTestRepo.query!(
                "SELECT count(*) FROM subscription WHERE id = 20 AND lower(valid_at) = 'infinity'"
              ).rows == [[0]]
     end
@@ -357,7 +357,7 @@ defmodule AshPostgres.TemporalTest do
     test "reads the rows valid at the current instant" do
       # An open-ended ([2020, ∞)) row that always covers the wall clock.
       # `tier_id` is NULL so it isn't subject to the temporal PERIOD FK.
-      TestRepo.query!(
+      TemporalTestRepo.query!(
         "INSERT INTO subscription (id, tier, tier_id, valid_at) VALUES (9, 'current', NULL, tstzrange('2020-01-01', NULL, '[)'))"
       )
 
@@ -467,7 +467,7 @@ defmodule AshPostgres.TemporalTest do
     end
   end
 
-  describe "FOR PORTION OF mutations" do
+  describe "period-splitting mutations" do
     test "update splits the row at as_of, applying the new value forward" do
       [gold] = Subscription |> Ash.Query.filter(id == 1) |> Ash.Query.as_of(@mar1) |> Ash.read!()
 
@@ -721,7 +721,7 @@ defmodule AshPostgres.TemporalTest do
     end
 
     test "an atomic update through an exists at the current instant leaves later versions alone" do
-      TestRepo.query!("""
+      TemporalTestRepo.query!("""
       INSERT INTO subscription (id, tier, seats, valid_at) VALUES
         (2, 'now', 1, tstzrange(now() - interval '1 day', now() + interval '1 day', '[)')),
         (2, 'later', 9, tstzrange(now() + interval '1 day', NULL, '[)'))
@@ -1010,7 +1010,7 @@ defmodule AshPostgres.TemporalTest do
   describe "aggregates respect as_of" do
     test "a count over a temporal has_many counts only periods valid at as_of" do
       # add a second subscription (id=3) for tier 10, valid only [Mar,May)
-      TestRepo.query!("""
+      TemporalTestRepo.query!("""
       INSERT INTO subscription (id, tier, tier_id, seats, valid_at) VALUES
         (3, 'silver', 10, 1, tstzrange('2026-03-01','2026-05-01','[)'))
       """)
@@ -1036,7 +1036,7 @@ defmodule AshPostgres.TemporalTest do
   describe "bulk_create" do
     test "distinct keys succeed; same key at the same as_of raises the exclusion constraint" do
       # open-ended tier so each create's `[as_of, ∞)` satisfies the PERIOD FK
-      TestRepo.query!(
+      TemporalTestRepo.query!(
         "INSERT INTO tier (id, name, valid_at) VALUES (20, 'open', tstzrange('2026-01-01', NULL, '[)'))"
       )
 
@@ -1087,7 +1087,7 @@ defmodule AshPostgres.TemporalTest do
     end
   end
 
-  describe "temporal upsert (atomic FOR-PORTION-OF-or-insert CTE)" do
+  describe "temporal upsert (atomic split-or-insert CTE)" do
     test "match: splits the period valid at as_of, applying new values forward" do
       # id=1: bronze [jan,feb), gold [feb,apr). Upsert at mar1 (inside gold).
       assert {:ok, result} =
@@ -1108,7 +1108,7 @@ defmodule AshPostgres.TemporalTest do
     end
 
     test "match: future periods (that don't contain as_of) are untouched" do
-      TestRepo.query!(
+      TemporalTestRepo.query!(
         "INSERT INTO subscription (id, tier, tier_id, seats, valid_at) VALUES (1,'future',10,1,tstzrange('2026-05-01','2026-06-01','[)'))"
       )
 
@@ -1124,13 +1124,13 @@ defmodule AshPostgres.TemporalTest do
                |> Ash.create(upsert?: true)
 
       assert [["future", 1]] =
-               TestRepo.query!(
+               TemporalTestRepo.query!(
                  "SELECT tier, seats FROM subscription WHERE id=1 AND lower(valid_at)='2026-05-01'"
                ).rows
     end
 
     test "no match: inserts a new period gap-filled to infinity" do
-      TestRepo.query!(
+      TemporalTestRepo.query!(
         "INSERT INTO tier (id, name, valid_at) VALUES (20, 'open', tstzrange('2026-01-01', NULL, '[)'))"
       )
 
@@ -1143,14 +1143,28 @@ defmodule AshPostgres.TemporalTest do
       assert result.tier == "new"
 
       assert [["new", "2026-01-15 00:00:00+00", nil]] =
-               TestRepo.query!(
+               TemporalTestRepo.query!(
                  "SELECT tier, lower(valid_at)::text, upper(valid_at) FROM subscription WHERE id=2"
                ).rows
     end
 
+    test "an identity violation still raises (only the primary key is retried)" do
+      TemporalTestRepo.query!(
+        "INSERT INTO member (id, email, valid_at) VALUES (1, 'taken', tstzrange('2026-01-01', NULL))"
+      )
+
+      assert {:error, %Ash.Error.Invalid{} = error} =
+               Member
+               |> Ash.Changeset.for_create(:create, %{id: 2, email: "taken"})
+               |> Ash.Changeset.as_of(@mar1)
+               |> Ash.create(upsert?: true)
+
+      assert Exception.message(error) =~ "email"
+    end
+
     test "bulk: upserts many keys in one statement (match splits, miss inserts)" do
       # open-ended tier so the new id=5 row's [mar1, ∞) satisfies the PERIOD FK
-      TestRepo.query!(
+      TemporalTestRepo.query!(
         "INSERT INTO tier (id, name, valid_at) VALUES (20, 'open', tstzrange('2026-01-01', NULL, '[)'))"
       )
 
@@ -1176,9 +1190,9 @@ defmodule AshPostgres.TemporalTest do
   end
 
   describe "bulk_update / update_many" do
-    # The `FOR PORTION OF FROM` bound is sourced from the query context as_of
+    # The split point is sourced from the query context as_of
     # (via `temporal_from_bound`), which carries it for both single and bulk.
-    test "each matched row is split at as_of (FOR PORTION OF, set-wide)" do
+    test "each matched row is split at as_of (set-wide)" do
       Subscription
       |> Ash.Query.filter(id == 1)
       |> Ash.Query.as_of(@mar1)
@@ -1195,7 +1209,7 @@ defmodule AshPostgres.TemporalTest do
 
   describe "bulk_destroy" do
     # FROM bound sourced from query context as_of (via `temporal_from_bound`).
-    test "each matched row's validity is truncated at as_of (FOR PORTION OF DELETE)" do
+    test "each matched row's validity is truncated at as_of (temporal DELETE)" do
       Subscription
       |> Ash.Query.filter(id == 1)
       |> Ash.Query.as_of(@mar1)
@@ -1209,7 +1223,7 @@ defmodule AshPostgres.TemporalTest do
   end
 
   describe "temporal PERIOD foreign keys reject referential actions" do
-    test "on_delete on a temporal relationship fails to compile (PG19: NO ACTION only)" do
+    test "on_delete on a temporal relationship fails to compile (PERIOD FKs: NO ACTION only)" do
       assert_raise Spark.Error.DslError, ~r/PERIOD|NO ACTION/, fn ->
         defmodule BadTemporalRef do
           use Ash.Resource,
@@ -1219,7 +1233,7 @@ defmodule AshPostgres.TemporalTest do
 
           postgres do
             table("bad_temporal_ref")
-            repo(AshPostgres.TestRepo)
+            repo(AshPostgres.TemporalTestRepo)
 
             references do
               reference(:tier_record, on_delete: :delete)
@@ -1255,6 +1269,63 @@ defmodule AshPostgres.TemporalTest do
     end
   end
 
+  describe "a write that keeps conflicting" do
+    test "fails with an Ash framework error that says retrying is safe" do
+      error =
+        Ash.Error.to_error_class(
+          AshPostgres.Temporal.WriteConflict.exception(resource: Subscription, attempts: 25)
+        )
+
+      assert %Ash.Error.Framework{errors: [%AshPostgres.Temporal.WriteConflict{}]} = error
+      assert Exception.message(error) =~ "conflicted with concurrent writes"
+      assert Exception.message(error) =~ "Retrying the action is safe"
+    end
+  end
+
+  describe "a temporal resource's repo must target PostgreSQL 18+" do
+    defmodule PrePg18Repo do
+      @moduledoc false
+      use AshPostgres.Repo, otp_app: :ash_postgres
+
+      def min_pg_version, do: %Version{major: 17, minor: 0, patch: 0}
+      def installed_extensions, do: ["ash-functions", "btree_gist"]
+    end
+
+    # Verifiers run after a module is verified, which doesn't happen synchronously for one
+    # defined in a test, so this runs the verifier on the resource directly.
+    test "a repo whose min_pg_version is below 18 fails to compile" do
+      # Spark reports the verifier's error on its own once the module is verified.
+      ExUnit.CaptureIO.capture_io(:stderr, fn ->
+        defmodule TemporalOnPrePg18 do
+          use Ash.Resource,
+            domain: nil,
+            validate_domain_inclusion?: false,
+            data_layer: AshPostgres.DataLayer
+
+          postgres do
+            table("temporal_on_pre_pg18")
+            repo(PrePg18Repo)
+          end
+
+          temporal do
+            strategy(:context)
+            attribute(:valid_at)
+          end
+
+          attributes do
+            attribute(:id, :integer, primary_key?: true, allow_nil?: false, public?: true)
+          end
+        end
+      end)
+
+      assert_raise Spark.Error.DslError, ~r/requires PostgreSQL 18 or later/, fn ->
+        AshPostgres.Verifiers.VerifyTemporal.verify(
+          AshPostgres.TemporalTest.TemporalOnPrePg18.spark_dsl_config()
+        )
+      end
+    end
+  end
+
   describe "the period attribute is not settable as input" do
     test "a resource that accepts the temporal attribute fails to compile" do
       assert_raise Spark.Error.DslError, ~r/must not be accepted as input/, fn ->
@@ -1266,7 +1337,7 @@ defmodule AshPostgres.TemporalTest do
 
           postgres do
             table("bad_temporal")
-            repo(AshPostgres.TestRepo)
+            repo(AshPostgres.TemporalTestRepo)
           end
 
           temporal do
@@ -1313,7 +1384,7 @@ defmodule AshPostgres.TemporalTest do
 
       # and the tier itself ended at mar1
       assert [["2026-01-01 00:00:00+00", "2026-03-01 00:00:00+00"]] =
-               TestRepo.query!(
+               TemporalTestRepo.query!(
                  "SELECT lower(valid_at)::text, upper(valid_at)::text FROM tier WHERE id = 10"
                ).rows
     end
@@ -1321,7 +1392,7 @@ defmodule AshPostgres.TemporalTest do
 
   describe "cascade destroy carries the destroy's as_of" do
     defp tier_timeline do
-      TestRepo.query!(
+      TemporalTestRepo.query!(
         "SELECT lower(valid_at)::text, upper(valid_at)::text FROM tier WHERE id = 10 ORDER BY lower(valid_at)"
       ).rows
     end
@@ -1410,7 +1481,7 @@ defmodule AshPostgres.TemporalTest do
       # the subscription's [jan15, ∞) (the temporal PERIOD FK requires it). A child written
       # at "now" would be [now, ∞) and fail the FK / show the wrong lower bound.
       assert [["2026-01-15 00:00:00+00", nil]] =
-               TestRepo.query!(
+               TemporalTestRepo.query!(
                  "SELECT lower(valid_at)::text, upper(valid_at) FROM tier WHERE id = 30"
                ).rows
     end
@@ -1443,7 +1514,7 @@ defmodule AshPostgres.TemporalTest do
 
   describe "recorded_at is the wall clock, not as_of" do
     defp recorded_timeline(id) do
-      TestRepo.query!(
+      TemporalTestRepo.query!(
         "SELECT tier, recorded_at FROM subscription WHERE id = $1 ORDER BY lower(valid_at)",
         [id]
       ).rows
@@ -1461,7 +1532,7 @@ defmodule AshPostgres.TemporalTest do
     end
 
     test "a back-dated create is recorded now" do
-      TestRepo.query!(
+      TemporalTestRepo.query!(
         "INSERT INTO tier (id, name, valid_at) VALUES (20, 'open', tstzrange('2026-01-01', NULL, '[)'))"
       )
 

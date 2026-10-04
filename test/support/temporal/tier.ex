@@ -10,7 +10,7 @@ defmodule AshPostgres.Test.Temporal.Tier do
 
   postgres do
     table("tier")
-    repo(AshPostgres.TestRepo)
+    repo(AshPostgres.TemporalTestRepo)
   end
 
   temporal do

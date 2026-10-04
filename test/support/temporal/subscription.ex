@@ -10,7 +10,7 @@ defmodule AshPostgres.Test.Temporal.Subscription do
 
   postgres do
     table("subscription")
-    repo(AshPostgres.TestRepo)
+    repo(AshPostgres.TemporalTestRepo)
   end
 
   temporal do
@@ -87,7 +87,7 @@ defmodule AshPostgres.Test.Temporal.Subscription do
       accept([:tier])
     end
 
-    # Atomic arithmetic update — exercised over FOR PORTION OF.
+    # Atomic arithmetic update — exercised over a period split.
     update :add_seat do
       require_atomic?(true)
       change(atomic_update(:seats, expr(seats + 1)))

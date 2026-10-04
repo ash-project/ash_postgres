@@ -120,6 +120,7 @@ defmodule AshPostgres.MixProject do
         "documentation/topics/advanced/schema-based-multitenancy.md",
         "documentation/topics/advanced/using-multiple-repos.md",
         "documentation/topics/advanced/upserts.md",
+        "documentation/topics/advanced/temporal-resources.md",
         {"documentation/dsls/DSL-AshPostgres.DataLayer.md",
          search_data: Spark.Docs.search_data_for(AshPostgres.DataLayer)},
         "CHANGELOG.md"
@@ -189,8 +190,7 @@ defmodule AshPostgres.MixProject do
     [
       {:ash, ash_version("~> 3.34")},
       {:spark, "~> 2.3 and >= 2.3.4"},
-      {:ash_sql,
-       ash_sql_version("~> 0.8")},
+      {:ash_sql, ash_sql_version("~> 0.8")},
       {:igniter, "~> 0.6 and >= 0.6.29", optional: true},
       {:ecto_sql, "~> 3.13"},
       {:ecto, "~> 3.13"},

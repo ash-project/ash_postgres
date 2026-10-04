@@ -27,6 +27,7 @@ if Mix.env() == :test do
   config :elixir, :time_zone_database, Tz.TimeZoneDatabase
   config :ash_postgres, AshPostgres.TestRepo, log: false
   config :ash_postgres, AshPostgres.TestNoSandboxRepo, log: false
+  config :ash_postgres, AshPostgres.TemporalTestRepo, log: false
 
   config :ash, :validate_domain_resource_inclusion?, false
   config :ash, :validate_domain_config_inclusion?, false
@@ -47,11 +48,13 @@ if Mix.env() == :test do
     AshPostgres.Test.OperatorExpression.IntListType
   ]
 
+  pg_port = String.to_integer(System.get_env("PG_PORT", "5432"))
+
   config :ash_postgres, AshPostgres.TestRepo,
     username: "postgres",
     database: "ash_postgres_test",
     hostname: "localhost",
-    port: 5433,
+    port: pg_port,
     pool: Ecto.Adapters.SQL.Sandbox,
     types: AshPostgres.Test.PostgrexTypes
 
@@ -60,7 +63,7 @@ if Mix.env() == :test do
     password: "postgres",
     database: "ash_postgres_dev_test",
     hostname: "localhost",
-    port: 5433,
+    port: pg_port,
     migration_primary_key: [name: :id, type: :binary_id],
     pool: Ecto.Adapters.SQL.Sandbox
 
@@ -73,7 +76,7 @@ if Mix.env() == :test do
     username: "postgres",
     database: "ash_postgres_test",
     hostname: "localhost",
-    port: 5433
+    port: pg_port
 
   # sobelow_skip ["Config.Secrets"]
   config :ash_postgres, AshPostgres.TestNoSandboxRepo, password: "postgres"
@@ -81,8 +84,24 @@ if Mix.env() == :test do
   config :ash_postgres, AshPostgres.TestNoSandboxRepo,
     migration_primary_key: [name: :id, type: :binary_id]
 
+  config :ash_postgres, AshPostgres.TemporalTestRepo,
+    username: "postgres",
+    password: "postgres",
+    database: "ash_postgres_test",
+    hostname: "localhost",
+    port: pg_port,
+    pool: Ecto.Adapters.SQL.Sandbox,
+    types: AshPostgres.Test.PostgrexTypes
+
+  # Temporal resources need PostgreSQL 18+, so their repo is only migrated when testing
+  # against it. An unset `PG_VERSION` means the newest (see `AshPostgres.TestRepo`).
+  {pg_version, _} = Integer.parse(System.get_env("PG_VERSION", "19"))
+  temporal_repos = if pg_version >= 18, do: [AshPostgres.TemporalTestRepo], else: []
+
   config :ash_postgres,
-    ecto_repos: [AshPostgres.TestRepo, AshPostgres.DevTestRepo, AshPostgres.TestNoSandboxRepo],
+    ecto_repos:
+      [AshPostgres.TestRepo, AshPostgres.DevTestRepo, AshPostgres.TestNoSandboxRepo] ++
+        temporal_repos,
     ash_domains: [
       AshPostgres.Test.Domain,
       AshPostgres.MultitenancyTest.Domain,
