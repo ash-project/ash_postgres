@@ -17,8 +17,8 @@ defmodule AshPostgres.TemporalConcurrencyTest do
   @moduletag :postgres_18
 
   require Ash.Query
-  alias AshPostgres.Test.Temporal.Subscription
   alias AshPostgres.TemporalTestRepo
+  alias AshPostgres.Test.Temporal.Subscription
   alias Ecto.Adapters.SQL.Sandbox
 
   @jan1 ~U[2026-01-01 00:00:00.000000Z]

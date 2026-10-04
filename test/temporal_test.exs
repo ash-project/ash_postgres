@@ -21,8 +21,8 @@ defmodule AshPostgres.TemporalTest do
 
   require Ash.Query
   require Ash.Expr
-  alias AshPostgres.Test.Temporal.{Event, Member, Subscription, Tier}
   alias AshPostgres.TemporalTestRepo
+  alias AshPostgres.Test.Temporal.{Event, Member, Subscription, Tier}
 
   @jan15 ~U[2026-01-15 00:00:00.000000Z]
   @mar1 ~U[2026-03-01 00:00:00.000000Z]
