@@ -11,6 +11,19 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.14.2](https://github.com/ash-project/ash_postgres/compare/v2.14.1...v2.14.2) (2026-10-04)
+
+
+
+
+### Bug Fixes:
+
+* properly handle upserts on identities by Zach Daniel
+
+### Performance Improvements:
+
+* better query building speed by Zach Daniel
+
 ## [v2.14.1](https://github.com/ash-project/ash_postgres/compare/v2.14.0...v2.14.1) (2026-10-04)
 
 
