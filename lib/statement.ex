@@ -42,14 +42,16 @@ defmodule AshPostgres.Statement do
     ],
     up: [
       type: :string,
-      doc: """
-      How to create the structure of the statement
+      doc: ~S"""
+      How to create the structure of the statement.
+
+      Unless `code?` is true, the migration generator writes this SQL into an `execute(\"""...\""")` heredoc in the migration's Elixir source as is, so when the migration compiles, Elixir interprets backslash escapes and `#{` in it. Escape them for Elixir: for SQL containing `'^\d+$'`, write `'^\\d+$'`, for example inside `~S(...)`.
       """,
       required: true
     ],
     down: [
       type: :string,
-      doc: "How to tear down the structure of the statement",
+      doc: "How to tear down the structure of the statement. Escape it as described for `up`.",
       required: true
     ],
     after_tables: [

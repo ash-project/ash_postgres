@@ -26,8 +26,11 @@ defmodule AshPostgres.CheckConstraint do
       ],
       check: [
         type: :string,
-        doc:
-          "The contents of the check. If this is set, the migration generator will include it when generating migrations"
+        doc: ~S"""
+        The contents of the check. If this is set, the migration generator will include it when generating migrations.
+
+        The migration generator writes this SQL into the migration's Elixir source as is, inside a `\"""` heredoc, so when the migration compiles, Elixir interprets backslash escapes and `#{` in it. Escape them for Elixir: for the SQL `code ~ '^\d{4}$'`, write `check: ~S(code ~ '^\\d{4}$')`.
+        """
       ]
     ]
   end
