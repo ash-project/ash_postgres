@@ -2417,13 +2417,25 @@ defmodule AshPostgres.DataLayer do
   def bulk_create(resource, stream, options) do
     if options[:upsert?] && Ash.Resource.Info.temporal?(resource) do
       # Temporal upsert (single or bulk): one atomic split-or-insert CTE
-      # per `as_of` (see `AshPostgres.Temporal.upsert_all/5`).
+      # per `as_of` (see `AshPostgres.Temporal.upsert_all/6`).
       changesets = Enum.to_list(stream)
       repo = AshSql.dynamic_repo(resource, AshPostgres.SqlImplementation, Enum.at(changesets, 0))
       keys = options[:upsert_keys] || Ash.Resource.Info.primary_key(resource)
 
       try do
-        AshPostgres.Temporal.upsert_all(repo, resource, changesets, keys, options[:upsert_fields])
+        prefix =
+          AshSql.repo_opts(repo, AshPostgres.SqlImplementation, nil, options[:tenant], resource)[
+            :prefix
+          ]
+
+        AshPostgres.Temporal.upsert_all(
+          repo,
+          resource,
+          changesets,
+          keys,
+          options[:upsert_fields],
+          prefix
+        )
       rescue
         e ->
           changeset = Ash.Changeset.new(resource)

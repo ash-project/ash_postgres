@@ -21,9 +21,60 @@ defmodule AshPostgres.TemporalConcurrencyTest do
   alias AshPostgres.Test.Temporal.Subscription
   alias Ecto.Adapters.SQL.Sandbox
 
+  defmodule Domain do
+    @moduledoc false
+    use Ash.Domain, validate_config_inclusion?: false
+
+    resources do
+      resource(AshPostgres.TemporalConcurrencyTest.Named)
+    end
+  end
+
+  # A temporal resource with an identity, for upserts keyed on it rather than the primary key
+  defmodule Named do
+    @moduledoc false
+    use Ash.Resource, domain: Domain, data_layer: AshPostgres.DataLayer
+
+    postgres do
+      table("temporal_named")
+      repo(AshPostgres.TemporalTestRepo)
+    end
+
+    temporal do
+      strategy(:context)
+      attribute(:valid_at)
+    end
+
+    attributes do
+      attribute(:id, :integer, primary_key?: true, allow_nil?: false, public?: true)
+      attribute(:name, :string, public?: true)
+      attribute(:note, :string, public?: true)
+
+      attribute(:valid_at, Ash.Type.Range,
+        allow_nil?: false,
+        constraints: [
+          inner_type: :datetime,
+          inner_constraints: [precision: :microsecond],
+          lower: [inclusive?: true],
+          upper: [inclusive?: false]
+        ],
+        public?: true
+      )
+    end
+
+    identities do
+      identity(:unique_name, [:name])
+    end
+
+    actions do
+      defaults([:read, create: [:id, :name, :note]])
+    end
+  end
+
   @jan1 ~U[2026-01-01 00:00:00.000000Z]
   @jan15 ~U[2026-01-15 00:00:00.000000Z]
   @feb1 ~U[2026-02-01 00:00:00.000000Z]
+  @mar1 ~U[2026-03-01 00:00:00.000000Z]
 
   setup do
     :ok = Sandbox.checkout(TemporalTestRepo, sandbox: false)
@@ -40,9 +91,17 @@ defmodule AshPostgres.TemporalConcurrencyTest do
     """)
 
     on_exit(fn ->
-      :ok = Sandbox.checkout(TemporalTestRepo, sandbox: false)
+      checkout_unsandboxed()
       cleanup()
     end)
+  end
+
+  # `on_exit` callbacks share a process, so a later one finds the connection checked out.
+  defp checkout_unsandboxed do
+    case Sandbox.checkout(TemporalTestRepo, sandbox: false) do
+      :ok -> :ok
+      {:already, :owner} -> :ok
+    end
   end
 
   defp cleanup do
@@ -181,5 +240,59 @@ defmodule AshPostgres.TemporalConcurrencyTest do
     assert records |> Enum.map(& &1.id) |> Enum.sort() == [101, 103]
     assert [[@jan1, @feb1, "orig"], [@feb1, nil, "b"]] = timeline(101, "tier")
     assert [[@jan1, @feb1, "a"], [@feb1, nil, "b"]] = timeline(103, "tier")
+  end
+
+  test "two upserts on an identity, creating the same new record, both apply" do
+    TemporalTestRepo.query!("""
+    CREATE TABLE temporal_named (
+      id integer NOT NULL,
+      name text,
+      note text,
+      valid_at tstzrange NOT NULL,
+      PRIMARY KEY (id, valid_at WITHOUT OVERLAPS),
+      CONSTRAINT temporal_named_unique_name_index
+        EXCLUDE USING gist (name WITH =, valid_at WITH &&)
+    )
+    """)
+
+    on_exit(fn ->
+      checkout_unsandboxed()
+      TemporalTestRepo.query!("DROP TABLE IF EXISTS temporal_named")
+    end)
+
+    upsert = fn id, note, as_of ->
+      Named
+      |> Ash.Changeset.for_create(:create, %{id: id, name: "x", note: note}, as_of: as_of)
+      |> Ash.create!(upsert?: true, upsert_identity: :unique_name, upsert_fields: [:note])
+    end
+
+    held = hold_open(fn -> upsert.(301, "a", @jan1) end)
+    race(held, fn -> upsert.(302, "b", @feb1) end)
+
+    assert [[301, "a", @jan1, @feb1], [301, "b", @feb1, nil]] =
+             TemporalTestRepo.query!(
+               "SELECT id, note, lower(valid_at), upper(valid_at) FROM temporal_named " <>
+                 "ORDER BY lower(valid_at)"
+             ).rows
+  end
+
+  test "a write over a range isn't lost when a version it found is split under it" do
+    held = hold_open(fn -> change_tier(101, "a", @feb1) end)
+
+    [record] =
+      Subscription |> Ash.Query.filter(id == 101) |> Ash.Query.as_of(@jan15) |> Ash.read!()
+
+    range = %Ash.Range{lower: @jan15, upper: @mar1, bounds: :"[)"}
+
+    race(held, fn ->
+      Ash.bulk_update!([record], :add_seat, %{}, as_of: range, strategy: [:atomic])
+    end)
+
+    assert [
+             [@jan1, @jan15, "orig", 1],
+             [@jan15, @feb1, "orig", 2],
+             [@feb1, @mar1, "a", 2],
+             [@mar1, nil, "a", 1]
+           ] = timeline(101, "tier, seats")
   end
 end

@@ -51,6 +51,10 @@ defmodule AshPostgres.Test.Temporal.Tier do
     # `valid_at` is derived from `as_of`, never accepted as input.
     defaults([:read, create: [:id, :name]])
 
+    update :rename do
+      accept([:name])
+    end
+
     # Ends the tier's validity AND cascades to its subscriptions. `after_action?: false`
     # runs the cascade BEFORE the parent destroy (child-first) so children are truncated
     # at `as_of` first — otherwise truncating the parent would orphan them (the PERIOD FK

@@ -49,9 +49,10 @@ defmodule AshPostgres.Temporal do
   # every snapshot on the server.
   #
   # When there's nothing to lock (an upsert of a record that doesn't exist yet, or into a
-  # gap), the `WITHOUT OVERLAPS` primary key catches a concurrent insert instead: our insert
-  # waits for it and then conflicts. The insert skips that key (`ON CONFLICT ON CONSTRAINT
-  # <pkey> DO NOTHING`) and we retry just the skipped keys.
+  # gap), the constraint behind the upsert keys catches a concurrent insert instead: the
+  # `WITHOUT OVERLAPS` primary key, or the identity's exclusion constraint. Our insert waits
+  # for the other one and then conflicts. It skips that key (`ON CONFLICT ON CONSTRAINT
+  # <that constraint> DO NOTHING`) and we retry just the skipped keys.
   #
   # Under REPEATABLE READ and SERIALIZABLE, Postgres raises a serialization failure for
   # these cases itself.
@@ -80,7 +81,7 @@ defmodule AshPostgres.Temporal do
           SELECT src.<cols>, <bounded range> FROM src
           WHERE NOT <conflict>
             AND NOT EXISTS (SELECT 1 FROM upd WHERE (upd."__new").<keys> = src.<keys>)
-          ON CONFLICT ON CONSTRAINT <pkey> DO NOTHING         -- lost a race: retried
+          ON CONFLICT ON CONSTRAINT <keys' constraint> DO NOTHING  -- lost a race: retried
           RETURNING ...
         )
       SELECT (upd."__new").* FROM upd UNION ALL SELECT * FROM ins
@@ -93,7 +94,7 @@ defmodule AshPostgres.Temporal do
   parameter — it can't be a per-row column). Changesets with differing `as_of`s are
   grouped and run as one statement each, inside a transaction. Returns `{:ok, records}`.
   """
-  def upsert_all(repo, resource, changesets, upsert_keys, upsert_fields \\ nil) do
+  def upsert_all(repo, resource, changesets, upsert_keys, upsert_fields \\ nil, prefix \\ nil) do
     now = DateTime.utc_now()
 
     groups =
@@ -105,7 +106,8 @@ defmodule AshPostgres.Temporal do
         end
       end)
 
-    prefix = get_in(hd(changesets).context, [:data_layer, :schema])
+    # The tenant's schema under context multitenancy, else the resource's `schema`
+    prefix = prefix || get_in(hd(changesets).context, [:data_layer, :schema])
     qtable = quote_table(prefix, AshPostgres.DataLayer.Info.table(resource))
     col_types = column_types(repo, qtable)
 
@@ -177,7 +179,7 @@ defmodule AshPostgres.Temporal do
 
     has_update? = set_fields != []
     range = "tstzrange($1::timestamptz, NULL)"
-    pkey = quote_name("#{AshPostgres.DataLayer.Info.table(resource)}_pkey")
+    arbiter = quote_name(arbiter(resource, upsert_keys))
     columns = Enum.map(stored_columns(resource), &quote_name/1)
     upsert_cols = Enum.map(upsert_keys, qsrc)
 
@@ -214,14 +216,14 @@ defmodule AshPostgres.Temporal do
       Enum.map_join(insert_cols, ", ", fn f -> "src.#{qsrc.(f)}" end) <> ", " <> range_sql
 
     # A key that loses an insert race to a concurrent write of the same record hits the
-    # `WITHOUT OVERLAPS` primary key. It's skipped rather than raised, and retried below.
-    # Only the primary key is an arbiter, so an identity violation still raises.
+    # constraint behind the upsert keys. It's skipped rather than raised, and retried below.
+    # Only that constraint is an arbiter, so any other identity's violation still raises.
     ins_cte =
       ~s|"__attempted" AS (SELECT * FROM src WHERE NOT (SELECT conflict FROM "__conflict") | <>
         "AND #{attempted}), " <>
         "ins AS (INSERT INTO #{qtable} (#{insert_cols_sql}) " <>
         ~s|SELECT #{insert_select_sql} FROM "__attempted" src | <>
-        "ON CONFLICT ON CONSTRAINT #{pkey} DO NOTHING " <>
+        "ON CONFLICT ON CONSTRAINT #{arbiter} DO NOTHING " <>
         "RETURNING #{Enum.join(columns, ", ")})"
 
     written =
@@ -246,7 +248,7 @@ defmodule AshPostgres.Temporal do
         ~s|FROM "__conflict" WHERE conflict|
 
     {columns, %{"ok" => written, "skipped" => skipped, "conflict" => conflict}} =
-      by_status(repo.query!(sql, params))
+      by_status(split!(repo, resource, sql, params))
 
     retry = fn retried ->
       if attempt < @attempts do
@@ -297,7 +299,28 @@ defmodule AshPostgres.Temporal do
     |> tag_bulk_refs(changesets, upsert_keys)
   end
 
-  # Splits a result's rows by their `"__status"` column, which is dropped.
+  defp split!(repo, resource, sql, params) do
+    table = AshPostgres.DataLayer.Info.table(resource)
+    pkey = "#{table}_pkey"
+
+    try do
+      repo.query!(sql, params)
+    rescue
+      e in Postgrex.Error ->
+        case e do
+          %{postgres: %{code: :unique_violation, constraint: ^pkey}} ->
+            reraise AshPostgres.Temporal.PlainPrimaryKey.exception(
+                      resource: resource,
+                      table: table
+                    ),
+                    __STACKTRACE__
+
+          _ ->
+            reraise e, __STACKTRACE__
+        end
+    end
+  end
+
   defp by_status(%{columns: columns, rows: rows}) do
     index = Enum.find_index(columns, &(&1 == "__status"))
 
@@ -307,6 +330,23 @@ defmodule AshPostgres.Temporal do
       |> then(&Map.merge(%{"ok" => [], "skipped" => [], "conflict" => []}, &1))
 
     {List.delete_at(columns, index), groups}
+  end
+
+  defp arbiter(resource, upsert_keys) do
+    table = AshPostgres.DataLayer.Info.table(resource)
+
+    identity =
+      Enum.find(Ash.Resource.Info.identities(resource), fn identity ->
+        Enum.sort(identity.keys) == Enum.sort(upsert_keys)
+      end)
+
+    if is_nil(identity) or
+         Enum.sort(upsert_keys) == Enum.sort(Ash.Resource.Info.primary_key(resource)) do
+      "#{table}_pkey"
+    else
+      AshPostgres.DataLayer.Info.identity_index_names(resource)[identity.name] ||
+        "#{table}_#{identity.name}_index"
+    end
   end
 
   # Ash's bulk action correlates each returned record back to its changeset via
@@ -436,7 +476,7 @@ defmodule AshPostgres.Temporal do
     {dml, returned} =
       case find_top_level(sql, " RETURNING ") do
         nil -> {sql, nil}
-        pos -> {String.slice(sql, 0, pos), String.slice(sql, (pos + 11)..-1//1)}
+        pos -> {take(sql, pos), drop(sql, pos + 11)}
       end
 
     dml =
@@ -445,10 +485,10 @@ defmodule AshPostgres.Temporal do
           set_end =
             [find_top_level(dml, " FROM "), find_top_level(dml, " WHERE ")]
             |> Enum.reject(&is_nil/1)
-            |> Enum.min(fn -> String.length(dml) end)
+            |> Enum.min(fn -> byte_size(dml) end)
 
-          String.slice(dml, 0, set_end) <>
-            ", #{period_col} = #{period} * #{range}" <> String.slice(dml, set_end..-1//1)
+          take(dml, set_end) <>
+            ", #{period_col} = #{period} * #{range}" <> drop(dml, set_end)
 
         :delete_all ->
           dml
@@ -462,8 +502,7 @@ defmodule AshPostgres.Temporal do
           dml <> " WHERE " <> overlaps
 
         pos ->
-          String.slice(dml, 0, pos) <>
-            " WHERE (" <> String.slice(dml, (pos + 7)..-1//1) <> ") AND " <> overlaps
+          take(dml, pos) <> " WHERE (" <> drop(dml, pos + 7) <> ") AND " <> overlaps
       end
 
     # The versions the snapshot matched: the same table, joins and filter, as a SELECT.
@@ -477,12 +516,13 @@ defmodule AshPostgres.Temporal do
 
     joined =
       if from_pos && from_pos < where_pos do
-        ", " <> String.slice(dml, (from_pos + String.length(from_keyword))..(where_pos - 1)//1)
+        start = from_pos + byte_size(from_keyword)
+        ", " <> binary_part(dml, start, where_pos - start)
       else
         ""
       end
 
-    matched = "FROM #{qtable} AS #{alias_token}#{joined}" <> String.slice(dml, where_pos..-1//1)
+    matched = "FROM #{qtable} AS #{alias_token}#{joined}" <> drop(dml, where_pos)
 
     returning = Enum.join(List.wrap(returned) ++ [~s|old AS "__old"|], ", ")
 
@@ -529,7 +569,7 @@ defmodule AshPostgres.Temporal do
   # Runs a split, and runs it again while it reports a conflict (see the moduledoc). A
   # conflicting statement wrote nothing, so there's nothing to undo first.
   defp write(repo, resource, sql, params, attempt \\ 1) do
-    case by_status(repo.query!(sql, params)) do
+    case by_status(split!(repo, resource, sql, params)) do
       # Retried in a transaction, so the versions this attempt locked stay locked and can't
       # move again under the next one.
       {_, %{"conflict" => [_ | _]}} when attempt < @attempts ->
@@ -566,8 +606,8 @@ defmodule AshPostgres.Temporal do
 
       pos ->
         [
-          String.slice(sql, 0, pos)
-          | split_top_level(String.slice(sql, (pos + String.length(separator))..-1//1), separator)
+          take(sql, pos)
+          | split_top_level(drop(sql, pos + byte_size(separator)), separator)
         ]
     end
   end
@@ -639,61 +679,43 @@ defmodule AshPostgres.Temporal do
     <<?", name::binary, ?">>
   end
 
-  # Top-level keyword search, ignoring quotes and parens (from AshPostgres.Merge).
-  defp find_top_level(sql, pattern), do: find_top_level(sql, pattern, 0, 0, :normal)
+  defp find_top_level(sql, pattern), do: scan(sql, pattern, 0, 0, :normal)
 
-  defp find_top_level(sql, pattern, pos, depth, state) do
-    remaining = String.slice(sql, pos..-1//1)
+  defp scan(<<>>, _pattern, _pos, _depth, _state), do: nil
 
-    if remaining == "" do
-      nil
+  defp scan(<<char, rest::binary>> = sql, pattern, pos, depth, :normal) do
+    if depth == 0 and String.starts_with?(sql, pattern) do
+      pos
     else
-      case state do
-        :normal ->
-          cond do
-            depth == 0 && String.starts_with?(remaining, pattern) ->
-              pos
-
-            String.starts_with?(remaining, "'") ->
-              find_top_level(sql, pattern, pos + 1, depth, :single_quote)
-
-            String.starts_with?(remaining, "\"") ->
-              find_top_level(sql, pattern, pos + 1, depth, :double_quote)
-
-            String.starts_with?(remaining, "(") ->
-              find_top_level(sql, pattern, pos + 1, depth + 1, :normal)
-
-            String.starts_with?(remaining, ")") && depth > 0 ->
-              find_top_level(sql, pattern, pos + 1, depth - 1, :normal)
-
-            true ->
-              find_top_level(sql, pattern, pos + 1, depth, :normal)
-          end
-
-        :single_quote ->
-          cond do
-            String.starts_with?(remaining, "''") ->
-              find_top_level(sql, pattern, pos + 2, depth, :single_quote)
-
-            String.starts_with?(remaining, "'") ->
-              find_top_level(sql, pattern, pos + 1, depth, :normal)
-
-            true ->
-              find_top_level(sql, pattern, pos + 1, depth, :single_quote)
-          end
-
-        :double_quote ->
-          cond do
-            String.starts_with?(remaining, "\"\"") ->
-              find_top_level(sql, pattern, pos + 2, depth, :double_quote)
-
-            String.starts_with?(remaining, "\"") ->
-              find_top_level(sql, pattern, pos + 1, depth, :normal)
-
-            true ->
-              find_top_level(sql, pattern, pos + 1, depth, :double_quote)
-          end
+      case char do
+        ?' -> scan(rest, pattern, pos + 1, depth, :single_quote)
+        ?" -> scan(rest, pattern, pos + 1, depth, :double_quote)
+        ?( -> scan(rest, pattern, pos + 1, depth + 1, :normal)
+        ?) when depth > 0 -> scan(rest, pattern, pos + 1, depth - 1, :normal)
+        _ -> scan(rest, pattern, pos + 1, depth, :normal)
       end
     end
   end
+
+  defp scan(<<"''", rest::binary>>, pattern, pos, depth, :single_quote),
+    do: scan(rest, pattern, pos + 2, depth, :single_quote)
+
+  defp scan(<<"'", rest::binary>>, pattern, pos, depth, :single_quote),
+    do: scan(rest, pattern, pos + 1, depth, :normal)
+
+  defp scan(<<_, rest::binary>>, pattern, pos, depth, :single_quote),
+    do: scan(rest, pattern, pos + 1, depth, :single_quote)
+
+  defp scan(<<"\"\"", rest::binary>>, pattern, pos, depth, :double_quote),
+    do: scan(rest, pattern, pos + 2, depth, :double_quote)
+
+  defp scan(<<"\"", rest::binary>>, pattern, pos, depth, :double_quote),
+    do: scan(rest, pattern, pos + 1, depth, :normal)
+
+  defp scan(<<_, rest::binary>>, pattern, pos, depth, :double_quote),
+    do: scan(rest, pattern, pos + 1, depth, :double_quote)
+
+  # Slices by the byte offsets `find_top_level/2` returns.
+  defp take(binary, count), do: binary_part(binary, 0, count)
+  defp drop(binary, count), do: binary_part(binary, count, byte_size(binary) - count)
 end

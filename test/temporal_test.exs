@@ -1222,6 +1222,42 @@ defmodule AshPostgres.TemporalTest do
     end
   end
 
+  describe "splitting a row that PERIOD foreign keys point at" do
+    # Tier 10 is [jan 1, jun 1). Subscription 1 points at it over [jan 1, apr 1).
+    test "the shrunk row and its leftover still cover the rows pointing at it" do
+      [tier] = Tier |> Ash.Query.filter(id == 10) |> Ash.Query.as_of(@mar1) |> Ash.read!()
+
+      tier
+      |> Ash.Changeset.for_update(:rename, %{name: "premium"})
+      |> Ash.Changeset.as_of(@mar1)
+      |> Ash.update!()
+
+      assert [
+               ["basic", ~U[2026-01-01 00:00:00.000000Z], @mar1],
+               ["premium", @mar1, ~U[2026-06-01 00:00:00.000000Z]]
+             ] =
+               TemporalTestRepo.query!(
+                 "SELECT name, lower(valid_at), upper(valid_at) FROM tier WHERE id = 10 " <>
+                   "ORDER BY lower(valid_at)"
+               ).rows
+    end
+  end
+
+  describe "a bulk update filtered through a temporal relationship" do
+    test "splits only the versions whose related row matches at as_of" do
+      Subscription
+      |> Ash.Query.filter(id == 1 and tier_record.name == "basic")
+      |> Ash.Query.as_of(@mar1)
+      |> Ash.bulk_update!(:add_seat, %{}, strategy: :atomic)
+
+      assert [
+               ["bronze", 3, ~U[2026-01-01 00:00:00.000000Z]],
+               ["gold", 5, ~U[2026-02-01 00:00:00.000000Z]],
+               ["gold", 6, @mar1]
+             ] = seats_timeline(1)
+    end
+  end
+
   describe "temporal PERIOD foreign keys reject referential actions" do
     test "on_delete on a temporal relationship fails to compile (PERIOD FKs: NO ACTION only)" do
       assert_raise Spark.Error.DslError, ~r/PERIOD|NO ACTION/, fn ->
