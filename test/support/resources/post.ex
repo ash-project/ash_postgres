@@ -1447,6 +1447,12 @@ defmodule AshPostgres.Test.Post do
       uniq?(true)
     end
 
+    list :uniq_popular_comment_titles_sorted_by_likes, :comments, :title do
+      uniq?(true)
+      sort(likes: :desc)
+      filter(expr(likes > 2 and likes < 9))
+    end
+
     list(:comment_ids, :comments, :id)
 
     sum :total_edited_time, :comments, :edited_duration do

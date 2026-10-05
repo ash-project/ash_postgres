@@ -34,21 +34,41 @@ defmodule AshPostgres.UniqAggregateSortTest do
              |> Map.get(:uniq_comment_titles)
   end
 
-  test "uniq? aggregate sorted by a different field discards the sort instead of erroring" do
-    assert ["a", "b"] ==
+  # Sorted by likes desc the titles are b, a, b. Deduping keeps each title's first
+  # occurrence, matching a sort followed by `Enum.uniq/1`.
+  test "uniq? aggregate sorted by a different field keeps first occurrences in sort order" do
+    assert ["b", "a"] ==
              Post
              |> Ash.read_one!()
              |> Ash.load!(:uniq_comment_titles_sorted_by_likes)
              |> Map.get(:uniq_comment_titles_sorted_by_likes)
-             |> Enum.sort()
   end
 
-  test "uniq? aggregate does not inherit a sort declared on the relationship" do
-    assert ["a", "b"] ==
+  test "uniq? aggregate inherits a sort declared on the relationship" do
+    assert ["b", "a"] ==
              Post
              |> Ash.read_one!()
              |> Ash.load!(:uniq_titles_of_comments_sorted_by_likes)
              |> Map.get(:uniq_titles_of_comments_sorted_by_likes)
-             |> Enum.sort()
+  end
+
+  test "uniq? aggregate sorted by a different field respects the aggregate's filter" do
+    assert ["a"] ==
+             Post
+             |> Ash.read_one!()
+             |> Ash.load!(:uniq_popular_comment_titles_sorted_by_likes)
+             |> Map.get(:uniq_popular_comment_titles_sorted_by_likes)
+  end
+
+  test "uniq? aggregate sorted by a different field can be filtered on" do
+    assert [_] =
+             Post
+             |> Ash.Query.filter(uniq_comment_titles_sorted_by_likes == ["b", "a"])
+             |> Ash.read!()
+
+    assert [] =
+             Post
+             |> Ash.Query.filter(uniq_comment_titles_sorted_by_likes == ["a", "b"])
+             |> Ash.read!()
   end
 end
