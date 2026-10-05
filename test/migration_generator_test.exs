@@ -2553,6 +2553,108 @@ defmodule AshPostgres.MigrationGeneratorTest do
       refute File.exists?(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
       refute File.exists?(Path.wildcard("#{snapshot_path}/test_repo/posts/*.json"))
     end
+
+    test "reports remaining dev migrations instead of inferring renames", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:old_a, :string, public?: true)
+          attribute(:old_b, :string, public?: true)
+          attribute(:old_c, :string, public?: true)
+          attribute(:old_d, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        name: "initial_attributes"
+      )
+
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:new_a, :string, public?: true)
+          attribute(:new_b, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        dev: true
+      )
+
+      flush_mix_shell()
+
+      assert catch_exit(
+               AshPostgres.MigrationGenerator.generate(Domain,
+                 snapshot_path: snapshot_path,
+                 migration_path: migration_path,
+                 check: true,
+                 auto_name: true
+               )
+             ) == {:shutdown, 1}
+
+      assert_received {:mix_shell, :error, [message]}
+      assert message =~ "You have migrations remaining that were generated with the --dev flag."
+    end
+
+    test "does not infer renames for ambiguous changes", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:old_a, :string, public?: true)
+          attribute(:old_b, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        name: "initial_attributes"
+      )
+
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:new_a, :string, public?: true)
+          attribute(:new_b, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      error =
+        assert_raise Ash.Error.Framework.PendingCodegen, fn ->
+          AshPostgres.MigrationGenerator.generate(Domain,
+            snapshot_path: snapshot_path,
+            migration_path: migration_path,
+            check: true,
+            auto_name: true
+          )
+        end
+
+      refute Enum.any?(error.diff, fn {_path, contents} -> contents =~ "rename" end)
+    end
   end
 
   describe "references" do
