@@ -482,6 +482,21 @@ defmodule AshPostgres.MigrationGenerator do
     snapshots
     |> Enum.group_by(& &1.repo)
     |> Enum.reduce({[], initial_review_flags()}, fn {repo, snapshots}, {files_acc, flags_acc} ->
+      dev_migrations = get_dev_migrations(opts, tenant?, repo)
+
+      if opts.check and !opts.dev and dev_migrations != [] do
+        Mix.shell().error("""
+        Codegen check failed.
+
+        You have migrations remaining that were generated with the --dev flag.
+
+        Run `mix ash.codegen <name>` to remove the dev migrations and replace them
+        with production-ready migrations.
+        """)
+
+        exit({:shutdown, 1})
+      end
+
       deduped = deduplicate_snapshots(snapshots, opts, non_tenant_snapshots)
 
       managed_table_keys =
@@ -567,24 +582,9 @@ defmodule AshPostgres.MigrationGenerator do
         operations ->
           repo_flags = classify_operations(operations)
 
-          dev_migrations = get_dev_migrations(opts, tenant?, repo)
-
           if !opts.dev and dev_migrations != [] do
-            if opts.check do
-              Mix.shell().error("""
-              Codegen check failed.
-
-              You have migrations remaining that were generated with the --dev flag.
-
-              Run `mix ash.codegen <name>` to remove the dev migrations and replace them
-              with production-ready migrations.
-              """)
-
-              exit({:shutdown, 1})
-            else
-              remove_dev_migrations(dev_migrations, tenant?, repo, opts)
-              remove_dev_snapshots(snapshots, opts)
-            end
+            remove_dev_migrations(dev_migrations, tenant?, repo, opts)
+            remove_dev_snapshots(snapshots, opts)
           end
 
           {tenant_operations, public_operations} =
@@ -1388,11 +1388,7 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp yes?(opts, message) do
-    if opts.check do
-      true
-    else
-      Mix.shell().yes?(message)
-    end
+    !opts.check and Mix.shell().yes?(message)
   end
 
   defp drop_table_confirmed?(existing_snapshot, opts) do
