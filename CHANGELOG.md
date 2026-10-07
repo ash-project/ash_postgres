@@ -11,6 +11,17 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.14.3](https://github.com/ash-project/ash_postgres/compare/v2.14.2...v2.14.3) (2026-10-07)
+
+
+
+
+### Bug Fixes:
+
+* ensure prefix is set on multitenant temporal queries by Zach Daniel
+
+* don't infer renames or skip dev migration check in codegen --check (#881) by Straffern
+
 ## [v2.14.2](https://github.com/ash-project/ash_postgres/compare/v2.14.1...v2.14.2) (2026-10-04)
 
 
