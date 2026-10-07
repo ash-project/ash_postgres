@@ -22,7 +22,7 @@ defmodule AshPostgres.TemporalTest do
   require Ash.Query
   require Ash.Expr
   alias AshPostgres.TemporalTestRepo
-  alias AshPostgres.Test.Temporal.{Event, Member, Subscription, Tier}
+  alias AshPostgres.Test.Temporal.{Event, Member, ScopedPlan, Subscription, Tier}
 
   @jan15 ~U[2026-01-15 00:00:00.000000Z]
   @mar1 ~U[2026-03-01 00:00:00.000000Z]
@@ -1622,6 +1622,70 @@ defmodule AshPostgres.TemporalTest do
 
       refute recorded_since?(gold_recorded, before)
       assert recorded_since?(platinum_recorded, before)
+    end
+  end
+
+  describe "a resource in a non-default schema" do
+    setup do
+      TemporalTestRepo.query!(
+        "INSERT INTO temporal_scoped.scoped_plan (id, name, valid_at) VALUES (1, 'basic', tstzrange('2026-01-01', NULL, '[)'))"
+      )
+
+      :ok
+    end
+
+    defp scoped_timeline(id) do
+      TemporalTestRepo.query!(
+        "SELECT name, lower(valid_at), upper(valid_at) FROM temporal_scoped.scoped_plan WHERE id = $1 ORDER BY lower(valid_at)",
+        [id]
+      ).rows
+    end
+
+    defp scoped_plan(as_of), do: Ash.get!(ScopedPlan, 1, as_of: as_of)
+
+    test "an update splits the schema-qualified table" do
+      @jan15
+      |> scoped_plan()
+      |> Ash.Changeset.for_update(:rename, %{name: "pro"}, as_of: @mar1)
+      |> Ash.update!()
+
+      assert [["basic", _, @mar1], ["pro", @mar1, nil]] = scoped_timeline(1)
+    end
+
+    test "a destroy ends the version in the schema-qualified table" do
+      @jan15
+      |> scoped_plan()
+      |> Ash.Changeset.for_destroy(:destroy, %{}, as_of: @mar1)
+      |> Ash.destroy!()
+
+      assert [["basic", _, @mar1]] = scoped_timeline(1)
+    end
+
+    test "a bulk update splits the schema-qualified table" do
+      ScopedPlan
+      |> Ash.Query.filter(id == 1)
+      |> Ash.bulk_update!(:rename, %{name: "pro"}, as_of: @mar1, strategy: :atomic)
+
+      assert [["basic", _, @mar1], ["pro", @mar1, nil]] = scoped_timeline(1)
+    end
+
+    test "a bulk destroy ends the version in the schema-qualified table" do
+      ScopedPlan
+      |> Ash.Query.filter(id == 1)
+      |> Ash.bulk_destroy!(:destroy, %{}, as_of: @mar1, strategy: :atomic)
+
+      assert [["basic", _, @mar1]] = scoped_timeline(1)
+    end
+
+    test "an upsert splits the schema-qualified table" do
+      Ash.bulk_create!([%{id: 1, name: "pro"}], ScopedPlan, :create,
+        upsert?: true,
+        upsert_fields: [:name],
+        as_of: @mar1,
+        return_errors?: true
+      )
+
+      assert [["basic", _, @mar1], ["pro", @mar1, nil]] = scoped_timeline(1)
     end
   end
 end

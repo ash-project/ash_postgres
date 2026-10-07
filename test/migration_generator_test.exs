@@ -1379,9 +1379,13 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       [up_side, down_side] = String.split(contents, "def down", parts: 2)
 
-      assert up_side =~ ~S[execute("ALTER TABLE \"example.posts\" ADD PRIMARY KEY (id)")]
-      assert down_side =~ ~S[execute("ALTER TABLE \"example.posts\" DROP constraint posts_pkey")]
-      assert down_side =~ ~S[execute("ALTER TABLE \"example.posts\" ADD PRIMARY KEY (id, title)")]
+      assert up_side =~ ~S[execute("ALTER TABLE \"example\".\"posts\" ADD PRIMARY KEY (id)")]
+
+      assert down_side =~
+               ~S[execute("ALTER TABLE \"example\".\"posts\" DROP constraint posts_pkey")]
+
+      assert down_side =~
+               ~S[execute("ALTER TABLE \"example\".\"posts\" ADD PRIMARY KEY (id, title)")]
 
       defposts do
         postgres do
@@ -1414,8 +1418,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       [up_side, down_side] = String.split(contents, "def down", parts: 2)
 
-      assert up_side =~ ~S[execute("ALTER TABLE \"example.posts\" ADD PRIMARY KEY (id, title)")]
-      assert down_side =~ ~S[execute("ALTER TABLE \"example.posts\" ADD PRIMARY KEY (id)")]
+      assert up_side =~
+               ~S[execute("ALTER TABLE \"example\".\"posts\" ADD PRIMARY KEY (id, title)")]
+
+      assert down_side =~ ~S[execute("ALTER TABLE \"example\".\"posts\" ADD PRIMARY KEY (id)")]
     end
   end
 

@@ -2011,7 +2011,8 @@ defmodule AshPostgres.DataLayer do
                       repo,
                       Map.delete(query, :__ash_bindings__),
                       resource,
-                      temporal_portion(query, changeset)
+                      temporal_portion(query, changeset),
+                      repo_opts[:prefix]
                     )
                   else
                     repo.update_all(
@@ -2344,7 +2345,8 @@ defmodule AshPostgres.DataLayer do
                   repo,
                   query,
                   resource,
-                  temporal_portion(query, changeset)
+                  temporal_portion(query, changeset),
+                  repo_opts[:prefix]
                 )
               else
                 repo.delete_all(
@@ -4572,7 +4574,13 @@ defmodule AshPostgres.DataLayer do
                       query
                   end
 
-                AshPostgres.Temporal.delete_all(repo, query, resource, portion)
+                AshPostgres.Temporal.delete_all(
+                  repo,
+                  query,
+                  resource,
+                  portion,
+                  repo_opts[:prefix]
+                )
               else
                 repo.delete_all(
                   query,

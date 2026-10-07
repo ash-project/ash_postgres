@@ -435,17 +435,21 @@ defmodule AshPostgres.Temporal do
   defp portion(instant), do: %Ash.Range{lower: instant, upper: nil, bounds: :"[)"}
 
   @doc "Run a temporal UPDATE over `as_of`'s portion. Returns `{count, loaded_records | nil}`."
-  def update_all(repo, query, resource, as_of) do
-    run(repo, :update_all, query, resource, as_of)
+  def update_all(repo, query, resource, as_of, prefix \\ nil) do
+    run(repo, :update_all, query, resource, as_of, prefix)
   end
 
   @doc "Run a temporal DELETE over `as_of`'s portion. Returns `{count, loaded_records | nil}`."
-  def delete_all(repo, query, resource, as_of) do
-    run(repo, :delete_all, query, resource, as_of)
+  def delete_all(repo, query, resource, as_of, prefix \\ nil) do
+    run(repo, :delete_all, query, resource, as_of, prefix)
   end
 
-  defp run(repo, kind, query, resource, as_of) do
+  defp run(repo, kind, query, resource, as_of, prefix) do
     query = Map.delete(query, :__ash_bindings__)
+
+    query =
+      if prefix && !query.prefix, do: Ecto.Query.put_query_prefix(query, prefix), else: query
+
     returning? = not is_nil(query.select)
     %Ash.Range{lower: lower, upper: upper} = portion(as_of)
 
