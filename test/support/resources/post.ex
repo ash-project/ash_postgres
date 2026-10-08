@@ -512,6 +512,23 @@ defmodule AshPostgres.Test.Post do
       change(atomic_update(:score, expr((score || 0) + ^arg(:amount))))
     end
 
+    update :add_comment_count_to_score do
+      change(atomic_update(:score, expr((score || 0) + count_of_comments)))
+    end
+
+    update :append_to_uniq_one do
+      change(atomic_update(:uniq_one, expr(fragment("coalesce(?, '')", uniq_one) <> "!")))
+    end
+
+    update :increment_score_unless_commented do
+      change(
+        atomic_update(
+          :score,
+          expr(if exists(comments, true), do: score, else: (score || 0) + 1)
+        )
+      )
+    end
+
     update :review do
       change(
         after_action(fn changeset, record, _context ->
