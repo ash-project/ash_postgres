@@ -2091,16 +2091,18 @@ defmodule AshPostgres.DataLayer do
   # When the update has to join its rows against a subquery, the new values are computed in
   # that subquery, which reads each row from the statement's snapshot. Under READ COMMITTED,
   # an update that waited for a concurrent writer then writes values computed from the row as
-  # it was before that write, and the write is lost. `FOR UPDATE` makes the subquery wait for
-  # the writer and recompute from the row it committed. PostgreSQL doesn't allow `FOR UPDATE`
-  # with `DISTINCT` or set operations, so those queries are left unlocked.
+  # it was before that write, and the write is lost. Locking the rows makes the subquery wait
+  # for the writer and recompute from the row it committed. `FOR NO KEY UPDATE` is the lock the
+  # update takes on those rows anyway, so unlike `FOR UPDATE` it doesn't also block inserts
+  # that reference them. PostgreSQL doesn't allow row locks with `DISTINCT` or set operations,
+  # so those queries are left unlocked.
   defp lock_rows_for_atomics(query, []), do: query
 
   defp lock_rows_for_atomics(query, _atomics) do
     if query.lock || query.distinct || query.combinations != [] do
       query
     else
-      Ecto.Query.lock(query, [{^0, a}], fragment("FOR UPDATE OF ?", a))
+      Ecto.Query.lock(query, [{^0, a}], fragment("FOR NO KEY UPDATE OF ?", a))
     end
   end
 

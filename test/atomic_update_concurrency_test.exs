@@ -105,6 +105,47 @@ defmodule AshPostgres.Test.AtomicUpdateConcurrencyTest do
            end) == 3
   end
 
+  test "an update's lock doesn't block inserting a row that references it", %{post: post} do
+    parent = self()
+
+    update =
+      Task.async(fn ->
+        TestNoSandboxRepo.transaction(fn ->
+          Post
+          |> Ash.Query.filter(id == ^post.id)
+          |> Ash.Query.limit(1)
+          |> Ash.bulk_update!(:increment_score, %{amount: 1},
+            context: @context,
+            strategy: :atomic,
+            return_errors?: true
+          )
+
+          send(parent, :updated)
+
+          receive do
+            :commit -> :ok
+          end
+        end)
+      end)
+
+    assert_receive :updated, 5_000
+
+    # The foreign key check locks the post with `FOR KEY SHARE`, which a plain update's
+    # `FOR NO KEY UPDATE` allows and `FOR UPDATE` doesn't.
+    insert =
+      Task.async(fn ->
+        AshPostgres.Test.Comment
+        |> Ash.Changeset.for_create(:create, %{title: "a", post_id: post.id})
+        |> Ash.Changeset.set_context(@context)
+        |> Ash.create!()
+      end)
+
+    assert {:ok, _} = Task.yield(insert, 1_000), "the insert should not wait on the update"
+
+    send(update.pid, :commit)
+    assert {:ok, :ok} = Task.await(update, 5_000)
+  end
+
   test "an update whose atomics use exists keeps a concurrent write", %{post: post} do
     assert score_after_concurrent_increment(post, fn ->
              Post
