@@ -2088,6 +2088,22 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
+  # When the update has to join its rows against a subquery, the new values are computed in
+  # that subquery, which reads each row from the statement's snapshot. Under READ COMMITTED,
+  # an update that waited for a concurrent writer then writes values computed from the row as
+  # it was before that write, and the write is lost. `FOR UPDATE` makes the subquery wait for
+  # the writer and recompute from the row it committed. PostgreSQL doesn't allow `FOR UPDATE`
+  # with `DISTINCT` or set operations, so those queries are left unlocked.
+  defp lock_rows_for_atomics(query, []), do: query
+
+  defp lock_rows_for_atomics(query, _atomics) do
+    if query.lock || query.distinct || query.combinations != [] do
+      query
+    else
+      Ecto.Query.lock(query, [{^0, a}], fragment("FOR UPDATE OF ?", a))
+    end
+  end
+
   defp bulk_updatable_query(query, resource, atomics, calculations, context, type \\ :update) do
     Enum.reduce_while(atomics, {:ok, query}, fn {_, expr}, {:ok, query} ->
       used_aggregates =
@@ -2174,7 +2190,8 @@ defmodule AshPostgres.DataLayer do
             root_query_result =
               cond do
                 query.limit || query.offset ->
-                  with {:ok, root_query} <-
+                  with root_query <- lock_rows_for_atomics(root_query, atomics),
+                       {:ok, root_query} <-
                          AshSql.Atomics.select_atomics(resource, root_query, atomics) do
                     {:ok, from(row in Ecto.Query.subquery(root_query), []),
                      root_query.__ash_bindings__.expression_accumulator, atomics != []}
@@ -2182,6 +2199,7 @@ defmodule AshPostgres.DataLayer do
 
                 !Enum.empty?(query.joins) || has_exists? ->
                   with root_query <- Ecto.Query.exclude(root_query, :order_by),
+                       root_query <- lock_rows_for_atomics(root_query, atomics),
                        {:ok, root_query} <-
                          AshSql.Atomics.select_atomics(resource, root_query, atomics) do
                     {:ok, from(row in Ecto.Query.subquery(root_query), []),
