@@ -5,15 +5,17 @@
 defmodule AshPostgres.Test.AtomicUpdateConcurrencyTest do
   @moduledoc """
   An update whose query has a limit or offset, or whose atomics need a join or `exists`, is
-  run as `UPDATE ... FROM (SELECT <new values> ...)`. The subquery has to lock the rows it
-  computes from, or an update that waited on a concurrent writer overwrites that writer's
-  change with values computed from the row as it was before.
+  run as `UPDATE ... FROM (SELECT <new values> ...)`, and a destroy like it as
+  `DELETE ... USING (SELECT ...)`. The subquery has to lock the rows it reads, or a statement
+  that waited on a concurrent writer acts on rows that no longer match its filter, and an
+  update overwrites that writer's change with values computed from the row as it was before.
 
   Real concurrency needs two database connections, so these tests bypass the sandbox.
   """
   use AshPostgres.RepoCase, async: false
 
   require Ash.Query
+  import Ash.Expr
 
   alias AshPostgres.Test.Post
   alias AshPostgres.TestNoSandboxRepo
@@ -207,34 +209,190 @@ defmodule AshPostgres.Test.AtomicUpdateConcurrencyTest do
     assert TestNoSandboxRepo.get!(Post, post.id).uniq_one == "!"
   end
 
-  # A value that doesn't read the row can't be made stale by a concurrent write, so there's
-  # nothing to lock for. (A literal is set directly rather than through the subquery, and
-  # Post's `updated_at` reads the row to see whether anything changed, so this uses a
-  # computed value on Author, which has no timestamps.)
-  test "an update whose new values don't read the row doesn't lock" do
+  # Writes `first_name` in a transaction held open until `fun` is waiting on it, then commits
+  # and returns what `fun` returned.
+  defp after_concurrent_rename(author, first_name, fun) do
+    parent = self()
+
+    first =
+      Task.async(fn ->
+        TestNoSandboxRepo.transaction(fn ->
+          author
+          |> Ash.Changeset.for_update(:update, %{first_name: first_name})
+          |> Ash.Changeset.set_context(@context)
+          |> Ash.update!()
+
+          send(parent, :first_written)
+
+          receive do
+            :commit -> :ok
+          end
+        end)
+      end)
+
+    assert_receive :first_written, 5_000
+
+    second = Task.async(fun)
+
+    refute Task.yield(second, 300), "the second statement should be waiting on the first writer"
+
+    send(first.pid, :commit)
+
+    assert {:ok, :ok} = Task.await(first, 5_000)
+    Task.await(second, 5_000)
+  end
+
+  defp create_author(first_name) do
     on_exit(fn -> TestNoSandboxRepo.delete_all(AshPostgres.Test.Author) end)
 
-    author =
-      AshPostgres.Test.Author
-      |> Ash.Changeset.for_create(:create, %{first_name: "old"})
-      |> Ash.Changeset.set_context(@context)
-      |> Ash.create!()
+    AshPostgres.Test.Author
+    |> Ash.Changeset.for_create(:create, %{first_name: first_name})
+    |> Ash.Changeset.set_context(@context)
+    |> Ash.create!()
+  end
 
-    sql =
-      update_sql(fn ->
+  # Two workers claiming the same row: once the first commits, the row no longer matches the
+  # second's filter, so the second must not claim it too, even though its new values don't
+  # read the row.
+  test "an update re-checks its filter against a row a concurrent writer changed" do
+    author = create_author("pending")
+
+    result =
+      after_concurrent_rename(author, "claimed by first", fn ->
         AshPostgres.Test.Author
-        |> Ash.Query.filter(id == ^author.id)
+        |> Ash.Query.filter(first_name == "pending")
         |> Ash.Query.limit(1)
-        |> Ash.bulk_update!(:set_random_first_name, %{},
+        |> Ash.bulk_update!(:update, %{first_name: "claimed by second"},
           context: @context,
           strategy: :atomic,
+          return_records?: true,
           return_errors?: true
         )
       end)
 
-    assert sql =~ "FROM (SELECT"
-    refute sql =~ "FOR UPDATE"
-    refute sql =~ "FOR NO KEY UPDATE"
-    assert TestNoSandboxRepo.get!(AshPostgres.Test.Author, author.id).first_name != "old"
+    assert result.records == []
+
+    assert TestNoSandboxRepo.get!(AshPostgres.Test.Author, author.id).first_name ==
+             "claimed by first"
+  end
+
+  test "a destroy re-checks its filter against a row a concurrent writer changed" do
+    author = create_author("pending")
+
+    result =
+      after_concurrent_rename(author, "kept", fn ->
+        AshPostgres.Test.Author
+        |> Ash.Query.filter(first_name == "pending")
+        |> Ash.Query.limit(1)
+        |> Ash.bulk_destroy!(:destroy, %{},
+          context: @context,
+          strategy: :atomic,
+          return_records?: true,
+          return_errors?: true
+        )
+      end)
+
+    assert result.records == []
+    assert TestNoSandboxRepo.get(AshPostgres.Test.Author, author.id)
+  end
+
+  # Sorting on something other than the distinct field makes `AshSql.Distinct` move the
+  # `DISTINCT ON` into a joined subquery, which keeps the filter there too.
+  for {shape, sort} <- [{"distinct", []}, {"distinct with a different sort", [:first_name]}] do
+    test "a #{shape} update re-checks its filter against a row a concurrent writer changed" do
+      author = create_author("pending")
+
+      result =
+        after_concurrent_rename(author, "claimed by first", fn ->
+          AshPostgres.Test.Author
+          |> Ash.Query.filter(first_name == "pending")
+          |> Ash.Query.distinct(:last_name)
+          |> Ash.Query.sort(unquote(sort))
+          |> Ash.bulk_update!(:update, %{first_name: "claimed by second"},
+            context: @context,
+            strategy: :atomic,
+            return_records?: true,
+            return_errors?: true
+          )
+        end)
+
+      assert result.records == []
+
+      assert TestNoSandboxRepo.get!(AshPostgres.Test.Author, author.id).first_name ==
+               "claimed by first"
+    end
+
+    test "a #{shape} destroy re-checks its filter against a row a concurrent writer changed" do
+      author = create_author("pending")
+
+      result =
+        after_concurrent_rename(author, "kept", fn ->
+          AshPostgres.Test.Author
+          |> Ash.Query.filter(first_name == "pending")
+          |> Ash.Query.distinct(:last_name)
+          |> Ash.Query.sort(unquote(sort))
+          |> Ash.bulk_destroy!(:destroy, %{},
+            context: @context,
+            strategy: :atomic,
+            return_records?: true,
+            return_errors?: true
+          )
+        end)
+
+      assert result.records == []
+      assert TestNoSandboxRepo.get(AshPostgres.Test.Author, author.id)
+    end
+
+    test "a #{shape} update with a limit keeps a concurrent write", %{post: post} do
+      assert score_after_concurrent_increment(post, fn ->
+               Post
+               |> Ash.Query.filter(id == ^post.id)
+               |> Ash.Query.distinct(:title)
+               |> Ash.Query.sort(unquote(sort |> Enum.map(fn _ -> :score end)))
+               |> Ash.Query.limit(1)
+               |> Ash.bulk_update!(:increment_score, %{amount: 1},
+                 context: @context,
+                 strategy: :atomic,
+                 return_errors?: true
+               )
+             end) == 2
+    end
+  end
+
+  describe "combination_of queries" do
+    setup do
+      query =
+        Post
+        |> Ash.Query.combination_of([
+          Ash.Query.Combination.base(filter: expr(score < 1)),
+          Ash.Query.Combination.union(filter: expr(title == "title"))
+        ])
+
+      %{query: query}
+    end
+
+    test "can't be updated", %{query: query} do
+      assert %Ash.BulkResult{status: :error, errors: [error]} =
+               Ash.bulk_update(query, :increment_score, %{amount: 1},
+                 context: @context,
+                 strategy: :atomic,
+                 return_errors?: true
+               )
+
+      assert Exception.message(error) =~
+               "update actions over `combination_of` queries are not supported"
+    end
+
+    test "can't be destroyed", %{query: query} do
+      assert %Ash.BulkResult{status: :error, errors: [error]} =
+               Ash.bulk_destroy(query, :destroy, %{},
+                 context: @context,
+                 strategy: :atomic,
+                 return_errors?: true
+               )
+
+      assert Exception.message(error) =~
+               "destroy actions over `combination_of` queries are not supported"
+    end
   end
 end

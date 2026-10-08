@@ -2090,43 +2090,29 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  # When the update has to join its rows against a subquery, the new values are computed in
-  # that subquery, which reads each row from the statement's snapshot. Under READ COMMITTED,
-  # an update that waited for a concurrent writer then writes values computed from the row as
-  # it was before that write, and the write is lost. Locking the rows makes the subquery wait
-  # for the writer and recompute from the row it committed.
+  # When an update or destroy has to join its rows against a subquery, that subquery reads
+  # each row from the statement's snapshot. Under READ COMMITTED, a statement that waited for
+  # a concurrent writer only re-checks the join on the primary key, which still matches, so
+  # it acts on the row even if it no longer matches the query's filter, and writes new values
+  # computed from the row as it was before that write. Locking the rows in the subquery makes
+  # it wait for the writer, then re-check its filter and recompute from the committed row.
   #
-  # The lock is only needed when a new value reads the row itself, like `count + 1` or an
-  # atomic validation. A value that doesn't, like `now()` or one read only from related rows,
-  # isn't made stale by another write to the row, and locking the row wouldn't refresh related
-  # rows anyway. The lock is the one PostgreSQL takes for the update: `FOR UPDATE` when a
-  # column in the primary key, an identity or a unique index changes, and `FOR NO KEY UPDATE`
-  # otherwise, which doesn't block inserts that reference the rows. PostgreSQL doesn't allow row locks with `DISTINCT` or set
-  # operations, so those queries are left unlocked.
-  defp lock_rows_for_atomics(query, resource, atomics, updated_attributes) do
+  # The lock is the one PostgreSQL takes for the statement anyway: `FOR UPDATE` for a destroy
+  # or an update that changes a column in the primary key, an identity or a unique index, and
+  # `FOR NO KEY UPDATE` otherwise, which doesn't block inserts that reference the rows.
+  # A query that already has a lock keeps it. Distinct queries are locked through
+  # `lock_distinct_rows/5`.
+  defp lock_rows_for_mutation(query, resource, type, updated_attributes) do
     cond do
-      query.lock || query.distinct || query.combinations != [] ->
+      query.lock ->
         query
 
-      not Enum.any?(atomics, fn {_, expr} -> reads_row?(expr) end) ->
-        query
-
-      updates_key?(resource, updated_attributes) ->
+      type == :destroy || updates_key?(resource, updated_attributes) ->
         Ecto.Query.lock(query, [{^0, a}], fragment("FOR UPDATE OF ?", a))
 
       true ->
         Ecto.Query.lock(query, [{^0, a}], fragment("FOR NO KEY UPDATE OF ?", a))
     end
-  end
-
-  # References to the row's own attributes and calculations, including through `exists` and
-  # `parent`. Aggregates and related rows aren't made current by locking the row.
-  defp reads_row?(expr) do
-    expr
-    |> Ash.Filter.list_refs()
-    |> Enum.any?(fn ref ->
-      ref.relationship_path == [] and not match?(%Ash.Query.Aggregate{}, ref.attribute)
-    end)
   end
 
   defp updates_key?(resource, updated_attributes) do
@@ -2172,6 +2158,25 @@ defmodule AshPostgres.DataLayer do
          type,
          updated_attributes \\ []
        ) do
+    if query.__ash_bindings__.context[:data_layer][:combination_of_queries?] do
+      {:error,
+       Ash.Error.Query.InvalidQuery.exception(
+         message: "#{type} actions over `combination_of` queries are not supported"
+       )}
+    else
+      do_bulk_updatable_query(
+        query,
+        resource,
+        atomics,
+        calculations,
+        context,
+        type,
+        updated_attributes
+      )
+    end
+  end
+
+  defp join_for_atomics(query, resource, atomics) do
     Enum.reduce_while(atomics, {:ok, query}, fn {_, expr}, {:ok, query} ->
       used_aggregates =
         Ash.Filter.used_aggregates(expr, [])
@@ -2193,6 +2198,91 @@ defmodule AshPostgres.DataLayer do
           {:halt, {:error, error}}
       end
     end)
+  end
+
+  # A distinct query can't be locked, and its filter may only be applied inside a joined
+  # subquery, so the rows to write are locked one level higher
+  # this is a pretty rare thing to do in practice
+  defp lock_distinct_rows(query, resource, atomics, type, updated_attributes) do
+    pkey = Ash.Resource.Info.primary_key(resource)
+
+    candidates =
+      query
+      |> Ecto.Query.exclude(:select)
+      |> Ecto.Query.select([row], map(row, ^pkey))
+
+    on =
+      Enum.reduce(pkey, nil, fn key, dynamic ->
+        if dynamic do
+          Ecto.Query.dynamic(
+            [row, candidate: candidate],
+            ^dynamic and field(row, ^key) == field(candidate, ^key)
+          )
+        else
+          Ecto.Query.dynamic(
+            [row, candidate: candidate],
+            field(row, ^key) == field(candidate, ^key)
+          )
+        end
+      end)
+
+    base =
+      from(row in query.from.source, as: ^0)
+      |> Map.put(:prefix, query.prefix)
+      |> AshSql.Bindings.default_bindings(
+        resource,
+        AshPostgres.SqlImplementation,
+        query.__ash_bindings__.context
+      )
+      |> scope_to_as_of(resource, query)
+
+    query.__ash_bindings__
+    |> Map.get(:filters, [])
+    |> Enum.reverse()
+    |> Enum.reduce_while({:ok, base}, fn filter, {:ok, base} ->
+      case filter(base, filter, resource) do
+        {:ok, base} -> {:cont, {:ok, base}}
+        {:error, error} -> {:halt, {:error, error}}
+      end
+    end)
+    |> case do
+      # A filter through a to-many relationship adds `DISTINCT ON` the primary key to drop the
+      # duplicate rows its join produces. Those duplicates are the same row, so locking them is
+      # harmless, and the candidates already applied the distinct.
+      {:ok, base} ->
+        base
+        |> Ecto.Query.exclude(:distinct)
+        |> Ecto.Query.join(:inner, [], candidate in subquery(candidates), as: :candidate, on: ^on)
+        |> join_for_atomics(resource, atomics)
+
+      {:error, error} ->
+        {:error, error}
+    end
+    |> case do
+      {:ok, locked} ->
+        locked
+        |> lock_rows_for_mutation(resource, type, updated_attributes)
+        |> then(&AshSql.Atomics.select_atomics(resource, &1, atomics))
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  defp do_bulk_updatable_query(
+         query,
+         resource,
+         atomics,
+         calculations,
+         context,
+         type,
+         updated_attributes
+       ) do
+    original_query = query
+    distinct? = query.__ash_bindings__[:distinct?] || query.distinct
+
+    query
+    |> join_for_atomics(resource, atomics)
     |> case do
       {:ok, query} ->
         requires_adding_inner_join? =
@@ -2247,7 +2337,7 @@ defmodule AshPostgres.DataLayer do
           end)
 
         needs_to_join? =
-          requires_adding_inner_join? || query.distinct ||
+          requires_adding_inner_join? || distinct? ||
             query.limit || query.offset || has_exists? || query.combinations != []
 
         query =
@@ -2256,9 +2346,22 @@ defmodule AshPostgres.DataLayer do
 
             root_query_result =
               cond do
+                distinct? ->
+                  with {:ok, root_query} <-
+                         lock_distinct_rows(
+                           original_query,
+                           resource,
+                           atomics,
+                           type,
+                           updated_attributes
+                         ) do
+                    {:ok, from(row in Ecto.Query.subquery(root_query), []),
+                     root_query.__ash_bindings__.expression_accumulator, atomics != []}
+                  end
+
                 query.limit || query.offset ->
                   with root_query <-
-                         lock_rows_for_atomics(root_query, resource, atomics, updated_attributes),
+                         lock_rows_for_mutation(root_query, resource, type, updated_attributes),
                        {:ok, root_query} <-
                          AshSql.Atomics.select_atomics(resource, root_query, atomics) do
                     {:ok, from(row in Ecto.Query.subquery(root_query), []),
@@ -2268,7 +2371,7 @@ defmodule AshPostgres.DataLayer do
                 !Enum.empty?(query.joins) || has_exists? ->
                   with root_query <- Ecto.Query.exclude(root_query, :order_by),
                        root_query <-
-                         lock_rows_for_atomics(root_query, resource, atomics, updated_attributes),
+                         lock_rows_for_mutation(root_query, resource, type, updated_attributes),
                        {:ok, root_query} <-
                          AshSql.Atomics.select_atomics(resource, root_query, atomics) do
                     {:ok, from(row in Ecto.Query.subquery(root_query), []),
@@ -2276,7 +2379,10 @@ defmodule AshPostgres.DataLayer do
                   end
 
                 true ->
-                  {:ok, Ecto.Query.exclude(root_query, :order_by),
+                  {:ok,
+                   root_query
+                   |> Ecto.Query.exclude(:order_by)
+                   |> lock_rows_for_mutation(resource, type, updated_attributes),
                    Map.get(root_query, :__ash_bindings__).expression_accumulator, false}
               end
 
@@ -4775,7 +4881,16 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def distinct(query, distinct, resource) do
     query = maybe_subquery_upgrade(query, {:distinct, distinct})
-    AshSql.Distinct.distinct(query, distinct, resource)
+
+    case AshSql.Distinct.distinct(query, distinct, resource) do
+      {:ok, query} when distinct not in [nil, []] ->
+        # `AshSql.Distinct` sometimes moves the `DISTINCT ON` into a joined subquery, so
+        # `query.distinct` alone doesn't say whether the query is distinct.
+        {:ok, Map.update!(query, :__ash_bindings__, &Map.put(&1, :distinct?, true))}
+
+      other ->
+        other
+    end
   end
 
   @impl true
@@ -4799,7 +4914,15 @@ defmodule AshPostgres.DataLayer do
         )
         |> case do
           {:ok, query} ->
-            {:ok, AshSql.Filter.add_filter_expression(query, filter)}
+            {:ok,
+             query
+             |> AshSql.Filter.add_filter_expression(filter)
+             |> Map.update!(
+               :__ash_bindings__,
+               &Map.update(&1, :filters, [filter], fn filters ->
+                 [filter | filters]
+               end)
+             )}
 
           {:error, error} ->
             {:error, error}

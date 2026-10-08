@@ -64,10 +64,6 @@ defmodule AshPostgres.Test.Author do
     update :update do
       primary?(true)
     end
-
-    update :set_random_first_name do
-      change(atomic_update(:first_name, expr(fragment("md5(random()::text)"))))
-    end
   end
 
   relationships do
