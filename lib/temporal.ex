@@ -95,16 +95,7 @@ defmodule AshPostgres.Temporal do
   grouped and run as one statement each, inside a transaction. Returns `{:ok, records}`.
   """
   def upsert_all(repo, resource, changesets, upsert_keys, upsert_fields \\ nil, prefix \\ nil) do
-    now = DateTime.utc_now()
-
-    groups =
-      Enum.group_by(changesets, fn changeset ->
-        case changeset.as_of do
-          nil -> now
-          :now -> now
-          as_of -> as_of
-        end
-      end)
+    groups = Enum.group_by(changesets, & &1.as_of)
 
     # The tenant's schema under context multitenancy, else the resource's `schema`
     prefix = prefix || get_in(hd(changesets).context, [:data_layer, :schema])

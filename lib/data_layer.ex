@@ -2958,8 +2958,8 @@ defmodule AshPostgres.DataLayer do
 
   # The portion a temporal mutation splits out. A range on the changeset
   # names it outright and is the only place a period survives; otherwise the query's
-  # threaded `as_of` (set for both single and bulk operations), the changeset's
-  # `as_of` (single), or the wall clock each give `[as_of, ∞)`.
+  # threaded `as_of` (set for both single and bulk operations) or the changeset's
+  # `as_of` (single) gives `[as_of, ∞)`.
   # Upserts can't be expressed on a `WITHOUT OVERLAPS` table (Postgres has no
   # `ON CONFLICT` for GiST exclusion constraints); use create or update instead.
   defp temporal_portion(query, changeset) do
@@ -2970,19 +2970,7 @@ defmodule AshPostgres.DataLayer do
         period
 
       as_of ->
-        case get_in(bindings, [:context, :private, :as_of]) || as_of do
-          nil -> now_for_resource(changeset.resource)
-          resolved -> Ash.Temporal.resolve_write_as_of(resolved)
-        end
-    end
-  end
-
-  # The wall clock in the type the resource builds its periods from, so a declared
-  # precision is honoured.
-  defp now_for_resource(resource) do
-    case Ash.Temporal.write_instant(resource, :now) do
-      {:ok, instant} -> instant
-      :error -> DateTime.utc_now()
+        Ash.Temporal.resolve_write_as_of(get_in(bindings, [:context, :private, :as_of]) || as_of)
     end
   end
 
