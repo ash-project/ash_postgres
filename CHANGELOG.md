@@ -11,6 +11,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.14.4](https://github.com/ash-project/ash_postgres/compare/v2.14.3...v2.14.4) (2026-10-08)
+
+
+
+
+### Bug Fixes:
+
+* lock rows in the subquery that computes an update's atomics (#884) by Will Townsend
+
 ## [v2.14.3](https://github.com/ash-project/ash_postgres/compare/v2.14.2...v2.14.3) (2026-10-07)
 
 
