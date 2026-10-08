@@ -3662,6 +3662,38 @@ defmodule AshPostgres.DataLayer do
     {:error, :no_rollback, Ash.Error.from_json(exception, input)}
   end
 
+  @in_non_array_message """
+  `in` was used with a field on the right that is not a list. To check a field \
+  across a to-many relationship, use `exists(relationship, field == ^value)` or \
+  `relationship.field == ^value` instead of `^value in relationship.field`.\
+  """
+
+  # `x in field` is rendered as `x = ANY(field)`, which PostgreSQL rejects with
+  # `42809 wrong_object_type` when `field` is not an array. Ash core lets this through
+  # because it cannot tell in general whether a field's type holds a list. The common
+  # mistake is `^value in rel.field` across a to-many relationship. The error names no
+  # column, so the field is not reported. Only a filter can produce this, so it is an
+  # invalid query whatever the action. This clause has to come before the generic
+  # `Postgrex.Error` clauses below, which only look for constraint violations.
+  defp handle_raised_error(
+         %Postgrex.Error{
+           postgres: %{
+             code: :wrong_object_type,
+             message: "op ANY/ALL (array) requires array on right side"
+           }
+         },
+         stacktrace,
+         context,
+         resource
+       ) do
+    handle_raised_error(
+      Ash.Error.Query.InvalidQuery.exception(message: @in_non_array_message),
+      stacktrace,
+      context,
+      resource
+    )
+  end
+
   # PostgreSQL rejects text that is not valid UTF-8 or contains a NUL byte with
   # `22021 character_not_in_repertoire`. Only the data layer knows this storage has that
   # limit (ETS and Mnesia store such values), and the error names no column, so the
