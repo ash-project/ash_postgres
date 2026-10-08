@@ -157,4 +157,84 @@ defmodule AshPostgres.Test.AtomicUpdateConcurrencyTest do
              )
            end) == 2
   end
+
+  # The `UPDATE` statement run by `fun`.
+  defp update_sql(fun) do
+    parent = self()
+    handler = "atomic-update-sql-#{System.unique_integer()}"
+
+    :telemetry.attach(
+      handler,
+      [:ash_postgres, :test_no_sandbox_repo, :query],
+      fn _, _, %{query: query}, _ ->
+        if String.starts_with?(query, "UPDATE"), do: send(parent, {:update_sql, query})
+      end,
+      nil
+    )
+
+    try do
+      fun.()
+    after
+      :telemetry.detach(handler)
+    end
+
+    assert_received {:update_sql, sql}
+    sql
+  end
+
+  defp bulk_update_one(post, action, input) do
+    Post
+    |> Ash.Query.filter(id == ^post.id)
+    |> Ash.Query.limit(1)
+    |> Ash.bulk_update!(action, input,
+      context: @context,
+      strategy: :atomic,
+      return_errors?: true
+    )
+  end
+
+  test "an update of other columns locks with FOR NO KEY UPDATE", %{post: post} do
+    sql = update_sql(fn -> bulk_update_one(post, :increment_score, %{amount: 1}) end)
+
+    assert sql =~ "FOR NO KEY UPDATE OF"
+  end
+
+  test "an update of a column in a unique index locks with FOR UPDATE", %{post: post} do
+    sql = update_sql(fn -> bulk_update_one(post, :append_to_uniq_one, %{}) end)
+
+    assert sql =~ "FOR UPDATE OF"
+    refute sql =~ "NO KEY"
+    assert TestNoSandboxRepo.get!(Post, post.id).uniq_one == "!"
+  end
+
+  # A value that doesn't read the row can't be made stale by a concurrent write, so there's
+  # nothing to lock for. (A literal is set directly rather than through the subquery, and
+  # Post's `updated_at` reads the row to see whether anything changed, so this uses a
+  # computed value on Author, which has no timestamps.)
+  test "an update whose new values don't read the row doesn't lock" do
+    on_exit(fn -> TestNoSandboxRepo.delete_all(AshPostgres.Test.Author) end)
+
+    author =
+      AshPostgres.Test.Author
+      |> Ash.Changeset.for_create(:create, %{first_name: "old"})
+      |> Ash.Changeset.set_context(@context)
+      |> Ash.create!()
+
+    sql =
+      update_sql(fn ->
+        AshPostgres.Test.Author
+        |> Ash.Query.filter(id == ^author.id)
+        |> Ash.Query.limit(1)
+        |> Ash.bulk_update!(:set_random_first_name, %{},
+          context: @context,
+          strategy: :atomic,
+          return_errors?: true
+        )
+      end)
+
+    assert sql =~ "FROM (SELECT"
+    refute sql =~ "FOR UPDATE"
+    refute sql =~ "FOR NO KEY UPDATE"
+    assert TestNoSandboxRepo.get!(AshPostgres.Test.Author, author.id).first_name != "old"
+  end
 end
