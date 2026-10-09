@@ -38,6 +38,8 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.TempEntity)
     resource(AshPostgres.Test.RecordTempEntity)
     resource(AshPostgres.Test.Permalink)
+    resource(AshPostgres.Test.SourcedFkParent)
+    resource(AshPostgres.Test.SourcedFkChild)
     resource(AshPostgres.Test.Record)
     resource(AshPostgres.Test.PostFollower)
     resource(AshPostgres.Test.NotificationRecipient)

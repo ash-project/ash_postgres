@@ -4128,7 +4128,7 @@ defmodule AshPostgres.DataLayer do
                                    name: relationship_name
                                  },
                                  changeset ->
-      case AshPostgres.DataLayer.Info.reference(resource, relationship_name) do
+      case AshPostgres.DataLayer.Info.reference(source, relationship_name) do
         %{name: name} when not is_nil(name) ->
           case repo.default_constraint_match_type(:foreign, name) do
             {:regex, regex} ->
@@ -4147,7 +4147,8 @@ defmodule AshPostgres.DataLayer do
           end
 
         _ ->
-          name = "#{AshPostgres.DataLayer.Info.table(source)}_#{source_attribute}_fkey"
+          name =
+            "#{AshPostgres.DataLayer.Info.table(source)}_#{attribute_source(source, source_attribute)}_fkey"
 
           case repo.default_constraint_match_type(:foreign, name) do
             {:regex, regex} ->
@@ -4168,6 +4169,13 @@ defmodule AshPostgres.DataLayer do
     end)
   end
 
+  defp attribute_source(resource, attribute_name) do
+    case Ash.Resource.Info.attribute(resource, attribute_name) do
+      %{source: source} when not is_nil(source) -> source
+      _ -> attribute_name
+    end
+  end
+
   defp add_my_foreign_key_constraints(changeset, resource, repo) do
     resource
     |> Ash.Resource.Info.relationships()
@@ -4179,7 +4187,7 @@ defmodule AshPostgres.DataLayer do
             custom_name
 
           _ ->
-            "#{AshPostgres.DataLayer.Info.table(resource)}_#{relationship.source_attribute}_fkey"
+            "#{AshPostgres.DataLayer.Info.table(resource)}_#{attribute_source(resource, relationship.source_attribute)}_fkey"
         end
 
       case repo.default_constraint_match_type(:foreign, name) do
