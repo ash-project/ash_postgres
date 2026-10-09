@@ -11,6 +11,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.14.5](https://github.com/ash-project/ash_postgres/compare/v2.14.4...v2.14.5) (2026-10-09)
+
+
+
+
+### Bug Fixes:
+
+* properly detect key columns by Zach Daniel
+
 ## [v2.14.4](https://github.com/ash-project/ash_postgres/compare/v2.14.3...v2.14.4) (2026-10-08)
 
 
