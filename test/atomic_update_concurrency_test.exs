@@ -184,29 +184,131 @@ defmodule AshPostgres.Test.AtomicUpdateConcurrencyTest do
     sql
   end
 
-  defp bulk_update_one(post, action, input) do
-    Post
-    |> Ash.Query.filter(id == ^post.id)
-    |> Ash.Query.limit(1)
-    |> Ash.bulk_update!(action, input,
-      context: @context,
-      strategy: :atomic,
-      return_errors?: true
+  # A column of `AshPostgres.Test.LockKeyColumn` for each way an index can make it a key, or
+  # not. PostgreSQL treats a column as a key when it's in a unique index with no expressions
+  # and no `WHERE`, and an update through a subquery has to lock as strongly as the `UPDATE`
+  # will: `FOR UPDATE` when it changes a key column, `FOR NO KEY UPDATE` otherwise.
+  # {attribute, column, key?, why}
+  @lock_key_columns [
+    {:stock, "stock", false, "in no index"},
+    {:rank, "rank", false, "only in a non-unique index"},
+    {:label, "label", false, "only in a unique expression index"},
+    {:alias_name, "alias_name", false, "only in a partial unique custom index"},
+    {:nickname, "nickname", false, "only in a partial identity"},
+    {:tag, "tag_text", false, "stored in a column that isn't indexed, unlike its name"},
+    {:id, "id", true, "the primary key"},
+    {:handle, "handle", true, "an identity key"},
+    {:org_id, "org_id", true, "the tenant column added to unique indexes"},
+    {:shop_id, "shop_id", true, "a directed atom field of a unique index"},
+    {:code, "sku", true, "stored in a column named by a directed field"},
+    {:barcode, "barcode", true, "a string field of a unique index"},
+    {:serial, "serial", true, "a directed string field of a unique index"},
+    {:tag_code, "tag", true, "stored in a column named like another attribute"}
+  ]
+
+  defp new_value(:id), do: Ash.UUID.generate()
+  defp new_value(:org_id), do: Ash.UUID.generate()
+  defp new_value(:shop_id), do: Ash.UUID.generate()
+  defp new_value(:stock), do: 2
+  defp new_value(:rank), do: 2
+  defp new_value(_), do: "new"
+
+  defp new_lock_key_column_row do
+    id = Ash.UUID.generate()
+
+    TestNoSandboxRepo.query!(
+      """
+      INSERT INTO lock_key_columns
+        (id, org_id, stock, rank, shop_id, sku, barcode, serial, tag_text, tag, label,
+         alias_name, handle, nickname)
+      VALUES ($1, $2, 1, 1, $3, $4, $4, $4, $4, $4, $4, $4, $4, $4)
+      """,
+      [
+        Ecto.UUID.dump!(id),
+        Ecto.UUID.dump!(Ash.UUID.generate()),
+        Ecto.UUID.dump!(Ash.UUID.generate()),
+        "old-#{System.unique_integer([:positive])}"
+      ]
     )
+
+    id
   end
 
-  test "an update of other columns locks with FOR NO KEY UPDATE", %{post: post} do
-    sql = update_sql(fn -> bulk_update_one(post, :increment_score, %{amount: 1}) end)
-
-    assert sql =~ "FOR NO KEY UPDATE OF"
+  defp dump(value) do
+    case Ecto.UUID.dump(value) do
+      {:ok, uuid} -> uuid
+      :error -> value
+    end
   end
 
-  test "an update of a column in a unique index locks with FOR UPDATE", %{post: post} do
-    sql = update_sql(fn -> bulk_update_one(post, :append_to_uniq_one, %{}) end)
+  # Whether a plain `UPDATE` of `column` blocks `FOR KEY SHARE`, which it does when
+  # PostgreSQL takes `FOR UPDATE` for it.
+  defp postgres_treats_as_key?(attribute, column) do
+    id = new_lock_key_column_row()
+    parent = self()
 
-    assert sql =~ "FOR UPDATE OF"
-    refute sql =~ "NO KEY"
-    assert TestNoSandboxRepo.get!(Post, post.id).uniq_one == "!"
+    updater =
+      Task.async(fn ->
+        TestNoSandboxRepo.transaction(fn ->
+          TestNoSandboxRepo.query!(
+            "UPDATE lock_key_columns SET #{column} = $1 WHERE id = $2",
+            [dump(new_value(attribute)), Ecto.UUID.dump!(id)]
+          )
+
+          send(parent, :updated)
+
+          receive do
+            :done -> :ok
+          end
+        end)
+      end)
+
+    assert_receive :updated, 5_000
+
+    blocked? =
+      "SELECT 1 FROM lock_key_columns WHERE id = $1 FOR KEY SHARE NOWAIT"
+      |> TestNoSandboxRepo.query([Ecto.UUID.dump!(id)])
+      |> case do
+        {:ok, _} -> false
+        {:error, %Postgrex.Error{postgres: %{code: :lock_not_available}}} -> true
+      end
+
+    send(updater.pid, :done)
+    Task.await(updater, 5_000)
+    blocked?
+  end
+
+  describe "the lock an update takes through a subquery" do
+    setup do
+      on_exit(fn -> TestNoSandboxRepo.query!("DELETE FROM lock_key_columns") end)
+    end
+
+    for {attribute, column, key?, why} <- @lock_key_columns do
+      test "matches PostgreSQL's for #{column}, #{why}" do
+        assert postgres_treats_as_key?(unquote(attribute), unquote(column)) == unquote(key?)
+
+        id = new_lock_key_column_row()
+
+        sql =
+          update_sql(fn ->
+            AshPostgres.Test.LockKeyColumn
+            |> Ash.Query.filter(id == ^id)
+            |> Ash.Query.limit(1)
+            |> Ash.bulk_update!(:update, %{unquote(attribute) => new_value(unquote(attribute))},
+              context: @context,
+              strategy: :atomic,
+              return_errors?: true
+            )
+          end)
+
+        if unquote(key?) do
+          assert sql =~ "FOR UPDATE OF"
+          refute sql =~ "NO KEY"
+        else
+          assert sql =~ "FOR NO KEY UPDATE OF"
+        end
+      end
+    end
   end
 
   # Writes `first_name` in a transaction held open until `fun` is waiting on it, then commits

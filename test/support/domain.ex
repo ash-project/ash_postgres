@@ -56,6 +56,7 @@ defmodule AshPostgres.Test.Domain do
     resource(AshPostgres.Test.UnrelatedAggregatesTest.User)
     resource(AshPostgres.Test.Customer)
     resource(AshPostgres.Test.Product)
+    resource(AshPostgres.Test.LockKeyColumn)
     resource(AshPostgres.Test.Order)
     resource(AshPostgres.Test.Chat)
     resource(AshPostgres.Test.Message)

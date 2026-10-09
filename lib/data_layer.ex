@@ -455,6 +455,9 @@ defmodule AshPostgres.DataLayer do
     transformers: [
       AshPostgres.Transformers.ValidateTemporalReferences
     ],
+    persisters: [
+      AshPostgres.Persisters.KeyColumns
+    ],
     verifiers: [
       AshPostgres.Verifiers.PreventMultidimensionalArrayAggregates,
       AshPostgres.Verifiers.ValidateReferences,
@@ -2123,30 +2126,8 @@ defmodule AshPostgres.DataLayer do
       |> MapSet.new(&to_string(&1.source))
 
     resource
-    |> key_columns()
+    |> Spark.Dsl.Extension.get_persisted(:postgres_key_columns, [])
     |> Enum.any?(&MapSet.member?(updated_columns, &1))
-  end
-
-  # Columns in the primary key, an identity, or a unique custom index.
-  defp key_columns(resource) do
-    identity_keys =
-      resource
-      |> Ash.Resource.Info.identities()
-      |> Enum.flat_map(& &1.keys)
-
-    unique_index_fields =
-      resource
-      |> AshPostgres.DataLayer.Info.custom_indexes()
-      |> Enum.filter(& &1.unique)
-      |> Enum.flat_map(& &1.fields)
-
-    (Ash.Resource.Info.primary_key(resource) ++ identity_keys ++ unique_index_fields)
-    |> Enum.flat_map(fn field ->
-      case Ash.Resource.Info.attribute(resource, field) do
-        nil -> if is_binary(field), do: [field], else: []
-        attribute -> [to_string(attribute.source)]
-      end
-    end)
   end
 
   defp bulk_updatable_query(
