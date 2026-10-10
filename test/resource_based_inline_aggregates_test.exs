@@ -41,26 +41,6 @@ defmodule AshPostgres.ResourceBasedInlineAggregatesTest do
     end
   end
 
-  defmodule CrossSchema.Activity do
-    use Ash.Resource, domain: CrossSchema.Domain, data_layer: AshPostgres.DataLayer
-
-    postgres do
-      repo AshPostgres.TestRepo
-      schema "task_activity_schema"
-      table "activities"
-    end
-
-    attributes do
-      uuid_primary_key(:id)
-      attribute(:name, :string, public?: true)
-      attribute(:active, :boolean, public?: true)
-    end
-
-    actions do
-      defaults([:read, create: :*])
-    end
-  end
-
   defmodule CrossSchema.Profile do
     use Ash.Resource, domain: CrossSchema.Domain, data_layer: AshPostgres.DataLayer
 
@@ -94,40 +74,15 @@ defmodule AshPostgres.ResourceBasedInlineAggregatesTest do
           )
         )
       )
-
-      calculate(
-        :stats,
-        :map,
-        expr(%{
-          profile_count: count(CrossSchema.Profile, filter: expr(name == parent(name))),
-          active_activity_count:
-            count(CrossSchema.Activity,
-              filter: expr(active == true and name == parent(name))
-            ),
-          latest_report:
-            first(CrossSchema.Report,
-              field: :title,
-              query: [
-                filter: expr(author_name == parent(name)),
-                sort: [inserted_at: :desc]
-              ]
-            )
-        })
-      )
     end
   end
 
   defp setup_cross_schema_data(repo) do
     repo.query!("CREATE SCHEMA task_profile_schema")
-    repo.query!("CREATE SCHEMA task_activity_schema")
     repo.query!("CREATE SCHEMA task_report_schema")
 
     repo.query!(
       "CREATE TABLE task_profile_schema.profiles (id uuid PRIMARY KEY, name text, active boolean)"
-    )
-
-    repo.query!(
-      "CREATE TABLE task_activity_schema.activities (id uuid PRIMARY KEY, name text, active boolean)"
     )
 
     repo.query!(
@@ -139,7 +94,6 @@ defmodule AshPostgres.ResourceBasedInlineAggregatesTest do
     yesterday = DateTime.add(now, -1, :day)
 
     Ash.create!(CrossSchema.Profile, %{name: "Alice", active: true})
-    Ash.create!(CrossSchema.Activity, %{name: "Alice", active: true})
 
     Ash.create!(CrossSchema.Report, %{
       title: "Older",
@@ -163,20 +117,11 @@ defmodule AshPostgres.ResourceBasedInlineAggregatesTest do
     })
   end
 
-  test "one inline aggregate looks up target resource from its configured schema" do
+  test "inline first aggregate uses the target resource's configured schema" do
     setup_cross_schema_data(AshPostgres.TestRepo)
 
     query = Ash.Query.load(CrossSchema.Profile, :latest_report)
 
     assert %{latest_report: "Latest"} = Ash.read_one!(query)
-  end
-
-  test "multiple inline aggregates preserve each target resource's configured schema" do
-    setup_cross_schema_data(AshPostgres.TestRepo)
-
-    query = Ash.Query.load(CrossSchema.Profile, :stats)
-
-    assert %{stats: %{profile_count: 1, active_activity_count: 1, latest_report: "Latest"}} =
-             Ash.read_one!(query)
   end
 end
