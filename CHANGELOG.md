@@ -11,6 +11,35 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.14.5](https://github.com/ash-project/ash_postgres/compare/v2.14.4...v2.14.5) (2026-10-09)
+
+
+
+
+### Bug Fixes:
+
+* properly detect key columns by Zach Daniel
+
+## [v2.14.4](https://github.com/ash-project/ash_postgres/compare/v2.14.3...v2.14.4) (2026-10-08)
+
+
+
+
+### Bug Fixes:
+
+* lock rows in the subquery that computes an update's atomics (#884) by Will Townsend
+
+## [v2.14.3](https://github.com/ash-project/ash_postgres/compare/v2.14.2...v2.14.3) (2026-10-07)
+
+
+
+
+### Bug Fixes:
+
+* ensure prefix is set on multitenant temporal queries by Zach Daniel
+
+* don't infer renames or skip dev migration check in codegen --check (#881) by Straffern
+
 ## [v2.14.2](https://github.com/ash-project/ash_postgres/compare/v2.14.1...v2.14.2) (2026-10-04)
 
 

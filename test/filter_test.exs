@@ -307,6 +307,37 @@ defmodule AshPostgres.FilterTest do
                |> Ash.Query.sort(title: :asc)
                |> Ash.read!()
     end
+
+    test "against a scalar field through a to-many relationship is an invalid query" do
+      assert {:error, %Ash.Error.Invalid{errors: [error]}} =
+               Post
+               |> Ash.Query.filter(^60 in comments.likes)
+               |> Ash.read()
+
+      assert %Ash.Error.Query.InvalidQuery{message: message} = error
+      assert message =~ "exists("
+      refute message =~ "Postgrex"
+    end
+
+    test "against a scalar field on the resource itself is an invalid query" do
+      assert {:error, %Ash.Error.Invalid{errors: [%Ash.Error.Query.InvalidQuery{}]}} =
+               Comment
+               |> Ash.Query.filter(^60 in likes)
+               |> Ash.read()
+    end
+
+    test "against a scalar field in a bulk update's filter is an invalid query" do
+      assert %Ash.BulkResult{
+               status: :error,
+               errors: [%Ash.Error.Invalid{errors: [%Ash.Error.Query.InvalidQuery{}]}]
+             } =
+               Post
+               |> Ash.Query.filter(^60 in comments.likes)
+               |> Ash.bulk_update(:update, %{title: "new"},
+                 return_errors?: true,
+                 strategy: :atomic
+               )
+    end
   end
 
   describe "with a boolean filter applied" do

@@ -1224,7 +1224,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           "execute(\"ALTER TABLE \\\"\#{prefix()}\\\".\\\"#{table}\\\" #{body}\")"
 
         schema ->
-          "execute(\"ALTER TABLE \\\"#{schema}.#{table}\\\" #{body}\")"
+          "execute(\"ALTER TABLE \\\"#{schema}\\\".\\\"#{table}\\\" #{body}\")"
 
         true ->
           "execute(\"ALTER TABLE \\\"#{table}\\\" #{body}\")"
@@ -1422,7 +1422,7 @@ defmodule AshPostgres.MigrationGenerator.Operation do
             "execute(\"ALTER TABLE \\\"\#{prefix()}\\\".\\\"#{table}\\\" ADD PRIMARY KEY (#{key_string})\")"
 
           schema ->
-            "execute(\"ALTER TABLE \\\"#{schema}.#{table}\\\" ADD PRIMARY KEY (#{key_string})\")"
+            "execute(\"ALTER TABLE \\\"#{schema}\\\".\\\"#{table}\\\" ADD PRIMARY KEY (#{key_string})\")"
 
           true ->
             "execute(\"ALTER TABLE \\\"#{table}\\\" ADD PRIMARY KEY (#{key_string})\")"
@@ -1483,13 +1483,13 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           remove_old =
             if remove_old? do
               """
-              execute("ALTER TABLE \\\"#{schema}.#{table}\\\" DROP constraint #{table}_pkey")
+              execute("ALTER TABLE \\\"#{schema}\\\".\\\"#{table}\\\" DROP constraint #{table}_pkey")
               """
             end
 
           """
           #{remove_old}
-          execute("ALTER TABLE \\\"#{schema}.#{table}\\\" ADD PRIMARY KEY (#{keys})")
+          execute("ALTER TABLE \\\"#{schema}\\\".\\\"#{table}\\\" ADD PRIMARY KEY (#{keys})")
           """
 
         true ->
