@@ -4,9 +4,9 @@
 
 defmodule AshPostgres.ResourceBasedInlineAggregatesTest do
   @moduledoc """
-  Regression tests for resource-based inline aggregates across PostgreSQL schemas.
+  Regression test for resource-based inline aggregates across PostgreSQL schemas.
 
-  These tests are here to ensure that inline aggregates continue to work when
+  This test is here to ensure that inline aggregates continue to work when
   target resources are stored within different database schemas.
   """
   use AshPostgres.RepoCase, async: false
