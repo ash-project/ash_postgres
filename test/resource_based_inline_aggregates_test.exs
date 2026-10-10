@@ -32,7 +32,6 @@ defmodule AshPostgres.ResourceBasedInlineAggregatesTest do
       uuid_primary_key(:id)
       attribute(:title, :string, public?: true)
       attribute(:author_name, :string, public?: true)
-      attribute(:score, :integer, public?: true)
       attribute(:inserted_at, :utc_datetime_usec, public?: true)
     end
 
@@ -53,7 +52,6 @@ defmodule AshPostgres.ResourceBasedInlineAggregatesTest do
     attributes do
       uuid_primary_key(:id)
       attribute(:name, :string, public?: true)
-      attribute(:active, :boolean, public?: true)
     end
 
     actions do
@@ -81,38 +79,27 @@ defmodule AshPostgres.ResourceBasedInlineAggregatesTest do
     repo.query!("CREATE SCHEMA task_profile_schema")
     repo.query!("CREATE SCHEMA task_report_schema")
 
-    repo.query!(
-      "CREATE TABLE task_profile_schema.profiles (id uuid PRIMARY KEY, name text, active boolean)"
-    )
+    repo.query!("CREATE TABLE task_profile_schema.profiles (id uuid PRIMARY KEY, name text)")
 
     repo.query!(
-      "CREATE TABLE task_report_schema.reports (id uuid PRIMARY KEY, title text, author_name text, score integer, inserted_at timestamptz)"
+      "CREATE TABLE task_report_schema.reports (id uuid PRIMARY KEY, title text, author_name text, inserted_at timestamptz)"
     )
 
     now = DateTime.utc_now() |> DateTime.truncate(:microsecond)
     eight_days_ago = DateTime.add(now, -8, :day)
     yesterday = DateTime.add(now, -1, :day)
 
-    Ash.create!(CrossSchema.Profile, %{name: "Alice", active: true})
+    Ash.create!(CrossSchema.Profile, %{name: "Alice"})
 
     Ash.create!(CrossSchema.Report, %{
       title: "Older",
       author_name: "Alice",
-      score: 10,
       inserted_at: eight_days_ago
     })
 
     Ash.create!(CrossSchema.Report, %{
       title: "Latest",
       author_name: "Alice",
-      score: 20,
-      inserted_at: yesterday
-    })
-
-    Ash.create!(CrossSchema.Report, %{
-      title: "Other author",
-      author_name: "Bob",
-      score: 100,
       inserted_at: yesterday
     })
   end
