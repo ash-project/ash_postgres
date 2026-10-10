@@ -2,12 +2,14 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshPostgres.ResourceBasedInlineAggregatesTest do
+defmodule AshPostgres.InlineFirstAggregateSchemaTest do
   @moduledoc """
-  Regression test for resource-based inline aggregates across PostgreSQL schemas.
+  Regression test for schema-prefix propagation in resource-based inline
+  `first` aggregates.
 
-  This test is here to ensure that inline aggregates continue to work when
-  target resources are stored within different database schemas.
+  The aggregate target resource is stored in a different PostgreSQL schema
+  than the resource being queried. The generated query must use the target
+  resource's configured schema.
   """
   use AshPostgres.RepoCase, async: false
 
