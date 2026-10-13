@@ -7,6 +7,11 @@ defmodule AshPostgres.Test.Domain do
   use Ash.Domain
 
   resources do
+    resource(AshPostgres.Test.ProjectTickets.Member)
+    resource(AshPostgres.Test.ProjectTickets.Project)
+    resource(AshPostgres.Test.ProjectTickets.Ticket)
+    resource(AshPostgres.Test.ProjectTickets.Comment)
+
     resource(AshPostgres.Test.CoAuthorPost)
 
     resource(AshPostgres.Test.Post) do

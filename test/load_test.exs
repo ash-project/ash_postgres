@@ -543,6 +543,61 @@ defmodule AshPostgres.Test.LoadTest do
   end
 
   describe "relationship pagination" do
+    test "page project tickets with comment counts while hiding other owners' hours" do
+      alias AshPostgres.Test.ProjectTickets.{Comment, Project, Ticket}
+
+      actor = %{id: 1}
+
+      Project
+      |> Ash.Changeset.for_create(:create, %{id: 1})
+      |> Ash.create!()
+
+      for {id, hours, owner_id} <- [{1, 5, 1}, {2, 9, 2}] do
+        Ticket
+        |> Ash.Changeset.for_create(:create, %{
+          id: id,
+          hours: hours,
+          owner_id: owner_id,
+          project_id: 1
+        })
+        |> Ash.create!(authorize?: false)
+      end
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{id: 1, ticket_id: 1})
+      |> Ash.create!()
+
+      query = Ticket |> Ash.Query.load(:comment_count) |> Ash.Query.sort(:id)
+
+      direct =
+        query
+        |> Ash.Query.for_read(:read, %{}, actor: actor)
+        |> Ash.read!(page: [limit: 10])
+
+      assert [own_ticket, other_ticket] = direct.results
+      assert own_ticket.hours == 5
+      assert own_ticket.comment_count == 1
+      assert %Ash.ForbiddenField{field: :hours} = other_ticket.hours
+      assert other_ticket.comment_count == 0
+
+      project =
+        Project
+        |> Ash.Query.filter(id == 1)
+        |> Ash.Query.load(
+          tickets:
+            query
+            |> Ash.Query.page(limit: 10)
+            |> Ash.Query.for_read(:read, %{}, actor: actor)
+        )
+        |> Ash.Query.for_read(:read, %{}, actor: actor)
+        |> Ash.read_one!()
+
+      assert %Ash.Page.Offset{} = project.tickets
+
+      assert Enum.map(project.tickets.results, &Map.take(&1, [:id, :hours, :comment_count])) ==
+               Enum.map(direct.results, &Map.take(&1, [:id, :hours, :comment_count]))
+    end
+
     test "it allows paginating has_many relationships with offset pagination" do
       author1 =
         Author
