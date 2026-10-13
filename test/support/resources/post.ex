@@ -826,6 +826,13 @@ defmodule AshPostgres.Test.Post do
       public?(true)
     end
 
+    has_one :latest_comment_anywhere, AshPostgres.Test.Comment do
+      public?(true)
+      no_attributes?(true)
+      from_many?(true)
+      sort(created_at: :desc)
+    end
+
     has_one :second_latest_comment, AshPostgres.Test.Comment do
       sort(created_at: :desc)
       offset(1)
