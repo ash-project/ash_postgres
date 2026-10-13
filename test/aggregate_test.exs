@@ -2675,4 +2675,186 @@ defmodule AshSql.AggregateTest do
                loaded_post.max_rating_with_join_filter == 10
     end
   end
+
+  describe "assignee names from authorized members" do
+    alias AshPostgres.Test.ProjectTickets.{Member, Ticket}
+
+    setup do
+      for {id, name, hidden, hours, owner_id} <- [
+            {1, "Alice", false, 5, 1},
+            {2, "Bob", true, 30, 2},
+            {3, "Carol", false, 20, 1},
+            {4, "Dave", true, 40, 2}
+          ] do
+        Member
+        |> Ash.Changeset.for_create(:create, %{id: id, name: name, hidden: hidden})
+        |> Ash.create!(authorize?: false)
+
+        Ticket
+        |> Ash.Changeset.for_create(:create, %{
+          id: id,
+          hours: hours,
+          owner_id: owner_id,
+          project_id: 1,
+          assignee_id: id
+        })
+        |> Ash.create!(authorize?: false)
+      end
+
+      %{actor: %{id: 1}}
+    end
+
+    test "show assignee names only for visible members when filtering tickets by assignee",
+         context do
+      query = Ticket |> Ash.Query.load(:assignee_name) |> Ash.Query.sort(:id)
+      expected = [{1, "Alice"}, {2, nil}, {3, "Carol"}, {4, nil}]
+
+      tickets =
+        query
+        |> Ash.Query.for_read(:read, %{}, actor: context.actor)
+        |> Ash.read!()
+
+      assert assignee_names(tickets) == expected
+
+      filtered =
+        query
+        |> Ash.Query.filter(assignee.name != "nobody" or id > 0)
+        |> Ash.Query.for_read(:read, %{}, actor: context.actor)
+        |> Ash.read!()
+
+      assert assignee_names(filtered) == expected
+    end
+
+    test "keep hidden assignee names out of aggregates when accepting ticket filters", context do
+      query =
+        Ticket
+        |> Ash.Query.load(:assignee_name)
+        |> Ash.Query.sort(:id)
+        |> Ash.Query.filter_input(%{
+          or: [%{assignee: %{name: %{not_eq: "nobody"}}}, %{id: %{greater_than: 0}}]
+        })
+
+      tickets =
+        query
+        |> Ash.Query.for_read(:read, %{}, actor: context.actor)
+        |> Ash.read!()
+
+      assert assignee_names(tickets) == [{1, "Alice"}, {2, nil}, {3, "Carol"}, {4, nil}]
+    end
+
+    test "filter tickets by visible assignee names after filtering their relationship", context do
+      query = Ticket |> Ash.Query.sort(:id)
+
+      for load? <- [false, true] do
+        query = if load?, do: Ash.Query.load(query, :assignee_name), else: query
+        joined = Ash.Query.filter(query, assignee.name != "nobody" or id > 0)
+
+        for base <- [query, joined] do
+          visible =
+            base
+            |> Ash.Query.filter(assignee_name == "Alice")
+            |> read_assignee_tickets(context.actor)
+
+          assert Enum.map(visible, & &1.id) == [1]
+
+          unrestricted =
+            base
+            |> Ash.Query.filter(assignee_name == "Bob")
+            |> read_assignee_tickets(context.actor, authorize?: false)
+
+          assert Enum.map(unrestricted, & &1.id) == [2]
+          if load?, do: assert(assignee_names(unrestricted) == [{2, "Bob"}])
+        end
+
+        input_filtered =
+          query
+          |> Ash.Query.filter_input(%{
+            or: [%{assignee: %{name: %{not_eq: "nobody"}}}, %{id: %{greater_than: 0}}]
+          })
+          |> Ash.Query.filter(assignee_name == "Bob")
+          |> read_assignee_tickets(context.actor)
+
+        assert input_filtered == []
+
+        hidden =
+          query
+          |> Ash.Query.filter(assignee_name == "Bob")
+          |> read_assignee_tickets(context.actor)
+
+        assert hidden == []
+
+        hidden_after_join =
+          joined
+          |> Ash.Query.filter(assignee_name == "Bob")
+          |> read_assignee_tickets(context.actor)
+
+        assert hidden_after_join == []
+      end
+    end
+
+    test "find tickets without a visible assignee after filtering their relationship", context do
+      query = Ticket |> Ash.Query.load(:assignee_name) |> Ash.Query.sort(:id)
+      expected = [{2, nil}, {4, nil}]
+
+      without_visible_assignee =
+        query
+        |> Ash.Query.filter(is_nil(assignee_name))
+        |> read_assignee_tickets(context.actor)
+
+      assert assignee_names(without_visible_assignee) == expected
+
+      unrestricted =
+        query
+        |> Ash.Query.filter(assignee.name != "nobody" or id > 0)
+        |> Ash.Query.filter(is_nil(assignee_name))
+        |> read_assignee_tickets(context.actor, authorize?: false)
+
+      assert unrestricted == []
+
+      after_relationship_filter =
+        query
+        |> Ash.Query.filter(assignee.name != "nobody" or id > 0)
+        |> Ash.Query.filter(is_nil(assignee_name))
+        |> read_assignee_tickets(context.actor)
+
+      assert assignee_names(after_relationship_filter) == expected
+    end
+
+    test "show calculated assignee labels only for visible members after filtering their relationship",
+         context do
+      query = Ticket |> Ash.Query.load([:assignee_name, :assignee_label]) |> Ash.Query.sort(:id)
+      expected = [{1, "Alice", "Alice"}, {2, nil, nil}, {3, "Carol", "Carol"}, {4, nil, nil}]
+      labels = fn tickets -> Enum.map(tickets, &{&1.id, &1.assignee_name, &1.assignee_label}) end
+
+      assert labels.(read_assignee_tickets(query, context.actor)) == expected
+
+      joined = Ash.Query.filter(query, assignee.name != "nobody" or id > 0)
+
+      assert labels.(read_assignee_tickets(joined, context.actor, authorize?: false)) == [
+               {1, "Alice", "Alice"},
+               {2, "Bob", "Bob"},
+               {3, "Carol", "Carol"},
+               {4, "Dave", "Dave"}
+             ]
+
+      assert labels.(read_assignee_tickets(joined, context.actor)) == expected
+
+      input_filtered =
+        query
+        |> Ash.Query.filter_input(%{
+          or: [%{assignee: %{name: %{not_eq: "nobody"}}}, %{id: %{greater_than: 0}}]
+        })
+        |> read_assignee_tickets(context.actor)
+
+      assert labels.(input_filtered) == expected
+    end
+
+    defp read_assignee_tickets(query, actor, opts \\ []) do
+      query
+      |> Ash.Query.for_read(:read, %{}, Keyword.put(opts, :actor, actor))
+      |> Ash.read!(opts)
+    end
+
+    defp assignee_names(tickets), do: Enum.map(tickets, &{&1.id, &1.assignee_name})
+  end
 end

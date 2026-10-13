@@ -35,6 +35,10 @@ defmodule AshPostgres.Test.ProjectTickets.Ticket do
     count(:comment_count, :comments, public?: true)
   end
 
+  calculations do
+    calculate(:assignee_label, :string, expr(assignee_name))
+  end
+
   actions do
     defaults(create: [:id, :hours, :owner_id, :project_id, :assignee_id])
 
