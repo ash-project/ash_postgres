@@ -130,6 +130,50 @@ defmodule AshPostgres.Test.LoadTest do
              |> Map.get(:second_latest_comment)
   end
 
+  test "has_one with no_attributes? and from_many? loads a single record" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "post"})
+      |> Ash.create!()
+
+    other_post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "other post"})
+      |> Ash.create!()
+
+    Comment
+    |> Ash.Changeset.for_create(:create, %{
+      title: "older",
+      post_id: post.id,
+      created_at: ~U[2024-01-01 00:00:00Z]
+    })
+    |> Ash.create!()
+
+    # on the other post, so joining on post_id would return "older" instead
+    %{id: newest_id} =
+      Comment
+      |> Ash.Changeset.for_create(:create, %{
+        title: "newest",
+        post_id: other_post.id,
+        created_at: ~U[2024-06-01 00:00:00Z]
+      })
+      |> Ash.create!()
+
+    assert %Comment{id: ^newest_id} =
+             post
+             |> Ash.load!(:latest_comment_anywhere)
+             |> Map.get(:latest_comment_anywhere)
+  end
+
+  test "has_one with no_attributes? and from_many? loads nil when nothing is related" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "post"})
+      |> Ash.create!()
+
+    assert %{latest_comment_anywhere: nil} = Ash.load!(post, :latest_comment_anywhere)
+  end
+
   test "belongs_to relationships can be loaded" do
     assert %Comment{post: %Ash.NotLoaded{type: :relationship}} =
              comment =
