@@ -7,8 +7,8 @@ defmodule AshPostgres.InlineFirstAggregateSchemaTest do
   Regression test for schema-prefix propagation in resource-based inline
   `first` aggregates.
 
-  The aggregate target resource is stored in a different PostgreSQL schema
-  than the resource being queried. The generated query must use the target
+  When the aggregate target resource is stored in a different PostgreSQL schema
+  than the resource being queried, the generated query must use the target
   resource's configured schema.
   """
   use AshPostgres.RepoCase, async: false
