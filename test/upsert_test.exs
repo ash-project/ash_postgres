@@ -159,11 +159,15 @@ defmodule AshPostgres.Test.UpsertTest do
     end
 
     test "explains the missing `xmax` column when `view?` is not set" do
-      assert_raise Ash.Error.Unknown, ~r/view\? true/, fn ->
-        UntrackedViewRecord
-        |> Ash.Changeset.for_create(:create, %{key: "a", price: 1})
-        |> Ash.create!(upsert?: true, upsert_identity: :unique_key)
-      end
+      error =
+        assert_raise Ash.Error.Unknown, ~r/view\? true/, fn ->
+          UntrackedViewRecord
+          |> Ash.Changeset.for_create(:create, %{key: "a", price: 1})
+          |> Ash.create!(upsert?: true, upsert_identity: :unique_key)
+        end
+
+      assert Exception.message(error) =~ "include_upsert_action?"
+      assert Exception.message(error) =~ "AshPostgres.TestRepo"
     end
   end
 
@@ -398,6 +402,130 @@ defmodule AshPostgres.Test.UpsertTest do
 
       assert actions[existing_id] == :update
       assert actions[new_id] == :insert
+    end
+  end
+
+  describe "upsert_action metadata disabled by the repo" do
+    setup do
+      Application.put_env(:ash_postgres, :test_include_upsert_action?, false)
+      on_exit(fn -> Application.delete_env(:ash_postgres, :test_include_upsert_action?) end)
+
+      parent = self()
+      handler = "upsert-sql-#{System.unique_integer()}"
+
+      :telemetry.attach(
+        handler,
+        [:ash_postgres, :test_repo, :query],
+        fn _, _, %{query: query}, _ ->
+          if String.starts_with?(query, "INSERT") && String.contains?(query, "ON CONFLICT") do
+            send(parent, {:upsert_sql, query})
+          end
+        end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler) end)
+    end
+
+    test "single upserts return inserted and updated records without reading xmax" do
+      id = Ash.UUID.generate()
+
+      for title <- ["inserted", "updated"] do
+        record =
+          Post
+          |> Ash.Changeset.for_create(:create, %{id: id, title: title})
+          |> Ash.create!(upsert?: true)
+
+        assert record.id == id
+        assert record.title == title
+        refute Map.has_key?(record.__metadata__, :upsert_action)
+
+        assert_received {:upsert_sql, sql}
+        assert sql =~ "ON CONFLICT"
+        assert sql =~ "DO UPDATE SET"
+        assert sql =~ "RETURNING"
+        refute sql =~ "xmax"
+      end
+
+      assert Ash.get!(Post, id).title == "updated"
+    end
+
+    test "bulk upserts return both inserted and updated records without action metadata" do
+      existing = Post |> Ash.Changeset.for_create(:create, %{title: "existing"}) |> Ash.create!()
+      new_id = Ash.UUID.generate()
+
+      assert %Ash.BulkResult{status: :success, records: records} =
+               Ash.bulk_create!(
+                 [%{id: existing.id, title: "updated"}, %{id: new_id, title: "inserted"}],
+                 Post,
+                 :create,
+                 upsert?: true,
+                 upsert_fields: [:title],
+                 return_records?: true
+               )
+
+      assert Map.new(records, &{&1.id, &1.title}) ==
+               %{existing.id => "updated", new_id => "inserted"}
+
+      for record <- records, do: refute(Map.has_key?(record.__metadata__, :upsert_action))
+
+      assert_received {:upsert_sql, sql}
+      refute sql =~ "xmax"
+    end
+
+    test "selected fields are still returned" do
+      record =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "selected", price: 10})
+        |> Ash.Changeset.select([:id, :title])
+        |> Ash.create!(upsert?: true)
+
+      assert record.id
+      assert record.title == "selected"
+      assert %Ash.NotLoaded{} = record.price
+      refute Map.has_key?(record.__metadata__, :upsert_action)
+    end
+
+    test "skipped upserts retain their skipped metadata" do
+      original =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "original", price: 10})
+        |> Ash.create!()
+
+      skipped =
+        Post
+        |> Ash.Changeset.for_create(:create, %{id: original.id, title: "skipped", price: 10},
+          upsert_condition: Ash.Expr.expr(price != upsert_conflict(:price))
+        )
+        |> Ash.create!(
+          upsert?: true,
+          upsert_fields: [:title],
+          return_skipped_upsert?: true
+        )
+
+      assert skipped.id == original.id
+      assert skipped.title == "original"
+      assert Ash.Resource.get_metadata(skipped, :upsert_skipped)
+      refute Map.has_key?(skipped.__metadata__, :upsert_action)
+    end
+
+    test "bulk upserts can omit returned records" do
+      id = Ash.UUID.generate()
+
+      for title <- ["inserted", "updated"] do
+        assert %Ash.BulkResult{status: :success, records: nil} =
+                 Ash.bulk_create!([%{id: id, title: title}], Post, :create,
+                   upsert?: true,
+                   upsert_fields: [:title],
+                   return_records?: false
+                 )
+
+        assert_received {:upsert_sql, sql}
+        refute sql =~ "RETURNING"
+        refute sql =~ "xmax"
+      end
+
+      assert Ash.get!(Post, id).title == "updated"
     end
   end
 
