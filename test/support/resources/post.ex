@@ -820,6 +820,59 @@ defmodule AshPostgres.Test.Post do
 
     has_many(:comments, AshPostgres.Test.Comment, destination_attribute: :post_id, public?: true)
 
+    has_many :union_comments, AshPostgres.Test.Comment do
+      public?(true)
+      no_attributes?(true)
+      sort(title: :asc)
+      filter(expr(parent(comments.id) == id or parent(linked_posts.comments.id) == id))
+    end
+
+    has_many :union_comments_unsorted, AshPostgres.Test.Comment do
+      public?(true)
+      no_attributes?(true)
+      filter(expr(parent(comments.id) == id or parent(linked_posts.comments.id) == id))
+    end
+
+    has_many :union_comments_with_parent_author, AshPostgres.Test.Comment do
+      public?(true)
+      no_attributes?(true)
+      sort(title: :asc)
+
+      filter(
+        expr(
+          (parent(comments.id) == id or parent(linked_posts.comments.id) == id) and
+            parent(author.first_name) == "Bob"
+        )
+      )
+    end
+
+    has_many :comments_with_two_parent_paths, AshPostgres.Test.Comment do
+      public?(true)
+      no_attributes?(true)
+      sort(title: :asc)
+      filter(expr(parent(comments.post_id) == post_id and parent(linked_posts.id) != post_id))
+    end
+
+    has_many :union_comments_with_destination_ref, AshPostgres.Test.Comment do
+      public?(true)
+      no_attributes?(true)
+      sort(title: :asc)
+
+      filter(
+        expr(
+          parent(comments.id) == id or
+            (parent(linked_posts.comments.id) == id and author.first_name == "Alice")
+        )
+      )
+    end
+
+    has_many :own_comments_titled_at_most, AshPostgres.Test.Comment do
+      public?(true)
+      no_attributes?(true)
+      sort(title: :asc)
+      filter(expr(parent(comments.title) >= title and post_id == parent(id)))
+    end
+
     has_one :latest_comment, AshPostgres.Test.Comment do
       sort(created_at: :desc)
       from_many?(true)
@@ -1376,6 +1429,8 @@ defmodule AshPostgres.Test.Post do
     first(:latest_comment_title_agg, [:latest_comment], :title)
     sum(:sum_of_comment_ratings_calc, [:comments, :ratings], :double_score)
     count(:count_of_comments, :comments)
+    count(:count_of_union_comments, :union_comments_unsorted)
+    list(:union_comment_titles, :union_comments_unsorted, :title)
 
     count :count_of_comments_titled_by_actor, :comments do
       filter(expr(title == ^actor(:title)))
