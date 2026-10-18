@@ -51,3 +51,6 @@ This should be coupled with to make sure that Ash does not spawn any tasks.
 ```elixir
 config :ash, :disable_async?, true
 ```
+
+For AshPostgres's dedicated YugabyteDB integration suite and the configuration it
+exercises, see [YugabyteDB](yugabytedb.md#running-the-integration-suite).

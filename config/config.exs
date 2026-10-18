@@ -4,6 +4,10 @@
 
 import Config
 
+if Mix.env() == :yugabyte do
+  import_config "yugabyte.exs"
+end
+
 config :ash, :bulk_actions_default_to_errors?, true
 
 if Mix.env() == :dev do

@@ -20,6 +20,7 @@ defmodule AshPostgres.MixProject do
       deps: deps(),
       description: @description,
       elixirc_paths: elixirc_paths(Mix.env()),
+      test_paths: test_paths(Mix.env()),
       consolidate_protocols: Mix.env() == :prod,
       cli: cli(),
       dialyzer: [
@@ -60,7 +61,11 @@ defmodule AshPostgres.MixProject do
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(:yugabyte), do: ["lib", "test_yugabyte/support"]
   defp elixirc_paths(_), do: ["lib"]
+
+  defp test_paths(:yugabyte), do: ["test_yugabyte"]
+  defp test_paths(_), do: ["test"]
 
   defp package do
     [
@@ -112,6 +117,7 @@ defmodule AshPostgres.MixProject do
         "documentation/topics/resources/working-with-existing-databases.md",
         "documentation/topics/development/migrations-and-tasks.md",
         "documentation/topics/development/testing.md",
+        "documentation/topics/development/yugabytedb.md",
         "documentation/topics/development/upgrading-to-2.0.md",
         "documentation/topics/development/upgrading-to-postgres-18.md",
         "documentation/topics/advanced/expressions.md",

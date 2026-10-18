@@ -1,0 +1,62 @@
+# SPDX-FileCopyrightText: 2019 ash_postgres contributors <https://github.com/ash-project/ash_postgres/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+
+name: YugabyteDB
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MIX_ENV: yugabyte
+      YUGABYTE_IMAGE: yugabytedb/yugabyte:2026.1.2.0-b137
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: erlef/setup-beam@v1
+        with:
+          version-file: .tool-versions
+          version-type: strict
+      - name: Install dependencies
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get
+      - name: Start disposable YugabyteDB
+        run: |
+          docker run --detach --name ash-postgres-yugabyte --init \
+            --publish 127.0.0.1:5433:5433 \
+            "$YUGABYTE_IMAGE" bin/yugabyted start \
+            --background=false --advertise_address=127.0.0.1 \
+            --ui=false --callhome=false \
+            --tserver_flags=pgsql_proxy_bind_address=0.0.0.0:5433
+
+          for attempt in $(seq 1 60); do
+            if docker exec ash-postgres-yugabyte bin/ysqlsh -h 127.0.0.1 \
+              -U yugabyte -d yugabyte -v ON_ERROR_STOP=1 -c 'SELECT 1' >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
+
+          docker exec ash-postgres-yugabyte bin/ysqlsh -h 127.0.0.1 \
+            -U yugabyte -d yugabyte -v ON_ERROR_STOP=1 \
+            -c 'CREATE DATABASE ash_postgres_yugabyte_test'
+      - name: Run compatibility tests
+        run: mix test --warnings-as-errors
+      - name: Database logs on failure
+        if: failure()
+        run: docker logs --tail 200 ash-postgres-yugabyte
+      - name: Stop disposable database
+        if: always()
+        run: docker rm --force ash-postgres-yugabyte

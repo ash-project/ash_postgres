@@ -29,6 +29,7 @@
           "lib/",
           "src/",
           "test/",
+          "test_yugabyte/",
           "web/",
           "apps/*/lib/",
           "apps/*/src/",
