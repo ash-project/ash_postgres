@@ -26,7 +26,7 @@ defmodule AshPostgres.JoinSubquerySortTest do
       |> Ash.Query.filter(not is_nil(sorted_post.title))
       |> join_sql()
 
-    assert sql =~ ~r/LEFT OUTER JOIN \(SELECT/
+    assert sql =~ ~r/LEFT OUTER JOIN "public"."posts"/
     refute sql =~ "ORDER BY"
   end
 

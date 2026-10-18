@@ -525,4 +525,98 @@ defmodule AshPostgres.Test.UnrelatedAggregatesTest do
       refute user2.id in user_ids
     end
   end
+
+  describe "unrelated first aggregates referenced and loaded" do
+    setup do
+      john = Ash.create!(User, %{name: "John"})
+      jane = Ash.create!(User, %{name: "Jane"})
+      Ash.create!(Profile, %{name: "John", age: 30, active: true})
+
+      Ash.create!(Report, %{
+        title: "John's Report",
+        author_name: "John",
+        score: 85,
+        inserted_at: DateTime.utc_now()
+      })
+
+      Ash.create!(Report, %{
+        title: "Jane's Report",
+        author_name: "Jane",
+        score: 78,
+        inserted_at: DateTime.utc_now()
+      })
+
+      %{john: john, jane: jane}
+    end
+
+    test "filter by an unrelated first aggregate that is also loaded", %{john: john} do
+      assert [%{id: id, latest_authored_report: "John's Report"}] =
+               User
+               |> Ash.Query.filter(latest_authored_report == "John's Report")
+               |> Ash.Query.load(:latest_authored_report)
+               |> Ash.read!()
+
+      assert id == john.id
+    end
+
+    test "sort by an unrelated first query aggregate" do
+      query =
+        Ash.Query.aggregate(User, "latest_report", :first, Report,
+          field: :title,
+          query: [filter: expr(author_name == parent(name)), sort: [inserted_at: :desc]]
+        )
+
+      assert [
+               %{aggregates: %{"latest_report" => "John's Report"}},
+               %{aggregates: %{"latest_report" => "Jane's Report"}}
+             ] =
+               query
+               |> Ash.Query.sort([{query.aggregates["latest_report"], :desc}])
+               |> Ash.read!()
+    end
+
+    test "filter by an unrelated first aggregate that is also loaded with a subquery-wrapping aggregate",
+         %{john: john} do
+      assert [%{id: id, latest_authored_report: "John's Report", matching_name_profiles_count: 1}] =
+               User
+               |> Ash.Query.filter(latest_authored_report == "John's Report")
+               |> Ash.Query.load([:latest_authored_report, :matching_name_profiles_count])
+               |> Ash.Query.limit(1)
+               |> Ash.read!()
+
+      assert id == john.id
+    end
+
+    test "filter by an unrelated first query aggregate", %{john: john} do
+      query =
+        Ash.Query.aggregate(User, "latest_report", :first, Report,
+          field: :title,
+          query: [filter: expr(author_name == parent(name)), sort: [inserted_at: :desc]]
+        )
+
+      ref = %Ash.Query.Ref{attribute: query.aggregates["latest_report"], resource: User}
+
+      assert [%{id: id, aggregates: %{"latest_report" => "John's Report"}}] =
+               query |> Ash.Query.filter(^ref == "John's Report") |> Ash.read!()
+
+      assert id == john.id
+    end
+
+    test "load an unsorted unrelated first aggregate that cannot be joined directly" do
+      post = Ash.create!(AshPostgres.Test.Post, %{title: "John"})
+      Ash.create!(AshPostgres.Test.Comment, %{title: "comment", post_id: post.id})
+
+      # An aggregate field rules out the direct join, so this goes through a
+      # lateral subquery that has neither a relationship nor a sort to order by.
+      query =
+        User
+        |> Ash.Query.filter(name == "John")
+        |> Ash.Query.aggregate("post_comment_count", :first, AshPostgres.Test.Post,
+          field: :count_of_comments,
+          query: [filter: expr(title == parent(name))]
+        )
+
+      assert [%{aggregates: %{"post_comment_count" => 1}}] = Ash.read!(query)
+    end
+  end
 end
