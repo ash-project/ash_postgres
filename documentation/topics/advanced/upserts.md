@@ -10,7 +10,7 @@ Create actions with `upsert? true`, `Ash.create/2` with `upsert?: true`, and `As
 
 ## Knowing whether a record was inserted or updated
 
-Every record returned from an upsert carries `:upsert_action` metadata, either `:insert` or `:update`:
+By default, records returned from an upsert carry `:upsert_action` metadata, either `:insert` or `:update`:
 
 ```elixir
 post = Ash.create!(changeset, upsert?: true)
@@ -23,6 +23,22 @@ This works on every supported PostgreSQL version. It is derived from the row's s
 Views have no system columns, so a resource backed by a view must declare it with `view? true` in its `postgres` section. Upserts into that resource work as usual (PostgreSQL supports `INSERT ... ON CONFLICT` on simple updatable views), but the returned records carry no `:upsert_action` metadata. Without the option the upsert fails with an error pointing at it.
 
 Records that were skipped because the `upsert_condition` did not hold are not returned unless you pass `return_skipped_upsert?: true`, in which case they are tagged with `:upsert_skipped` metadata instead.
+
+### Databases without `xmax`
+
+For PostgreSQL-compatible databases that do not provide the `xmax` system column, such as YugabyteDB, disable action metadata by overriding `c:AshPostgres.Repo.include_upsert_action?/0` in your repo:
+
+```elixir
+defmodule MyApp.Repo do
+  use AshPostgres.Repo, otp_app: :my_app
+
+  def include_upsert_action?, do: false
+end
+```
+
+The callback defaults to `true`. Returning `false` omits the `xmax` expression from the upsert's `RETURNING` clause. Single and bulk upserts still return ordinary record fields when requested, but `Ash.Resource.get_metadata(record, :upsert_action)` returns `nil`; no insert/update result is inferred. The `:upsert_skipped` metadata for skipped upserts is unaffected.
+
+Upserts still use atomic `INSERT ... ON CONFLICT DO UPDATE`. This option does not change resource table classification or migration generation: keep real tables as tables rather than declaring `view? true`. It addresses this specific system-column dependency and does not imply full compatibility with every PostgreSQL-compatible database.
 
 ## Identities that need SQL
 

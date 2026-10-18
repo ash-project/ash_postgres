@@ -37,6 +37,9 @@ defmodule AshPostgres.TestRepo do
 
   def prefer_transaction_for_atomic_updates?, do: false
 
+  def include_upsert_action?,
+    do: Application.get_env(:ash_postgres, :test_include_upsert_action?, true)
+
   def installed_extensions do
     [
       "ash-functions",

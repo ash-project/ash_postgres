@@ -91,7 +91,8 @@ defmodule AshPostgres.Upsert do
         counter
       )
 
-    {returning_sql, returning_fields} = build_returning(opts[:returning], resource, target_alias)
+    {returning_sql, returning_fields} =
+      build_returning(opts[:returning], repo, resource, target_alias)
 
     sql =
       IO.iodata_to_binary([
@@ -121,7 +122,7 @@ defmodule AshPostgres.Upsert do
       rescue
         e in Postgrex.Error ->
           if returning_fields[:action] && xmax_missing?(e) do
-            reraise xmax_missing_message(resource, table), __STACKTRACE__
+            reraise xmax_missing_message(repo, resource, table), __STACKTRACE__
           else
             reraise e, __STACKTRACE__
           end
@@ -230,10 +231,10 @@ defmodule AshPostgres.Upsert do
     ["(", Enum.map_join(fields, ", ", &quote_name(db_column(resource, &1))), ")"]
   end
 
-  defp build_returning(nil, _resource, _target_alias), do: {"", nil}
-  defp build_returning(false, _resource, _target_alias), do: {"", nil}
+  defp build_returning(nil, _repo, _resource, _target_alias), do: {"", nil}
+  defp build_returning(false, _repo, _resource, _target_alias), do: {"", nil}
 
-  defp build_returning(fields, resource, target_alias) do
+  defp build_returning(fields, repo, resource, target_alias) do
     fields =
       case fields do
         true -> resource.__schema__(:fields)
@@ -244,9 +245,9 @@ defmodule AshPostgres.Upsert do
 
     col_sql = Enum.map_join(sources, ", ", &"#{target_alias}.#{quote_name(&1)}")
 
-    # Views have no system columns, so `xmax` is not read for resources declared `view? true`,
-    # and their records carry no `:upsert_action` metadata.
-    if AshPostgres.DataLayer.Info.view?(resource) do
+    # Views have no system columns, and compatible databases may not provide `xmax`.
+    # In either case, return the requested fields without `:upsert_action` metadata.
+    if AshPostgres.DataLayer.Info.view?(resource) || !repo.include_upsert_action?() do
       {" RETURNING " <> col_sql, %{sources: sources, action: nil}}
     else
       {" RETURNING " <> col_sql <> ", (#{target_alias}.xmax = 0)",
@@ -260,18 +261,22 @@ defmodule AshPostgres.Upsert do
 
   defp xmax_missing?(_), do: false
 
-  defp xmax_missing_message(resource, table) do
+  defp xmax_missing_message(repo, resource, table) do
     """
-    Cannot determine `:upsert_action` metadata for #{inspect(resource)}: `#{table}` has no `xmax` system column, so it is a view rather than a table.
+    Cannot determine `:upsert_action` metadata for #{inspect(resource)}: `#{table}` has no `xmax` system column.
 
-    Declare the resource as a view with `view? true` in its `postgres` section:
+    If the resource is backed by a view, declare it with `view? true` in its `postgres` section:
 
         postgres do
           table #{inspect(table)}
           view? true
         end
 
-    Records returned from upserts into a view carry no `:upsert_action` metadata.
+    If the database does not provide `xmax`, disable action metadata in #{inspect(repo)}:
+
+        def include_upsert_action?, do: false
+
+    In either case, upserts still return ordinary record fields, but carry no `:upsert_action` metadata.
     """
   end
 end

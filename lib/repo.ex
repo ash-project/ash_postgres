@@ -149,6 +149,17 @@ defmodule AshPostgres.Repo do
   @doc "Disable atomic actions for this repo"
   @callback disable_atomic_actions?() :: boolean
 
+  @doc """
+  Whether to include `:upsert_action` metadata on records returned from upserts. Defaults to `true`.
+
+  Set to `false` for PostgreSQL-compatible databases that do not provide the `xmax`
+  system column. Upserts still use atomic `INSERT ... ON CONFLICT DO UPDATE` and
+  return the requested record fields, but omit `:upsert_action` metadata.
+
+  Resources declared with `view? true` omit this metadata regardless of this callback.
+  """
+  @callback include_upsert_action?() :: boolean
+
   @doc "Disable expression errors for this repo"
   @callback disable_expr_error?() :: boolean
 
@@ -202,6 +213,7 @@ defmodule AshPostgres.Repo do
       def create?, do: true
       def drop?, do: true
       def disable_atomic_actions?, do: false
+      def include_upsert_action?, do: true
       def disable_expr_error?, do: false
       def immutable_expr_error?, do: false
 
@@ -376,6 +388,7 @@ defmodule AshPostgres.Repo do
                      create?: 0,
                      drop?: 0,
                      disable_atomic_actions?: 0,
+                     include_upsert_action?: 0,
                      disable_expr_error?: 0,
                      immutable_expr_error?: 0,
                      use_builtin_uuidv7_function?: 0
