@@ -14,6 +14,25 @@ defmodule AshPostgres.BulkDestroyTest do
     Ash.bulk_destroy!(Post, :destroy, %{})
   end
 
+  test "a limited bulk destroy deletes only the limited rows when its subquery is re-scanned" do
+    AshPostgres.TestRepo.query!("ANALYZE posts")
+
+    Ash.bulk_create!(Enum.map(~w(a b c d e), &%{title: &1}), Post, :create)
+
+    Post
+    |> Ash.Query.limit(1)
+    |> Ash.Query.sort(:title)
+    |> Ash.bulk_destroy!(:destroy, %{}, strategy: :atomic)
+
+    titles =
+      Post
+      |> Ash.read!()
+      |> Enum.map(& &1.title)
+      |> Enum.sort()
+
+    assert titles == ["b", "c", "d", "e"]
+  end
+
   test "bulk destroys destroy everything pertaining to the query" do
     Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
 

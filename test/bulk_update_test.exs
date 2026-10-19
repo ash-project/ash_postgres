@@ -182,6 +182,30 @@ defmodule AshPostgres.BulkUpdateTest do
     assert titles == ["fred_stuff", "george"]
   end
 
+  test "a limited bulk update writes only the limited rows when its subquery is re-scanned" do
+    AshPostgres.TestRepo.query!("ANALYZE posts")
+
+    Ash.bulk_create!(Enum.map(~w(a b c d e), &%{title: &1}), Post, :create)
+
+    assert %{records: [%{title: "a_stuff"}]} =
+             Post
+             |> Ash.Query.limit(1)
+             |> Ash.Query.sort(:title)
+             |> Ash.bulk_update!(:dont_validate, %{},
+               atomic_update: %{title: Ash.Expr.expr(title <> "_stuff")},
+               strategy: :atomic,
+               return_records?: true
+             )
+
+    titles =
+      Post
+      |> Ash.read!()
+      |> Enum.map(& &1.title)
+      |> Enum.sort()
+
+    assert titles == ["a_stuff", "b", "c", "d", "e"]
+  end
+
   test "the query can join to related tables when necessary" do
     Ash.bulk_create!([%{title: "fred"}, %{title: "george"}], Post, :create)
 
