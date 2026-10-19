@@ -11,6 +11,23 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.15.0](https://github.com/ash-project/ash_postgres/compare/v2.14.5...v2.15.0) (2026-10-19)
+
+
+
+
+### Features:
+
+* allow disabling upsert action metadata via repo callback (#891) by kokoskiwi
+
+### Bug Fixes:
+
+* run the locked subquery of a limited bulk update or destroy only once (#897) by Nöl
+
+* ensure temporal attribute is always selected in bulk destroys by Zach Daniel
+
+* properly compute constraint names by Zach Daniel
+
 ## [v2.14.5](https://github.com/ash-project/ash_postgres/compare/v2.14.4...v2.14.5) (2026-10-09)
 
 
