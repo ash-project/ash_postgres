@@ -11,6 +11,15 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.15.1](https://github.com/ash-project/ash_postgres/compare/v2.15.0...v2.15.1) (2026-10-19)
+
+
+
+
+### Improvements:
+
+* optimize atomic bulk destroy query shape by Zach Daniel
+
 ## [v2.15.0](https://github.com/ash-project/ash_postgres/compare/v2.14.5...v2.15.0) (2026-10-19)
 
 
