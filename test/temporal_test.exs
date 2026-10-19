@@ -1222,6 +1222,97 @@ defmodule AshPostgres.TemporalTest do
     end
   end
 
+  describe "an atomic bulk write returning records that don't select the period" do
+    # `Member`'s period attribute is private, so a bulk destroy doesn't select it by default.
+    setup do
+      Ash.create!(Member, %{id: 1, email: "zach@example.com"}, as_of: @jan15)
+      :ok
+    end
+
+    defp member_timeline(id) do
+      TemporalTestRepo.query!(
+        "SELECT email::text, lower(valid_at), upper(valid_at) FROM member WHERE id = $1 ORDER BY lower(valid_at)",
+        [id]
+      ).rows
+    end
+
+    test "a bulk destroy with notify?" do
+      assert %Ash.BulkResult{status: :success, notifications: [_]} =
+               Member
+               |> Ash.Query.filter(id == 1)
+               |> Ash.Query.as_of(@mar1)
+               |> Ash.bulk_destroy(:destroy, %{},
+                 strategy: :atomic,
+                 notify?: true,
+                 return_notifications?: true,
+                 return_errors?: true
+               )
+
+      assert [["zach@example.com", @jan15, @mar1]] = member_timeline(1)
+    end
+
+    test "a bulk destroy with return_records?" do
+      assert %Ash.BulkResult{status: :success, records: [%Member{id: 1}]} =
+               Member
+               |> Ash.Query.filter(id == 1)
+               |> Ash.Query.as_of(@mar1)
+               |> Ash.bulk_destroy(:destroy, %{},
+                 strategy: :atomic,
+                 return_records?: true,
+                 return_errors?: true
+               )
+
+      assert [["zach@example.com", @jan15, @mar1]] = member_timeline(1)
+    end
+
+    test "a bulk update with a select that leaves out the period" do
+      assert %Ash.BulkResult{status: :success, records: [%Member{email: email}]} =
+               Member
+               |> Ash.Query.filter(id == 1)
+               |> Ash.Query.as_of(@mar1)
+               |> Ash.bulk_update(:update, %{email: "zach@elixir.com"},
+                 strategy: :atomic,
+                 select: [:id, :email],
+                 return_records?: true,
+                 return_errors?: true
+               )
+
+      assert to_string(email) == "zach@elixir.com"
+
+      assert [["zach@example.com", @jan15, @mar1], ["zach@elixir.com", @mar1, nil]] =
+               member_timeline(1)
+    end
+
+    for lower <- [:jan15, nil] do
+      test "an update carving two versions returns the first, unbounded below, from #{inspect(lower)}" do
+        lower = if unquote(lower), do: @jan15
+        feb1 = ~U[2026-02-01 00:00:00.000000Z]
+
+        TemporalTestRepo.query!("""
+        INSERT INTO member (id, email, valid_at) VALUES
+          (2, 'a@example.com', tstzrange(NULL, '2026-02-01')),
+          (2, 'b@example.com', tstzrange('2026-02-01', NULL))
+        """)
+
+        [member] =
+          Member
+          |> Ash.Query.filter(id == 2)
+          |> Ash.Query.as_of(@jan15)
+          |> Ash.read!()
+
+        assert %Ash.BulkResult{status: :success, records: [written]} =
+                 Ash.bulk_update([member], :update, %{email: "c@example.com"},
+                   as_of: %Ash.Range{lower: lower, upper: @mar1, bounds: :"[)"},
+                   strategy: [:atomic],
+                   return_records?: true,
+                   return_errors?: true
+                 )
+
+        assert %{lower: ^lower, upper: ^feb1} = written.valid_at
+      end
+    end
+  end
+
   describe "splitting a row that PERIOD foreign keys point at" do
     # Tier 10 is [jan 1, jun 1). Subscription 1 points at it over [jan 1, apr 1).
     test "the shrunk row and its leftover still cover the rows pointing at it" do

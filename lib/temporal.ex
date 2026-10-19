@@ -519,20 +519,27 @@ defmodule AshPostgres.Temporal do
 
     matched = "FROM #{qtable} AS #{alias_token}#{joined}" <> drop(dml, where_pos)
 
+    columns = if returning?, do: returned_columns(returned, alias_token), else: []
+
+    {returned, sort_col} =
+      if returning? and period_col not in columns do
+        {returned <> ~s|, #{period} AS "__period"|, ~s|"__period"|}
+      else
+        {returned, period_col}
+      end
+
     returning = Enum.join(List.wrap(returned) ++ [~s|old AS "__old"|], ", ")
 
     select =
       if returning? do
         # A range can carve several versions of one record; the write returns the first.
-        columns = returned_columns(returned, alias_token)
-
         keys =
           resource
           |> Ash.Resource.Info.primary_key()
           |> Enum.map_join(", ", &"f.#{quote_name(source_col(resource, &1))}")
 
         ~s|(SELECT DISTINCT ON (#{keys}) #{Enum.map_join(columns, ", ", &"f.#{&1}")}, | <>
-          ~s|'ok' AS "__status" FROM "__fpo" f ORDER BY #{keys}, lower(f.#{period_col})) | <>
+          ~s|'ok' AS "__status" FROM "__fpo" f ORDER BY #{keys}, f.#{sort_col}) | <>
           "UNION ALL SELECT #{Enum.map_join(columns, ", ", &"n.#{&1}")}, 'conflict' " <>
           ~s|FROM (SELECT (NULL::#{qtable}).*) n, "__conflict" WHERE conflict|
       else
