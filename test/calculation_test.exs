@@ -1147,15 +1147,20 @@ defmodule AshPostgres.CalculationTest do
              |> Ash.read!()
   end
 
-  test "calculation with fragment and cond returning integer doesn't cause Postgrex encoding error" do
+  test "sorting by a calculation through a to-many relationship is rejected" do
     Post
     |> Ash.Changeset.for_create(:create, %{title: "hello ash lovers"})
     |> Ash.create!()
 
-    assert [%Post{}] =
-             Post
-             |> Ash.Query.sort("posts_with_matching_title.relevance_score")
-             |> Ash.read!()
+    error =
+      assert_raise Ash.Error.Invalid, fn ->
+        Post
+        |> Ash.Query.sort("posts_with_matching_title.relevance_score")
+        |> Ash.read!()
+      end
+
+    assert [%Ash.Error.Query.UnsortableField{field: :posts_with_matching_title, reason: :to_many}] =
+             error.errors
   end
 
   test "sorting with filtered relationship by calculated field" do
