@@ -821,6 +821,49 @@ defmodule AshPostgres.TemporalTest do
     end
   end
 
+  describe "a limited atomic bulk write" do
+    setup do
+      TemporalTestRepo.query!("""
+      INSERT INTO subscription (id, tier, seats, valid_at) VALUES
+        (2, 'bronze', 3, tstzrange('2026-01-01','2026-02-01','[)')),
+        (3, 'bronze', 3, tstzrange('2026-01-01','2026-02-01','[)'))
+      """)
+
+      :ok
+    end
+
+    test "an update writes only the limited records" do
+      Subscription
+      |> Ash.Query.sort(:id)
+      |> Ash.Query.limit(1)
+      |> Ash.bulk_update!(:add_seat, %{}, as_of: @jan15, strategy: :atomic)
+
+      assert [
+               ["bronze", 3, ~U[2026-01-01 00:00:00.000000Z]],
+               ["bronze", 4, ~U[2026-01-15 00:00:00.000000Z]],
+               ["gold", 5, ~U[2026-02-01 00:00:00.000000Z]]
+             ] = seats_timeline(1)
+
+      assert [["bronze", 3, ~U[2026-01-01 00:00:00.000000Z]]] = seats_timeline(2)
+      assert [["bronze", 3, ~U[2026-01-01 00:00:00.000000Z]]] = seats_timeline(3)
+    end
+
+    test "a destroy removes only the limited records" do
+      Subscription
+      |> Ash.Query.sort(:id)
+      |> Ash.Query.limit(1)
+      |> Ash.bulk_destroy!(:expire, %{}, as_of: @jan15, strategy: :atomic)
+
+      assert [
+               ["bronze", ~U[2026-01-01 00:00:00.000000Z], ~U[2026-01-15 00:00:00.000000Z]],
+               ["gold", ~U[2026-02-01 00:00:00.000000Z], ~U[2026-04-01 00:00:00.000000Z]]
+             ] = subscription_timeline(1)
+
+      assert [["bronze", _, _]] = subscription_timeline(2)
+      assert [["bronze", _, _]] = subscription_timeline(3)
+    end
+  end
+
   describe "soft destroy (an update under a different name)" do
     test "an atomic soft destroy whose range spans two stored versions carves both" do
       [bronze] =

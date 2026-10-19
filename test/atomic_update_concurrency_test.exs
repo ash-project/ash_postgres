@@ -168,8 +168,9 @@ defmodule AshPostgres.Test.AtomicUpdateConcurrencyTest do
     :telemetry.attach(
       handler,
       [:ash_postgres, :test_no_sandbox_repo, :query],
+      # A limited update starts with the CTE that selects the rows it writes.
       fn _, _, %{query: query}, _ ->
-        if String.starts_with?(query, "UPDATE"), do: send(parent, {:update_sql, query})
+        if query =~ ~r/^(WITH .* )?UPDATE "/s, do: send(parent, {:update_sql, query})
       end,
       nil
     )

@@ -2118,16 +2118,16 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  # Postgres may re-scan the subquery an update or destroy joins against, once per row it
-  # writes. A re-scan skips the rows the statement has already written, because their lock now
-  # fails, so a `LIMIT` or `OFFSET` above that lock moves on to the next rows on every re-scan
-  # and the statement walks the table. A `MATERIALIZED` CTE runs once, and re-scans read its
-  # stored rows. Keeping the CTE inside the subquery leaves the statement starting with
-  # `UPDATE` or `DELETE`.
+  # Postgres may re-scan the rows an update or destroy joins against, once per row it writes.
+  # A re-scan skips the rows the statement has already written, because their lock now fails,
+  # so a `LIMIT` or `OFFSET` above that lock moves on to the next rows on every re-scan and the
+  # statement walks the table. A `MATERIALIZED` CTE runs once, and re-scans read its stored
+  # rows. The statement joins the CTE directly, except on a temporal resource:
+  # `AshPostgres.Temporal` rewrites the rendered statement and needs it to start with `UPDATE`
+  # or `DELETE`, so there the CTE goes inside a subquery that is joined instead.
   # sobelow_skip ["DOS.StringToAtom"]
   defp select_limited_rows_once(locked_query, resource, atomics) do
     pkey = Ash.Resource.Info.primary_key(resource)
-    fields = pkey ++ Enum.map(atomics, fn {field, _} -> String.to_atom("__new_#{field}") end)
 
     locked_query =
       if locked_query.select do
@@ -2136,9 +2136,28 @@ defmodule AshPostgres.DataLayer do
         Ecto.Query.select(locked_query, [row], map(row, ^pkey))
       end
 
-    from(row in "ash_limited_rows", select: map(row, ^fields))
-    |> Ecto.Query.with_cte("ash_limited_rows", as: ^locked_query, materialized: true)
-    |> Ecto.Query.subquery()
+    if Ash.Resource.Info.temporal?(resource) do
+      fields = pkey ++ Enum.map(atomics, fn {field, _} -> String.to_atom("__new_#{field}") end)
+
+      subquery =
+        from(row in "ash_limited_rows", select: map(row, ^fields))
+        |> Ecto.Query.with_cte("ash_limited_rows", as: ^locked_query, materialized: true)
+        |> Ecto.Query.subquery()
+
+      from(row in subquery, [])
+    else
+      {:cte, locked_query}
+    end
+  end
+
+  defp join_rows_to_write(query, {:cte, rows_query}, on) do
+    query
+    |> Ecto.Query.with_cte("ash_limited_rows", as: ^rows_query, materialized: true)
+    |> Ecto.Query.join(:inner, [], limiter in "ash_limited_rows", as: ^1, on: ^on)
+  end
+
+  defp join_rows_to_write(query, rows_query, on) do
+    Ecto.Query.join(query, :inner, [], limiter in ^rows_query, as: ^1, on: ^on)
   end
 
   defp updates_key?(resource, updated_attributes) do
@@ -2368,8 +2387,7 @@ defmodule AshPostgres.DataLayer do
                          lock_rows_for_mutation(root_query, resource, type, updated_attributes),
                        {:ok, root_query} <-
                          AshSql.Atomics.select_atomics(resource, root_query, atomics) do
-                    {:ok,
-                     from(row in select_limited_rows_once(root_query, resource, atomics), []),
+                    {:ok, select_limited_rows_once(root_query, resource, atomics),
                      root_query.__ash_bindings__.expression_accumulator, atomics != []}
                   end
 
@@ -2409,12 +2427,8 @@ defmodule AshPostgres.DataLayer do
                   end)
 
                 faked_query =
-                  from(row in query.from.source,
-                    as: ^0,
-                    inner_join: limiter in ^root_query,
-                    as: ^1,
-                    on: ^dynamic
-                  )
+                  from(row in query.from.source, as: ^0)
+                  |> join_rows_to_write(root_query, dynamic)
                   |> AshSql.Bindings.default_bindings(
                     query.__ash_bindings__.resource,
                     AshPostgres.SqlImplementation,
