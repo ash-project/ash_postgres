@@ -101,8 +101,9 @@ defmodule AshPostgres.MigrationGenerator.Operation do
           |> Enum.into(reference.match_with || %{})
           |> with_targets()
 
-        # We can only have match: :full here, this gets validated by a Transformer
-        join([with_targets, "match: :full"])
+        # Defaults to `match: :full`; the verifier only allows other match types
+        # on primary key references.
+        join([with_targets, match_type(reference.match_type || :full)])
       else
         explicit_with_match(reference)
       end

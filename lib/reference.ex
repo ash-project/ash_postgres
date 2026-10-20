@@ -73,7 +73,7 @@ defmodule AshPostgres.Reference do
         type: :boolean,
         default: false,
         doc:
-          "If true, include the multitenancy attribute in the foreign key so tenants must match."
+          "If true, include the multitenancy attribute in the foreign key so tenants must match. Nullable references default to `match: :simple`, as `match: :full` would reject rows where the reference is nil."
       ],
       index?: [
         type: :boolean,
