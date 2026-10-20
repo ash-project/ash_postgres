@@ -4481,6 +4481,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
           belongs_to(:user, User) do
             public?(true)
+            allow_nil?(false)
           end
         end
 
@@ -4507,6 +4508,299 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert File.read!(file) =~
                ~S{references(:users, column: :id, with: [org_id: :org_id], match: :full, name: "user_things_user_id_fkey", type: :uuid, prefix: "public")}
+    end
+
+    test "match_tenant? infers match: :simple on nullable references", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource Org, "orgs" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:id)
+        end
+      end
+
+      defresource User, "users" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+        end
+      end
+
+      defresource UserThing, "user_things" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+
+          belongs_to(:user, User) do
+            public?(true)
+            allow_nil?(true)
+          end
+        end
+
+        postgres do
+          references do
+            reference(:user, match_tenant?: true)
+          end
+        end
+      end
+
+      defdomain([Org, User, UserThing])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [file] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert File.read!(file) =~
+               ~S{references(:users, column: :id, with: [org_id: :org_id], match: :simple, name: "user_things_user_id_fkey", type: :uuid, prefix: "public")}
+    end
+
+    test "match_tenant? honors an explicit match_type", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource Org, "orgs" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:id)
+        end
+      end
+
+      defresource User, "users" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+        end
+      end
+
+      defresource UserThing, "user_things" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+
+          belongs_to(:user, User) do
+            public?(true)
+            allow_nil?(true)
+          end
+        end
+
+        postgres do
+          references do
+            reference(:user, match_tenant?: true, match_type: :full)
+          end
+        end
+      end
+
+      defdomain([Org, User, UserThing])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [file] =
+               Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert File.read!(file) =~
+               ~S{references(:users, column: :id, with: [org_id: :org_id], match: :full, name: "user_things_user_id_fkey", type: :uuid, prefix: "public")}
+    end
+
+    test "making a match_tenant? reference nullable recreates the foreign key with match: :simple",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      defresource Org, "orgs" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:id)
+        end
+      end
+
+      defresource User, "users" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+          attribute(:org_id, :uuid, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+        end
+      end
+
+      # First generate: the reference is required, so it matches with `match: :full`
+      defresource UserThing, "user_things" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+
+          belongs_to(:user, User) do
+            public?(true)
+            allow_nil?(false)
+          end
+        end
+
+        postgres do
+          references do
+            reference(:user, match_tenant?: true)
+          end
+        end
+      end
+
+      defdomain([Org, User, UserThing])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      # Second generate: the same reference, now nullable
+      defresource NullableUserThing, "user_things" do
+        attributes do
+          uuid_primary_key(:id, writable?: true)
+          attribute(:name, :string, public?: true)
+        end
+
+        multitenancy do
+          strategy(:attribute)
+          attribute(:org_id)
+        end
+
+        relationships do
+          belongs_to(:org, Org) do
+            public?(true)
+          end
+
+          belongs_to(:user, User) do
+            public?(true)
+            allow_nil?(true)
+          end
+        end
+
+        postgres do
+          references do
+            reference(:user, match_tenant?: true)
+          end
+        end
+      end
+
+      defdomain([Org, User, NullableUserThing])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      [_, file2] =
+        Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+
+      content = File.read!(file2)
+
+      assert content =~ ~S{drop constraint(:user_things, "user_things_user_id_fkey")}
+
+      assert content =~
+               ~S{modify :user_id, references(:users, column: :id, with: [org_id: :org_id], match: :simple, name: "user_things_user_id_fkey", type: :uuid, prefix: "public"), null: true}
     end
 
     test "references on_delete: {:nilify, columns} works with multitenant resources", %{

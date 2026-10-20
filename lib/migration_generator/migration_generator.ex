@@ -4130,7 +4130,7 @@ defmodule AshPostgres.MigrationGenerator do
             on_delete: configured_reference.on_delete,
             on_update: configured_reference.on_update,
             match_with: configured_reference.match_with,
-            match_type: configured_reference.match_type,
+            match_type: reference_match_type(configured_reference, attribute),
             match_tenant?: configured_reference.match_tenant?,
             name: configured_reference.name,
             primary_key?: destination_attribute.primary_key?,
@@ -4171,6 +4171,20 @@ defmodule AshPostgres.MigrationGenerator do
   defp reference_index_where(:not_nil, source), do: "#{source} IS NOT NULL"
   defp reference_index_where(index_where, _source) when is_binary(index_where), do: index_where
   defp reference_index_where(nil, _source), do: nil
+
+  # Postgres rejects a `match: :full` foreign key whenever only some of its columns are null,
+  # so a nullable reference that `match_tenant?` extends with the (always set) tenant column
+  # falls back to `match: :simple` unless a match type was configured explicitly. Only primary
+  # key references qualify, as `PreventAttributeMultitenancyAndNonFullMatchType` rejects
+  # non-full match types everywhere else. `:full` stays implicit (`nil`) so that existing
+  # snapshots don't change.
+  defp reference_match_type(
+         %{match_type: nil, match_tenant?: true, primary_key?: true},
+         %{allow_nil?: true}
+       ),
+       do: :simple
+
+  defp reference_match_type(%{match_type: match_type}, _attribute), do: match_type
 
   defp configured_reference(resource, table, attribute, relationship) do
     ref =

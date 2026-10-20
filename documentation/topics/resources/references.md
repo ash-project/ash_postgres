@@ -67,3 +67,25 @@ end
 ```
 
 The difference between `:nothing` and `:restrict` is subtle and, if you are unsure, choose `:nothing` (the default behavior). `:restrict` will immediately check the foreign-key constraint and prevent the update or deletion from happening, whereas `:nothing` allows the check to be deferred until later in the transaction. This allows for things like updating or deleting the destination row and _then_ updating updating or deleting the reference (as long as you are in a transaction). The reason that `:nothing` still ultimately prevents the update or deletion is because postgres enforces foreign key referential integrity.
+
+## Matching Tenants
+
+With attribute multitenancy, a foreign key to another multitenant resource's primary key only references that key, so a row can point at a record that belongs to a different tenant. Set `match_tenant?: true` to add the tenant attribute to the foreign key, so that the referenced row must belong to the same tenant:
+
+```elixir
+references do
+  reference :project, match_tenant?: true
+end
+```
+
+This generates a composite foreign key, for example `(project_id, organization_id)` referencing `projects (id, organization_id)`. Postgres requires the referenced columns to be covered by a unique index, so the destination table needs one on its tenant attribute and primary key. Identities and custom indexes on multitenant resources include the tenant attribute automatically, so a unique custom index on the primary key generates it.
+
+When the relationship allows `nil`, the foreign key uses `match: :simple`, because `match: :full` would reject any row where the reference is `nil` while the tenant attribute is set. Set `match_type` explicitly to override this.
+
+Since the tenant attribute is part of the foreign key, `on_delete: :nilify` would set it to `nil` as well and fail on a `NOT NULL` tenant column. Use `{:nilify, columns}` to nilify only the reference:
+
+```elixir
+references do
+  reference :project, match_tenant?: true, on_delete: {:nilify, [:project_id]}
+end
+```
