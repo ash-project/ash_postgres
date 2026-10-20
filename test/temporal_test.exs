@@ -22,7 +22,7 @@ defmodule AshPostgres.TemporalTest do
   require Ash.Query
   require Ash.Expr
   alias AshPostgres.TemporalTestRepo
-  alias AshPostgres.Test.Temporal.{Event, Member, ScopedPlan, Subscription, Tier}
+  alias AshPostgres.Test.Temporal.{Event, Member, Project, ScopedPlan, Subscription, Tier}
 
   @jan15 ~U[2026-01-15 00:00:00.000000Z]
   @mar1 ~U[2026-03-01 00:00:00.000000Z]
@@ -671,6 +671,81 @@ defmodule AshPostgres.TemporalTest do
         |> Ash.read!()
 
       assert ["bronze"] = tiers(tier.subscriptions)
+    end
+
+    # The project's one period overlaps both links, so only the as_of narrowing of the
+    # join rows tells ann (an owner throughout) apart from bob (an owner in January only).
+    defp insert_project_owners do
+      TemporalTestRepo.query!("INSERT INTO person (id, name) VALUES (1, 'ann'), (2, 'bob')")
+
+      TemporalTestRepo.query!(
+        "INSERT INTO project (id, name, valid_at) VALUES (1, 'alpha', tstzrange('2026-01-01', NULL, '[)'))"
+      )
+
+      TemporalTestRepo.query!("""
+      INSERT INTO project_owner (project_id, person_id, valid_at) VALUES
+        (1, 1, tstzrange('2026-01-01', NULL, '[)')),
+        (1, 2, tstzrange('2026-01-01', '2026-02-01', '[)'))
+      """)
+    end
+
+    defp owner_names(project), do: project.owners |> Enum.map(& &1.name) |> Enum.sort()
+
+    test "loading a many_to_many through a temporal join resource narrows the join rows to as_of" do
+      insert_project_owners()
+
+      for {as_of, expected} <- [{@jan15, ["ann", "bob"]}, {@mar1, ["ann"]}] do
+        [project] =
+          Project
+          |> Ash.Query.as_of(as_of)
+          |> Ash.Query.load(:owners)
+          |> Ash.read!()
+
+        assert owner_names(project) == expected
+      end
+    end
+
+    test "loading a many_to_many through a temporal join resource onto a record" do
+      insert_project_owners()
+
+      [project] = Project |> Ash.Query.as_of(@mar1) |> Ash.read!()
+
+      assert ["ann"] = project |> Ash.load!(:owners, as_of: @mar1) |> owner_names()
+    end
+
+    test "loading a two-hop through relationship whose first hop is temporal narrows to as_of" do
+      insert_project_owners()
+
+      for {as_of, expected} <- [{@jan15, ["ann", "bob"]}, {@mar1, ["ann"]}] do
+        [project] =
+          Project
+          |> Ash.Query.as_of(as_of)
+          |> Ash.Query.load(:owner_people)
+          |> Ash.read!()
+
+        assert project.owner_people |> Enum.map(& &1.name) |> Enum.sort() == expected
+      end
+    end
+
+    test "manage_relationship on a many_to_many through a temporal join resource" do
+      insert_project_owners()
+      TemporalTestRepo.query!("INSERT INTO person (id, name) VALUES (3, 'cat')")
+
+      [project] = Project |> Ash.Query.as_of(@mar1) |> Ash.read!()
+
+      project
+      |> Ash.Changeset.for_update(:set_owners, %{owner_ids: [3]}, as_of: @mar1)
+      |> Ash.update!()
+
+      assert [
+               ["1", "2026-01-01 00:00:00+00", "2026-03-01 00:00:00+00"],
+               ["3", "2026-03-01 00:00:00+00", nil]
+             ] =
+               TemporalTestRepo.query!("""
+               SELECT person_id::text, lower(valid_at)::text, upper(valid_at)::text
+               FROM project_owner WHERE upper(valid_at) IS NULL OR upper(valid_at) > '2026-02-01'
+               ORDER BY person_id
+               """).rows
     end
   end
 

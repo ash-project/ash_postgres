@@ -1420,7 +1420,8 @@ defmodule AshPostgres.DataLayer do
             through_resource
             |> Ash.Query.new()
             |> Ash.Query.put_context(:data_layer, %{
-              start_bindings_at: through_binding
+              start_bindings_at: through_binding,
+              parent_bindings: data_layer_query.__ash_bindings__
             })
             |> Ash.Query.set_context(Map.get(through_relationship, :context))
             |> then(fn q ->
@@ -1430,7 +1431,8 @@ defmodule AshPostgres.DataLayer do
                   Map.get(through_relationship, :filter),
                   source_query,
                   q
-                )
+                ),
+                parent_stack: [through_relationship.source]
               )
             end)
             |> then(fn q ->

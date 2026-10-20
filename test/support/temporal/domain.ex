@@ -15,5 +15,8 @@ defmodule AshPostgres.Test.Temporal.Domain do
     resource(AshPostgres.Test.Temporal.Event)
     resource(AshPostgres.Test.Temporal.Member)
     resource(AshPostgres.Test.Temporal.ScopedPlan)
+    resource(AshPostgres.Test.Temporal.Project)
+    resource(AshPostgres.Test.Temporal.ProjectOwner)
+    resource(AshPostgres.Test.Temporal.Person)
   end
 end
