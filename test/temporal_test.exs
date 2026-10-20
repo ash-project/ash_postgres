@@ -1230,6 +1230,48 @@ defmodule AshPostgres.TemporalTest do
       assert [["bronze", _, _], ["gold", 5, _], ["platinum", 9, _]] = seats_timeline(1)
       assert [["fresh", 2, ~U[2026-03-01 00:00:00.000000Z]]] = seats_timeline(5)
     end
+
+    test "bulk: array values stay whole, without shifting the params after them" do
+      TemporalTestRepo.query!(
+        "INSERT INTO tier (id, name, valid_at) VALUES (20, 'open', tstzrange('2026-01-01', NULL, '[)'))"
+      )
+
+      # id=1 matches (gold splits), id=5 misses (inserts), both in one statement.
+      assert %Ash.BulkResult{status: :success} =
+               Ash.bulk_create!(
+                 [
+                   %{
+                     id: 1,
+                     tier: "platinum",
+                     tier_id: 10,
+                     seats: 9,
+                     addons: [%{"name" => "sso"}, %{"name" => "audit"}]
+                   },
+                   %{id: 5, tier: "fresh", tier_id: 20, seats: 2, addons: [%{"name" => "sso"}]}
+                 ],
+                 Subscription,
+                 :create,
+                 upsert?: true,
+                 upsert_fields: [:tier, :tier_id, :seats, :addons],
+                 as_of: @mar1,
+                 return_errors?: true
+               )
+
+      assert [
+               %{
+                 id: 1,
+                 tier: "platinum",
+                 seats: 9,
+                 addons: [%{"name" => "sso"}, %{"name" => "audit"}]
+               },
+               %{id: 5, tier: "fresh", seats: 2, addons: [%{"name" => "sso"}]}
+             ] =
+               Subscription
+               |> Ash.Query.filter(id in [1, 5])
+               |> Ash.Query.sort(:id)
+               |> Ash.Query.as_of(@mar1)
+               |> Ash.read!()
+    end
   end
 
   describe "bulk_update / update_many" do

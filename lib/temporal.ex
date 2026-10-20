@@ -405,7 +405,8 @@ defmodule AshPostgres.Temporal do
 
     columns = Enum.map_join(cols, ", ", &quote_name(source_col(resource, &1)))
 
-    {"src(#{columns}) AS (VALUES #{Enum.join(rows_sql, ", ")})", List.flatten(row_params)}
+    # Only concatenate the rows: flattening deeper would also flatten array values.
+    {"src(#{columns}) AS (VALUES #{Enum.join(rows_sql, ", ")})", Enum.concat(row_params)}
   end
 
   # The Postgres type of each column (e.g. `"integer"`, `"tstzrange"`) so `VALUES` params

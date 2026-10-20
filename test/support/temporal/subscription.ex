@@ -25,6 +25,7 @@ defmodule AshPostgres.Test.Temporal.Subscription do
     attribute(:tier_id, :integer, public?: true)
     attribute(:seats, :integer, default: 0, public?: true)
     attribute(:activated_at, :utc_datetime_usec, public?: true)
+    attribute(:addons, {:array, :map}, public?: true)
 
     attribute(:valid_at, Ash.Type.Range,
       allow_nil?: false,
@@ -61,7 +62,7 @@ defmodule AshPostgres.Test.Temporal.Subscription do
       :read,
       :destroy,
       # `valid_at` is never accepted as input — a temporal write sets `[as_of, ∞)`.
-      create: [:id, :tier, :tier_id, :seats, :activated_at]
+      create: [:id, :tier, :tier_id, :seats, :activated_at, :addons]
     ])
 
     # Creates the subscription AND its tier via manage_relationship — used to check the
