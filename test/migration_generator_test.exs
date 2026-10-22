@@ -1151,6 +1151,60 @@ defmodule AshPostgres.MigrationGeneratorTest do
              end) <
                Enum.find_index(down_side_parts, fn x -> x == "create index(:posts, [:title])" end)
     end
+
+    test "it drops an unnamed index before recreating it under the same name", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defposts do
+        postgres do
+          custom_indexes do
+            index([:title], where: "title IS NOT NULL")
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defdomain([Post])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      contents = File.read!(file2)
+
+      [up_side, down_side] = String.split(contents, "def down", parts: 2)
+
+      up_side_parts =
+        String.split(up_side, "\n", trim: true)
+        |> Enum.map(&String.trim/1)
+
+      # both indexes are named posts_title_index, so the old one must go first
+      assert Enum.find_index(up_side_parts, &(&1 == "drop_if_exists index(:posts, [:title])")) <
+               Enum.find_index(
+                 up_side_parts,
+                 &(&1 == ~S{create index(:posts, [:title], where: "title IS NOT NULL")})
+               )
+
+      down_side_parts =
+        String.split(down_side, "\n", trim: true)
+        |> Enum.map(&String.trim/1)
+
+      assert Enum.find_index(down_side_parts, &(&1 == "drop_if_exists index(:posts, [:title])")) <
+               Enum.find_index(down_side_parts, &(&1 == "create index(:posts, [:title])"))
+    end
   end
 
   describe "check constraint and column removed together" do
