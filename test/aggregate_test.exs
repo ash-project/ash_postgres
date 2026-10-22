@@ -2178,6 +2178,85 @@ defmodule AshSql.AggregateTest do
                ])
     end
 
+    test "grouped aggregates join relationships and aggregates referenced by their field" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "fred"})
+        |> Ash.create!()
+
+      post =
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "with author"})
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "without author"})
+      |> Ash.create!()
+
+      Comment
+      |> Ash.Changeset.for_create(:create, %{title: "comment"})
+      |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+      |> Ash.create!()
+
+      assert {:ok, %{count: 2, count_of_author_names: 1, max_author_name: "fred"}} =
+               Post
+               |> Ash.aggregate([
+                 {:count, :count, []},
+                 {:count_of_author_names, :count, field: :author_first_name_calc},
+                 {:max_author_name, :max, field: :author_first_name_calc}
+               ])
+
+      assert {:ok, %{count: 2, sum_of_author_post_counts: 1, sum_of_comment_counts: 1}} =
+               Post
+               |> Ash.aggregate([
+                 {:count, :count, []},
+                 {:sum_of_author_post_counts, :sum, field: :author_count_of_posts_agg},
+                 {:sum_of_comment_counts, :sum, field: :count_of_comments}
+               ])
+    end
+
+    test "grouped aggregates over a limited query join relationships referenced by their field" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "fred"})
+        |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "with author"})
+      |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+      |> Ash.create!()
+
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "without author"})
+      |> Ash.create!()
+
+      aggregates = [
+        {:count, :count, []},
+        {:count_of_author_names, :count, field: :author_first_name_calc}
+      ]
+
+      assert {:ok, %{count: 1, count_of_author_names: 1}} =
+               Post
+               |> Ash.Query.sort(:title)
+               |> Ash.Query.limit(1)
+               |> Ash.aggregate(aggregates)
+
+      # the limited query is wrapped in a subquery, so joins it already made
+      # can't be reused when joining for the field
+      assert {:ok, %{count: 2, count_of_author_names: 1}} =
+               Post
+               |> Ash.Query.sort(author_first_name_calc: :asc)
+               |> Ash.Query.limit(5)
+               |> Ash.aggregate(aggregates)
+
+      assert {:ok, %{count: 1, count_of_author_names: 1}} =
+               Post
+               |> Ash.Query.filter(author.first_name == "fred")
+               |> Ash.Query.limit(5)
+               |> Ash.aggregate(aggregates)
+    end
+
     test "a count with a filter that references a relationship combined with another" do
       post =
         Post
