@@ -405,14 +405,13 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
       assert fact in OperationDeps.requires(add)
     end
 
-    test "two differently-shaped unnamed indexes are NOT spuriously linked by a shared nil name" do
-      # Regression: an auto-named (nil `name:`) index previously collapsed to
-      # the same `{schema, table, nil}` fact key as any other unnamed index on
-      # the same table, incorrectly coupling unrelated index changes.
+    test "RemoveCustomIndex and AddCustomIndex on the same fields without a name are linked" do
+      # Both get the name derived from table and fields (posts_title_index), so
+      # recreating the index (e.g. with a new `where`) must drop the old first.
       remove = %Operation.RemoveCustomIndex{
         table: "posts",
         schema: nil,
-        index: %{name: nil, fields: []},
+        index: %{name: nil, fields: [:title]},
         base_filter: nil,
         multitenancy: %{attribute: nil, strategy: nil, global: nil}
       }
@@ -420,17 +419,61 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
       add = %Operation.AddCustomIndex{
         table: "posts",
         schema: nil,
-        index: %{name: nil},
+        index: %{name: nil, fields: [:title]},
         base_filter: nil,
         multitenancy: %{attribute: nil, strategy: nil, global: nil}
       }
 
-      refute Enum.any?(
-               OperationDeps.provides(remove),
-               &match?({:custom_index_removed, _}, &1)
-             )
+      [fact] =
+        OperationDeps.provides(remove) |> Enum.filter(&match?({:custom_index_removed, _}, &1))
 
-      refute Enum.any?(OperationDeps.requires(add), &match?({:custom_index_removed, _}, &1))
+      assert fact in OperationDeps.requires(add)
+    end
+
+    test "an unnamed index and an explicit name equal to its derived name are linked" do
+      remove = %Operation.RemoveCustomIndex{
+        table: "posts",
+        schema: nil,
+        index: %{name: nil, fields: [:title]},
+        base_filter: nil,
+        multitenancy: %{attribute: nil, strategy: nil, global: nil}
+      }
+
+      add = %Operation.AddCustomIndex{
+        table: "posts",
+        schema: nil,
+        index: %{name: "posts_title_index", fields: [:title]},
+        base_filter: nil,
+        multitenancy: %{attribute: nil, strategy: nil, global: nil}
+      }
+
+      [fact] =
+        OperationDeps.provides(remove) |> Enum.filter(&match?({:custom_index_removed, _}, &1))
+
+      assert fact in OperationDeps.requires(add)
+    end
+
+    test "two unnamed indexes on different fields are NOT linked" do
+      remove = %Operation.RemoveCustomIndex{
+        table: "posts",
+        schema: nil,
+        index: %{name: nil, fields: [:title]},
+        base_filter: nil,
+        multitenancy: %{attribute: nil, strategy: nil, global: nil}
+      }
+
+      add = %Operation.AddCustomIndex{
+        table: "posts",
+        schema: nil,
+        index: %{name: nil, fields: [:body]},
+        base_filter: nil,
+        multitenancy: %{attribute: nil, strategy: nil, global: nil}
+      }
+
+      [fact] =
+        OperationDeps.provides(remove) |> Enum.filter(&match?({:custom_index_removed, _}, &1))
+
+      refute fact in OperationDeps.requires(add)
     end
 
     test "RemoveReferenceIndex and AddReferenceIndex on the same source column are linked" do

@@ -136,9 +136,10 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
   Index-scoped (`key = {schema, table, index}`, same shape as a column-scoped
   key but the third element is an index name, not a column):
 
-  - `:custom_index_removed` — a specific *named* custom index has been
-    dropped, so a same-named index can be recreated (Postgres index names
-    are unique per schema).
+  - `:custom_index_removed` — a specific custom index has been dropped, so
+    a same-named index can be recreated (Postgres index names are unique per
+    schema). Keyed by the explicit `name:`, or for an unnamed index by the
+    name derived from its table and fields (see `custom_index_name/2`).
 
   Column-set-scoped (`key = {schema, table, sorted_columns}`, the third
   element a sorted list of column atoms):
@@ -256,16 +257,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
                key(table, schema, AshPostgres.CustomIndex.column_name(field))}
             end)
 
-        # An index without an explicit `name:` gets one auto-derived by
-        # Postgres/Ecto from its columns, so two *different* unnamed indexes
-        # would otherwise collide on the same `nil` fact key and get
-        # spuriously coupled — only track this for explicitly named indexes,
-        # where a real name collision is possible.
-        if index.name do
-          [{:custom_index_removed, key(table, schema, index.name)} | base]
-        else
-          base
-        end
+        [{:custom_index_removed, key(table, schema, custom_index_name(table, index))} | base]
 
       %Operation.AddReferenceIndex{table: table, schema: schema} ->
         structure_ready_facts(table, schema)
@@ -492,14 +484,10 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
 
         base = [{:table_ready, key(table, schema)} | column_requirements]
 
-        # a `RemoveCustomIndex` sharing this index's *explicit* name must run
-        # first — Postgres can't create an index under a name that's still in
-        # use. See the matching guard in `provides/1`.
-        if index.name do
-          [{:custom_index_removed, key(table, schema, index.name)} | base]
-        else
-          base
-        end
+        # a `RemoveCustomIndex` sharing this index's name must run first —
+        # Postgres can't create an index under a name that's still in use
+        # (e.g. an unnamed index recreated with a different `where`).
+        [{:custom_index_removed, key(table, schema, custom_index_name(table, index))} | base]
 
       %Operation.AddReferenceIndex{table: table, schema: schema, source: source} ->
         # a `RemoveReferenceIndex` on the same source column must run first —
@@ -667,4 +655,12 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
 
   defp normalize_schema(nil), do: "public"
   defp normalize_schema(schema), do: schema
+
+  # An index without an explicit `name:` is named from its table and fields
+  # (the same name `AshPostgres.CustomIndex.name/2` gives it elsewhere), so
+  # two unnamed indexes on the same fields really do collide. Stringified so
+  # an explicit name and the equal derived one (an atom) share a fact key.
+  defp custom_index_name(table, index) do
+    to_string(index.name || AshPostgres.CustomIndex.name(table, index))
+  end
 end
