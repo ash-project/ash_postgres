@@ -23,6 +23,13 @@ defmodule AshPostgres.Test.OperatorExpression.IntListType do
   def cast_input(_, _), do: :error
 
   @impl true
+  def matches_type?(%MapSet{} = set, constraints),
+    do: matches_type?(MapSet.to_list(set), constraints)
+
+  def matches_type?(list, _) when is_list(list), do: Enum.all?(list, &is_integer/1)
+  def matches_type?(_, _), do: false
+
+  @impl true
   def cast_stored(value, constraints), do: cast_input(value, constraints)
 
   @impl true
