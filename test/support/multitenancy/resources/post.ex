@@ -35,6 +35,11 @@ defmodule AshPostgres.MultitenancyTest.Post do
     destroy(:destroy_with_exists) do
       change(filter(expr(exists(self, true))))
     end
+
+    update(:update_with_exists) do
+      require_atomic?(false)
+      change(filter(expr(exists(self, exists(self, true)))))
+    end
   end
 
   postgres do

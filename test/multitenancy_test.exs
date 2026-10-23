@@ -125,6 +125,20 @@ defmodule AshPostgres.Test.MultitenancyTest do
     assert Post |> Ash.Query.set_tenant(org1) |> Ash.read!() == []
   end
 
+  test "context multitenancy sets the tenant on exists() subqueries when updating", %{
+    org1: org1
+  } do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{name: "foo"}, tenant: org1)
+      |> Ash.create!()
+
+    assert %{name: "bar"} =
+             post
+             |> Ash.Changeset.for_update(:update_with_exists, %{name: "bar"}, tenant: org1)
+             |> Ash.update!()
+  end
+
   test "attribute multitenancy is set on creation" do
     uuid = Ash.UUID.generate()
 

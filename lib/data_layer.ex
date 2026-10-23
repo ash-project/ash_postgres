@@ -4647,8 +4647,22 @@ defmodule AshPostgres.DataLayer do
       |> pkey_filter(changeset.data)
       |> then(fn query ->
         if changeset.tenant do
-          set_tenant(resource, query, changeset.tenant)
-          |> elem(1)
+          query =
+            set_tenant(resource, query, changeset.tenant)
+            |> elem(1)
+
+          Map.update!(query, :__ash_bindings__, fn bindings ->
+            Map.update(
+              bindings,
+              :context,
+              %{private: %{tenant: changeset.tenant}},
+              fn context ->
+                context
+                |> Map.put_new(:private, %{})
+                |> put_in([:private, :tenant], changeset.tenant)
+              end
+            )
+          end)
         else
           query
         end
