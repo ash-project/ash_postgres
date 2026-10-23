@@ -1083,7 +1083,6 @@ defmodule AshPostgres.MigrationGenerator.Operation do
       :schema,
       :multitenancy,
       :old_multitenancy,
-      :insert_after_attribute_source,
       :temporal,
       citext_keys: [],
       no_phase: true,

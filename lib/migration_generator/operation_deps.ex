@@ -420,13 +420,24 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
           {:column_check_constraint_removed, key(table, schema, attribute.source)}
         ]
 
-      %Operation.AddUniqueIndex{
-        table: table,
-        schema: schema,
-        identity: identity,
-        insert_after_attribute_source: source
-      } ->
-        base = [{:table_ready, key(table, schema)}]
+      %Operation.AddUniqueIndex{table: table, schema: schema, identity: identity} = op ->
+        # Every column the rendered index covers must exist first: the
+        # identity's keys, the tenant attribute that attribute multitenancy
+        # prefixes (issue #904: the index landed between a new table's
+        # `create table` and the `alter table` adding its tenant column), and
+        # a temporal resource's period column. Vacuous for pre-existing
+        # columns. No cycle with a self-referencing FK targeting this index:
+        # that FK's own column isn't one of the index's columns.
+        column_requirements =
+          List.wrap(identity.keys)
+          |> unique_index_column_set(
+            Map.get(identity, :all_tenants?, false),
+            Map.get(op, :multitenancy)
+          )
+          |> Enum.concat(temporal_key_columns(op))
+          |> Enum.map(&{:column_ready, key(table, schema, &1)})
+
+        base = [{:table_ready, key(table, schema)} | column_requirements]
 
         # `where`/`base_filter` on a unique index (e.g. a soft-delete scoped
         # identity filtering on `archived_at IS NULL`) can reference columns
@@ -438,15 +449,8 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
         # self-referencing attribute whose own FK targets *this* index (e.g.
         # a self-referential `belongs_to`), creating a genuine two-way
         # dependency cycle between that attribute and this index.
-        base =
-          if Map.get(identity, :where) || Map.get(identity, :base_filter) do
-            [{:table_columns_settled, key(table, schema)} | base]
-          else
-            base
-          end
-
-        if source do
-          [{:column_ready, key(table, schema, source)} | base]
+        if Map.get(identity, :where) || Map.get(identity, :base_filter) do
+          [{:table_columns_settled, key(table, schema)} | base]
         else
           base
         end

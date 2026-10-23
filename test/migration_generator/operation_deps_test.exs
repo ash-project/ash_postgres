@@ -349,15 +349,13 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
       filtered = %Operation.AddUniqueIndex{
         table: "posts",
         schema: nil,
-        identity: %{keys: [:seq], where: "archived_at IS NULL", base_filter: nil},
-        insert_after_attribute_source: nil
+        identity: %{keys: [:seq], where: "archived_at IS NULL", base_filter: nil}
       }
 
       plain = %Operation.AddUniqueIndex{
         table: "posts",
         schema: nil,
-        identity: %{keys: [:seq], where: nil, base_filter: nil},
-        insert_after_attribute_source: nil
+        identity: %{keys: [:seq], where: nil, base_filter: nil}
       }
 
       assert {:table_columns_settled, {"public", "posts"}} in OperationDeps.requires(filtered)
@@ -373,11 +371,73 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
       op = %Operation.AddUniqueIndex{
         table: "template_phase",
         schema: nil,
-        identity: %{keys: [:id], where: nil, base_filter: nil},
-        insert_after_attribute_source: nil
+        identity: %{keys: [:id], where: nil, base_filter: nil}
       }
 
       refute {:table_columns_settled, {"public", "template_phase"}} in OperationDeps.requires(op)
+    end
+  end
+
+  describe "unique index columns" do
+    test "AddUniqueIndex requires column_ready for each key and the tenant attribute multitenancy prefixes (issue #904)" do
+      op = %Operation.AddUniqueIndex{
+        table: "tickets",
+        schema: nil,
+        identity: %{keys: [:event_id, :code], where: nil, base_filter: nil},
+        multitenancy: %{strategy: :attribute, attribute: :shop_id, global: false}
+      }
+
+      requires = OperationDeps.requires(op)
+
+      for column <- [:shop_id, :event_id, :code] do
+        assert {:column_ready, {"public", "tickets", column}} in requires
+      end
+    end
+
+    test "an all_tenants? identity does not require the tenant attribute" do
+      op = %Operation.AddUniqueIndex{
+        table: "tickets",
+        schema: nil,
+        identity: %{keys: [:code], where: nil, base_filter: nil, all_tenants?: true},
+        multitenancy: %{strategy: :attribute, attribute: :shop_id, global: false}
+      }
+
+      refute {:column_ready, {"public", "tickets", :shop_id}} in OperationDeps.requires(op)
+    end
+
+    test "a temporal identity requires its period column" do
+      # The period attribute is loaded from the snapshot as a string
+      op = %Operation.AddUniqueIndex{
+        table: "tickets",
+        schema: nil,
+        identity: %{keys: [:code], where: nil, base_filter: nil},
+        temporal: %{strategy: :context, attribute: "valid_at"}
+      }
+
+      assert {:column_ready, {"public", "tickets", :valid_at}} in OperationDeps.requires(op)
+    end
+
+    test "AddUniqueIndex is ordered after the AddAttribute that adds its tenant attribute" do
+      add_shop_id = %Operation.AddAttribute{
+        table: "tickets",
+        schema: nil,
+        attribute: %{source: :shop_id, primary_key?: false}
+      }
+
+      index = %Operation.AddUniqueIndex{
+        table: "tickets",
+        schema: nil,
+        identity: %{keys: [:code], where: nil, base_filter: nil},
+        multitenancy: %{strategy: :attribute, attribute: :shop_id, global: false}
+      }
+
+      # AddUniqueIndex listed first on purpose: only the dependency edge can reorder it.
+      operations = MigrationGenerator.toposort_operations([index, add_shop_id])
+
+      add_index = Enum.find_index(operations, &match?(%Operation.AddAttribute{}, &1))
+      unique_index = Enum.find_index(operations, &match?(%Operation.AddUniqueIndex{}, &1))
+
+      assert add_index < unique_index
     end
   end
 

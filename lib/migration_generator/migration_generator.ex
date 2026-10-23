@@ -2344,21 +2344,6 @@ defmodule AshPostgres.MigrationGenerator do
           !Enum.find(old_snapshot.identities, &identities_match?(&1, identity))
       end)
       |> Enum.map(fn identity ->
-        {insert_after_attribute_source, _best_index} =
-          identity.keys
-          |> Enum.reduce({nil, -1}, fn key, {best_source, best_index} ->
-            case Enum.find_index(snapshot.attributes, &(&1.source == key)) do
-              nil ->
-                {best_source, best_index}
-
-              idx when idx > best_index ->
-                {key, idx}
-
-              _ ->
-                {best_source, best_index}
-            end
-          end)
-
         %Operation.AddUniqueIndex{
           identity: identity,
           schema: snapshot.schema,
@@ -2370,7 +2355,6 @@ defmodule AshPostgres.MigrationGenerator do
               source in identity.keys,
               do: source
             ),
-          insert_after_attribute_source: insert_after_attribute_source,
           concurrently: opts.concurrent_indexes
         }
       end)

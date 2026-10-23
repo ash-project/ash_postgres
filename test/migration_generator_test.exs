@@ -5855,6 +5855,88 @@ defmodule AshPostgres.MigrationGeneratorTest do
       refute file_content =~
                ~S{create unique_index(:channels, [:project_id, :project_id, :type]}
     end
+
+    test "a new table's identity index is created after its tenant attribute is added (issue #904)",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      defresource Shop, "shops" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defresource Event, "events" do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defdomain([Shop, Event])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      defresource Ticket, "tickets" do
+        multitenancy do
+          strategy(:attribute)
+          attribute(:shop_id)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:code, :string, allow_nil?: false, public?: true)
+        end
+
+        relationships do
+          belongs_to(:event, Event, allow_nil?: false, public?: true)
+          belongs_to(:shop, Shop, allow_nil?: false, public?: true)
+        end
+
+        identities do
+          identity(:unique_code, [:code])
+        end
+      end
+
+      defdomain([Shop, Event, Ticket])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      file_contents =
+        Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+        |> Enum.sort()
+        |> List.last()
+        |> File.read!()
+
+      [up, _down] = String.split(file_contents, "def down", parts: 2)
+
+      unique_index_pos =
+        position_of_substring(
+          up,
+          ~S{create unique_index(:tickets, [:shop_id, :code], name: "tickets_unique_code_index")}
+        )
+
+      shop_id_pos = position_of_substring(up, "add :shop_id")
+
+      assert unique_index_pos && shop_id_pos,
+             "expected migration to contain both the unique index and the shop_id column"
+
+      assert shop_id_pos < unique_index_pos,
+             "expected the shop_id column to be added before the unique index that covers it"
+    end
   end
 
   describe "decimal precision and scale" do
