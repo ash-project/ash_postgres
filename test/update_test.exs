@@ -170,6 +170,33 @@ defmodule AshPostgres.UpdateTest do
     end
   end
 
+  describe "a changeset filter that joins a sorted to-one relationship" do
+    setup do
+      post = Ash.Seed.seed!(Post, %{title: "match"})
+      Ash.Seed.seed!(AshPostgres.Test.Comment, %{title: "match", post_id: post.id})
+
+      %{post: post}
+    end
+
+    test "updates the record when it matches", %{post: post} do
+      assert {:ok, %{title: "new"}} =
+               post
+               |> Ash.Changeset.for_update(:change_title, %{title: "new"}, authorize?: false)
+               |> Ash.Changeset.filter(expr(latest_comment.title == "match"))
+               |> Ash.update(authorize?: false)
+    end
+
+    test "returns a stale record error when it doesn't match", %{post: post} do
+      assert {:error, %Ash.Error.Invalid{errors: [%Ash.Error.Changes.StaleRecord{}]}} =
+               post
+               |> Ash.Changeset.for_update(:change_title, %{title: "new"}, authorize?: false)
+               |> Ash.Changeset.filter(expr(latest_comment.title == "other"))
+               |> Ash.update(authorize?: false)
+
+      assert Ash.get!(Post, post.id, authorize?: false).title == "match"
+    end
+  end
+
   test "timestamps arent updated if there are no changes atomically" do
     post =
       AshPostgres.Test.Post

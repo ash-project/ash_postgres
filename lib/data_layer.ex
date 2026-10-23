@@ -1921,15 +1921,29 @@ defmodule AshPostgres.DataLayer do
       |> Map.update!(:__meta__, &Map.put(&1, :source, table(resource, changeset)))
       |> ecto_changeset(changeset, :update, repo, true)
 
-    case bulk_updatable_query(
-           query,
-           resource,
-           changeset.atomics,
-           options[:calculations] || [],
-           changeset.context,
-           :update,
-           Keyword.keys(changeset.atomics) ++ Map.keys(ecto_changeset.changes)
-         ) do
+    # the changeset's filter may join related resources, so it must be part of the query
+    # before `bulk_updatable_query` decides how that query can be updated
+    filtered_query =
+      if is_nil(changeset.filter) do
+        {:ok, query}
+      else
+        filter(query, changeset.filter, resource)
+      end
+
+    updatable_query =
+      with {:ok, query} <- filtered_query do
+        bulk_updatable_query(
+          query,
+          resource,
+          changeset.atomics,
+          options[:calculations] || [],
+          changeset.context,
+          :update,
+          Keyword.keys(changeset.atomics) ++ Map.keys(ecto_changeset.changes)
+        )
+      end
+
+    case updatable_query do
       {:error, error} ->
         {:error, error}
 
@@ -1947,7 +1961,7 @@ defmodule AshPostgres.DataLayer do
           case AshSql.Atomics.query_with_atomics(
                  resource,
                  query,
-                 changeset.filter,
+                 nil,
                  changeset.atomics,
                  ecto_changeset.changes,
                  []
@@ -4834,37 +4848,108 @@ defmodule AshPostgres.DataLayer do
 
   @impl true
   def lock(query, :for_update, _) do
-    if query.distinct do
-      new_query =
-        Ecto.Query.lock(%{query | distinct: nil}, [{^0, a}], fragment("FOR UPDATE OF ?", a))
-
-      q = from(row in subquery(new_query), [])
-      {:ok, %{q | distinct: query.distinct}}
-    else
-      {:ok, Ecto.Query.lock(query, [{^0, a}], fragment("FOR UPDATE OF ?", a))}
-    end
+    {:ok,
+     lock_rows(query, fn query ->
+       Ecto.Query.lock(query, [{^0, a}], fragment("FOR UPDATE OF ?", a))
+     end)}
   end
 
   for lock <- @locks do
     frag = "#{lock} OF ?"
 
     def lock(query, unquote(lock), _) do
-      {:ok, Ecto.Query.lock(query, [{^0, a}], fragment(unquote(frag), a))}
+      {:ok,
+       lock_rows(query, fn query ->
+         Ecto.Query.lock(query, [{^0, a}], fragment(unquote(frag), a))
+       end)}
     end
 
     frag = "#{lock} OF ? NOWAIT"
     new_lock = "#{lock} NOWAIT"
 
     def lock(query, unquote(new_lock), _) do
-      {:ok, Ecto.Query.lock(query, [{^0, a}], fragment(unquote(frag), a))}
+      {:ok,
+       lock_rows(query, fn query ->
+         Ecto.Query.lock(query, [{^0, a}], fragment(unquote(frag), a))
+       end)}
     end
 
     frag = "#{lock} OF ? SKIP LOCKED"
     new_lock = "#{lock} SKIP LOCKED"
 
     def lock(query, unquote(new_lock), _) do
-      {:ok, Ecto.Query.lock(query, [{^0, a}], fragment(unquote(frag), a))}
+      {:ok,
+       lock_rows(query, fn query ->
+         Ecto.Query.lock(query, [{^0, a}], fragment(unquote(frag), a))
+       end)}
     end
+  end
+
+  # PostgreSQL can't lock the rows of a query with `DISTINCT`. So the rows the query would
+  # return are locked in a subquery over the table, and the query reads from that subquery in
+  # place of the table. The query's filter, distinct, sort and limit still apply on top, to
+  # the locked version of each row, so a row that a concurrent writer changed is re-checked
+  # against the filter, as it is in any other locked read.
+  defp lock_rows(%{distinct: distinct, from: %{source: {_, _} = source}} = query, lock)
+       when not is_nil(distinct) do
+    put_in(query.from.source, locked_rows(query, source, lock))
+  end
+
+  # When `AshSql.Distinct` has moved the `DISTINCT ON` into a subquery joined back to the table,
+  # the query selects that subquery. Locking the table it's joined to would return the
+  # subquery's rows as they were before any concurrent write, without re-checking its filter,
+  # so the subquery reads the locked rows instead. The query still sorts by the table, like
+  # any locked read in PostgreSQL sorts by the rows as they were before it locked them.
+  defp lock_rows(
+         %{
+           distinct: nil,
+           from: %{source: {_, _} = source},
+           joins: [
+             %{source: %Ecto.SubQuery{query: %{distinct: %{}, from: %{source: source}}}} =
+               distinct
+             | joins
+           ],
+           __ash_bindings__: %{distinct?: true}
+         } = query,
+         lock
+       ) do
+    distinct = put_in(distinct.source.query.from.source, locked_rows(query, source, lock))
+    %{query | joins: [distinct | joins]}
+  end
+
+  defp lock_rows(query, lock), do: lock.(query)
+
+  defp locked_rows(query, source, lock) do
+    resource = query.__ash_bindings__.resource
+    pkey = with_temporal_field(Ash.Resource.Info.primary_key(resource), resource)
+
+    rows_to_lock =
+      query
+      |> Ecto.Query.exclude(:select)
+      |> Ecto.Query.select([row], map(row, ^pkey))
+
+    on =
+      Enum.reduce(pkey, nil, fn key, dynamic ->
+        if dynamic do
+          Ecto.Query.dynamic(
+            [row, to_lock],
+            ^dynamic and field(row, ^key) == field(to_lock, ^key)
+          )
+        else
+          Ecto.Query.dynamic([row, to_lock], field(row, ^key) == field(to_lock, ^key))
+        end
+      end)
+
+    locked_rows =
+      from(row in source,
+        as: ^0,
+        join: to_lock in subquery(rows_to_lock),
+        on: ^on,
+        select: row
+      )
+      |> lock.()
+
+    Ecto.Query.subquery(locked_rows)
   end
 
   @impl true

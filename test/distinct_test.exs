@@ -173,6 +173,40 @@ defmodule AshPostgres.DistinctTest do
            ] = results
   end
 
+  test "distinct that isn't a prefix of the sort can load aggregates with a limit" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "bar", score: 5})
+      |> Ash.create!()
+
+    for _ <- 1..2 do
+      AshPostgres.Test.Comment
+      |> Ash.Changeset.for_create(:create, %{title: "comment", post_id: post.id})
+      |> Ash.create!()
+    end
+
+    for query <- [
+          Post
+          |> Ash.Query.distinct(:title)
+          |> Ash.Query.distinct_sort(score: :desc)
+          |> Ash.Query.sort(:title),
+          Post
+          |> Ash.Query.distinct(:title)
+          |> Ash.Query.sort(score: :desc)
+        ] do
+      assert [
+               %{title: "bar", count_of_comments: 2},
+               %{title: "foo", count_of_comments: 0},
+               %{title: "title", count_of_comments: 0}
+             ] =
+               query
+               |> Ash.Query.limit(10)
+               |> Ash.Query.load(:count_of_comments)
+               |> Ash.read!()
+               |> Enum.sort_by(& &1.title)
+    end
+  end
+
   test "distinct used on it's own" do
     results =
       Post
