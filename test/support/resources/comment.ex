@@ -25,6 +25,7 @@ defmodule AshPostgres.Test.Comment do
   postgres do
     table "comments"
     repo(AshPostgres.TestRepo)
+    migration_types(label: {:varchar, 255})
 
     references do
       reference(:post, on_delete: :delete, on_update: :update, name: "special_name_fkey")
@@ -114,6 +115,7 @@ defmodule AshPostgres.Test.Comment do
   attributes do
     uuid_primary_key(:id)
     attribute(:title, :string, public?: true)
+    attribute(:label, :string, public?: true)
     attribute(:likes, :integer, public?: true)
     attribute(:arbitrary_timestamp, :utc_datetime_usec, public?: true)
     attribute(:edited_duration, :integer, public?: true)

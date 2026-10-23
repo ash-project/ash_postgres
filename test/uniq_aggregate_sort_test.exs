@@ -18,7 +18,7 @@ defmodule AshPostgres.UniqAggregateSortTest do
 
     for {title, likes} <- [{"b", 1}, {"a", 5}, {"b", 9}] do
       Comment
-      |> Ash.Changeset.for_create(:create, %{title: title, likes: likes})
+      |> Ash.Changeset.for_create(:create, %{title: title, label: title, likes: likes})
       |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
       |> Ash.create!()
     end
@@ -32,6 +32,14 @@ defmodule AshPostgres.UniqAggregateSortTest do
              |> Ash.read_one!()
              |> Ash.load!(:uniq_comment_titles)
              |> Map.get(:uniq_comment_titles)
+  end
+
+  test "uniq? aggregate sorted by the aggregated field works on a varchar column" do
+    assert ["a", "b"] ==
+             Post
+             |> Ash.read_one!()
+             |> Ash.load!(:uniq_comment_labels)
+             |> Map.get(:uniq_comment_labels)
   end
 
   # Sorted by likes desc the titles are b, a, b. Deduping keeps each title's first

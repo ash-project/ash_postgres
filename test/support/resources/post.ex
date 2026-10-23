@@ -1513,6 +1513,11 @@ defmodule AshPostgres.Test.Post do
       sort(title: :asc_nils_last)
     end
 
+    list :uniq_comment_labels, :comments, :label do
+      uniq?(true)
+      sort(label: :asc_nils_last)
+    end
+
     list :uniq_comment_titles_sorted_by_likes, :comments, :title do
       uniq?(true)
       sort(likes: :desc)
