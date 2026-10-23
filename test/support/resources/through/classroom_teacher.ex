@@ -72,6 +72,13 @@ defmodule AshPostgres.Test.Through.ClassroomTeacher do
       public?(true)
       allow_nil?(false)
     end
+
+    has_one :parented_teacher, AshPostgres.Test.Through.Teacher do
+      public?(true)
+      source_attribute(:teacher_id)
+      destination_attribute(:id)
+      filter(expr(id == parent(teacher_id)))
+    end
   end
 
   identities do

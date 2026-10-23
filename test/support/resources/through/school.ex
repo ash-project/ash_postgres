@@ -80,6 +80,18 @@ defmodule AshPostgres.Test.Through.School do
       filter(expr(name == ^actor(:visible_classroom)))
     end
 
+    has_one :first_classroom, AshPostgres.Test.Through.Classroom do
+      public?(true)
+      from_many?(true)
+      sort(name: :asc)
+    end
+
+    # Always holds, unless `parent/1` refers to the wrong record.
+    has_many :parented_classrooms, AshPostgres.Test.Through.Classroom do
+      public?(true)
+      filter(expr(school_id == parent(id)))
+    end
+
     has_many :teachers, AshPostgres.Test.Through.Teacher do
       public?(true)
       through([:classrooms, :classroom_teachers, :teacher])
@@ -115,6 +127,51 @@ defmodule AshPostgres.Test.Through.School do
     has_many :actor_students, AshPostgres.Test.Through.Student do
       public?(true)
       through([:actor_filtered_classrooms, :students])
+    end
+
+    has_many :alice_students, AshPostgres.Test.Through.Student do
+      public?(true)
+      through([:classrooms, :alice_students])
+    end
+
+    has_many :students_by_name_desc, AshPostgres.Test.Through.Student do
+      public?(true)
+      through([:classrooms, :students_by_name_desc])
+    end
+
+    has_many :last_students_by_name, AshPostgres.Test.Through.Student do
+      public?(true)
+      through([:classrooms, :last_student_by_name])
+    end
+
+    has_many :first_classroom_students, AshPostgres.Test.Through.Student do
+      public?(true)
+      through([:first_classroom, :students])
+    end
+
+    has_many :first_classroom_teachers, AshPostgres.Test.Through.Teacher do
+      public?(true)
+      through([:classrooms, :first_classroom_teacher, :teacher])
+    end
+
+    has_many :parented_classroom_students, AshPostgres.Test.Through.Student do
+      public?(true)
+      through([:parented_classrooms, :students])
+    end
+
+    has_many :parented_classroom_teachers, AshPostgres.Test.Through.Teacher do
+      public?(true)
+      through([:parented_classrooms, :classroom_teachers, :teacher])
+    end
+
+    has_many :parented_students, AshPostgres.Test.Through.Student do
+      public?(true)
+      through([:classrooms, :parented_students])
+    end
+
+    has_many :parented_teachers, AshPostgres.Test.Through.Teacher do
+      public?(true)
+      through([:classrooms, :parented_classroom_teachers, :parented_teacher])
     end
   end
 end

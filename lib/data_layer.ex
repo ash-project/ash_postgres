@@ -1414,7 +1414,8 @@ defmodule AshPostgres.DataLayer do
           [
             {through_resource, destination_attribute_on_join_resource, destination_attribute,
              through_relationship}
-          ] ->
+          ]
+          when relationship.type == :many_to_many ->
             through_binding = Map.get(query, :__ash_bindings__)[:current]
 
             through_resource
@@ -1434,24 +1435,6 @@ defmodule AshPostgres.DataLayer do
                 ),
                 parent_stack: [through_relationship.source]
               )
-            end)
-            |> then(fn q ->
-              # For through-list paths, the first relationship's filter applies to the through table
-              # For many_to_many, the relationship filter is for the destination, not the through table
-              if !is_atom(Map.get(relationship, :through)) ||
-                   is_nil(Map.get(relationship, :through)) do
-                Ash.Query.do_filter(
-                  q,
-                  fill_relationship_filter_templates(
-                    Map.get(relationship, :filter),
-                    source_query,
-                    q
-                  ),
-                  parent_stack: [relationship.source]
-                )
-              else
-                q
-              end
             end)
             |> Ash.Query.sort(Map.get(through_relationship, :sort))
             |> then(fn q ->
@@ -1616,8 +1599,8 @@ defmodule AshPostgres.DataLayer do
             end
 
           rest ->
-            case build_through_queries(query, source_query, relationship, rest) do
-              {:ok, through_queries} ->
+            case through_step_queries(query, source_query, data_layer_query, rest) do
+              {:ok, step_queries} ->
                 data_layer_query = Ecto.Query.exclude(data_layer_query, :distinct)
 
                 base_subquery =
@@ -1630,58 +1613,13 @@ defmodule AshPostgres.DataLayer do
                   end
 
                 final_subquery =
-                  rest
-                  |> Enum.zip(through_queries)
-                  |> Enum.reverse()
-                  |> Enum.reduce(
-                    {base_subquery, 0},
-                    fn {{_through_res, src_attr, dst_attr, _through_rel},
-                        {through_ecto_q, through_module}},
-                       {sub_q, offset} ->
-                      binding = Map.get(query, :__ash_bindings__)[:current] + offset
-                      is_outermost? = offset == length(rest) - 1
-
-                      prepared_through =
-                        if is_outermost? do
-                          correlated =
-                            from(through in through_ecto_q,
-                              where:
-                                field(through, ^source_attribute_on_join_resource) ==
-                                  field(parent_as(^0), ^source_attribute)
-                            )
-
-                          subquery(set_subquery_prefix(correlated, source_query, through_module))
-                        else
-                          through_ecto_q
-                          |> set_subquery_prefix(source_query, through_module)
-                          |> subquery()
-                        end
-
-                      new_sub_q =
-                        if offset == 0 do
-                          from(dest in sub_q,
-                            join: through in ^prepared_through,
-                            as: ^binding,
-                            on:
-                              field(through, ^src_attr) ==
-                                field(dest, ^dst_attr)
-                          )
-                        else
-                          prev_binding = binding - 1
-
-                          from(dest in sub_q,
-                            join: through in ^prepared_through,
-                            as: ^binding,
-                            on:
-                              field(through, ^src_attr) ==
-                                field(as(^prev_binding), ^dst_attr)
-                          )
-                        end
-
-                      {new_sub_q, offset + 1}
-                    end
+                  base_subquery
+                  |> join_through_path(
+                    query,
+                    source_attribute,
+                    source_attribute_on_join_resource,
+                    Enum.zip(rest, step_queries)
                   )
-                  |> elem(0)
                   |> set_subquery_prefix(source_query, relationship.destination)
                   |> subquery()
 
@@ -1719,39 +1657,84 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  defp build_through_queries(query, source_query, prev_rel, [{resource, _, _, rel}]) do
-    resource
-    |> Ash.Query.new()
-    |> Ash.Query.put_context(:data_layer, %{start_bindings_at: 0})
-    |> then(fn q ->
-      Ash.Query.do_filter(
-        q,
-        fill_relationship_filter_templates(Map.get(prev_rel, :filter), source_query, q)
-      )
-    end)
-    |> Ash.Query.set_tenant(source_query.tenant)
-    |> set_lateral_join_prefix(query)
-    |> case do
-      %{valid?: true} = tq ->
-        case Ash.Query.data_layer_query(tq) do
-          {:ok, ecto_query} ->
-            result = [{Ecto.Query.exclude(ecto_query, :select), rel.source}]
-            {:ok, result}
+  # The data layer queries for the steps of a through path after the source, where `parent/1`
+  # refers to the record of the step before: the source record for the first step.
+  defp through_step_queries(query, source_query, source_data_layer_query, steps) do
+    steps
+    |> Enum.with_index(query.__ash_bindings__.current)
+    |> Enum.reduce_while({:ok, [], source_data_layer_query.__ash_bindings__}, fn
+      {{step_query, _, _, _}, binding}, {:ok, step_queries, parent_bindings} ->
+        step_query
+        |> Ash.Query.new()
+        |> Ash.Query.set_context(%{
+          data_layer: %{start_bindings_at: binding, parent_bindings: parent_bindings}
+        })
+        |> Ash.Query.set_tenant(source_query.tenant)
+        |> set_lateral_join_prefix(query)
+        |> case do
+          %{valid?: true} = step_query ->
+            case Ash.Query.data_layer_query(step_query) do
+              {:ok, step_data_layer_query} ->
+                {:cont,
+                 {:ok,
+                  [
+                    step_data_layer_query
+                    |> Ecto.Query.exclude(:select)
+                    |> set_subquery_prefix(source_query, step_query.resource)
+                    | step_queries
+                  ], step_data_layer_query.__ash_bindings__}}
 
-          {:error, error} ->
-            {:error, error}
+              {:error, error} ->
+                {:halt, {:error, error}}
+            end
+
+          step_query ->
+            {:halt, {:error, step_query}}
         end
-
-      invalid_query ->
-        {:error, invalid_query}
+    end)
+    |> case do
+      {:ok, step_queries, _} -> {:ok, Enum.reverse(step_queries)}
+      {:error, error} -> {:error, error}
     end
   end
 
-  defp build_through_queries(query, source_query, prev_rel, [{_, _, _, through_rel} = head | rest]) do
-    with {:ok, rel_query} <- build_through_queries(query, source_query, prev_rel, [head]),
-         {:ok, rest_queries} <- build_through_queries(query, source_query, through_rel, rest) do
-      {:ok, rel_query ++ rest_queries}
-    end
+  # Inner joins the steps of a through path to the destination, in order. Each step is a lateral
+  # subquery correlated to the step before it, so `parent/1` in it can refer to that record.
+  defp join_through_path(
+         base_subquery,
+         query,
+         source_attribute,
+         source_attribute_on_join_resource,
+         steps
+       ) do
+    {joined, {last_binding, last_source_attribute, last_destination_attribute}} =
+      steps
+      |> Enum.with_index(query.__ash_bindings__.current)
+      |> Enum.reduce(
+        {base_subquery, {0, source_attribute, source_attribute_on_join_resource}},
+        fn {{{_, step_source_attribute, step_destination_attribute, _}, step_query}, binding},
+           {joined, {previous_binding, previous_source_attribute, previous_destination_attribute}} ->
+          step_subquery =
+            from(step in step_query,
+              where:
+                field(step, ^previous_destination_attribute) ==
+                  field(parent_as(^previous_binding), ^previous_source_attribute)
+            )
+            |> subquery()
+
+          {from(destination in joined,
+             inner_lateral_join: step in ^step_subquery,
+             as: ^binding,
+             on: true
+           ), {binding, step_source_attribute, step_destination_attribute}}
+        end
+      )
+
+    from(destination in joined,
+      where:
+        field(destination, ^last_destination_attribute) ==
+          field(as(^last_binding), ^last_source_attribute)
+    )
   end
 
   # Relationship filters used by `through` relationships may reference

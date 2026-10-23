@@ -169,6 +169,80 @@ defmodule AshPostgres.Test.ThroughRelationshipsTest do
     end
   end
 
+  describe "through relationship steps" do
+    test "the last relationship's filter applies to the destination of a two-hop path", setup do
+      school = Ash.load!(setup.school_1, :alice_students)
+
+      assert Enum.map(school.alice_students, & &1.name) == ["Alice"]
+    end
+
+    test "the last relationship's sort orders the destination", setup do
+      create_student("Carol", setup.classroom_1.id)
+      create_student("Dave", setup.classroom_2.id)
+
+      school = Ash.load!(setup.school_1, :students_by_name_desc)
+
+      assert Enum.map(school.students_by_name_desc, & &1.name) == [
+               "Dave",
+               "Carol",
+               "Bob",
+               "Alice"
+             ]
+    end
+
+    test "the last relationship's limit applies to each record it is reached from", setup do
+      create_student("Carol", setup.classroom_1.id)
+      create_student("Dave", setup.classroom_2.id)
+
+      school = Ash.load!(setup.school_1, :last_students_by_name)
+
+      assert sorted_names(school.last_students_by_name) == ["Carol", "Dave"]
+    end
+
+    test "a middle relationship's limit applies to each record it is reached from", setup do
+      %{school_1: school_1, classroom_1: classroom_1, classroom_2: classroom_2} = setup
+      create_student("Carol", classroom_1.id)
+      # Assigning a teacher retires the classroom's other teachers.
+      assign_teacher(classroom_1.id, setup.teacher_1.id)
+      assign_teacher(classroom_1.id, setup.teacher_2.id)
+      assign_teacher(classroom_2.id, setup.teacher_3.id)
+
+      school = Ash.load!(school_1, [:first_classroom_students, :first_classroom_teachers])
+
+      assert sorted_names(school.first_classroom_students) == ["Alice", "Carol"]
+      assert sorted_names(school.first_classroom_teachers) == ["Dr. Williams", "Ms. Johnson"]
+    end
+
+    test "`parent/1` in the first relationship refers to the source record", setup do
+      %{school_1: school_1, classroom_1: classroom_1, classroom_2: classroom_2} = setup
+      assign_teacher(classroom_1.id, setup.teacher_1.id)
+      assign_teacher(classroom_2.id, setup.teacher_3.id)
+
+      school =
+        Ash.load!(school_1, [:parented_classroom_students, :parented_classroom_teachers])
+
+      assert sorted_names(school.parented_classroom_students) == ["Alice", "Bob"]
+      assert sorted_names(school.parented_classroom_teachers) == ["Dr. Williams", "Mr. Smith"]
+    end
+
+    test "`parent/1` in the last relationship refers to the record it is reached from", setup do
+      school = Ash.load!(setup.school_1, :parented_students)
+
+      assert sorted_names(school.parented_students) == ["Alice", "Bob"]
+    end
+
+    test "`parent/1` in middle and last relationships refers to the record each is reached from",
+         setup do
+      %{school_1: school_1, classroom_1: classroom_1, classroom_2: classroom_2} = setup
+      assign_teacher(classroom_1.id, setup.teacher_1.id)
+      assign_teacher(classroom_2.id, setup.teacher_3.id)
+
+      school = Ash.load!(school_1, :parented_teachers)
+
+      assert sorted_names(school.parented_teachers) == ["Dr. Williams", "Mr. Smith"]
+    end
+  end
+
   describe "many_to_many through atom list" do
     test "retired_teachers loads only teachers with retired_at set", setup do
       %{classroom_1: classroom_1} = setup
@@ -464,6 +538,8 @@ defmodule AshPostgres.Test.ThroughRelationshipsTest do
                |> Ash.read!(authorize?: true)
     end
   end
+
+  defp sorted_names(records), do: records |> Enum.map(& &1.name) |> Enum.sort()
 
   defp create_school(name) do
     AshPostgres.Test.Through.School

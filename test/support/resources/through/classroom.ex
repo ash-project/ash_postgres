@@ -55,6 +55,39 @@ defmodule AshPostgres.Test.Through.Classroom do
       public?(true)
     end
 
+    has_many :alice_students, AshPostgres.Test.Through.Student do
+      public?(true)
+      filter(expr(name == "Alice"))
+    end
+
+    has_many :students_by_name_desc, AshPostgres.Test.Through.Student do
+      public?(true)
+      sort(name: :desc)
+    end
+
+    has_many :last_student_by_name, AshPostgres.Test.Through.Student do
+      public?(true)
+      sort(name: :desc)
+      limit(1)
+    end
+
+    has_one :first_classroom_teacher, AshPostgres.Test.Through.ClassroomTeacher do
+      public?(true)
+      from_many?(true)
+      sort(retired_at: :asc_nils_first)
+    end
+
+    # The `parent/1` filters below always hold, unless `parent/1` refers to the wrong record.
+    has_many :parented_students, AshPostgres.Test.Through.Student do
+      public?(true)
+      filter(expr(classroom_id == parent(id)))
+    end
+
+    has_many :parented_classroom_teachers, AshPostgres.Test.Through.ClassroomTeacher do
+      public?(true)
+      filter(expr(classroom_id == parent(id)))
+    end
+
     has_many :retired_teachers, AshPostgres.Test.Through.Teacher do
       public?(true)
       through([:retired_classroom_teachers, :teacher])
