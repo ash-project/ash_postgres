@@ -1955,17 +1955,12 @@ defmodule AshPostgres.DataLayer do
             {:empty, query} ->
               if options[:return_records?] do
                 if changeset.context[:data_layer][:use_atomic_update_data?] do
-                  case query.__ash_bindings__ do
-                    %{expression_accumulator: %AshSql.Expr.ExprInfo{has_error?: true}} ->
-                      # if the query could produce an error
-                      # we must run it even if we will just be returning the original data.
-                      repo.all(query, repo_opts)
-
-                    _ ->
-                      :ok
+                  # the query's filter may exclude the record, or it could produce an error,
+                  # so we must run it even if we will just be returning the original data.
+                  case repo.all(query, repo_opts) do
+                    [] -> {:ok, []}
+                    _ -> {:ok, [changeset.data]}
                   end
-
-                  {:ok, [changeset.data]}
                 else
                   {:ok, repo.all(query, repo_opts)}
                 end

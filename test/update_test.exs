@@ -157,6 +157,19 @@ defmodule AshPostgres.UpdateTest do
     end
   end
 
+  test "queries are run if there are no changes but the action adds filters atomically" do
+    post =
+      AshPostgres.Test.IntegerPost
+      |> Ash.Changeset.for_create(:create, %{title: "match"})
+      |> Ash.create!()
+
+    assert_raise Ash.Error.Invalid, ~r/stale/, fn ->
+      post
+      |> Ash.Changeset.for_update(:update_only_freds, %{})
+      |> Ash.update!()
+    end
+  end
+
   test "timestamps arent updated if there are no changes atomically" do
     post =
       AshPostgres.Test.Post

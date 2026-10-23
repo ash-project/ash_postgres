@@ -17,6 +17,10 @@ defmodule AshPostgres.Test.IntegerPost do
     default_accept(:*)
 
     defaults([:create, :read, :update, :destroy])
+
+    update :update_only_freds do
+      change(filter(expr(title == "fred")))
+    end
   end
 
   attributes do
