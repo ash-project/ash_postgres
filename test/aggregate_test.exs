@@ -2216,6 +2216,69 @@ defmodule AshSql.AggregateTest do
                ])
     end
 
+    test "aggregates over calculations that reference aggregates" do
+      for {title, likes} <- [{"a", [5, 7]}, {"b", [3]}, {"c", []}] do
+        post =
+          Post
+          |> Ash.Changeset.for_create(:create, %{title: title})
+          |> Ash.create!()
+
+        for like <- likes do
+          Comment
+          |> Ash.Changeset.for_create(:create, %{title: "comment", likes: like})
+          |> Ash.Changeset.manage_relationship(:post, post, type: :append_and_remove)
+          |> Ash.create!()
+        end
+      end
+
+      assert {:ok, %{total: 10}} =
+               Ash.aggregate(Post, {:total, :sum, field: :max_comment_likes_calc})
+
+      assert {:ok, %{total: 10}} =
+               Ash.aggregate(
+                 Post,
+                 {:total, :sum, expr: expr(max_comment_likes_calc), expr_type: :integer}
+               )
+
+      assert {:ok, %{total: 300}} = Ash.aggregate(Post, {:total, :sum, field: :comment_metric})
+
+      assert {:ok, %{count: 3, total: 10, total_metric: 300}} =
+               Ash.aggregate(Post, [
+                 {:count, :count, []},
+                 {:total, :sum, field: :max_comment_likes_calc},
+                 {:total_metric, :sum, field: :comment_metric}
+               ])
+    end
+
+    test "inline aggregates that differ only in their expression are kept apart" do
+      author =
+        Author
+        |> Ash.Changeset.for_create(:create, %{first_name: "fred"})
+        |> Ash.create!()
+
+      for score <- [1, 2] do
+        Post
+        |> Ash.Changeset.for_create(:create, %{title: "title", score: score})
+        |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+        |> Ash.create!()
+      end
+
+      assert %{plain: 3, doubled: 6} =
+               Author
+               |> Ash.Query.calculate(
+                 :plain,
+                 :integer,
+                 expr(sum(posts, expr: score, expr_type: :integer))
+               )
+               |> Ash.Query.calculate(
+                 :doubled,
+                 :integer,
+                 expr(sum(posts, expr: score * 2, expr_type: :integer))
+               )
+               |> Ash.read_one!()
+               |> Map.get(:calculations)
+    end
+
     test "grouped aggregates over a limited query join relationships referenced by their field" do
       author =
         Author

@@ -1359,6 +1359,8 @@ defmodule AshPostgres.Test.Post do
 
     calculate(:author_count_of_posts_agg, :integer, expr(author.count_of_posts))
 
+    calculate(:max_comment_likes_calc, :integer, expr(max(comments, field: :likes)))
+
     calculate(
       :price_string,
       :string,
