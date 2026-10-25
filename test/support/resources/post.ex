@@ -953,6 +953,19 @@ defmodule AshPostgres.Test.Post do
       destination_attribute_on_join_resource: :dest_id
     )
 
+    many_to_many(:tenant_linked_posts, __MODULE__,
+      public?: true,
+      through: AshPostgres.MultitenancyTest.TenantPostLink,
+      join_relationship: :tenant_post_links,
+      source_attribute_on_join_resource: :source_id,
+      destination_attribute_on_join_resource: :dest_id
+    )
+
+    has_many(:tenant_linked_posts_through, __MODULE__,
+      public?: true,
+      through: [:tenant_post_links, :dest]
+    )
+
     many_to_many(:followers, AshPostgres.Test.User,
       public?: true,
       through: AshPostgres.Test.PostFollower,

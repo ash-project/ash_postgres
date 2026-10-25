@@ -13,6 +13,7 @@ defmodule AshPostgres.Test.MultitenancyTest do
     NonMultitenantPostMultitenantLink,
     Org,
     Post,
+    TenantPostLink,
     User
   }
 
@@ -300,6 +301,28 @@ defmodule AshPostgres.Test.MultitenancyTest do
 
     post
     |> Ash.load!([:linked_non_multitenant_posts_through_multitenant_link], tenant: org1)
+  end
+
+  test "loading across an attribute multitenant join resource only follows the tenant's links",
+       %{org1: org1, org2: org2} do
+    [source, linked, other] =
+      for title <- ["source", "linked", "other"] do
+        GlobalPost
+        |> Ash.Changeset.for_create(:create, %{title: title})
+        |> Ash.create!()
+      end
+
+    for {org, dest} <- [{org1, linked}, {org2, other}] do
+      TenantPostLink
+      |> Ash.Changeset.for_create(:create, %{source_id: source.id, dest_id: dest.id}, tenant: org)
+      |> Ash.create!()
+    end
+
+    source =
+      Ash.load!(source, [:tenant_linked_posts, :tenant_linked_posts_through], tenant: org1)
+
+    assert Enum.map(source.tenant_linked_posts, & &1.title) == ["linked"]
+    assert Enum.map(source.tenant_linked_posts_through, & &1.title) == ["linked"]
   end
 
   test "manage_relationship from context multitenant resource to attribute multitenant resource doesn't raise an error" do

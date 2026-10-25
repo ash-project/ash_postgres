@@ -1445,6 +1445,7 @@ defmodule AshPostgres.DataLayer do
               end
             end)
             |> Ash.Query.set_tenant(source_query.tenant)
+            |> filter_by_attribute_tenant(source_query.tenant)
             |> set_lateral_join_prefix(query)
             |> case do
               %{valid?: true} = through_query ->
@@ -1657,6 +1658,12 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
+  # Attribute multitenancy is applied by the read action, which the queries for the resources a
+  # lateral join passes through aren't run with.
+  defp filter_by_attribute_tenant(query, tenant) do
+    AshSql.Join.handle_attribute_multitenancy(query, tenant, query.action)
+  end
+
   # The data layer queries for the steps of a through path after the source, where `parent/1`
   # refers to the record of the step before: the source record for the first step.
   defp through_step_queries(query, source_query, source_data_layer_query, steps) do
@@ -1670,6 +1677,7 @@ defmodule AshPostgres.DataLayer do
           data_layer: %{start_bindings_at: binding, parent_bindings: parent_bindings}
         })
         |> Ash.Query.set_tenant(source_query.tenant)
+        |> filter_by_attribute_tenant(source_query.tenant)
         |> set_lateral_join_prefix(query)
         |> case do
           %{valid?: true} = step_query ->
