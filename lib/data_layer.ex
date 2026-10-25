@@ -1658,8 +1658,8 @@ defmodule AshPostgres.DataLayer do
     end
   end
 
-  # Attribute multitenancy is applied by the read action, which the queries for the resources a
-  # lateral join passes through aren't run with.
+  # Attribute multitenancy is applied by the read action, which queries passed straight to
+  # `Ash.Query.data_layer_query/1` don't run.
   defp filter_by_attribute_tenant(query, tenant) do
     AshSql.Join.handle_attribute_multitenancy(query, tenant, query.action)
   end
@@ -2888,6 +2888,7 @@ defmodule AshPostgres.DataLayer do
                     query -> Ash.Query.do_filter(query, identity.where)
                   end)
                   |> Ash.Query.set_tenant(changeset.tenant)
+                  |> filter_by_attribute_tenant(changeset.tenant)
 
                 with {:ok, ecto_query} <- Ash.Query.data_layer_query(ash_query),
                      {:ok, results} <- run_query(ecto_query, resource) do
@@ -4495,13 +4496,25 @@ defmodule AshPostgres.DataLayer do
               query -> Ash.Query.do_filter(query, identity.where)
             end)
             |> Ash.Query.set_tenant(changeset.tenant)
+            |> filter_by_attribute_tenant(changeset.tenant)
 
           {:ok,
            {:upsert_skipped, ash_query,
             fn ->
               with {:ok, ecto_query} <- Ash.Query.data_layer_query(ash_query),
-                   {:ok, [result]} <- run_query(ecto_query, resource) do
-                {:ok, Ash.Resource.put_metadata(result, :upsert_skipped, true)}
+                   {:ok, results} <- run_query(ecto_query, resource) do
+                case results do
+                  [result] ->
+                    {:ok, Ash.Resource.put_metadata(result, :upsert_skipped, true)}
+
+                  # e.g. an `all_tenants?` identity conflicting with another tenant's record
+                  [] ->
+                    {:error,
+                     Ash.Error.Changes.StaleRecord.exception(
+                       resource: resource,
+                       filter: changeset.filter
+                     )}
+                end
               end
             end}}
 
