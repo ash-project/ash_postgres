@@ -18,9 +18,9 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 ### Bug Fixes:
 
-* apply attribute multitenancy when returning skipped upserts by Zach Daniel
+* [security] apply attribute multitenancy when returning skipped upserts ([CVE-2026-115635](https://cna.erlef.org/cves/CVE-2026-115635.html), [GHSA-36hg-wwp2-fg8w](https://github.com/ash-project/ash/security/advisories/GHSA-36hg-wwp2-fg8w)) by Zach Daniel
 
-* apply attribute multitenancy to the resources a lateral join passes through by Zach Daniel
+* [security] apply attribute multitenancy to the resources a lateral join passes through ([CVE-2026-115627](https://cna.erlef.org/cves/CVE-2026-115627.html), [GHSA-gr2r-f49c-9gm2](https://github.com/ash-project/ash/security/advisories/GHSA-gr2r-f49c-9gm2)) by Zach Daniel
 
 * ensure exists subqueries have the tenant by Zach Daniel
 
