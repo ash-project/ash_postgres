@@ -11,6 +11,35 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.15.2](https://github.com/ash-project/ash_postgres/compare/v2.15.1...v2.15.2) (2026-10-25)
+
+
+
+
+### Bug Fixes:
+
+* apply attribute multitenancy when returning skipped upserts by Zach Daniel
+
+* apply attribute multitenancy to the resources a lateral join passes through by Zach Daniel
+
+* ensure exists subqueries have the tenant by Zach Daniel
+
+* allow combining `DISTINCT` and `LOCK` by Zach Daniel
+
+* ensure identities are created after multitenancy attributes in migrations by Zach Daniel
+
+* always run atomic update query by Zach Daniel
+
+* properly support `parent` references and limits on `through` joins by Zach Daniel
+
+* drop an unnamed custom index before recreating it under the same derived name (#901) by Johannes Welebil
+
+* properly set parent bindings temporal many to many by Zach Daniel
+
+* don't fully flatten array values by Zach Daniel
+
+* infer match: :simple for nullable match_tenant? references (#898) by Nelson Estevão
+
 ## [v2.15.1](https://github.com/ash-project/ash_postgres/compare/v2.15.0...v2.15.1) (2026-10-19)
 
 
