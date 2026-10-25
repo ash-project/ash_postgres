@@ -600,6 +600,58 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  describe "snapshot hashes" do
+    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+      end
+
+      defcomments do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        relationships do
+          belongs_to(:post, Post, public?: true)
+        end
+      end
+
+      defdomain([Post, Comment])
+
+      generate_post_migration(Domain, snapshot_path, migration_path)
+
+      :ok
+    end
+
+    test "the hash is derived from the canonical snapshot contents", %{
+      snapshot_path: snapshot_path
+    } do
+      # The hash must be taken over the snapshot as written. Hashing the snapshot term
+      # (e.g. via `inspect/1`) isn't stable, because map key order depends on the
+      # runtime's atom table, and the snapshot is normalised again before it's written.
+      files = Path.wildcard("#{snapshot_path}/test_repo/{posts,comments}/*.json")
+      assert [_, _] = files
+
+      for file <- files do
+        {hash, snapshot} =
+          file
+          |> File.read!()
+          |> Jason.decode!(objects: :ordered_objects)
+          |> Access.pop("hash")
+
+        expected =
+          :sha256
+          |> :crypto.hash(Jason.encode!(snapshot, pretty: true))
+          |> Base.encode16()
+
+        assert hash == expected
+      end
+    end
+  end
+
   describe "creating initial snapshots with native uuidv7 on PG 18" do
     setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
       prev_pg_version_env = System.fetch_env("PG_VERSION")

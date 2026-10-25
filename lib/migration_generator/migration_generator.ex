@@ -3856,7 +3856,7 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp do_snapshot(resource, table, schema \\ nil) do
-    snapshot = %{
+    %{
       attributes: attributes(resource, table),
       identities: identities(resource),
       table: table || AshPostgres.DataLayer.Info.table(resource),
@@ -3871,13 +3871,6 @@ defmodule AshPostgres.MigrationGenerator do
       has_create_action: has_create_action?(resource),
       create_table_options: AshPostgres.DataLayer.Info.create_table_options(resource)
     }
-
-    hash =
-      :sha256
-      |> :crypto.hash(inspect(snapshot))
-      |> Base.encode16()
-
-    Map.put(snapshot, :hash, hash)
   end
 
   defp has_create_action?(resource) do
@@ -4410,7 +4403,22 @@ defmodule AshPostgres.MigrationGenerator do
     AshPostgres.DataLayer.Info.migration_defaults(resource)[attribute]
   end
 
+  # The hash is taken over the encoded snapshot rather than the term, because the
+  # encoding sorts keys and so doesn't depend on the runtime's map key order.
   defp snapshot_to_binary(snapshot) do
+    snapshot = Map.delete(snapshot, :hash)
+
+    hash =
+      :sha256
+      |> :crypto.hash(encode_snapshot(snapshot))
+      |> Base.encode16()
+
+    snapshot
+    |> Map.put(:hash, hash)
+    |> encode_snapshot()
+  end
+
+  defp encode_snapshot(snapshot) do
     snapshot
     |> Map.update!(:attributes, fn attributes ->
       Enum.map(attributes, &attribute_to_binary/1)
