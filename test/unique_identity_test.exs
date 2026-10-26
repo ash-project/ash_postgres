@@ -6,6 +6,7 @@ defmodule AshPostgres.Test.UniqueIdentityTest do
   use AshPostgres.RepoCase, async: false
   alias AshPostgres.Test.Organization
   alias AshPostgres.Test.Post
+  alias AshPostgres.Test.Rating
 
   test "unique constraint errors are properly caught" do
     post =
@@ -53,6 +54,48 @@ defmodule AshPostgres.Test.UniqueIdentityTest do
            } = invalid_attribute
 
     assert private_vars[:constraint] == "orgs_name_external_id_index"
+  end
+
+  test "unique constraint field names are set when the repo matches the index by regex" do
+    Organization
+    |> Ash.Changeset.for_create(:create, %{name: "Acme", external_ref: "ref-1"})
+    |> Ash.create!()
+
+    assert {:error, %Ash.Error.Invalid{errors: [invalid_attribute]}} =
+             Organization
+             |> Ash.Changeset.for_create(:create, %{name: "Acme", external_ref: "ref-1"})
+             |> Ash.create()
+
+    assert %Ash.Error.Changes.InvalidAttribute{
+             field: :external_ref,
+             private_vars: private_vars
+           } = invalid_attribute
+
+    assert private_vars[:constraint] == "orgs_unique_external_ref_index"
+  end
+
+  test "unique constraint field names are set on a polymorphic resource's table" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{title: "title"})
+      |> Ash.create!()
+
+    create_rating = fn ->
+      Rating
+      |> Ash.Changeset.for_create(:create, %{score: 5, resource_id: post.id, external_id: "ext-1"})
+      |> Ash.Changeset.set_context(%{data_layer: %{table: "post_ratings"}})
+      |> Ash.create()
+    end
+
+    assert {:ok, _} = create_rating.()
+    assert {:error, %Ash.Error.Invalid{errors: [invalid_attribute]}} = create_rating.()
+
+    assert %Ash.Error.Changes.InvalidAttribute{
+             field: :external_id,
+             private_vars: private_vars
+           } = invalid_attribute
+
+    assert private_vars[:constraint] == "post_ratings_unique_external_id_index"
   end
 
   test "a unique constraint can be used to upsert when the resource has a base filter" do

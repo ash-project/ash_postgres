@@ -37,6 +37,12 @@ defmodule AshPostgres.TestRepo do
 
   def prefer_transaction_for_atomic_updates?, do: false
 
+  # Matches one identity's index by regex, so constraint errors are tested on that path too.
+  def default_constraint_match_type(:unique, "orgs_unique_external_ref_index"),
+    do: {:regex, ~r/_external_ref_index$/}
+
+  def default_constraint_match_type(_type, _name), do: :exact
+
   def include_upsert_action?,
     do: Application.get_env(:ash_postgres, :test_include_upsert_action?, true)
 

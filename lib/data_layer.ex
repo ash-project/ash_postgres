@@ -2070,7 +2070,7 @@ defmodule AshPostgres.DataLayer do
             handle_raised_error(
               e,
               __STACKTRACE__,
-              {:ecto_changeset, :update, ecto_changeset},
+              {:ecto_changeset, :update, ecto_changeset, repo},
               resource
             )
         end
@@ -2580,7 +2580,7 @@ defmodule AshPostgres.DataLayer do
             handle_raised_error(
               e,
               __STACKTRACE__,
-              {:ecto_changeset, :delete, ecto_changeset},
+              {:ecto_changeset, :delete, ecto_changeset, repo},
               resource
             )
         end
@@ -2668,7 +2668,7 @@ defmodule AshPostgres.DataLayer do
           handle_raised_error(
             e,
             __STACKTRACE__,
-            {:bulk_create, ecto_changeset(changeset.data, changeset, :create, repo, false)},
+            {:bulk_create, ecto_changeset(changeset.data, changeset, :create, repo, false), repo},
             resource
           )
       end
@@ -2991,7 +2991,7 @@ defmodule AshPostgres.DataLayer do
         handle_raised_error(
           e,
           __STACKTRACE__,
-          {:bulk_create, ecto_changeset(changeset.data, changeset, :create, repo, false)},
+          {:bulk_create, ecto_changeset(changeset.data, changeset, :create, repo, false), repo},
           resource
         )
     end
@@ -3118,7 +3118,7 @@ defmodule AshPostgres.DataLayer do
         handle_raised_error(
           e,
           __STACKTRACE__,
-          {:bulk_create, ecto_changeset(changeset.data, changeset, :update, repo, false)},
+          {:bulk_create, ecto_changeset(changeset.data, changeset, :update, repo, false), repo},
           resource
         )
     end
@@ -3733,7 +3733,7 @@ defmodule AshPostgres.DataLayer do
   defp handle_raised_error(
          %Postgrex.Error{} = error,
          stacktrace,
-         {:bulk_create, fake_changeset},
+         {:bulk_create, fake_changeset, repo},
          resource
        ) do
     case Ecto.Adapters.Postgres.Connection.to_constraints(error, []) do
@@ -3743,7 +3743,7 @@ defmodule AshPostgres.DataLayer do
       constraints ->
         {:error,
          fake_changeset
-         |> constraints_to_errors(:insert, constraints, resource, error)
+         |> constraints_to_errors(:insert, constraints, resource, repo, error)
          |> Ash.Error.to_ash_error()}
     end
   end
@@ -3751,11 +3751,11 @@ defmodule AshPostgres.DataLayer do
   defp handle_raised_error(
          %Postgrex.Error{} = error,
          stacktrace,
-         {:ecto_changeset, action, changeset},
+         {:ecto_changeset, action, changeset, repo},
          resource
        )
        when action in [:insert, :update, :delete] do
-    handle_postgrex_error(error, stacktrace, changeset, resource, action)
+    handle_postgrex_error(error, stacktrace, changeset, resource, action, repo)
   end
 
   # Postgrex raises this when a parameter cannot be encoded for its column type. The
@@ -3790,7 +3790,14 @@ defmodule AshPostgres.DataLayer do
          changeset,
          resource
        ) do
-    handle_postgrex_error(error, stacktrace, changeset, resource, :insert)
+    handle_postgrex_error(
+      error,
+      stacktrace,
+      changeset,
+      resource,
+      :insert,
+      AshPostgres.DataLayer.Info.repo(resource, :mutate)
+    )
   end
 
   # Ecto raises this whenever a `%Postgrex.Interval{}` reaches `Ash.Type.Duration`, which
@@ -3816,10 +3823,10 @@ defmodule AshPostgres.DataLayer do
 
   @encode_error_message "a value does not fit the type of its column"
 
-  defp encode_error({:ecto_changeset, _action, _changeset}),
+  defp encode_error({:ecto_changeset, _action, _changeset, _repo}),
     do: Ash.Error.Changes.InvalidChanges.exception(message: @encode_error_message)
 
-  defp encode_error({:bulk_create, _fake_changeset}),
+  defp encode_error({:bulk_create, _fake_changeset, _repo}),
     do: Ash.Error.Changes.InvalidChanges.exception(message: @encode_error_message)
 
   defp encode_error(_query),
@@ -3849,7 +3856,7 @@ defmodule AshPostgres.DataLayer do
     """
   end
 
-  defp handle_postgrex_error(error, stacktrace, changeset, resource, action) do
+  defp handle_postgrex_error(error, stacktrace, changeset, resource, action, repo) do
     case Ecto.Adapters.Postgres.Connection.to_constraints(error, []) do
       [] ->
         constraints = maybe_foreign_key_violation_constraints(error)
@@ -3857,7 +3864,7 @@ defmodule AshPostgres.DataLayer do
         if constraints != [] do
           {:error,
            changeset
-           |> constraints_to_errors(action, constraints, resource, error)
+           |> constraints_to_errors(action, constraints, resource, repo, error)
            |> Ash.Error.to_ash_error()}
         else
           {:error, Ash.Error.to_ash_error(error, stacktrace)}
@@ -3866,7 +3873,7 @@ defmodule AshPostgres.DataLayer do
       constraints ->
         {:error,
          changeset
-         |> constraints_to_errors(action, constraints, resource, error)
+         |> constraints_to_errors(action, constraints, resource, repo, error)
          |> Ash.Error.to_ash_error()}
     end
   end
@@ -3885,7 +3892,10 @@ defmodule AshPostgres.DataLayer do
 
   defp maybe_foreign_key_violation_constraints(_), do: []
 
-  defp repertoire_error({:ecto_changeset, _action, %Ecto.Changeset{changes: changes}}, message) do
+  defp repertoire_error(
+         {:ecto_changeset, _action, %Ecto.Changeset{changes: changes}, _repo},
+         message
+       ) do
     case Enum.filter(changes, fn {_field, value} -> unstorable_text?(value) end) do
       [] ->
         Ash.Error.Changes.InvalidChanges.exception(message: message)
@@ -3903,7 +3913,7 @@ defmodule AshPostgres.DataLayer do
 
   # The changeset built for a create's rescue carries no changes, so the attribute
   # cannot be named here
-  defp repertoire_error({:bulk_create, _fake_changeset}, message) do
+  defp repertoire_error({:bulk_create, _fake_changeset, _repo}, message) do
     Ash.Error.Changes.InvalidChanges.exception(message: message)
   end
 
@@ -3916,11 +3926,29 @@ defmodule AshPostgres.DataLayer do
 
   defp unstorable_text?(_value), do: false
 
+  defp constraint_identity(changeset, resource, repo, user_constraint) do
+    table = Ecto.get_meta(changeset.data, :source) || AshPostgres.DataLayer.Info.table(resource)
+
+    resource
+    |> Ash.Resource.Info.identities()
+    |> Enum.find(fn identity ->
+      {name, _match} = identity_constraint(repo, resource, table, identity)
+      same_constraint_name?(name, user_constraint.constraint)
+    end)
+  end
+
+  defp same_constraint_name?(%Regex{} = left, %Regex{} = right) do
+    Regex.source(left) == Regex.source(right) and Regex.opts(left) == Regex.opts(right)
+  end
+
+  defp same_constraint_name?(left, right), do: left == right
+
   defp constraints_to_errors(
          %{constraints: user_constraints} = changeset,
          action,
          constraints,
          resource,
+         repo,
          error
        ) do
     Enum.map(constraints, fn {type, constraint} ->
@@ -3936,16 +3964,8 @@ defmodule AshPostgres.DataLayer do
         end)
 
       case user_constraint do
-        %{field: field, error_message: error_message, type: type, constraint: constraint} ->
-          identities = Ash.Resource.Info.identities(resource)
-          table = AshPostgres.DataLayer.Info.table(resource)
-          index_names = AshPostgres.DataLayer.Info.identity_index_names(resource)
-
-          identity =
-            Enum.find(identities, fn identity ->
-              (index_names[identity.name] || "#{table}_#{identity.name}_index") == constraint
-            end)
-
+        %{field: field, error_message: error_message} ->
+          identity = constraint_identity(changeset, resource, repo, user_constraint)
           field_names = if identity, do: identity.field_names || [field], else: [field]
 
           Enum.map(field_names, fn field_name ->
@@ -4012,7 +4032,7 @@ defmodule AshPostgres.DataLayer do
           AshPostgres.DataLayer.Info.schema(record.__struct__)
 
       if prefix do
-        Ecto.put_meta(record, prefix: table)
+        Ecto.put_meta(record, prefix: prefix)
       else
         record
       end
@@ -4116,7 +4136,7 @@ defmodule AshPostgres.DataLayer do
     |> Enum.reduce(changeset, fn constraint, changeset ->
       case constraint do
         {key, name} ->
-          case repo.default_constraint_match_type(:check, name) do
+          case repo.default_constraint_match_type(:exclusion, name) do
             {:regex, regex} ->
               Ecto.Changeset.exclusion_constraint(changeset, key,
                 name: regex,
@@ -4131,7 +4151,7 @@ defmodule AshPostgres.DataLayer do
           end
 
         {key, name, message} ->
-          case repo.default_constraint_match_type(:check, name) do
+          case repo.default_constraint_match_type(:exclusion, name) do
             {:regex, regex} ->
               Ecto.Changeset.exclusion_constraint(changeset, key,
                 name: regex,
@@ -4290,6 +4310,20 @@ defmodule AshPostgres.DataLayer do
     end)
   end
 
+  # The name (or, when the repo matches it by regex, the pattern) and match type that an
+  # identity's constraint is registered under. `constraints_to_errors/5` computes this again
+  # to tell which identity a violated constraint belongs to.
+  defp identity_constraint(repo, resource, table, identity) do
+    name =
+      AshPostgres.DataLayer.Info.identity_index_names(resource)[identity.name] ||
+        "#{table}_#{identity.name}_index"
+
+    case repo.default_constraint_match_type(:unique, name) do
+      {:regex, regex} -> {regex, :exact}
+      match -> {name, match}
+    end
+  end
+
   defp add_unique_indexes(changeset, resource, ash_changeset, repo) do
     table = table(resource, ash_changeset)
     pkey = Ash.Resource.Info.primary_key(resource)
@@ -4298,25 +4332,13 @@ defmodule AshPostgres.DataLayer do
       resource
       |> Ash.Resource.Info.identities()
       |> Enum.reduce(changeset, fn identity, changeset ->
-        name =
-          AshPostgres.DataLayer.Info.identity_index_names(resource)[identity.name] ||
-            "#{table}_#{identity.name}_index"
+        {name, match} = identity_constraint(repo, resource, table, identity)
 
         opts =
-          case repo.default_constraint_match_type(:unique, name) do
-            {:regex, regex} ->
-              if Map.get(identity, :message) do
-                [name: regex, message: identity.message, match: :exact]
-              else
-                [name: regex, match: :exact]
-              end
-
-            index_match_type ->
-              if Map.get(identity, :message) do
-                [name: name, message: identity.message, match: index_match_type]
-              else
-                [name: name, match: index_match_type]
-              end
+          if Map.get(identity, :message) do
+            [name: name, message: identity.message, match: match]
+          else
+            [name: name, match: match]
           end
 
         fields =
@@ -4874,7 +4896,7 @@ defmodule AshPostgres.DataLayer do
               handle_raised_error(
                 e,
                 __STACKTRACE__,
-                {:ecto_changeset, :delete, ecto_changeset},
+                {:ecto_changeset, :delete, ecto_changeset, repo},
                 resource
               )
           end

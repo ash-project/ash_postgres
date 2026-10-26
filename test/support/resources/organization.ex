@@ -49,6 +49,7 @@ defmodule AshPostgres.Test.Organization do
     attribute(:name, :string, public?: true)
     attribute(:department, :string, public?: true)
     attribute(:external_id, :string, public?: true)
+    attribute(:external_ref, :string, public?: true)
   end
 
   calculations do
@@ -58,6 +59,7 @@ defmodule AshPostgres.Test.Organization do
   identities do
     identity(:department, [:lower_department], field_names: [:department_slug])
     identity(:unique_external_id, [:name, :external_id], field_names: [:external_id])
+    identity(:unique_external_ref, [:name, :external_ref], field_names: [:external_ref])
   end
 
   relationships do
