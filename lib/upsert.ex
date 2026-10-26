@@ -74,7 +74,7 @@ defmodule AshPostgres.Upsert do
 
   defp do_insert_all(repo, resource, entries, opts) do
     table = Keyword.fetch!(opts, :table)
-    prefix = opts[:prefix]
+    prefix = opts[:prefix] || repo.default_options(:insert_all)[:prefix]
 
     # 1. (cols) VALUES ($1, $2, DEFAULT), ... -- values dumped through the resource's Ecto schema.
     {header, values_sql, values_params, counter} = build_values(repo, resource, entries)
