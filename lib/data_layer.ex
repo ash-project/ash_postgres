@@ -3939,10 +3939,11 @@ defmodule AshPostgres.DataLayer do
         %{field: field, error_message: error_message, type: type, constraint: constraint} ->
           identities = Ash.Resource.Info.identities(resource)
           table = AshPostgres.DataLayer.Info.table(resource)
+          index_names = AshPostgres.DataLayer.Info.identity_index_names(resource)
 
           identity =
             Enum.find(identities, fn identity ->
-              "#{table}_#{identity.name}_index" == constraint
+              (index_names[identity.name] || "#{table}_#{identity.name}_index") == constraint
             end)
 
           field_names = if identity, do: identity.field_names || [field], else: [field]

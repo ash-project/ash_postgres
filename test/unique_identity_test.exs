@@ -35,6 +35,26 @@ defmodule AshPostgres.Test.UniqueIdentityTest do
     assert %Ash.Error.Changes.InvalidAttribute{field: :department_slug} = invalid_attribute
   end
 
+  test "unique constraint field names are set when the index is renamed" do
+    attrs = %{name: "Acme", external_id: "ext-1"}
+
+    Organization
+    |> Ash.Changeset.for_create(:create, attrs)
+    |> Ash.create!()
+
+    assert {:error, %Ash.Error.Invalid{errors: [invalid_attribute]}} =
+             Organization
+             |> Ash.Changeset.for_create(:create, attrs)
+             |> Ash.create()
+
+    assert %Ash.Error.Changes.InvalidAttribute{
+             field: :external_id,
+             private_vars: private_vars
+           } = invalid_attribute
+
+    assert private_vars[:constraint] == "orgs_name_external_id_index"
+  end
+
   test "a unique constraint can be used to upsert when the resource has a base filter" do
     post =
       Post

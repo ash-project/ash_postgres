@@ -16,6 +16,8 @@ defmodule AshPostgres.Test.Organization do
     repo(AshPostgres.TestRepo)
 
     calculations_to_sql(lower_department: "LOWER(department)")
+
+    identity_index_names(unique_external_id: "orgs_name_external_id_index")
   end
 
   policies do
@@ -46,6 +48,7 @@ defmodule AshPostgres.Test.Organization do
     uuid_primary_key(:id, writable?: true)
     attribute(:name, :string, public?: true)
     attribute(:department, :string, public?: true)
+    attribute(:external_id, :string, public?: true)
   end
 
   calculations do
@@ -54,6 +57,7 @@ defmodule AshPostgres.Test.Organization do
 
   identities do
     identity(:department, [:lower_department], field_names: [:department_slug])
+    identity(:unique_external_id, [:name, :external_id], field_names: [:external_id])
   end
 
   relationships do
