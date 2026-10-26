@@ -87,7 +87,7 @@ defmodule AshPostgres.Merge do
 
   defp do_merge(repo, resource, entries, opts) do
     table = Keyword.fetch!(opts, :table)
-    prefix = opts[:prefix]
+    prefix = opts[:prefix] || repo.default_options(:insert_all)[:prefix]
 
     # 1. USING (VALUES ...) AS EXCLUDED(cols) -- rendered, dumped, and cast by Ecto.
     {values_sql, values_params} =
