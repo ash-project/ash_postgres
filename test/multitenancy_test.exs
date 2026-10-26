@@ -364,6 +364,45 @@ defmodule AshPostgres.Test.MultitenancyTest do
     assert Ash.create!(TenantPostLink, input, upsert_opts).org_id == org1.id
   end
 
+  test "an upsert on the primary key doesn't update or return a record in another tenant", %{
+    org1: org1,
+    org2: org2
+  } do
+    user = Ash.create!(User, %{name: "theirs"}, tenant: tenant(org2))
+
+    assert {:error, %Ash.Error.Invalid{errors: [%Ash.Error.Changes.StaleRecord{}]}} =
+             Ash.create(User, %{id: user.id, name: "hello"}, upsert?: true, tenant: tenant(org1))
+
+    for opts <- [
+          [upsert_fields: [:name]],
+          [upsert_fields: :replace_all],
+          [upsert_fields: [:name], return_skipped_upsert?: true]
+        ] do
+      upsert_opts = [upsert?: true, tenant: tenant(org1)] ++ opts
+
+      assert {:error, %Ash.Error.Invalid{errors: [%Ash.Error.Changes.StaleRecord{}]}} =
+               Ash.create(User, %{id: user.id, name: "hello"}, upsert_opts)
+
+      assert %Ash.BulkResult{records: []} =
+               Ash.bulk_create(
+                 [%{id: user.id, name: "hello"}],
+                 User,
+                 :create,
+                 upsert_opts ++ [return_records?: true, return_errors?: true]
+               )
+    end
+
+    assert %{name: "theirs", org_id: org_id} = Ash.get!(User, user.id, tenant: tenant(org2))
+    assert org_id == org2.id
+
+    assert %{name: "hello"} =
+             Ash.create!(User, %{id: user.id, name: "hello"},
+               upsert?: true,
+               upsert_fields: [:name],
+               tenant: tenant(org2)
+             )
+  end
+
   test "manage_relationship from context multitenant resource to attribute multitenant resource doesn't raise an error" do
     org = Org |> Ash.Changeset.new() |> Ash.create!()
     user = User |> Ash.Changeset.new() |> Ash.create!()
