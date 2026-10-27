@@ -30,6 +30,8 @@ defmodule AshPostgres.Test.Permalink do
     table "post_permalinks"
     repo AshPostgres.TestRepo
 
+    foreign_key_names [{:post_id, "post_permalinks_post_id_fkey", "post must exist"}]
+
     references do
       reference :post, on_delete: :nothing
     end

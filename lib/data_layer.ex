@@ -3577,24 +3577,28 @@ defmodule AshPostgres.DataLayer do
       |> set_table(changeset, type, table_error?)
       |> Ecto.Changeset.cast(%{}, [])
       |> force_changes(Map.take(changeset.attributes, attributes_to_change))
-      |> add_configured_foreign_key_constraints(record.__struct__, repo)
       |> add_unique_indexes(record.__struct__, changeset, repo)
       |> add_check_constraints(record.__struct__, repo)
       |> add_exclusion_constraints(record.__struct__, repo)
 
+    # Ecto uses the most recently added matching constraint, so configured
+    # `foreign_key_names` are added last to override the relationship-derived ones.
     case type do
       :create ->
         ecto_changeset
         |> add_my_foreign_key_constraints(record.__struct__, repo)
+        |> add_configured_foreign_key_constraints(record.__struct__, repo)
 
       type when type in [:upsert, :update] ->
         ecto_changeset
         |> add_my_foreign_key_constraints(record.__struct__, repo)
         |> add_related_foreign_key_constraints(record.__struct__, repo, :update)
+        |> add_configured_foreign_key_constraints(record.__struct__, repo)
 
       :delete ->
         ecto_changeset
         |> add_related_foreign_key_constraints(record.__struct__, repo, :delete)
+        |> add_configured_foreign_key_constraints(record.__struct__, repo)
     end
   end
 
