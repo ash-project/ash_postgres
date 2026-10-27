@@ -37,7 +37,10 @@ defmodule AshPostgres.Test.SourcedFkChild do
     repo AshPostgres.TestRepo
 
     references do
-      reference :parent, on_delete: :restrict
+      reference :parent,
+        on_delete: :restrict,
+        on_delete_message: "parent still has children",
+        on_update_message: "parent is still referenced by children"
     end
   end
 end
