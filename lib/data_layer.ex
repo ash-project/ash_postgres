@@ -3577,24 +3577,28 @@ defmodule AshPostgres.DataLayer do
       |> set_table(changeset, type, table_error?)
       |> Ecto.Changeset.cast(%{}, [])
       |> force_changes(Map.take(changeset.attributes, attributes_to_change))
-      |> add_configured_foreign_key_constraints(record.__struct__, repo)
       |> add_unique_indexes(record.__struct__, changeset, repo)
       |> add_check_constraints(record.__struct__, repo)
       |> add_exclusion_constraints(record.__struct__, repo)
 
+    # Ecto uses the most recently added matching constraint, so configured
+    # `foreign_key_names` are added last to override the relationship-derived ones.
     case type do
       :create ->
         ecto_changeset
         |> add_my_foreign_key_constraints(record.__struct__, repo)
+        |> add_configured_foreign_key_constraints(record.__struct__, repo)
 
       type when type in [:upsert, :update] ->
         ecto_changeset
         |> add_my_foreign_key_constraints(record.__struct__, repo)
-        |> add_related_foreign_key_constraints(record.__struct__, repo)
+        |> add_related_foreign_key_constraints(record.__struct__, repo, :update)
+        |> add_configured_foreign_key_constraints(record.__struct__, repo)
 
       :delete ->
         ecto_changeset
-        |> add_related_foreign_key_constraints(record.__struct__, repo)
+        |> add_related_foreign_key_constraints(record.__struct__, repo, :delete)
+        |> add_configured_foreign_key_constraints(record.__struct__, repo)
     end
   end
 
@@ -4170,7 +4174,7 @@ defmodule AshPostgres.DataLayer do
     end)
   end
 
-  defp add_related_foreign_key_constraints(changeset, resource, repo) do
+  defp add_related_foreign_key_constraints(changeset, resource, repo, type) do
     # TODO: this doesn't guarantee us to get all of them, because if something is related to this
     # schema and there is no back-relation, then this won't catch it's foreign key constraints
     resource
@@ -4190,43 +4194,38 @@ defmodule AshPostgres.DataLayer do
                                    name: relationship_name
                                  },
                                  changeset ->
-      case AshPostgres.DataLayer.Info.reference(source, relationship_name) do
-        %{name: name} when not is_nil(name) ->
-          case repo.default_constraint_match_type(:foreign, name) do
-            {:regex, regex} ->
-              Ecto.Changeset.foreign_key_constraint(changeset, destination_attribute,
-                name: regex,
-                message: "would leave records behind",
-                match: :exact
-              )
+      reference = AshPostgres.DataLayer.Info.reference(source, relationship_name)
 
-            match ->
-              Ecto.Changeset.foreign_key_constraint(changeset, destination_attribute,
-                name: name,
-                message: "would leave records behind",
-                match: match
-              )
-          end
+      name =
+        case reference do
+          %{name: name} when not is_nil(name) ->
+            name
 
-        _ ->
-          name =
+          _ ->
             "#{AshPostgres.DataLayer.Info.table(source)}_#{attribute_source(source, source_attribute)}_fkey"
+        end
 
-          case repo.default_constraint_match_type(:foreign, name) do
-            {:regex, regex} ->
-              Ecto.Changeset.foreign_key_constraint(changeset, destination_attribute,
-                name: regex,
-                message: "would leave records behind",
-                match: :exact
-              )
+      message =
+        case {type, reference} do
+          {:delete, %{on_delete_message: message}} when not is_nil(message) -> message
+          {:update, %{on_update_message: message}} when not is_nil(message) -> message
+          _ -> "would leave records behind"
+        end
 
-            match ->
-              Ecto.Changeset.foreign_key_constraint(changeset, destination_attribute,
-                name: name,
-                message: "would leave records behind",
-                match: match
-              )
-          end
+      case repo.default_constraint_match_type(:foreign, name) do
+        {:regex, regex} ->
+          Ecto.Changeset.foreign_key_constraint(changeset, destination_attribute,
+            name: regex,
+            message: message,
+            match: :exact
+          )
+
+        match ->
+          Ecto.Changeset.foreign_key_constraint(changeset, destination_attribute,
+            name: name,
+            message: message,
+            match: match
+          )
       end
     end)
   end

@@ -198,4 +198,32 @@ defmodule AshPostgres.ReferencesTest do
     assert Keyword.get(private_vars, :constraint) == "special_name_fkey"
     assert Keyword.get(private_vars, :constraint_type) == :foreign_key
   end
+
+  test "foreign_key_names message takes precedence over the relationship's foreign key on create" do
+    assert {:error, %Ash.Error.Invalid{errors: errors}} =
+             AshPostgres.Test.Permalink
+             |> Ash.Changeset.for_create(:create, %{post_id: Ash.UUID.generate()})
+             |> Ash.create()
+
+    assert [
+             %Ash.Error.Changes.InvalidAttribute{
+               field: :post_id,
+               message: "post must exist"
+             }
+           ] = errors
+  end
+
+  test "foreign_key_names message takes precedence over the related foreign key on destroy" do
+    container = Ash.create!(AshPostgres.Test.Container, %{})
+    Ash.create!(AshPostgres.Test.Item, %{container_id: container.id})
+
+    assert {:error, %Ash.Error.Invalid{errors: errors}} = Ash.destroy(container)
+
+    assert [
+             %Ash.Error.Changes.InvalidAttribute{
+               field: :id,
+               message: "container still has items"
+             }
+           ] = errors
+  end
 end

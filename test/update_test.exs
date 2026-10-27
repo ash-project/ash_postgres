@@ -4,10 +4,33 @@
 
 defmodule AshPostgres.UpdateTest do
   use AshPostgres.RepoCase, async: false
-  alias AshPostgres.Test.Post
+  alias AshPostgres.Test.{Permalink, Post}
   require Ash.Query
   import ExUnit.CaptureLog
   import Ash.Expr
+
+  test "updating a referenced attribute returns would leave records behind error" do
+    post =
+      Post
+      |> Ash.Changeset.for_create(:create, %{})
+      |> Ash.create!()
+
+    Permalink |> Ash.Changeset.for_create(:create, %{post_id: post.id}) |> Ash.create!()
+
+    assert {:error, %Ash.Error.Invalid{errors: errors}} =
+             post
+             |> Ash.Changeset.for_update(:update, %{id: Ash.UUID.generate()})
+             |> Ash.update()
+
+    assert Enum.any?(errors, fn
+             %Ash.Error.Changes.InvalidAttribute{message: msg} ->
+               msg =~ "would leave records behind"
+
+             _ ->
+               false
+           end),
+           "Expected 'would leave records behind' error, got: #{inspect(errors)}"
+  end
 
   test "can update a keyword type attribute" do
     post =

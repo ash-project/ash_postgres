@@ -11,11 +11,11 @@ defmodule AshPostgres.Test.SourcedFkParent do
   actions do
     default_accept(:*)
 
-    defaults([:create, :read, :destroy])
+    defaults([:create, :read, :destroy, :update])
   end
 
   attributes do
-    uuid_primary_key(:id)
+    uuid_primary_key(:id, writable?: true, public?: true)
   end
 
   relationships do

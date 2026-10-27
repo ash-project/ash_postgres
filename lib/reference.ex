@@ -8,6 +8,8 @@ defmodule AshPostgres.Reference do
     :relationship,
     :on_delete,
     :on_update,
+    :on_delete_message,
+    :on_update_message,
     :name,
     :match_with,
     :match_type,
@@ -41,6 +43,16 @@ defmodule AshPostgres.Reference do
         doc: """
         What should happen to records of this resource when the referenced record of the *destination* resource is deleted.
         """
+      ],
+      on_delete_message: [
+        type: :string,
+        doc:
+          "A custom message to use when deleting a *destination* record is prevented by this foreign key, e.g. with `on_delete: :restrict`"
+      ],
+      on_update_message: [
+        type: :string,
+        doc:
+          "A custom message to use when updating the referenced attribute of a *destination* record is prevented by this foreign key, e.g. with `on_update: :restrict`"
       ],
       on_update: [
         type: {:one_of, [:update, :nilify, :nothing, :restrict]},

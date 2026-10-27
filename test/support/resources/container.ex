@@ -11,11 +11,13 @@ defmodule AshPostgres.Test.Container do
   postgres do
     table "containers"
     repo AshPostgres.TestRepo
+
+    foreign_key_names [{:id, "items_container_id_fkey", "container still has items"}]
   end
 
   actions do
     default_accept(:*)
-    defaults([:read, create: :*])
+    defaults([:read, :destroy, create: :*])
   end
 
   attributes do
