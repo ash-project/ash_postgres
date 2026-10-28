@@ -108,8 +108,8 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
     `down`-validity reason as `:column_custom_index_removed`.
   - `:column_custom_index_removed` — every `RemoveCustomIndex` whose
     structured `fields` list includes this column has run. `RenameAttribute`
-    requires this for its own column so `down` stays valid (see above). Only
-    tracks `fields`, not raw `where`/expression text that might reference
+    and `RemoveAttribute` require this for their own column so `down` stays valid.
+    It tracks `fields`, not raw `where`/expression text that might reference
     the column without listing it — a known gap, to be closed later by
     letting `custom_indexes` declare the columns a raw `where`/expression
     touches, rather than by conservatively widening this back to table
@@ -254,7 +254,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
           structure_ready_facts(table, schema) ++
             Enum.map(index.fields, fn field ->
               {:column_custom_index_removed,
-               key(table, schema, AshPostgres.CustomIndex.column_name(field))}
+               key(table, schema, normalize_column(AshPostgres.CustomIndex.column_name(field)))}
             end)
 
         [{:custom_index_removed, key(table, schema, custom_index_name(table, index))} | base]
@@ -417,7 +417,8 @@ defmodule AshPostgres.MigrationGenerator.OperationDeps do
       %Operation.RemoveAttribute{table: table, schema: schema, attribute: attribute} ->
         [
           {:table_ready, key(table, schema)},
-          {:column_check_constraint_removed, key(table, schema, attribute.source)}
+          {:column_check_constraint_removed, key(table, schema, attribute.source)},
+          {:column_custom_index_removed, key(table, schema, attribute.source)}
         ]
 
       %Operation.AddUniqueIndex{table: table, schema: schema, identity: identity} = op ->
