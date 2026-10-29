@@ -588,7 +588,7 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
     end
   end
 
-  describe "down-sequence validity for renames" do
+  describe "down-sequence validity for renames and removals" do
     # A generated migration's `down` is the same operation order reversed,
     # rendering each operation's `down/1` (see the moduledoc). So even though
     # Postgres itself doesn't need an index/constraint removed before a
@@ -661,6 +661,26 @@ defmodule AshPostgres.MigrationGenerator.OperationDepsTest do
         |> Enum.filter(&match?({:column_unique_index_removed, _}, &1))
 
       assert fact in OperationDeps.requires(rename)
+    end
+
+    test "a custom index is dropped before its column so rollback restores the column first" do
+      remove_attribute = %Operation.RemoveAttribute{
+        table: "posts",
+        schema: nil,
+        commented?: false,
+        attribute: %{source: :title}
+      }
+
+      remove_index = %Operation.RemoveCustomIndex{
+        table: "posts",
+        schema: nil,
+        index: %{name: "posts_author_title_index", fields: [:author_id, :title]},
+        base_filter: nil,
+        multitenancy: %{attribute: nil, strategy: nil, global: nil}
+      }
+
+      assert MigrationGenerator.toposort_operations([remove_attribute, remove_index]) ==
+               [remove_index, remove_attribute]
     end
 
     test "RemoveAttribute requires column_check_constraint_removed, satisfied by the RemoveCheckConstraint that covered it" do
