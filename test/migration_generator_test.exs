@@ -2511,6 +2511,86 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       refute File.read!(file2) =~ ~S[null: false]
     end
+
+    test "when an attribute exists only on some of the resources that use the same table with manual create actions, it isn't marked as null: false",
+         %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defmodule ManualCreate do
+        use Ash.Resource.ManualCreate
+
+        def create(changeset, _opts, _context) do
+          Ash.Changeset.apply_attributes(changeset)
+        end
+      end
+
+      defresource Post do
+        postgres do
+          table "posts"
+          repo(AshPostgres.TestRepo)
+
+          custom_indexes do
+            index(["id"])
+            index(["id"], unique: true, name: "test_unique_index")
+          end
+        end
+
+        actions do
+          defaults([:read, :update, :destroy])
+
+          create :create do
+            manual(ManualCreate)
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+          attribute(:example, :string, allow_nil?: false, public?: true)
+        end
+      end
+
+      defresource Post2 do
+        postgres do
+          table "posts"
+          repo(AshPostgres.TestRepo)
+
+          custom_indexes do
+            index(["id"])
+            index(["id"], unique: true, name: "test_unique_index")
+          end
+        end
+
+        actions do
+          defaults([:read, :update, :destroy])
+
+          create :create do
+            manual(ManualCreate)
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defdomain([Post, Post2])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true
+      )
+
+      assert [_file1, file2] =
+               Enum.sort(Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs"))
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      assert File.read!(file2) =~
+               ~S[add :example, :text] <> "\n"
+
+      refute File.read!(file2) =~ ~S[null: false]
+    end
   end
 
   describe "auto incrementing integer, when generated" do
