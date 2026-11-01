@@ -324,6 +324,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
           password: "postgres",
           database: "ash_postgres_test",
           hostname: "localhost",
+          port: AshPostgres.TestRepo.config()[:port],
           pool: Ecto.Adapters.SQL.Sandbox,
           types: AshPostgres.Test.PostgrexTypes
         )
