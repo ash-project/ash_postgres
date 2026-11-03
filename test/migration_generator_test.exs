@@ -149,6 +149,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
     )
   end
 
+  defp read_resource_migration!(migration_path) do
+    assert [file] =
+             Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+             |> Enum.reject(&String.contains?(&1, "extensions"))
+
+    File.read!(file)
+  end
+
   defp flush_mix_shell do
     receive do
       {:mix_shell, _, _} -> flush_mix_shell()
@@ -5899,13 +5907,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
         auto_name: true
       )
 
-      assert [file] =
-               Path.wildcard(
-                 "#{migration_path}/relationship_context_polymorphic_delete/**/*_migrate_resources*.exs"
-               )
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      current_migration_path = Path.join(migration_path, "relationship_context_polymorphic_delete")
+      migration = read_resource_migration!(current_migration_path)
 
-      assert File.read!(file) =~
+      assert migration =~
                ~r/references\(:relationship_context_polymorphic_delete_posts\b[^)]*on_delete: :delete_all/
     end
 
