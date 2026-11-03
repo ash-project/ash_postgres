@@ -132,6 +132,79 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  defmacrop deflegacy_polymorphic_resources(
+              module_suffix,
+              post_table,
+              relationship_table,
+              reference_option,
+              reference_value
+            ) do
+    module_suffix = Macro.expand(module_suffix, __CALLER__)
+    post_table = Macro.expand(post_table, __CALLER__)
+    relationship_table = Macro.expand(relationship_table, __CALLER__)
+    reference_option = Macro.expand(reference_option, __CALLER__)
+    reference_value = Macro.expand(reference_value, __CALLER__)
+
+    comment = Module.concat([:Elixir, "LegacyPolymorphic#{module_suffix}Comment"])
+    post = Module.concat([:Elixir, "LegacyPolymorphic#{module_suffix}Post"])
+    domain = Module.concat([:Elixir, "LegacyPolymorphic#{module_suffix}Domain"])
+    reference = {reference_option, [], [reference_value]}
+
+    quote do
+      defresource unquote(comment) do
+        postgres do
+          polymorphic?(true)
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:resource_id, :uuid, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defresource unquote(post) do
+        postgres do
+          table unquote(post_table)
+          repo(AshPostgres.TestRepo)
+
+          references do
+            unquote(reference)
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        relationships do
+          has_many(:comments, unquote(comment),
+            public?: true,
+            destination_attribute: :resource_id,
+            relationship_context: %{data_layer: %{table: unquote(relationship_table)}}
+          )
+        end
+      end
+
+      defmodule unquote(domain) do
+        use Ash.Domain
+
+        resources do
+          resource(unquote(post))
+          resource(unquote(comment))
+        end
+      end
+    end
+  end
+
   defp position_of_substring(string, substring) do
     case :binary.match(string, substring) do
       {pos, _len} -> pos
@@ -5651,65 +5724,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
       snapshot_path: snapshot_path,
       migration_path: migration_path
     } do
-
-      defresource LegacyPolymorphicComment do
-        postgres do
-          polymorphic?(true)
-          repo(AshPostgres.TestRepo)
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:resource_id, :uuid, public?: true)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-      end
-
-      defresource LegacyPolymorphicPost do
-        postgres do
-          table "legacy_polymorphic_posts"
-          repo(AshPostgres.TestRepo)
-
-          references do
-            polymorphic_on_delete(:delete)
-          end
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        relationships do
-          has_many(:comments, LegacyPolymorphicComment,
-            public?: true,
-            destination_attribute: :resource_id,
-            relationship_context: %{data_layer: %{table: "legacy_post_comments"}}
-          )
-        end
-      end
-
-      Code.compiler_options(ignore_module_conflict: true)
-
-      defmodule LegacyPolymorphicDomain do
-        use Ash.Domain
-
-        resources do
-          resource(LegacyPolymorphicPost)
-          resource(LegacyPolymorphicComment)
-        end
-      end
-
-      Code.compiler_options(ignore_module_conflict: false)
+      deflegacy_polymorphic_resources(
+        "Delete",
+        "legacy_polymorphic_posts",
+        "legacy_post_comments",
+        :polymorphic_on_delete,
+        :delete
+      )
 
       generate_resource_migration(
-        LegacyPolymorphicDomain,
+        Elixir.LegacyPolymorphicDeleteDomain,
         snapshot_path,
         migration_path,
         "legacy_polymorphic"
@@ -6257,64 +6281,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
       snapshot_path: snapshot_path,
       migration_path: migration_path
     } do
-      defresource LegacyPolymorphicUpdateComment do
-        postgres do
-          polymorphic?(true)
-          repo(AshPostgres.TestRepo)
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:resource_id, :uuid, public?: true)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-      end
-
-      defresource LegacyPolymorphicUpdatePost do
-        postgres do
-          table "legacy_polymorphic_update_posts"
-          repo(AshPostgres.TestRepo)
-
-          references do
-            polymorphic_on_update(:update)
-          end
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        relationships do
-          has_many(:comments, LegacyPolymorphicUpdateComment,
-            public?: true,
-            destination_attribute: :resource_id,
-            relationship_context: %{data_layer: %{table: "legacy_update_post_comments"}}
-          )
-        end
-      end
-
-      Code.compiler_options(ignore_module_conflict: true)
-
-      defmodule LegacyPolymorphicUpdateDomain do
-        use Ash.Domain
-
-        resources do
-          resource(LegacyPolymorphicUpdatePost)
-          resource(LegacyPolymorphicUpdateComment)
-        end
-      end
-
-      Code.compiler_options(ignore_module_conflict: false)
+      deflegacy_polymorphic_resources(
+        "Update",
+        "legacy_polymorphic_update_posts",
+        "legacy_update_post_comments",
+        :polymorphic_on_update,
+        :update
+      )
 
       generate_resource_migration(
-        LegacyPolymorphicUpdateDomain,
+        Elixir.LegacyPolymorphicUpdateDomain,
         snapshot_path,
         migration_path,
         "legacy_polymorphic_update"
@@ -6863,64 +6839,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
       snapshot_path: snapshot_path,
       migration_path: migration_path
     } do
-      defresource LegacyPolymorphicNameComment do
-        postgres do
-          polymorphic?(true)
-          repo(AshPostgres.TestRepo)
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:resource_id, :uuid, public?: true)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-      end
-
-      defresource LegacyPolymorphicNamePost do
-        postgres do
-          table "legacy_polymorphic_name_posts"
-          repo(AshPostgres.TestRepo)
-
-          references do
-            polymorphic_name("custom_polymorphic_name_fkey")
-          end
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        relationships do
-          has_many(:comments, LegacyPolymorphicNameComment,
-            public?: true,
-            destination_attribute: :resource_id,
-            relationship_context: %{data_layer: %{table: "legacy_polymorphic_name_comments"}}
-          )
-        end
-      end
-
-      Code.compiler_options(ignore_module_conflict: true)
-
-      defmodule LegacyPolymorphicNameDomain do
-        use Ash.Domain
-
-        resources do
-          resource(LegacyPolymorphicNamePost)
-          resource(LegacyPolymorphicNameComment)
-        end
-      end
-
-      Code.compiler_options(ignore_module_conflict: false)
+      deflegacy_polymorphic_resources(
+        "Name",
+        "legacy_polymorphic_name_posts",
+        "legacy_polymorphic_name_comments",
+        :polymorphic_name,
+        "custom_polymorphic_name_fkey"
+      )
 
       generate_resource_migration(
-        LegacyPolymorphicNameDomain,
+        Elixir.LegacyPolymorphicNameDomain,
         snapshot_path,
         migration_path,
         "legacy_polymorphic_name"
