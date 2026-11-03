@@ -149,6 +149,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
     )
   end
 
+  defp generate_resource_migration(domain, snapshot_path, migration_path, name) do
+    generate_post_migration(
+      domain,
+      Path.join(snapshot_path, name),
+      Path.join(migration_path, name)
+    )
+  end
+
   defp read_resource_migration!(migration_path) do
     assert [file] =
              Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
@@ -5899,12 +5907,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      AshPostgres.MigrationGenerator.generate(RelationshipContextPolymorphicDeleteDomain,
-        snapshot_path: Path.join(snapshot_path, "relationship_context_polymorphic_delete"),
-        migration_path: Path.join(migration_path, "relationship_context_polymorphic_delete"),
-        quiet: true,
-        format: false,
-        auto_name: true
+      generate_resource_migration(
+        RelationshipContextPolymorphicDeleteDomain,
+        snapshot_path,
+        migration_path,
+        "relationship_context_polymorphic_delete"
       )
 
       current_migration_path = Path.join(migration_path, "relationship_context_polymorphic_delete")
