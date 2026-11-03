@@ -241,6 +241,121 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  defmacrop assert_multiple_legacy_polymorphic_rejection(
+               module_suffix,
+               reference_option,
+               first_value,
+               second_value,
+               snapshot_path,
+               migration_path
+             ) do
+    module_suffix = Macro.expand(module_suffix, __CALLER__)
+    reference_option = Macro.expand(reference_option, __CALLER__)
+    first_value = Macro.expand(first_value, __CALLER__)
+    second_value = Macro.expand(second_value, __CALLER__)
+
+    option_name = reference_option |> Atom.to_string() |> String.replace_prefix("polymorphic_", "")
+    comment = Module.concat([:Elixir, "MultipleLegacyPolymorphic#{module_suffix}Comment"])
+    first_post = Module.concat([:Elixir, "MultipleLegacyPolymorphic#{module_suffix}FirstPost"])
+    second_post = Module.concat([:Elixir, "MultipleLegacyPolymorphic#{module_suffix}SecondPost"])
+    domain = Module.concat([:Elixir, "MultipleLegacyPolymorphic#{module_suffix}Domain"])
+    post_table = "multiple_legacy_polymorphic_#{option_name}_posts"
+    relationship_table = "multiple_legacy_polymorphic_#{option_name}_comments"
+    first_reference = {reference_option, [], [first_value]}
+    second_reference = {reference_option, [], [second_value]}
+
+    quote do
+      defresource unquote(comment) do
+        postgres do
+          polymorphic?(true)
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:resource_id, :uuid, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+
+      defresource unquote(first_post) do
+        postgres do
+          table unquote(post_table)
+          repo(AshPostgres.TestRepo)
+
+          references do
+            unquote(first_reference)
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        relationships do
+          has_many(:comments, unquote(comment),
+            public?: true,
+            destination_attribute: :resource_id,
+            relationship_context: %{data_layer: %{table: unquote(relationship_table)}}
+          )
+        end
+      end
+
+      defresource unquote(second_post) do
+        postgres do
+          table unquote(post_table)
+          repo(AshPostgres.TestRepo)
+
+          references do
+            unquote(second_reference)
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        relationships do
+          has_many(:comments, unquote(comment),
+            public?: true,
+            destination_attribute: :resource_id,
+            relationship_context: %{data_layer: %{table: unquote(relationship_table)}}
+          )
+        end
+      end
+
+      defmodule unquote(domain) do
+        use Ash.Domain
+
+        resources do
+          resource(unquote(first_post))
+          resource(unquote(second_post))
+          resource(unquote(comment))
+        end
+      end
+
+      assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
+        generate_resource_migration(
+          unquote(domain),
+          unquote(snapshot_path),
+          unquote(migration_path),
+          unquote("multiple_legacy_polymorphic_#{option_name}")
+        )
+      end
+    end
+  end
+
   defp position_of_substring(string, substring) do
     case :binary.match(string, substring) do
       {pos, _len} -> pos
@@ -5790,98 +5905,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
       snapshot_path: snapshot_path,
       migration_path: migration_path
     } do
-      defresource MultipleLegacyPolymorphicDeleteComment do
-        postgres do
-          polymorphic?(true)
-          repo(AshPostgres.TestRepo)
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:resource_id, :uuid, public?: true)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-      end
-
-      defresource MultipleLegacyPolymorphicDeletePost do
-        postgres do
-          table "multiple_legacy_polymorphic_delete_posts"
-          repo(AshPostgres.TestRepo)
-
-          references do
-            polymorphic_on_delete(:delete)
-          end
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        relationships do
-          has_many(:comments, MultipleLegacyPolymorphicDeleteComment,
-            public?: true,
-            destination_attribute: :resource_id,
-            relationship_context: %{
-              data_layer: %{table: "multiple_legacy_polymorphic_delete_comments"}
-            }
-          )
-        end
-      end
-
-      defresource MultipleLegacyPolymorphicNilifyPost do
-        postgres do
-          table "multiple_legacy_polymorphic_delete_posts"
-          repo(AshPostgres.TestRepo)
-
-          references do
-            polymorphic_on_delete(:nilify)
-          end
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        relationships do
-          has_many(:comments, MultipleLegacyPolymorphicDeleteComment,
-            public?: true,
-            destination_attribute: :resource_id,
-            relationship_context: %{
-              data_layer: %{table: "multiple_legacy_polymorphic_delete_comments"}
-            }
-          )
-        end
-      end
-
-      defmodule MultipleLegacyPolymorphicDeleteDomain do
-        use Ash.Domain
-
-        resources do
-          resource(MultipleLegacyPolymorphicDeletePost)
-          resource(MultipleLegacyPolymorphicNilifyPost)
-          resource(MultipleLegacyPolymorphicDeleteComment)
-        end
-      end
-
-      assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
-        generate_resource_migration(
-          MultipleLegacyPolymorphicDeleteDomain,
-          snapshot_path,
-          migration_path,
-          "multiple_legacy_polymorphic_delete"
-        )
-      end
+      assert_multiple_legacy_polymorphic_rejection(
+        "Delete",
+        :polymorphic_on_delete,
+        :delete,
+        :nilify,
+        snapshot_path,
+        migration_path
+      )
     end
 
     test "on_delete within relationship_context generates the expected foreign-key delete behavior.", %{
@@ -6327,98 +6358,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
       snapshot_path: snapshot_path,
       migration_path: migration_path
     } do
-      defresource MultipleLegacyPolymorphicUpdateComment do
-        postgres do
-          polymorphic?(true)
-          repo(AshPostgres.TestRepo)
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:resource_id, :uuid, public?: true)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-      end
-
-      defresource MultipleLegacyPolymorphicUpdatePost do
-        postgres do
-          table "multiple_legacy_polymorphic_update_posts"
-          repo(AshPostgres.TestRepo)
-
-          references do
-            polymorphic_on_update(:update)
-          end
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        relationships do
-          has_many(:comments, MultipleLegacyPolymorphicUpdateComment,
-            public?: true,
-            destination_attribute: :resource_id,
-            relationship_context: %{
-              data_layer: %{table: "multiple_legacy_polymorphic_update_comments"}
-            }
-          )
-        end
-      end
-
-      defresource MultipleLegacyPolymorphicRestrictUpdatePost do
-        postgres do
-          table "multiple_legacy_polymorphic_update_posts"
-          repo(AshPostgres.TestRepo)
-
-          references do
-            polymorphic_on_update(:restrict)
-          end
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        relationships do
-          has_many(:comments, MultipleLegacyPolymorphicUpdateComment,
-            public?: true,
-            destination_attribute: :resource_id,
-            relationship_context: %{
-              data_layer: %{table: "multiple_legacy_polymorphic_update_comments"}
-            }
-          )
-        end
-      end
-
-      defmodule MultipleLegacyPolymorphicUpdateDomain do
-        use Ash.Domain
-
-        resources do
-          resource(MultipleLegacyPolymorphicUpdatePost)
-          resource(MultipleLegacyPolymorphicRestrictUpdatePost)
-          resource(MultipleLegacyPolymorphicUpdateComment)
-        end
-      end
-
-      assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
-        generate_resource_migration(
-          MultipleLegacyPolymorphicUpdateDomain,
-          snapshot_path,
-          migration_path,
-          "multiple_legacy_polymorphic_update"
-        )
-      end
+      assert_multiple_legacy_polymorphic_rejection(
+        "Update",
+        :polymorphic_on_update,
+        :update,
+        :restrict,
+        snapshot_path,
+        migration_path
+      )
     end
 
     test "on_update within relationship_context generates the expected foreign-key update behavior.",
@@ -6869,98 +6816,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
       snapshot_path: snapshot_path,
       migration_path: migration_path
     } do
-      defresource MultipleLegacyPolymorphicNameComment do
-        postgres do
-          polymorphic?(true)
-          repo(AshPostgres.TestRepo)
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:resource_id, :uuid, public?: true)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-      end
-
-      defresource MultipleLegacyPolymorphicNamePost do
-        postgres do
-          table "multiple_legacy_polymorphic_name_posts"
-          repo(AshPostgres.TestRepo)
-
-          references do
-            polymorphic_name("multiple_legacy_polymorphic_name_delete_fkey")
-          end
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        relationships do
-          has_many(:comments, MultipleLegacyPolymorphicNameComment,
-            public?: true,
-            destination_attribute: :resource_id,
-            relationship_context: %{
-              data_layer: %{table: "multiple_legacy_polymorphic_name_comments"}
-            }
-          )
-        end
-      end
-
-      defresource MultipleLegacyPolymorphicCustomNamePost do
-        postgres do
-          table "multiple_legacy_polymorphic_name_posts"
-          repo(AshPostgres.TestRepo)
-
-          references do
-            polymorphic_name("multiple_legacy_polymorphic_name_update_fkey")
-          end
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        relationships do
-          has_many(:comments, MultipleLegacyPolymorphicNameComment,
-            public?: true,
-            destination_attribute: :resource_id,
-            relationship_context: %{
-              data_layer: %{table: "multiple_legacy_polymorphic_name_comments"}
-            }
-          )
-        end
-      end
-
-      defmodule MultipleLegacyPolymorphicNameDomain do
-        use Ash.Domain
-
-        resources do
-          resource(MultipleLegacyPolymorphicNamePost)
-          resource(MultipleLegacyPolymorphicCustomNamePost)
-          resource(MultipleLegacyPolymorphicNameComment)
-        end
-      end
-
-      assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
-        generate_resource_migration(
-          MultipleLegacyPolymorphicNameDomain,
-          snapshot_path,
-          migration_path,
-          "multiple_legacy_polymorphic_name"
-        )
-      end
+      assert_multiple_legacy_polymorphic_rejection(
+        "Name",
+        :polymorphic_name,
+        "multiple_legacy_polymorphic_name_delete_fkey",
+        "multiple_legacy_polymorphic_name_update_fkey",
+        snapshot_path,
+        migration_path
+      )
     end
 
     test "name within relationship_context uses the configured name for generated polymorphic foreign-key constraints.",
