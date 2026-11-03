@@ -5708,22 +5708,17 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       Code.compiler_options(ignore_module_conflict: false)
 
-      legacy_snapshot_path = Path.join(snapshot_path, "legacy_polymorphic")
-      legacy_migration_path = Path.join(migration_path, "legacy_polymorphic")
-
-      AshPostgres.MigrationGenerator.generate(LegacyPolymorphicDomain,
-        snapshot_path: legacy_snapshot_path,
-        migration_path: legacy_migration_path,
-        quiet: true,
-        format: false,
-        auto_name: true
+      generate_resource_migration(
+        LegacyPolymorphicDomain,
+        snapshot_path,
+        migration_path,
+        "legacy_polymorphic"
       )
 
-      assert [file] =
-               Path.wildcard("#{legacy_migration_path}/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      current_migration_path = Path.join(migration_path, "legacy_polymorphic")
+      migration = read_resource_migration!(current_migration_path)
 
-      assert File.read!(file) =~
+      assert migration =~
                ~r/references\(:legacy_polymorphic_posts\b[^)]*on_delete: :delete_all/
     end
 
@@ -5840,12 +5835,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
-        AshPostgres.MigrationGenerator.generate(MultipleLegacyPolymorphicDeleteDomain,
-          snapshot_path: Path.join(snapshot_path, "multiple_legacy_polymorphic_delete"),
-          migration_path: Path.join(migration_path, "multiple_legacy_polymorphic_delete"),
-          quiet: true,
-          format: false,
-          auto_name: true
+        generate_resource_migration(
+          MultipleLegacyPolymorphicDeleteDomain,
+          snapshot_path,
+          migration_path,
+          "multiple_legacy_polymorphic_delete"
         )
       end
     end
@@ -5984,12 +5978,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
-        AshPostgres.MigrationGenerator.generate(LegacyAndNewPolymorphicDeleteDomain,
-          snapshot_path: Path.join(snapshot_path, "legacy_and_new_polymorphic_delete"),
-          migration_path: Path.join(migration_path, "legacy_and_new_polymorphic_delete"),
-          quiet: true,
-          format: false,
-          auto_name: true
+        generate_resource_migration(
+          LegacyAndNewPolymorphicDeleteDomain,
+          snapshot_path,
+          migration_path,
+          "legacy_and_new_polymorphic_delete"
         )
       end
     end
@@ -6082,12 +6075,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
-        AshPostgres.MigrationGenerator.generate(CrossResourcePolymorphicDeleteDomain,
-          snapshot_path: Path.join(snapshot_path, "cross_resource_polymorphic_delete"),
-          migration_path: Path.join(migration_path, "cross_resource_polymorphic_delete"),
-          quiet: true,
-          format: false,
-          auto_name: true
+        generate_resource_migration(
+          CrossResourcePolymorphicDeleteDomain,
+          snapshot_path,
+          migration_path,
+          "cross_resource_polymorphic_delete"
         )
       end
     end
@@ -6179,12 +6171,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
-        AshPostgres.MigrationGenerator.generate(MultipleRelationshipContextPolymorphicDeleteDomain,
-          snapshot_path: Path.join(snapshot_path, "multiple_relationship_context_polymorphic_delete"),
-          migration_path: Path.join(migration_path, "multiple_relationship_context_polymorphic_delete"),
-          quiet: true,
-          format: false,
-          auto_name: true
+        generate_resource_migration(
+          MultipleRelationshipContextPolymorphicDeleteDomain,
+          snapshot_path,
+          migration_path,
+          "multiple_relationship_context_polymorphic_delete"
         )
       end
     end
@@ -6243,21 +6234,15 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      AshPostgres.MigrationGenerator.generate(DefaultPolymorphicDeleteDomain,
-        snapshot_path: Path.join(snapshot_path, "default_polymorphic_delete"),
-        migration_path: Path.join(migration_path, "default_polymorphic_delete"),
-        quiet: true,
-        format: false,
-        auto_name: true
+      generate_resource_migration(
+        DefaultPolymorphicDeleteDomain,
+        snapshot_path,
+        migration_path,
+        "default_polymorphic_delete"
       )
 
-      assert [file] =
-               Path.wildcard(
-                 "#{migration_path}/default_polymorphic_delete/**/*_migrate_resources*.exs"
-               )
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      migration = File.read!(file)
+      current_migration_path = Path.join(migration_path, "default_polymorphic_delete")
+      migration = read_resource_migration!(current_migration_path)
 
       assert migration =~
                ~r/references\(:default_polymorphic_delete_posts\b[^)]*name: "default_polymorphic_delete_comments_resource_id_fkey"/
@@ -6328,22 +6313,17 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       Code.compiler_options(ignore_module_conflict: false)
 
-      legacy_snapshot_path = Path.join(snapshot_path, "legacy_polymorphic_update")
-      legacy_migration_path = Path.join(migration_path, "legacy_polymorphic_update")
-
-      AshPostgres.MigrationGenerator.generate(LegacyPolymorphicUpdateDomain,
-        snapshot_path: legacy_snapshot_path,
-        migration_path: legacy_migration_path,
-        quiet: true,
-        format: false,
-        auto_name: true
+      generate_resource_migration(
+        LegacyPolymorphicUpdateDomain,
+        snapshot_path,
+        migration_path,
+        "legacy_polymorphic_update"
       )
 
-      assert [file] =
-               Path.wildcard("#{legacy_migration_path}/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      current_migration_path = Path.join(migration_path, "legacy_polymorphic_update")
+      migration = read_resource_migration!(current_migration_path)
 
-      assert File.read!(file) =~
+      assert migration =~
                ~r/references\(:legacy_polymorphic_update_posts\b[^)]*on_update: :update_all/
     end
 
@@ -6460,12 +6440,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
-        AshPostgres.MigrationGenerator.generate(MultipleLegacyPolymorphicUpdateDomain,
-          snapshot_path: Path.join(snapshot_path, "multiple_legacy_polymorphic_update"),
-          migration_path: Path.join(migration_path, "multiple_legacy_polymorphic_update"),
-          quiet: true,
-          format: false,
-          auto_name: true
+        generate_resource_migration(
+          MultipleLegacyPolymorphicUpdateDomain,
+          snapshot_path,
+          migration_path,
+          "multiple_legacy_polymorphic_update"
         )
       end
     end
@@ -6528,21 +6507,17 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      AshPostgres.MigrationGenerator.generate(RelationshipContextPolymorphicUpdateDomain,
-        snapshot_path: Path.join(snapshot_path, "relationship_context_polymorphic_update"),
-        migration_path: Path.join(migration_path, "relationship_context_polymorphic_update"),
-        quiet: true,
-        format: false,
-        auto_name: true
+      generate_resource_migration(
+        RelationshipContextPolymorphicUpdateDomain,
+        snapshot_path,
+        migration_path,
+        "relationship_context_polymorphic_update"
       )
 
-      assert [file] =
-               Path.wildcard(
-                 "#{migration_path}/relationship_context_polymorphic_update/**/*_migrate_resources*.exs"
-               )
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      current_migration_path = Path.join(migration_path, "relationship_context_polymorphic_update")
+      migration = read_resource_migration!(current_migration_path)
 
-      assert File.read!(file) =~
+      assert migration =~
                ~r/references\(:relationship_context_polymorphic_update_posts\b[^)]*on_update: :update_all/
     end
 
@@ -6609,12 +6584,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
-        AshPostgres.MigrationGenerator.generate(LegacyAndNewPolymorphicUpdateDomain,
-          snapshot_path: Path.join(snapshot_path, "legacy_and_new_polymorphic_update"),
-          migration_path: Path.join(migration_path, "legacy_and_new_polymorphic_update"),
-          quiet: true,
-          format: false,
-          auto_name: true
+        generate_resource_migration(
+          LegacyAndNewPolymorphicUpdateDomain,
+          snapshot_path,
+          migration_path,
+          "legacy_and_new_polymorphic_update"
         )
       end
     end
@@ -6707,12 +6681,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
-        AshPostgres.MigrationGenerator.generate(CrossResourcePolymorphicUpdateDomain,
-          snapshot_path: Path.join(snapshot_path, "cross_resource_polymorphic_update"),
-          migration_path: Path.join(migration_path, "cross_resource_polymorphic_update"),
-          quiet: true,
-          format: false,
-          auto_name: true
+        generate_resource_migration(
+          CrossResourcePolymorphicUpdateDomain,
+          snapshot_path,
+          migration_path,
+          "cross_resource_polymorphic_update"
         )
       end
     end
@@ -6804,12 +6777,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
-        AshPostgres.MigrationGenerator.generate(MultipleRelationshipContextPolymorphicUpdateDomain,
-          snapshot_path: Path.join(snapshot_path, "multiple_relationship_context_polymorphic_update"),
-          migration_path: Path.join(migration_path, "multiple_relationship_context_polymorphic_update"),
-          quiet: true,
-          format: false,
-          auto_name: true
+        generate_resource_migration(
+          MultipleRelationshipContextPolymorphicUpdateDomain,
+          snapshot_path,
+          migration_path,
+          "multiple_relationship_context_polymorphic_update"
         )
       end
     end
@@ -6868,21 +6840,15 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      AshPostgres.MigrationGenerator.generate(DefaultPolymorphicUpdateDomain,
-        snapshot_path: Path.join(snapshot_path, "default_polymorphic_update"),
-        migration_path: Path.join(migration_path, "default_polymorphic_update"),
-        quiet: true,
-        format: false,
-        auto_name: true
+      generate_resource_migration(
+        DefaultPolymorphicUpdateDomain,
+        snapshot_path,
+        migration_path,
+        "default_polymorphic_update"
       )
 
-      assert [file] =
-               Path.wildcard(
-                 "#{migration_path}/default_polymorphic_update/**/*_migrate_resources*.exs"
-               )
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      migration = File.read!(file)
+      current_migration_path = Path.join(migration_path, "default_polymorphic_update")
+      migration = read_resource_migration!(current_migration_path)
 
       assert migration =~
                ~r/references\(:default_polymorphic_update_posts\b[^)]*name: "default_polymorphic_update_comments_resource_id_fkey"/
@@ -6953,22 +6919,17 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       Code.compiler_options(ignore_module_conflict: false)
 
-      legacy_snapshot_path = Path.join(snapshot_path, "legacy_polymorphic_name")
-      legacy_migration_path = Path.join(migration_path, "legacy_polymorphic_name")
-
-      AshPostgres.MigrationGenerator.generate(LegacyPolymorphicNameDomain,
-        snapshot_path: legacy_snapshot_path,
-        migration_path: legacy_migration_path,
-        quiet: true,
-        format: false,
-        auto_name: true
+      generate_resource_migration(
+        LegacyPolymorphicNameDomain,
+        snapshot_path,
+        migration_path,
+        "legacy_polymorphic_name"
       )
 
-      assert [file] =
-               Path.wildcard("#{legacy_migration_path}/**/*_migrate_resources*.exs")
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      current_migration_path = Path.join(migration_path, "legacy_polymorphic_name")
+      migration = read_resource_migration!(current_migration_path)
 
-      assert File.read!(file) =~
+      assert migration =~
                ~r/references\(:legacy_polymorphic_name_posts\b[^)]*name: "custom_polymorphic_name_fkey"/
     end
 
@@ -7085,12 +7046,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
-        AshPostgres.MigrationGenerator.generate(MultipleLegacyPolymorphicNameDomain,
-          snapshot_path: Path.join(snapshot_path, "multiple_legacy_polymorphic_name"),
-          migration_path: Path.join(migration_path, "multiple_legacy_polymorphic_name"),
-          quiet: true,
-          format: false,
-          auto_name: true
+        generate_resource_migration(
+          MultipleLegacyPolymorphicNameDomain,
+          snapshot_path,
+          migration_path,
+          "multiple_legacy_polymorphic_name"
         )
       end
     end
@@ -7153,21 +7113,17 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      AshPostgres.MigrationGenerator.generate(RelationshipContextPolymorphicNameDomain,
-        snapshot_path: Path.join(snapshot_path, "relationship_context_polymorphic_name"),
-        migration_path: Path.join(migration_path, "relationship_context_polymorphic_name"),
-        quiet: true,
-        format: false,
-        auto_name: true
+      generate_resource_migration(
+        RelationshipContextPolymorphicNameDomain,
+        snapshot_path,
+        migration_path,
+        "relationship_context_polymorphic_name"
       )
 
-      assert [file] =
-               Path.wildcard(
-                 "#{migration_path}/relationship_context_polymorphic_name/**/*_migrate_resources*.exs"
-               )
-               |> Enum.reject(&String.contains?(&1, "extensions"))
+      current_migration_path = Path.join(migration_path, "relationship_context_polymorphic_name")
+      migration = read_resource_migration!(current_migration_path)
 
-      assert File.read!(file) =~
+      assert migration =~
                ~r/references\(:relationship_context_polymorphic_name_posts\b[^)]*name: "relationship_context_polymorphic_name_fkey"/
     end
 
@@ -7234,12 +7190,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
-        AshPostgres.MigrationGenerator.generate(LegacyAndNewPolymorphicNameDomain,
-          snapshot_path: Path.join(snapshot_path, "legacy_and_new_polymorphic_name"),
-          migration_path: Path.join(migration_path, "legacy_and_new_polymorphic_name"),
-          quiet: true,
-          format: false,
-          auto_name: true
+        generate_resource_migration(
+          LegacyAndNewPolymorphicNameDomain,
+          snapshot_path,
+          migration_path,
+          "legacy_and_new_polymorphic_name"
         )
       end
     end
@@ -7332,12 +7287,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
-        AshPostgres.MigrationGenerator.generate(CrossResourcePolymorphicNameDomain,
-          snapshot_path: Path.join(snapshot_path, "cross_resource_polymorphic_name"),
-          migration_path: Path.join(migration_path, "cross_resource_polymorphic_name"),
-          quiet: true,
-          format: false,
-          auto_name: true
+        generate_resource_migration(
+          CrossResourcePolymorphicNameDomain,
+          snapshot_path,
+          migration_path,
+          "cross_resource_polymorphic_name"
         )
       end
     end
@@ -7429,12 +7383,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
       assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
-        AshPostgres.MigrationGenerator.generate(MultipleRelationshipContextPolymorphicNameDomain,
-          snapshot_path: Path.join(snapshot_path, "multiple_relationship_context_polymorphic_name"),
-          migration_path: Path.join(migration_path, "multiple_relationship_context_polymorphic_name"),
-          quiet: true,
-          format: false,
-          auto_name: true
+        generate_resource_migration(
+          MultipleRelationshipContextPolymorphicNameDomain,
+          snapshot_path,
+          migration_path,
+          "multiple_relationship_context_polymorphic_name"
         )
       end
     end
@@ -7493,21 +7446,15 @@ defmodule AshPostgres.MigrationGeneratorTest do
         end
       end
 
-      AshPostgres.MigrationGenerator.generate(DefaultPolymorphicNameDomain,
-        snapshot_path: Path.join(snapshot_path, "default_polymorphic_name"),
-        migration_path: Path.join(migration_path, "default_polymorphic_name"),
-        quiet: true,
-        format: false,
-        auto_name: true
+      generate_resource_migration(
+        DefaultPolymorphicNameDomain,
+        snapshot_path,
+        migration_path,
+        "default_polymorphic_name"
       )
 
-      assert [file] =
-               Path.wildcard(
-                 "#{migration_path}/default_polymorphic_name/**/*_migrate_resources*.exs"
-               )
-               |> Enum.reject(&String.contains?(&1, "extensions"))
-
-      migration = File.read!(file)
+      current_migration_path = Path.join(migration_path, "default_polymorphic_name")
+      migration = read_resource_migration!(current_migration_path)
 
       assert migration =~
                ~r/references\(:default_polymorphic_name_posts\b[^)]*name: "default_polymorphic_name_comments_resource_id_fkey"/
