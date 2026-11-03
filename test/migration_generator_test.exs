@@ -205,6 +205,42 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  defmacrop assert_legacy_polymorphic_deprecation(module_suffix, reference_option, reference_value) do
+    module_suffix = Macro.expand(module_suffix, __CALLER__)
+    reference_option = Macro.expand(reference_option, __CALLER__)
+    reference_value = Macro.expand(reference_value, __CALLER__)
+
+    option_name = reference_option |> Atom.to_string() |> String.replace_prefix("polymorphic_", "")
+    post = Module.concat([:Elixir, "DeprecatedPolymorphic#{module_suffix}Post"])
+    reference = {reference_option, [], [reference_value]}
+    warning_regex = ~r/#{reference_option}[^\n]*deprecated/i
+    warning =
+      "Use `relationship_context: %{data_layer: %{references: %{#{option_name}: ...}}}` on the relationship instead."
+
+    quote do
+      warning =
+        ExUnit.CaptureIO.capture_io(:stderr, fn ->
+          defresource unquote(post) do
+            postgres do
+              table unquote("deprecated_polymorphic_#{option_name}_posts")
+              repo(AshPostgres.TestRepo)
+
+              references do
+                unquote(reference)
+              end
+            end
+
+            attributes do
+              uuid_primary_key(:id)
+            end
+          end
+        end)
+
+      assert warning =~ unquote(Macro.escape(warning_regex))
+      assert warning =~ unquote(warning)
+    end
+  end
+
   defp position_of_substring(string, substring) do
     case :binary.match(string, substring) do
       {pos, _len} -> pos
@@ -5747,27 +5783,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
 
     test "Legacy polymorphic_on_delete emits a deprecation warning." do
-      warning =
-        ExUnit.CaptureIO.capture_io(:stderr, fn ->
-          defresource DeprecatedPolymorphicDeletePost do
-            postgres do
-              table "deprecated_polymorphic_delete_posts"
-              repo(AshPostgres.TestRepo)
-
-              references do
-                polymorphic_on_delete(:delete)
-              end
-            end
-
-            attributes do
-              uuid_primary_key(:id)
-            end
-          end
-        end)
-
-      assert warning =~ ~r/polymorphic_on_delete[^\n]*deprecated/i
-      assert warning =~
-               "Use `relationship_context: %{data_layer: %{references: %{on_delete: ...}}}` on the relationship instead."
+      assert_legacy_polymorphic_deprecation("Delete", :polymorphic_on_delete, :delete)
     end
 
     test "Multiple legacy polymorphic_on_delete configurations result in rejection.", %{
@@ -6304,27 +6320,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
 
     test "Legacy polymorphic_on_update emits a deprecation warning." do
-      warning =
-        ExUnit.CaptureIO.capture_io(:stderr, fn ->
-          defresource DeprecatedPolymorphicUpdatePost do
-            postgres do
-              table "deprecated_polymorphic_update_posts"
-              repo(AshPostgres.TestRepo)
-
-              references do
-                polymorphic_on_update(:update)
-              end
-            end
-
-            attributes do
-              uuid_primary_key(:id)
-            end
-          end
-        end)
-
-      assert warning =~ ~r/polymorphic_on_update[^\n]*deprecated/i
-      assert warning =~
-               "Use `relationship_context: %{data_layer: %{references: %{on_update: ...}}}` on the relationship instead."
+      assert_legacy_polymorphic_deprecation("Update", :polymorphic_on_update, :update)
     end
 
     test "Multiple legacy polymorphic_on_update configurations result in rejection.", %{
@@ -6862,27 +6858,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
 
     test "Legacy polymorphic_name emits a deprecation warning." do
-      warning =
-        ExUnit.CaptureIO.capture_io(:stderr, fn ->
-          defresource DeprecatedPolymorphicNamePost do
-            postgres do
-              table "deprecated_polymorphic_name_posts"
-              repo(AshPostgres.TestRepo)
-
-              references do
-                polymorphic_name("deprecated_polymorphic_name_fkey")
-              end
-            end
-
-            attributes do
-              uuid_primary_key(:id)
-            end
-          end
-        end)
-
-      assert warning =~ ~r/polymorphic_name[^\n]*deprecated/i
-      assert warning =~
-               "Use `relationship_context: %{data_layer: %{references: %{name: ...}}}` on the relationship instead."
+      assert_legacy_polymorphic_deprecation(
+        "Name",
+        :polymorphic_name,
+        "deprecated_polymorphic_name_fkey"
+      )
     end
 
     test "Multiple legacy polymorphic_name configurations result in rejection.", %{
