@@ -810,7 +810,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
     post_table = "#{migration_name}_posts"
     relationship_table = "#{migration_name}_comments"
 
-    expected_name = Regex.compile!("references\\(:#{post_table}\\b[^)]*name: nil")
+    expected_name =
+      Regex.compile!(
+        "references\\(:#{post_table}\\b[^)]*name: \\\"#{relationship_table}_resource_id_fkey\\\""
+      )
 
     explicit_option = Regex.compile!("references\\(:#{post_table}\\b[^)]*#{reference_option}:")
 
