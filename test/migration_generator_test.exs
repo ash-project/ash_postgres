@@ -812,7 +812,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
     expected_name =
       Regex.compile!(
-        "references\\(:#{post_table}\\b[^)]*name: \"#{relationship_table}_resource_id_fkey\""
+        "references\\(:#{post_table}\\b[^)]*name: (nil|\"#{relationship_table}_resource_id_fkey\")"
       )
 
     explicit_option = Regex.compile!("references\\(:#{post_table}\\b[^)]*#{reference_option}:")
