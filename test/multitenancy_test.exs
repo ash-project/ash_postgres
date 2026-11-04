@@ -329,7 +329,9 @@ defmodule AshPostgres.Test.MultitenancyTest do
 
     assert [%{id: ^linked_id}] =
              Post
-             |> Ash.Query.filter(linked_non_multitenant_posts_through_multitenant_link.title == "fred")
+             |> Ash.Query.filter(
+               linked_non_multitenant_posts_through_multitenant_link.title == "fred"
+             )
              |> Ash.read!(tenant: org1)
 
     refute unlinked.id == linked_id
