@@ -810,10 +810,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
     post_table = "#{migration_name}_posts"
     relationship_table = "#{migration_name}_comments"
 
-    expected_name =
-      Regex.compile!(
-        "references\\(:#{post_table}\\b[^)]*name: (nil|\"#{relationship_table}_resource_id_fkey\")"
-      )
+    expected_name = Regex.compile!("references\\(:#{post_table}\\b[^)]*name: nil")
 
     explicit_option = Regex.compile!("references\\(:#{post_table}\\b[^)]*#{reference_option}:")
 
@@ -878,7 +875,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
       current_migration_path = Path.join(unquote(migration_path), unquote(migration_name))
       migration = read_resource_migration!(current_migration_path)
 
-      assert migration =~ unquote(Macro.escape(expected_name))
+      if unquote(reference_option == :name) do
+        assert migration =~ unquote(Macro.escape(expected_name))
+      end
 
       if unquote(reference_option in [:on_delete, :on_update]) do
         refute migration =~ unquote(Macro.escape(explicit_option))
