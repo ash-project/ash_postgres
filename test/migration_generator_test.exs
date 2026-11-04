@@ -132,24 +132,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
-  defmacrop deflegacy_polymorphic_resources(
-              module_suffix,
-              post_table,
-              relationship_table,
-              reference_option,
-              reference_value
-            ) do
-    module_suffix = Macro.expand(module_suffix, __CALLER__)
-    post_table = Macro.expand(post_table, __CALLER__)
-    relationship_table = Macro.expand(relationship_table, __CALLER__)
-    reference_option = Macro.expand(reference_option, __CALLER__)
-    reference_value = Macro.expand(reference_value, __CALLER__)
-
-    comment = Module.concat([:Elixir, "LegacyPolymorphic#{module_suffix}Comment"])
-    post = Module.concat([:Elixir, "LegacyPolymorphic#{module_suffix}Post"])
-    domain = Module.concat([:Elixir, "LegacyPolymorphic#{module_suffix}Domain"])
-    reference = {reference_option, [], [reference_value]}
-
+  defmacrop defpolymorphic_comment(comment) do
     quote do
       defresource unquote(comment) do
         postgres do
@@ -166,15 +149,52 @@ defmodule AshPostgres.MigrationGeneratorTest do
           defaults([:create, :read, :update, :destroy])
         end
       end
+    end
+  end
 
-      defresource unquote(post) do
-        postgres do
-          table unquote(post_table)
-          repo(AshPostgres.TestRepo)
+  defmacrop defpolymorphic_post(
+              post,
+              table,
+              comment,
+              relationship_table,
+              opts \\ []
+            ) do
+    reference = Keyword.get(opts, :reference)
+    relationship_references = Keyword.get(opts, :relationship_references)
 
+    references_block =
+      if reference do
+        quote do
           references do
             unquote(reference)
           end
+        end
+      else
+        []
+      end
+
+    relationship_context =
+      if relationship_references do
+        quote do
+          %{
+            data_layer: %{
+              table: unquote(relationship_table),
+              references: unquote(relationship_references)
+            }
+          }
+        end
+      else
+        quote do
+          %{data_layer: %{table: unquote(relationship_table)}}
+        end
+      end
+
+    quote do
+      defresource unquote(post) do
+        postgres do
+          table unquote(table)
+          repo(AshPostgres.TestRepo)
+          unquote(references_block)
         end
 
         attributes do
@@ -189,31 +209,76 @@ defmodule AshPostgres.MigrationGeneratorTest do
           has_many(:comments, unquote(comment),
             public?: true,
             destination_attribute: :resource_id,
-            relationship_context: %{data_layer: %{table: unquote(relationship_table)}}
+            relationship_context: unquote(relationship_context)
           )
-        end
-      end
-
-      defmodule unquote(domain) do
-        use Ash.Domain
-
-        resources do
-          resource(unquote(post))
-          resource(unquote(comment))
         end
       end
     end
   end
 
-  defmacrop assert_legacy_polymorphic_deprecation(module_suffix, reference_option, reference_value) do
+  defmacrop defpolymorphic_domain(domain, resources) do
+    quote do
+      defmodule unquote(domain) do
+        use Ash.Domain
+
+        resources do
+          for resource <- unquote(resources) do
+            resource(resource)
+          end
+        end
+      end
+    end
+  end
+
+  defmacrop deflegacy_polymorphic_resources(
+              module_suffix,
+              post_table,
+              relationship_table,
+              reference_option,
+              reference_value
+            ) do
+    module_suffix = Macro.expand(module_suffix, __CALLER__)
+    post_table = Macro.expand(post_table, __CALLER__)
+    relationship_table = Macro.expand(relationship_table, __CALLER__)
+    reference_option = Macro.expand(reference_option, __CALLER__)
+    reference_value = Macro.expand(reference_value, __CALLER__)
+
+    comment = Module.concat([:"Elixir", "LegacyPolymorphic#{module_suffix}Comment"])
+    post = Module.concat([:"Elixir", "LegacyPolymorphic#{module_suffix}Post"])
+    domain = Module.concat([:"Elixir", "LegacyPolymorphic#{module_suffix}Domain"])
+    reference = {reference_option, [], [reference_value]}
+
+    quote do
+      defpolymorphic_comment(unquote(comment))
+
+      defpolymorphic_post(
+        unquote(post),
+        unquote(post_table),
+        unquote(comment),
+        unquote(relationship_table),
+        reference: unquote(reference)
+      )
+
+      defpolymorphic_domain(unquote(domain), [unquote(post), unquote(comment)])
+    end
+  end
+
+  defmacrop assert_legacy_polymorphic_deprecation(
+              module_suffix,
+              reference_option,
+              reference_value
+            ) do
     module_suffix = Macro.expand(module_suffix, __CALLER__)
     reference_option = Macro.expand(reference_option, __CALLER__)
     reference_value = Macro.expand(reference_value, __CALLER__)
 
-    option_name = reference_option |> Atom.to_string() |> String.replace_prefix("polymorphic_", "")
-    post = Module.concat([:Elixir, "DeprecatedPolymorphic#{module_suffix}Post"])
+    option_name =
+      reference_option |> Atom.to_string() |> String.replace_prefix("polymorphic_", "")
+
+    post = Module.concat([:"Elixir", "DeprecatedPolymorphic#{module_suffix}Post"])
     reference = {reference_option, [], [reference_value]}
     warning_regex = ~r/#{reference_option}[^\n]*deprecated/i
+
     warning =
       "Use `relationship_context: %{data_layer: %{references: %{#{option_name}: ...}}}` on the relationship instead."
 
@@ -242,108 +307,57 @@ defmodule AshPostgres.MigrationGeneratorTest do
   end
 
   defmacrop assert_multiple_legacy_polymorphic_rejection(
-               module_suffix,
-               reference_option,
-               first_value,
-               second_value,
-               snapshot_path,
-               migration_path
-             ) do
+              module_suffix,
+              reference_option,
+              first_value,
+              second_value,
+              snapshot_path,
+              migration_path
+            ) do
     module_suffix = Macro.expand(module_suffix, __CALLER__)
     reference_option = Macro.expand(reference_option, __CALLER__)
     first_value = Macro.expand(first_value, __CALLER__)
     second_value = Macro.expand(second_value, __CALLER__)
 
-    option_name = reference_option |> Atom.to_string() |> String.replace_prefix("polymorphic_", "")
-    comment = Module.concat([:Elixir, "MultipleLegacyPolymorphic#{module_suffix}Comment"])
-    first_post = Module.concat([:Elixir, "MultipleLegacyPolymorphic#{module_suffix}FirstPost"])
-    second_post = Module.concat([:Elixir, "MultipleLegacyPolymorphic#{module_suffix}SecondPost"])
-    domain = Module.concat([:Elixir, "MultipleLegacyPolymorphic#{module_suffix}Domain"])
+    option_name =
+      reference_option |> Atom.to_string() |> String.replace_prefix("polymorphic_", "")
+
+    comment = Module.concat([:"Elixir", "MultipleLegacyPolymorphic#{module_suffix}Comment"])
+    first_post = Module.concat([:"Elixir", "MultipleLegacyPolymorphic#{module_suffix}FirstPost"])
+
+    second_post =
+      Module.concat([:"Elixir", "MultipleLegacyPolymorphic#{module_suffix}SecondPost"])
+
+    domain = Module.concat([:"Elixir", "MultipleLegacyPolymorphic#{module_suffix}Domain"])
     post_table = "multiple_legacy_polymorphic_#{option_name}_posts"
     relationship_table = "multiple_legacy_polymorphic_#{option_name}_comments"
     first_reference = {reference_option, [], [first_value]}
     second_reference = {reference_option, [], [second_value]}
 
     quote do
-      defresource unquote(comment) do
-        postgres do
-          polymorphic?(true)
-          repo(AshPostgres.TestRepo)
-        end
+      defpolymorphic_comment(unquote(comment))
 
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:resource_id, :uuid, public?: true)
-        end
+      defpolymorphic_post(
+        unquote(first_post),
+        unquote(post_table),
+        unquote(comment),
+        unquote(relationship_table),
+        reference: unquote(first_reference)
+      )
 
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-      end
+      defpolymorphic_post(
+        unquote(second_post),
+        unquote(post_table),
+        unquote(comment),
+        unquote(relationship_table),
+        reference: unquote(second_reference)
+      )
 
-      defresource unquote(first_post) do
-        postgres do
-          table unquote(post_table)
-          repo(AshPostgres.TestRepo)
-
-          references do
-            unquote(first_reference)
-          end
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        relationships do
-          has_many(:comments, unquote(comment),
-            public?: true,
-            destination_attribute: :resource_id,
-            relationship_context: %{data_layer: %{table: unquote(relationship_table)}}
-          )
-        end
-      end
-
-      defresource unquote(second_post) do
-        postgres do
-          table unquote(post_table)
-          repo(AshPostgres.TestRepo)
-
-          references do
-            unquote(second_reference)
-          end
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        relationships do
-          has_many(:comments, unquote(comment),
-            public?: true,
-            destination_attribute: :resource_id,
-            relationship_context: %{data_layer: %{table: unquote(relationship_table)}}
-          )
-        end
-      end
-
-      defmodule unquote(domain) do
-        use Ash.Domain
-
-        resources do
-          resource(unquote(first_post))
-          resource(unquote(second_post))
-          resource(unquote(comment))
-        end
-      end
+      defpolymorphic_domain(unquote(domain), [
+        unquote(first_post),
+        unquote(second_post),
+        unquote(comment)
+      ])
 
       assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
         generate_resource_migration(
@@ -357,20 +371,20 @@ defmodule AshPostgres.MigrationGeneratorTest do
   end
 
   defmacrop assert_relationship_context_polymorphic_reference(
-               module_suffix,
-               reference_option,
-               reference_value,
-               snapshot_path,
-               migration_path
-             ) do
+              module_suffix,
+              reference_option,
+              reference_value,
+              snapshot_path,
+              migration_path
+            ) do
     module_suffix = Macro.expand(module_suffix, __CALLER__)
     reference_option = Macro.expand(reference_option, __CALLER__)
     reference_value = Macro.expand(reference_value, __CALLER__)
 
     option_name = Atom.to_string(reference_option)
-    comment = Module.concat([:Elixir, "RelationshipContextPolymorphic#{module_suffix}Comment"])
-    post = Module.concat([:Elixir, "RelationshipContextPolymorphic#{module_suffix}Post"])
-    domain = Module.concat([:Elixir, "RelationshipContextPolymorphic#{module_suffix}Domain"])
+    comment = Module.concat([:"Elixir", "RelationshipContextPolymorphic#{module_suffix}Comment"])
+    post = Module.concat([:"Elixir", "RelationshipContextPolymorphic#{module_suffix}Post"])
+    domain = Module.concat([:"Elixir", "RelationshipContextPolymorphic#{module_suffix}Domain"])
     table = "relationship_context_polymorphic_#{option_name}_posts"
     relationship_table = "relationship_context_polymorphic_#{option_name}_comments"
     references = {:%{}, [], [{reference_option, reference_value}]}
@@ -383,63 +397,20 @@ defmodule AshPostgres.MigrationGeneratorTest do
       end
 
     expected =
-      Regex.compile!(
-        "references\\(:#{table}\\b[^)]*#{option_name}: #{inspect(expected_value)}"
-      )
+      Regex.compile!("references\\(:#{table}\\b[^)]*#{option_name}: #{inspect(expected_value)}")
 
     quote do
-      defresource unquote(comment) do
-        postgres do
-          polymorphic?(true)
-          repo(AshPostgres.TestRepo)
-        end
+      defpolymorphic_comment(unquote(comment))
 
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:resource_id, :uuid, public?: true)
-        end
+      defpolymorphic_post(
+        unquote(post),
+        unquote(table),
+        unquote(comment),
+        unquote(relationship_table),
+        relationship_references: unquote(references)
+      )
 
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-      end
-
-      defresource unquote(post) do
-        postgres do
-          table unquote(table)
-          repo(AshPostgres.TestRepo)
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        relationships do
-          has_many(:comments, unquote(comment),
-            public?: true,
-            destination_attribute: :resource_id,
-            relationship_context: %{
-              data_layer: %{
-                table: unquote(relationship_table),
-                references: unquote(references)
-              }
-            }
-          )
-        end
-      end
-
-      defmodule unquote(domain) do
-        use Ash.Domain
-
-        resources do
-          resource(unquote(post))
-          resource(unquote(comment))
-        end
-      end
+      defpolymorphic_domain(unquote(domain), [unquote(post), unquote(comment)])
 
       generate_resource_migration(
         unquote(domain),
@@ -449,7 +420,10 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
 
       current_migration_path =
-        Path.join(unquote(migration_path), unquote("relationship_context_polymorphic_#{option_name}"))
+        Path.join(
+          unquote(migration_path),
+          unquote("relationship_context_polymorphic_#{option_name}")
+        )
 
       migration = read_resource_migration!(current_migration_path)
       assert migration =~ unquote(Macro.escape(expected))
@@ -457,14 +431,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
   end
 
   defmacrop assert_legacy_and_relationship_context_conflict(
-               module_suffix,
-               legacy_option,
-               legacy_value,
-               relationship_option,
-               relationship_value,
-               snapshot_path,
-               migration_path
-             ) do
+              module_suffix,
+              legacy_option,
+              legacy_value,
+              relationship_option,
+              relationship_value,
+              snapshot_path,
+              migration_path
+            ) do
     module_suffix = Macro.expand(module_suffix, __CALLER__)
     legacy_option = Macro.expand(legacy_option, __CALLER__)
     legacy_value = Macro.expand(legacy_value, __CALLER__)
@@ -472,71 +446,27 @@ defmodule AshPostgres.MigrationGeneratorTest do
     relationship_value = Macro.expand(relationship_value, __CALLER__)
 
     option_name = relationship_option |> Atom.to_string()
-    comment = Module.concat([:Elixir, "LegacyAndNewPolymorphic#{module_suffix}Comment"])
-    post = Module.concat([:Elixir, "LegacyAndNewPolymorphic#{module_suffix}Post"])
-    domain = Module.concat([:Elixir, "LegacyAndNewPolymorphic#{module_suffix}Domain"])
+    comment = Module.concat([:"Elixir", "LegacyAndNewPolymorphic#{module_suffix}Comment"])
+    post = Module.concat([:"Elixir", "LegacyAndNewPolymorphic#{module_suffix}Post"])
+    domain = Module.concat([:"Elixir", "LegacyAndNewPolymorphic#{module_suffix}Domain"])
     post_table = "legacy_and_new_polymorphic_#{option_name}_posts"
     relationship_table = "legacy_and_new_polymorphic_#{option_name}_comments"
     legacy_reference = {legacy_option, [], [legacy_value]}
     relationship_references = {:%{}, [], [{relationship_option, relationship_value}]}
 
     quote do
-      defresource unquote(comment) do
-        postgres do
-          polymorphic?(true)
-          repo(AshPostgres.TestRepo)
-        end
+      defpolymorphic_comment(unquote(comment))
 
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:resource_id, :uuid, public?: true)
-        end
+      defpolymorphic_post(
+        unquote(post),
+        unquote(post_table),
+        unquote(comment),
+        unquote(relationship_table),
+        reference: unquote(legacy_reference),
+        relationship_references: unquote(relationship_references)
+      )
 
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-      end
-
-      defresource unquote(post) do
-        postgres do
-          table unquote(post_table)
-          repo(AshPostgres.TestRepo)
-
-          references do
-            unquote(legacy_reference)
-          end
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        relationships do
-          has_many(:comments, unquote(comment),
-            public?: true,
-            destination_attribute: :resource_id,
-            relationship_context: %{
-              data_layer: %{
-                table: unquote(relationship_table),
-                references: unquote(relationship_references)
-              }
-            }
-          )
-        end
-      end
-
-      defmodule unquote(domain) do
-        use Ash.Domain
-
-        resources do
-          resource(unquote(post))
-          resource(unquote(comment))
-        end
-      end
+      defpolymorphic_domain(unquote(domain), [unquote(post), unquote(comment)])
 
       assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
         generate_resource_migration(
@@ -564,13 +494,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
     relationship_option = Macro.expand(relationship_option, __CALLER__)
     relationship_value = Macro.expand(relationship_value, __CALLER__)
 
-    comment = Module.concat([:Elixir, "CrossResourcePolymorphic#{module_suffix}Comment"])
-    legacy_post = Module.concat([:Elixir, "CrossResourceLegacyPolymorphic#{module_suffix}Post"])
+    comment = Module.concat([:"Elixir", "CrossResourcePolymorphic#{module_suffix}Comment"])
+    legacy_post = Module.concat([:"Elixir", "CrossResourceLegacyPolymorphic#{module_suffix}Post"])
 
     relationship_post =
-      Module.concat([:Elixir, "CrossResourceRelationshipContextPolymorphic#{module_suffix}Post"])
+      Module.concat([
+        :"Elixir",
+        "CrossResourceRelationshipContextPolymorphic#{module_suffix}Post"
+      ])
 
-    domain = Module.concat([:Elixir, "CrossResourcePolymorphic#{module_suffix}Domain"])
+    domain = Module.concat([:"Elixir", "CrossResourcePolymorphic#{module_suffix}Domain"])
     migration_name = "cross_resource_polymorphic_#{String.downcase(module_suffix)}"
     post_table = "#{migration_name}_posts"
     relationship_table = "#{migration_name}_comments"
@@ -578,88 +511,29 @@ defmodule AshPostgres.MigrationGeneratorTest do
     relationship_references = {:%{}, [], [{relationship_option, relationship_value}]}
 
     quote do
-      defresource unquote(comment) do
-        postgres do
-          polymorphic?(true)
-          repo(AshPostgres.TestRepo)
-        end
+      defpolymorphic_comment(unquote(comment))
 
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:resource_id, :uuid, public?: true)
-        end
+      defpolymorphic_post(
+        unquote(legacy_post),
+        unquote(post_table),
+        unquote(comment),
+        unquote(relationship_table),
+        reference: unquote(legacy_reference)
+      )
 
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-      end
+      defpolymorphic_post(
+        unquote(relationship_post),
+        unquote(post_table),
+        unquote(comment),
+        unquote(relationship_table),
+        relationship_references: unquote(relationship_references)
+      )
 
-      defresource unquote(legacy_post) do
-        postgres do
-          table unquote(post_table)
-          repo(AshPostgres.TestRepo)
-
-          references do
-            unquote(legacy_reference)
-          end
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        relationships do
-          has_many(:comments, unquote(comment),
-            public?: true,
-            destination_attribute: :resource_id,
-            relationship_context: %{
-              data_layer: %{table: unquote(relationship_table)}
-            }
-          )
-        end
-      end
-
-      defresource unquote(relationship_post) do
-        postgres do
-          table unquote(post_table)
-          repo(AshPostgres.TestRepo)
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        relationships do
-          has_many(:comments, unquote(comment),
-            public?: true,
-            destination_attribute: :resource_id,
-            relationship_context: %{
-              data_layer: %{
-                table: unquote(relationship_table),
-                references: unquote(relationship_references)
-              }
-            }
-          )
-        end
-      end
-
-      defmodule unquote(domain) do
-        use Ash.Domain
-
-        resources do
-          resource(unquote(legacy_post))
-          resource(unquote(relationship_post))
-          resource(unquote(comment))
-        end
-      end
+      defpolymorphic_domain(unquote(domain), [
+        unquote(legacy_post),
+        unquote(relationship_post),
+        unquote(comment)
+      ])
 
       assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
         generate_resource_migration(
@@ -686,13 +560,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
     second_value = Macro.expand(second_value, __CALLER__)
 
     comment =
-      Module.concat([:Elixir, "MultipleRelationshipContextPolymorphic#{module_suffix}Comment"])
+      Module.concat([:"Elixir", "MultipleRelationshipContextPolymorphic#{module_suffix}Comment"])
 
-    first_post = Module.concat([:Elixir, "FirstRelationshipContextPolymorphic#{module_suffix}Post"])
-    second_post = Module.concat([:Elixir, "SecondRelationshipContextPolymorphic#{module_suffix}Post"])
+    first_post =
+      Module.concat([:"Elixir", "FirstRelationshipContextPolymorphic#{module_suffix}Post"])
+
+    second_post =
+      Module.concat([:"Elixir", "SecondRelationshipContextPolymorphic#{module_suffix}Post"])
 
     domain =
-      Module.concat([:Elixir, "MultipleRelationshipContextPolymorphic#{module_suffix}Domain"])
+      Module.concat([:"Elixir", "MultipleRelationshipContextPolymorphic#{module_suffix}Domain"])
 
     migration_name = "multiple_relationship_context_polymorphic_#{String.downcase(module_suffix)}"
     post_table = "#{migration_name}_posts"
@@ -701,87 +578,29 @@ defmodule AshPostgres.MigrationGeneratorTest do
     second_references = {:%{}, [], [{reference_option, second_value}]}
 
     quote do
-      defresource unquote(comment) do
-        postgres do
-          polymorphic?(true)
-          repo(AshPostgres.TestRepo)
-        end
+      defpolymorphic_comment(unquote(comment))
 
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:resource_id, :uuid, public?: true)
-        end
+      defpolymorphic_post(
+        unquote(first_post),
+        unquote(post_table),
+        unquote(comment),
+        unquote(relationship_table),
+        relationship_references: unquote(first_references)
+      )
 
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-      end
+      defpolymorphic_post(
+        unquote(second_post),
+        unquote(post_table),
+        unquote(comment),
+        unquote(relationship_table),
+        relationship_references: unquote(second_references)
+      )
 
-      defresource unquote(first_post) do
-        postgres do
-          table unquote(post_table)
-          repo(AshPostgres.TestRepo)
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        relationships do
-          has_many(:comments, unquote(comment),
-            public?: true,
-            destination_attribute: :resource_id,
-            relationship_context: %{
-              data_layer: %{
-                table: unquote(relationship_table),
-                references: unquote(first_references)
-              }
-            }
-          )
-        end
-      end
-
-      defresource unquote(second_post) do
-        postgres do
-          table unquote(post_table)
-          repo(AshPostgres.TestRepo)
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        relationships do
-          has_many(:comments, unquote(comment),
-            public?: true,
-            destination_attribute: :resource_id,
-            relationship_context: %{
-              data_layer: %{
-                table: unquote(relationship_table),
-                references: unquote(second_references)
-              }
-            }
-          )
-        end
-      end
-
-      defmodule unquote(domain) do
-        use Ash.Domain
-
-        resources do
-          resource(unquote(first_post))
-          resource(unquote(second_post))
-          resource(unquote(comment))
-        end
-      end
+      defpolymorphic_domain(unquote(domain), [
+        unquote(first_post),
+        unquote(second_post),
+        unquote(comment)
+      ])
 
       assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
         generate_resource_migration(
@@ -803,9 +622,9 @@ defmodule AshPostgres.MigrationGeneratorTest do
     module_suffix = Macro.expand(module_suffix, __CALLER__)
     reference_option = Macro.expand(reference_option, __CALLER__)
 
-    comment = Module.concat([:Elixir, "DefaultPolymorphic#{module_suffix}Comment"])
-    post = Module.concat([:Elixir, "DefaultPolymorphic#{module_suffix}Post"])
-    domain = Module.concat([:Elixir, "DefaultPolymorphic#{module_suffix}Domain"])
+    comment = Module.concat([:"Elixir", "DefaultPolymorphic#{module_suffix}Comment"])
+    post = Module.concat([:"Elixir", "DefaultPolymorphic#{module_suffix}Post"])
+    domain = Module.concat([:"Elixir", "DefaultPolymorphic#{module_suffix}Domain"])
     migration_name = "default_polymorphic_#{String.downcase(module_suffix)}"
     post_table = "#{migration_name}_posts"
     relationship_table = "#{migration_name}_comments"
@@ -818,55 +637,16 @@ defmodule AshPostgres.MigrationGeneratorTest do
     explicit_option = Regex.compile!("references\\(:#{post_table}\\b[^)]*#{reference_option}:")
 
     quote do
-      defresource unquote(comment) do
-        postgres do
-          polymorphic?(true)
-          repo(AshPostgres.TestRepo)
-        end
+      defpolymorphic_comment(unquote(comment))
 
-        attributes do
-          uuid_primary_key(:id)
-          attribute(:resource_id, :uuid, public?: true)
-        end
+      defpolymorphic_post(
+        unquote(post),
+        unquote(post_table),
+        unquote(comment),
+        unquote(relationship_table)
+      )
 
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-      end
-
-      defresource unquote(post) do
-        postgres do
-          table unquote(post_table)
-          repo(AshPostgres.TestRepo)
-        end
-
-        attributes do
-          uuid_primary_key(:id)
-        end
-
-        actions do
-          defaults([:create, :read, :update, :destroy])
-        end
-
-        relationships do
-          has_many(:comments, unquote(comment),
-            public?: true,
-            destination_attribute: :resource_id,
-            relationship_context: %{
-              data_layer: %{table: unquote(relationship_table)}
-            }
-          )
-        end
-      end
-
-      defmodule unquote(domain) do
-        use Ash.Domain
-
-        resources do
-          resource(unquote(post))
-          resource(unquote(comment))
-        end
-      end
+      defpolymorphic_domain(unquote(domain), [unquote(post), unquote(comment)])
 
       generate_resource_migration(
         unquote(domain),
@@ -6447,10 +6227,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
     end
 
-    test "on_delete within relationship_context generates the expected foreign-key delete behavior.", %{
-      snapshot_path: snapshot_path,
-      migration_path: migration_path
-    } do
+    test "on_delete within relationship_context generates the expected foreign-key delete behavior.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
       assert_relationship_context_polymorphic_reference(
         "Delete",
         :on_delete,
@@ -6476,10 +6257,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
     end
 
-    test "Conflicting polymorphic_on_delete configurations across resources result in rejection.", %{
-      snapshot_path: snapshot_path,
-      migration_path: migration_path
-    } do
+    test "Conflicting polymorphic_on_delete configurations across resources result in rejection.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
       assert_cross_resource_polymorphic_conflict(
         "Delete",
         :polymorphic_on_delete,
@@ -6505,10 +6287,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
     end
 
-    test "Omitting both polymorphic_on_delete and on_delete in relationship_context retains default behavior.", %{
-      snapshot_path: snapshot_path,
-      migration_path: migration_path
-    } do
+    test "Omitting both polymorphic_on_delete and on_delete in relationship_context retains default behavior.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
       assert_default_polymorphic_reference(
         "Delete",
         :on_delete,
@@ -6593,10 +6376,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
     end
 
-    test "Conflicting polymorphic_on_update configurations across resources result in rejection.", %{
-      snapshot_path: snapshot_path,
-      migration_path: migration_path
-    } do
+    test "Conflicting polymorphic_on_update configurations across resources result in rejection.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
       assert_cross_resource_polymorphic_conflict(
         "Update",
         :polymorphic_on_update,
@@ -6622,10 +6406,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
     end
 
-    test "Omitting both polymorphic_on_update and on_update in relationship_context retains default behavior.", %{
-      snapshot_path: snapshot_path,
-      migration_path: migration_path
-    } do
+    test "Omitting both polymorphic_on_update and on_update in relationship_context retains default behavior.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
       assert_default_polymorphic_reference(
         "Update",
         :on_update,
@@ -6636,10 +6421,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
     # -- polymorphic_name --
 
-    test "Legacy polymorphic_name uses the configured name for generated polymorphic foreign-key constraints.", %{
-      snapshot_path: snapshot_path,
-      migration_path: migration_path
-    } do
+    test "Legacy polymorphic_name uses the configured name for generated polymorphic foreign-key constraints.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
       deflegacy_polymorphic_resources(
         "Name",
         "legacy_polymorphic_name_posts",
@@ -6743,10 +6529,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
     end
 
-    test "Omitting both polymorphic_name and name in relationship_context retains default behavior.", %{
-      snapshot_path: snapshot_path,
-      migration_path: migration_path
-    } do
+    test "Omitting both polymorphic_name and name in relationship_context retains default behavior.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
       assert_default_polymorphic_reference(
         "Name",
         :name,
