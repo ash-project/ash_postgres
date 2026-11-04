@@ -6595,7 +6595,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       snapshot_path: snapshot_path,
       migration_path: migration_path
     } do
-      assert_conflicting_cross_resource_polymorphic_references(
+      assert_cross_resource_polymorphic_conflict(
         "Update",
         :polymorphic_on_update,
         :update,
@@ -6716,7 +6716,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       snapshot_path: snapshot_path,
       migration_path: migration_path
     } do
-      assert_conflicting_cross_resource_polymorphic_references(
+      assert_cross_resource_polymorphic_conflict(
         "Name",
         :polymorphic_name,
         "legacy_polymorphic_name_fkey",
