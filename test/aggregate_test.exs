@@ -460,6 +460,36 @@ defmodule AshSql.AggregateTest do
       assert Ash.load!(org, :total_users_posts, tenant: "org_#{org.id}")
              |> then(& &1.total_users_posts) == 4
     end
+
+    test "a nested aggregate joining a context multitenant resource reads each tenant's schema" do
+      alias AshPostgres.MultitenancyTest.{Org, Post, User}
+
+      orgs =
+        for {name, post_count} <- [{"Hill Valley", 3}, {"Twin Pines", 1}] do
+          org =
+            Org
+            |> Ash.Changeset.for_create(:create, %{name: name})
+            |> Ash.create!()
+
+          user =
+            User
+            |> Ash.Changeset.for_create(:create, %{name: "Doc", org_id: org.id})
+            |> Ash.create!()
+
+          for index <- 1..post_count do
+            Post
+            |> Ash.Changeset.for_create(:create, %{name: "post #{index}", user_id: user.id})
+            |> Ash.create!(tenant: "org_#{org.id}")
+          end
+
+          {org, post_count}
+        end
+
+      for {org, post_count} <- orgs do
+        assert Ash.load!(org, :total_users_posts, tenant: "org_#{org.id}")
+               |> then(& &1.total_users_posts) == post_count
+      end
+    end
   end
 
   describe "join filters" do
