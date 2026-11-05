@@ -2351,7 +2351,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
       snapshot_path: snapshot_path,
       migration_path: migration_path
     } do
-
       defresource ManualPost do
         postgres do
           table "manual_posts"
