@@ -6181,7 +6181,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[references(:post_comments, column: :id, name: "posts_best_comment_id_fkey", type: :uuid, prefix: "public")]
     end
 
-    # -- polymorphic_on_delete --
+    # Tests for polymorphic_on_delete
 
     test "Legacy polymorphic_on_delete generates the expected foreign-key delete behavior.", %{
       snapshot_path: snapshot_path,
@@ -6300,7 +6300,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
     end
 
-    # -- polymorphic_on_update --
+    # Tests for polymorphic_on_update
 
     test "Legacy polymorphic_on_update generates the expected foreign-key update behavior.", %{
       snapshot_path: snapshot_path,
@@ -6419,7 +6419,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
     end
 
-    # -- polymorphic_name --
+    # Tests for polymorphic_name
 
     test "Legacy polymorphic_name uses the configured name for generated polymorphic foreign-key constraints.",
          %{
