@@ -307,6 +307,16 @@ defmodule AshPostgres.DataLayer do
         doc:
           "Whether or not to include this resource in the generated migrations with `mix ash.generate_migrations`"
       ],
+
+      has_synthetic_create?: [
+        type: :boolean,
+        default: false,
+        doc: """
+        Whether this resource has a synthetic create operation that inserts rows
+        into the table, even if its create actions are manual.
+        """
+      ],
+
       view?: [
         type: :boolean,
         default: false,

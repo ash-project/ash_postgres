@@ -2339,6 +2339,84 @@ defmodule AshPostgres.MigrationGeneratorTest do
                ~S[add :subject, :text, null: false]
     end
 
+    defmodule ManualCreate do
+      use Ash.Resource.ManualCreate
+
+      @impl true
+      def create(changeset, _opts, _context) do
+        {:ok, Ash.Changeset.apply_attributes(changeset)}
+      end
+    end
+
+    test "manual create actions preserve nullable columns for shared tables", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defresource ManualPost do
+        postgres do
+          table "manual_posts"
+          repo(AshPostgres.TestRepo)
+          has_synthetic_create? true
+        end
+
+        actions do
+          create :create do
+            manual(ManualCreate)
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:body, :string, allow_nil?: false, public?: true)
+        end
+      end
+
+      defresource ManualPost2 do
+        postgres do
+          table "manual_posts"
+          repo(AshPostgres.TestRepo)
+          has_synthetic_create? true
+        end
+
+        actions do
+          create :create do
+            manual(ManualCreate)
+          end
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:reason, :string, allow_nil?: false, public?: true)
+        end
+      end
+
+      defdomain([ManualPost, ManualPost2])
+
+      AshPostgres.MigrationGenerator.generate(Domain,
+        snapshot_path: snapshot_path,
+        migration_path: migration_path,
+        quiet: true,
+        format: false,
+        auto_name: true,
+        dev: true
+      )
+
+      migration_files =
+        Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+        |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      migration_contents =
+        migration_files
+        |> Enum.map(&File.read!/1)
+        |> Enum.join("\n")
+
+      assert migration_contents =~ ~r/add :body, :text(?:\s|$)/
+      assert migration_contents =~ ~r/add :reason, :text(?:\s|$)/
+
+      refute migration_contents =~ ~r/add :body, :text, null: false/
+      refute migration_contents =~ ~r/add :reason, :text, null: false/
+    end
+
     test "when multiple schemas apply to the same table, all attributes are added", %{
       snapshot_path: snapshot_path,
       migration_path: migration_path
