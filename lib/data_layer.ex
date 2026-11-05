@@ -3663,7 +3663,7 @@ defmodule AshPostgres.DataLayer do
       |> String.replace("\\\"", "\"")
       |> Jason.decode!()
 
-    exception = Module.concat([exception])
+    exception = Module.safe_concat([exception])
 
     {:error, :no_rollback, Ash.Error.from_json(exception, input)}
   end
@@ -3683,7 +3683,7 @@ defmodule AshPostgres.DataLayer do
     %{"exception" => exception, "input" => input} =
       Jason.decode!(json)
 
-    exception = Module.concat([exception])
+    exception = Module.safe_concat([exception])
 
     {:error, :no_rollback, Ash.Error.from_json(exception, input)}
   end

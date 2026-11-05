@@ -37,6 +37,28 @@ defmodule AshPostgres.CombinationTest do
 
       assert [%{latest_comment_title_agg: "comment1"}] = results
     end
+
+    test "loading a count aggregate on a sorted, limited combination query without a select" do
+      for {title, comment_count} <- [{"a", 0}, {"b", 1}, {"c", 2}] do
+        post = Ash.Seed.seed!(Post, %{title: title})
+
+        for _ <- List.duplicate(nil, comment_count) do
+          Ash.Seed.seed!(AshPostgres.Test.Comment, %{title: "comment", post_id: post.id})
+        end
+      end
+
+      assert [{"c", 2}, {"b", 1}] =
+               Post
+               |> Ash.Query.sort(title: :desc)
+               |> Ash.Query.load(:count_of_comments)
+               |> Ash.Query.limit(2)
+               |> Ash.Query.combination_of([
+                 Ash.Query.Combination.base(filter: expr(title == "a")),
+                 Ash.Query.Combination.union(filter: expr(title in ["b", "c"]))
+               ])
+               |> Ash.read!()
+               |> Enum.map(&{&1.title, &1.count_of_comments})
+    end
   end
 
   describe "combinations in actions" do

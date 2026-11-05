@@ -29,6 +29,7 @@ defmodule AshPostgres.MigrationCompileCache do
     end)
   end
 
+  # sobelow_skip ["RCE.Compile"]
   defp ensure_compiled(state, file) do
     case Map.get(state, file) do
       nil ->
