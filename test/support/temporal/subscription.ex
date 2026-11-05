@@ -79,7 +79,7 @@ defmodule AshPostgres.Test.Temporal.Subscription do
 
     update :change_tier do
       require_atomic?(true)
-      accept([:tier])
+      accept([:tier, :seats])
     end
 
     # Non-atomic update — exercises the single-row `update/2` data layer path.
