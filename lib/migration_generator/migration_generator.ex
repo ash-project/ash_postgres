@@ -3874,9 +3874,11 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp has_create_action?(resource) do
-    resource
-    |> Ash.Resource.Info.actions()
-    |> Enum.any?(&(&1.type == :create && !&1.manual))
+    AshPostgres.DataLayer.Info.has_synthetic_create?(resource) ||
+      Enum.any?(
+        Ash.Resource.Info.actions(resource),
+        &(&1.type == :create && !&1.manual)
+      )
   end
 
   defp check_constraints(resource) do
