@@ -230,23 +230,39 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
-  defmacrop deflegacy_polymorphic_resources(
+  defmacrop assert_legacy_polymorphic_reference(
               module_suffix,
-              post_table,
-              relationship_table,
               reference_option,
-              reference_value
+              reference_value,
+              snapshot_path,
+              migration_path
             ) do
     module_suffix = Macro.expand(module_suffix, __CALLER__)
-    post_table = Macro.expand(post_table, __CALLER__)
-    relationship_table = Macro.expand(relationship_table, __CALLER__)
     reference_option = Macro.expand(reference_option, __CALLER__)
     reference_value = Macro.expand(reference_value, __CALLER__)
+
+    option_name =
+      reference_option |> Atom.to_string() |> String.replace_prefix("polymorphic_", "")
 
     comment = Module.concat([:"Elixir", "LegacyPolymorphic#{module_suffix}Comment"])
     post = Module.concat([:"Elixir", "LegacyPolymorphic#{module_suffix}Post"])
     domain = Module.concat([:"Elixir", "LegacyPolymorphic#{module_suffix}Domain"])
+    migration_name = "legacy_polymorphic_#{option_name}"
+    post_table = "#{migration_name}_posts"
+    relationship_table = "#{migration_name}_comments"
     reference = {reference_option, [], [reference_value]}
+
+    expected_value =
+      case reference_option do
+        :polymorphic_on_delete -> :delete_all
+        :polymorphic_on_update -> :update_all
+        :polymorphic_name -> reference_value
+      end
+
+    expected =
+      Regex.compile!(
+        "references\\(:#{post_table}\\b[^)]*#{option_name}: #{inspect(expected_value)}"
+      )
 
     quote do
       defpolymorphic_comment(unquote(comment))
@@ -260,6 +276,17 @@ defmodule AshPostgres.MigrationGeneratorTest do
       )
 
       defpolymorphic_domain(unquote(domain), [unquote(post), unquote(comment)])
+
+      generate_resource_migration(
+        unquote(domain),
+        unquote(snapshot_path),
+        unquote(migration_path),
+        unquote(migration_name)
+      )
+
+      current_migration_path = Path.join(unquote(migration_path), unquote(migration_name))
+      migration = read_resource_migration!(current_migration_path)
+      assert migration =~ unquote(Macro.escape(expected))
     end
   end
 
@@ -6187,26 +6214,13 @@ defmodule AshPostgres.MigrationGeneratorTest do
       snapshot_path: snapshot_path,
       migration_path: migration_path
     } do
-      deflegacy_polymorphic_resources(
+      assert_legacy_polymorphic_reference(
         "Delete",
-        "legacy_polymorphic_posts",
-        "legacy_post_comments",
         :polymorphic_on_delete,
-        :delete
-      )
-
-      generate_resource_migration(
-        Elixir.LegacyPolymorphicDeleteDomain,
+        :delete,
         snapshot_path,
-        migration_path,
-        "legacy_polymorphic"
+        migration_path
       )
-
-      current_migration_path = Path.join(migration_path, "legacy_polymorphic")
-      migration = read_resource_migration!(current_migration_path)
-
-      assert migration =~
-               ~r/references\(:legacy_polymorphic_posts\b[^)]*on_delete: :delete_all/
     end
 
     test "Legacy polymorphic_on_delete emits a deprecation warning." do
@@ -6306,26 +6320,13 @@ defmodule AshPostgres.MigrationGeneratorTest do
       snapshot_path: snapshot_path,
       migration_path: migration_path
     } do
-      deflegacy_polymorphic_resources(
+      assert_legacy_polymorphic_reference(
         "Update",
-        "legacy_polymorphic_update_posts",
-        "legacy_update_post_comments",
         :polymorphic_on_update,
-        :update
-      )
-
-      generate_resource_migration(
-        Elixir.LegacyPolymorphicUpdateDomain,
+        :update,
         snapshot_path,
-        migration_path,
-        "legacy_polymorphic_update"
+        migration_path
       )
-
-      current_migration_path = Path.join(migration_path, "legacy_polymorphic_update")
-      migration = read_resource_migration!(current_migration_path)
-
-      assert migration =~
-               ~r/references\(:legacy_polymorphic_update_posts\b[^)]*on_update: :update_all/
     end
 
     test "Legacy polymorphic_on_update emits a deprecation warning." do
@@ -6426,26 +6427,13 @@ defmodule AshPostgres.MigrationGeneratorTest do
            snapshot_path: snapshot_path,
            migration_path: migration_path
          } do
-      deflegacy_polymorphic_resources(
+      assert_legacy_polymorphic_reference(
         "Name",
-        "legacy_polymorphic_name_posts",
-        "legacy_polymorphic_name_comments",
         :polymorphic_name,
-        "custom_polymorphic_name_fkey"
-      )
-
-      generate_resource_migration(
-        Elixir.LegacyPolymorphicNameDomain,
+        "custom_polymorphic_name_fkey",
         snapshot_path,
-        migration_path,
-        "legacy_polymorphic_name"
+        migration_path
       )
-
-      current_migration_path = Path.join(migration_path, "legacy_polymorphic_name")
-      migration = read_resource_migration!(current_migration_path)
-
-      assert migration =~
-               ~r/references\(:legacy_polymorphic_name_posts\b[^)]*name: "custom_polymorphic_name_fkey"/
     end
 
     test "Legacy polymorphic_name emits a deprecation warning." do
