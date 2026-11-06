@@ -190,7 +190,7 @@ defmodule AshPostgres.MixProject do
     [
       {:ash, ash_version("~> 3.37 and >= 3.37.1")},
       {:spark, "~> 2.3 and >= 2.3.4"},
-      {:ash_sql, ash_sql_version("~> 0.8 and >= 0.8.4")},
+      {:ash_sql, ash_sql_version("~> 0.8 and >= 0.8.8")},
       {:igniter, "~> 0.6 and >= 0.6.29", optional: true},
       {:ecto_sql, "~> 3.13"},
       {:ecto, "~> 3.13"},
@@ -209,7 +209,7 @@ defmodule AshPostgres.MixProject do
       {:mix_audit, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:dialyxir, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:sobelow, ">= 0.0.0", only: [:dev, :test], runtime: false},
-      {:mix_test_interactive, "~> 5.0", only: [:dev, :test]}
+      {:mix_test_interactive, "~> 6.0", only: [:dev, :test]}
     ]
   end
 

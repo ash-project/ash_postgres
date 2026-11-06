@@ -304,6 +304,39 @@ defmodule AshPostgres.Test.MultitenancyTest do
     |> Ash.load!([:linked_non_multitenant_posts_through_multitenant_link], tenant: org1)
   end
 
+  test "filtering across a many_to_many to a non multitenant resource through a multitenant join resource",
+       %{org1: org1} do
+    [linked, unlinked] =
+      for name <- ["linked", "unlinked"] do
+        Post
+        |> Ash.Changeset.for_create(:create, %{name: name})
+        |> Ash.Changeset.set_tenant(org1)
+        |> Ash.create!()
+      end
+
+    global_post =
+      GlobalPost
+      |> Ash.Changeset.for_create(:create, %{title: "fred"})
+      |> Ash.create!()
+
+    NonMultitenantPostMultitenantLink
+    |> Ash.Changeset.for_create(:create, %{source_id: linked.id, dest_id: global_post.id},
+      tenant: org1
+    )
+    |> Ash.create!()
+
+    linked_id = linked.id
+
+    assert [%{id: ^linked_id}] =
+             Post
+             |> Ash.Query.filter(
+               linked_non_multitenant_posts_through_multitenant_link.title == "fred"
+             )
+             |> Ash.read!(tenant: org1)
+
+    refute unlinked.id == linked_id
+  end
+
   test "loading across an attribute multitenant join resource only follows the tenant's links",
        %{org1: org1, org2: org2} do
     [source, linked, other] =

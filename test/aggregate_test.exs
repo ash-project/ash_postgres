@@ -460,6 +460,36 @@ defmodule AshSql.AggregateTest do
       assert Ash.load!(org, :total_users_posts, tenant: "org_#{org.id}")
              |> then(& &1.total_users_posts) == 4
     end
+
+    test "a nested aggregate joining a context multitenant resource reads each tenant's schema" do
+      alias AshPostgres.MultitenancyTest.{Org, Post, User}
+
+      orgs =
+        for {name, post_count} <- [{"Hill Valley", 3}, {"Twin Pines", 1}] do
+          org =
+            Org
+            |> Ash.Changeset.for_create(:create, %{name: name})
+            |> Ash.create!()
+
+          user =
+            User
+            |> Ash.Changeset.for_create(:create, %{name: "Doc", org_id: org.id})
+            |> Ash.create!()
+
+          for index <- 1..post_count do
+            Post
+            |> Ash.Changeset.for_create(:create, %{name: "post #{index}", user_id: user.id})
+            |> Ash.create!(tenant: "org_#{org.id}")
+          end
+
+          {org, post_count}
+        end
+
+      for {org, post_count} <- orgs do
+        assert Ash.load!(org, :total_users_posts, tenant: "org_#{org.id}")
+               |> then(& &1.total_users_posts) == post_count
+      end
+    end
   end
 
   describe "join filters" do
@@ -3104,5 +3134,147 @@ defmodule AshSql.AggregateTest do
     end
 
     defp assignee_names(tickets), do: Enum.map(tickets, &{&1.id, &1.assignee_name})
+  end
+
+  describe "limited reads with aggregates joined outside the page subquery" do
+    # A limited read that loads an aggregate that can't be joined as a `first`
+    # aggregate is wrapped in a subquery, with the aggregates joined outside of it.
+    # The outer query must be ordered too: SQL makes no promise about the order of
+    # rows from a query without an `ORDER BY`, and databases like CockroachDB
+    # return them in join order, which breaks pagination.
+    #
+    # Postgres happens to return those rows in order anyway, so these tests check
+    # the SQL as well as the results.
+
+    setup do
+      author_b = Ash.Seed.seed!(Author, %{first_name: "b"})
+      author_a = Ash.Seed.seed!(Author, %{first_name: "a"})
+
+      posts =
+        for {title, author} <- [
+              {"c", author_a},
+              {"a", author_b},
+              {"d", author_b},
+              {"b", author_a}
+            ] do
+          Ash.Seed.seed!(Post, %{title: title, score: 1, author_id: author.id})
+        end
+
+      [post_c, _, post_d, _] = posts
+
+      Ash.Seed.seed!(Comment, %{title: "popular", post_id: post_c.id})
+      Ash.Seed.seed!(Comment, %{title: "other", post_id: post_c.id})
+      Ash.Seed.seed!(Comment, %{title: "popular", post_id: post_d.id})
+
+      :ok
+    end
+
+    defp outer_query_sql(query) do
+      {:ok, ecto} = Ash.Query.data_layer_query(query)
+      {sql, _params} = AshPostgres.TestRepo.to_sql(:all, ecto)
+
+      # The page is wrapped in a subquery, and the aggregates are joined outside of it.
+      assert [page, outer] = String.split(sql, ~r/\)\s+AS\s+s0\b/, parts: 2)
+      assert page =~ ~r/ORDER BY .*LIMIT/s
+      assert outer =~ "LATERAL"
+
+      outer
+    end
+
+    test "a sort on attributes orders the outer query by the subquery's columns" do
+      query =
+        Post
+        |> Ash.Query.sort(title: :desc, id: :asc)
+        |> Ash.Query.load(:count_of_comments)
+        |> Ash.Query.limit(3)
+
+      assert outer_query_sql(query) =~ ~r/ORDER BY s0\."title" DESC, s0\."id"$/
+
+      assert [{"d", 1}, {"c", 2}, {"b", 0}] =
+               query |> Ash.read!() |> Enum.map(&{&1.title, &1.count_of_comments})
+    end
+
+    test "a sort on a related attribute is selected from the subquery to order the outer query" do
+      query =
+        Post
+        |> Ash.Query.sort([{Ash.Sort.expr_sort(author.first_name, :string), :asc}, title: :asc])
+        |> Ash.Query.load(:count_of_comments)
+        |> Ash.Query.limit(3)
+
+      assert outer_query_sql(query) =~ ~r/ORDER BY s0\."__order_0__", s0\."title"$/
+
+      assert [{"b", 0}, {"c", 2}, {"a", 0}] =
+               query |> Ash.read!() |> Enum.map(&{&1.title, &1.count_of_comments})
+    end
+
+    test "a sort expression with params and subqueries is selected from the subquery" do
+      query =
+        Post
+        |> Ash.Query.sort([
+          {Ash.Sort.expr_sort(exists(comments, title == ^"popular"), :boolean), :desc},
+          {Ash.Sort.expr_sort(title <> ^"!", :string), :asc_nils_last}
+        ])
+        |> Ash.Query.load(:count_of_comments)
+        |> Ash.Query.limit(3)
+
+      assert outer_query_sql(query) =~
+               ~r/ORDER BY s0\."__order_0__" DESC, s0\."__order_1__" ASC NULLS LAST$/
+
+      assert [{"c", 2}, {"d", 1}, {"a", 0}] =
+               query |> Ash.read!() |> Enum.map(&{&1.title, &1.count_of_comments})
+    end
+
+    test "a distinct read with a sort that doesn't match the distinct keeps its order" do
+      query =
+        Post
+        |> Ash.Query.distinct(:author_id)
+        |> Ash.Query.distinct_sort(title: :desc)
+        |> Ash.Query.sort(title: :asc)
+        |> Ash.Query.load(:count_of_comments)
+        |> Ash.Query.limit(2)
+
+      assert outer_query_sql(query) =~ "ORDER BY"
+
+      assert [{"c", 2}, {"d", 1}] =
+               query |> Ash.read!() |> Enum.map(&{&1.title, &1.count_of_comments})
+    end
+
+    test "a combination query keeps its order" do
+      query =
+        Post
+        |> Ash.Query.sort(title: :desc)
+        |> Ash.Query.load(:count_of_comments)
+        |> Ash.Query.limit(3)
+        |> Ash.Query.combination_of([
+          Ash.Query.Combination.base(filter: expr(title in ["a", "b"]), select: [:id, :title]),
+          Ash.Query.Combination.union(filter: expr(title in ["c", "d"]), select: [:id, :title])
+        ])
+
+      assert outer_query_sql(query) =~ ~r/ORDER BY s0\."title" DESC$/
+
+      assert [{"d", 1}, {"c", 2}, {"b", 0}] =
+               query |> Ash.read!() |> Enum.map(&{&1.title, &1.count_of_comments})
+    end
+
+    test "keyset pagination returns every row once, in order" do
+      titles =
+        Stream.unfold(
+          Ash.read!(
+            Post
+            |> Ash.Query.for_read(:keyset)
+            |> Ash.Query.sort(title: :asc)
+            |> Ash.Query.load(:count_of_comments),
+            page: [limit: 1]
+          ),
+          fn
+            nil -> nil
+            %{more?: false} = page -> {page.results, nil}
+            page -> {page.results, Ash.page!(page, :next)}
+          end
+        )
+        |> Enum.flat_map(fn results -> Enum.map(results, & &1.title) end)
+
+      assert titles == ["a", "b", "c", "d"]
+    end
   end
 end

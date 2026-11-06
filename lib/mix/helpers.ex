@@ -4,6 +4,7 @@
 
 defmodule AshPostgres.Mix.Helpers do
   @moduledoc false
+  # sobelow_skip ["DOS.ModuleConcat"]
   def domains!(opts, args) do
     apps =
       if apps_paths = Mix.Project.apps_paths() do
@@ -41,6 +42,7 @@ defmodule AshPostgres.Mix.Helpers do
     end
   end
 
+  # sobelow_skip ["DOS.ModuleConcat"]
   def repos!(opts, args) do
     cond do
       opts[:repo] && opts[:repo] != "" ->

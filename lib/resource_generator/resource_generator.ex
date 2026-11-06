@@ -9,6 +9,7 @@ if Code.ensure_loaded?(Igniter) do
 
     require Logger
 
+    # sobelow_skip ["DOS.ModuleConcat"]
     def generate(igniter, repos, domain, opts \\ []) do
       {igniter, resources} = Ash.Resource.Igniter.list_resources(igniter)
 
@@ -150,6 +151,7 @@ if Code.ensure_loaded?(Igniter) do
       end)
     end
 
+    # sobelow_skip ["DOS.ModuleConcat"]
     defp table_to_resource_with_fragment(
            igniter,
            %AshPostgres.ResourceGenerator.Spec{} = table_spec,

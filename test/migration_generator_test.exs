@@ -903,6 +903,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
           password: "postgres",
           database: "ash_postgres_test",
           hostname: "localhost",
+          port: AshPostgres.TestRepo.config()[:port],
           pool: Ecto.Adapters.SQL.Sandbox,
           types: AshPostgres.Test.PostgrexTypes
         )
@@ -1835,6 +1836,56 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert Enum.find_index(down_side_parts, &(&1 == "drop_if_exists index(:posts, [:title])")) <
                Enum.find_index(down_side_parts, &(&1 == "create index(:posts, [:title])"))
+    end
+  end
+
+  describe "custom index and column removed together" do
+    setup %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:title, :string, public?: true)
+        end
+
+        postgres do
+          custom_indexes do
+            index(["title"])
+          end
+        end
+      end
+
+      defdomain([Post])
+      generate_post_migration(Domain, snapshot_path, migration_path)
+    end
+
+    test "rollback restores the column before recreating its custom index",
+         %{snapshot_path: snapshot_path, migration_path: migration_path} do
+      defposts do
+        attributes do
+          uuid_primary_key(:id)
+        end
+      end
+
+      defdomain([Post])
+      send(self(), {:mix_shell_input, :yes?, true})
+      generate_post_migration(Domain, snapshot_path, migration_path)
+
+      assert [_initial, removal] =
+               migration_path
+               |> Path.join("**/*_migrate_resources*.exs")
+               |> Path.wildcard()
+               |> Enum.sort()
+               |> Enum.reject(&String.contains?(&1, "extensions"))
+
+      [up, down] = removal |> File.read!() |> String.split("def down", parts: 2)
+
+      assert {drop_index, _} = :binary.match(up, "drop_if_exists index(:posts, [\"title\"]")
+      assert {remove_column, _} = :binary.match(up, "remove :title")
+      assert drop_index < remove_column
+
+      assert {add_column, _} = :binary.match(down, "add :title, :text")
+      assert {create_index, _} = :binary.match(down, "create index(:posts, [\"title\"]")
+      assert add_column < create_index
     end
   end
 
