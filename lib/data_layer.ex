@@ -942,6 +942,7 @@ defmodule AshPostgres.DataLayer do
   @impl true
   def run_query(query, resource) do
     query = AshSql.Bindings.default_bindings(query, resource, AshPostgres.SqlImplementation)
+    query = AshSql.Query.Projection.prune(query)
 
     if AshPostgres.DataLayer.Info.polymorphic?(resource) && no_table?(query) do
       raise_table_error!(resource, :read)
@@ -1165,7 +1166,7 @@ defmodule AshPostgres.DataLayer do
                     AshSql.dynamic_repo(source_resource, AshPostgres.SqlImplementation, query)
 
                   repo.one(
-                    query,
+                    AshSql.Query.Projection.prune(query),
                     AshSql.repo_opts(
                       repo,
                       AshPostgres.SqlImplementation,
@@ -1225,6 +1226,8 @@ defmodule AshPostgres.DataLayer do
             %{select: %{take: %{0 => {:map, []}}}} -> put_in(lateral_join_query.select.take, %{})
             _ -> lateral_join_query
           end
+
+        lateral_join_query = AshSql.Query.Projection.prune(lateral_join_query)
 
         results =
           repo.all(
@@ -2630,7 +2633,12 @@ defmodule AshPostgres.DataLayer do
 
       with_savepoint(repo, query, fn ->
         {:ok,
-         repo.one(query) |> Enum.sort_by(&elem(&1, 0)) |> Enum.map(&elem(&1, 1)) |> Enum.reverse()}
+         query
+         |> AshSql.Query.Projection.prune()
+         |> repo.one()
+         |> Enum.sort_by(&elem(&1, 0))
+         |> Enum.map(&elem(&1, 1))
+         |> Enum.reverse()}
       end)
     rescue
       e ->
