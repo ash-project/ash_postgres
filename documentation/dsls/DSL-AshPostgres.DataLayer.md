@@ -261,6 +261,12 @@ A section for configuring the references (foreign keys) in resource migrations.
 This section is only relevant if you are using the migration generator with this resource.
 Otherwise, it has no effect.
 
+> ### Deprecated polymorphic options {: .warning}
+>
+> `polymorphic_on_delete`, `polymorphic_on_update`, and `polymorphic_name` are
+> deprecated but remain supported. Use the relationship context described in
+> [Polymorphic references](./../topics/resources/polymorphic-resources.md#polymorphic-references) instead.
+
 
 ### Nested DSLs
  * [reference](#postgres-references-reference)

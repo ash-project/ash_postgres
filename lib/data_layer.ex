@@ -165,12 +165,6 @@ defmodule AshPostgres.DataLayer do
 
     This section is only relevant if you are using the migration generator with this resource.
     Otherwise, it has no effect.
-
-    > ### Deprecated polymorphic options {: .warning}
-    >
-    > `polymorphic_on_delete`, `polymorphic_on_update`, and `polymorphic_name` are
-    > deprecated but remain supported. Use the relationship context described in
-    > [Polymorphic references](polymorphic-resources.md#polymorphic-references) instead.
     """,
     examples: [
       """
@@ -189,17 +183,17 @@ defmodule AshPostgres.DataLayer do
              {:tagged_tuple, :nilify, {:wrap_list, :atom}}
            ]},
         doc:
-          "Deprecated. For polymorphic resources, configures the on_delete behavior of the automatically generated foreign keys to source tables. Use relationship_context: %{data_layer: %{references: %{on_delete: ...}}} on the relationship instead."
+          "For polymorphic resources, configures the on_delete behavior of the automatically generated foreign keys to source tables."
       ],
       polymorphic_on_update: [
         type: {:one_of, [:update, :nilify, :nothing, :restrict]},
         doc:
-          "Deprecated. For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables. Use relationship_context: %{data_layer: %{references: %{on_update: ...}}} on the relationship instead."
+          "For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables."
       ],
       polymorphic_name: [
         type: :string,
         doc:
-          "Deprecated. For polymorphic resources, configures the name of the foreign-key constraint to the source table. Use relationship_context: %{data_layer: %{references: %{name: ...}}} on the relationship instead."
+          "For polymorphic resources, configures the name of the foreign-key constraint to the source table."
       ]
     ]
   }
@@ -257,6 +251,12 @@ defmodule AshPostgres.DataLayer do
 
     This section is only relevant if you are using the migration generator with this resource.
     Otherwise, it has no effect.
+
+    > ### Deprecated polymorphic options {: .warning}
+    >
+    > `polymorphic_on_delete`, `polymorphic_on_update`, and `polymorphic_name` are
+    > deprecated but remain supported. Use the relationship context described in
+    > [Polymorphic references](./../topics/resources/polymorphic-resources.md#polymorphic-references) instead.
     """,
     examples: [
       """
