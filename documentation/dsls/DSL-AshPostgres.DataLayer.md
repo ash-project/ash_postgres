@@ -281,9 +281,9 @@ end
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`polymorphic_on_delete`](#postgres-references-polymorphic_on_delete){: #postgres-references-polymorphic_on_delete } | `:delete \| :nilify \| :nothing \| :restrict \| {:nilify, atom \| list(atom)}` |  | For polymorphic resources, configures the on_delete behavior of the automatically generated foreign keys to source tables. |
-| [`polymorphic_on_update`](#postgres-references-polymorphic_on_update){: #postgres-references-polymorphic_on_update } | `:update \| :nilify \| :nothing \| :restrict` |  | For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables. |
-| [`polymorphic_name`](#postgres-references-polymorphic_name){: #postgres-references-polymorphic_name } | `String.t` |  | For polymorphic resources, configures the name of the generated foreign-key constraint to the source table. |
+| [`polymorphic_on_delete`](#postgres-references-polymorphic_on_delete){: #postgres-references-polymorphic_on_delete } | `:delete \| :nilify \| :nothing \| :restrict \| {:nilify, atom \| list(atom)}` |  | For polymorphic resources, configures the `on_delete` behavior of the automatically generated foreign keys to source tables. This option is deprecated; use `relationship_context: %{data_layer: %{references: %{on_delete: ...}}}` on the relationship instead. |
+| [`polymorphic_on_update`](#postgres-references-polymorphic_on_update){: #postgres-references-polymorphic_on_update } | `:update \| :nilify \| :nothing \| :restrict` |  | For polymorphic resources, configures the `on_update` behavior of the automatically generated foreign keys to source tables. This option is deprecated; use `relationship_context: %{data_layer: %{references: %{on_update: ...}}}` on the relationship instead. |
+| [`polymorphic_name`](#postgres-references-polymorphic_name){: #postgres-references-polymorphic_name } | `String.t` |  | For polymorphic resources, configures the name of the generated foreign-key constraint to the source table. This option is deprecated; use `relationship_context: %{data_layer: %{references: %{name: ...}}}` on the relationship instead. |
 
 
 
