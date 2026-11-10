@@ -2355,7 +2355,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
         postgres do
           table "manual_posts"
           repo(AshPostgres.TestRepo)
-          has_synthetic_create? true
+          has_synthetic_create?(true)
         end
 
         actions do
@@ -2374,7 +2374,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
         postgres do
           table "manual_posts"
           repo(AshPostgres.TestRepo)
-          has_synthetic_create? true
+          has_synthetic_create?(true)
         end
 
         actions do
@@ -2405,9 +2405,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
         |> Enum.reject(&String.contains?(&1, "extensions"))
 
       migration_contents =
-        migration_files
-        |> Enum.map(&File.read!/1)
-        |> Enum.join("\n")
+        Enum.map_join(migration_files, "\n", &File.read!/1)
 
       assert migration_contents =~ ~r/add :body, :text(?:\s|$)/
       assert migration_contents =~ ~r/add :reason, :text(?:\s|$)/
