@@ -62,6 +62,41 @@ With this, when loading or editing related data, ash will automatically set that
 For managing related data, see `Ash.Changeset.manage_relationship/4` and other relationship functions
 in `Ash.Changeset`
 
+## Polymorphic references
+
+For each relationship from a source resource to a polymorphic resource, AshPostgres generates a foreign key that points to the source resource’s table. This foreign key is created in the `table` specified by the relationship’s `data_layer` context.
+
+To configure the foreign key, add a `references` map alongside `table` in the relationship’s `data_layer` context:
+
+```elixir
+relationships do
+  has_many :event_locations, MyApp.EventLocation,
+    relationship_context: %{
+      data_layer: %{
+        table: "event_locations",
+        references: %{
+          on_delete: :delete,
+          on_update: :update,
+          name: "event_locations_event_id_fkey"
+        }
+      }
+    },
+    destination_attribute: :event_id
+end
+```
+
+### Options
+
+The following options go inside `relationship_context.data_layer.references`:
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| `on_delete` | `:delete \| :nilify \| :nothing \| :restrict \| {:nilify, atom \| list(atom)}` | `:nothing` | Configures what happens when a source-table row is deleted. |
+| `on_update` | `:update \| :nilify \| :nothing \| :restrict` | `:nothing` | Configures what happens when a source-table row is updated. |
+| `name` | `String.t` | generated | Sets the name of the generated foreign-key constraint. |
+
+The legacy `polymorphic_on_delete`, `polymorphic_on_update`, and `polymorphic_name` options are deprecated but remain supported for backwards compatibility. New configurations should use relationship_context.data_layer.references. See the [DSL reference](../../dsls/DSL-AshPostgres.DataLayer.md#postgres-references) for the legacy options.
+
 ## Table specific actions
 
 To make actions use a specific table, you can use the `set_context` query preparation/change.
@@ -90,3 +125,6 @@ all resources that are related to it, that set the `%{data_layer: %{table: "tabl
 For each of those, a migration is generated/managed automatically. This means that adding reactions
 to a new resource is as easy as adding the relationship and table context, and then running
 `mix ash.codegen`.
+
+To configure the foreign keys generated for these tables, see
+[Polymorphic references](#polymorphic-references).
