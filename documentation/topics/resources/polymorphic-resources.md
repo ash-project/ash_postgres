@@ -62,6 +62,35 @@ With this, when loading or editing related data, ash will automatically set that
 For managing related data, see `Ash.Changeset.manage_relationship/4` and other relationship functions
 in `Ash.Changeset`
 
+## Table specific actions
+
+To make actions use a specific table, you can use the `set_context` query preparation/change.
+
+For example:
+
+```elixir
+defmodule MyApp.Reaction do
+  # ...
+  actions do
+    read :for_comments do
+      prepare set_context(%{data_layer: %{table: "comment_reactions"}})
+    end
+
+    read :for_posts do
+      prepare set_context(%{data_layer: %{table: "post_reactions"}})
+    end
+  end
+end
+```
+
+## Migrations
+
+When a migration is marked as `polymorphic? true`, the migration generator will look at
+all resources that are related to it, that set the `%{data_layer: %{table: "table"}}` context.
+For each of those, a migration is generated/managed automatically. This means that adding reactions
+to a new resource is as easy as adding the relationship and table context, and then running
+`mix ash.codegen`.
+
 ## Polymorphic references
 
 For each `has_many` or `has_one` relationship from a source resource to a polymorphic resource that supplies a table context, AshPostgres generates a foreign key that points to the source resource’s table. This foreign key is created in the `table` specified by the relationship’s `data_layer` context.
@@ -98,35 +127,3 @@ The following options go inside `relationship_context.data_layer.references`:
 The legacy `polymorphic_on_delete`, `polymorphic_on_update`, and `polymorphic_name` options are deprecated but remain supported for backwards compatibility. New configurations should use `relationship_context.data_layer.references`. See the [DSL reference](../../dsls/DSL-AshPostgres.DataLayer.md#postgres-references) for the legacy options.
 
 Remove the corresponding legacy option when moving a setting into the relationship context. Configuring both forms for the same setting raises an error, even when their values match.
-
-## Table specific actions
-
-To make actions use a specific table, you can use the `set_context` query preparation/change.
-
-For example:
-
-```elixir
-defmodule MyApp.Reaction do
-  # ...
-  actions do
-    read :for_comments do
-      prepare set_context(%{data_layer: %{table: "comment_reactions"}})
-    end
-
-    read :for_posts do
-      prepare set_context(%{data_layer: %{table: "post_reactions"}})
-    end
-  end
-end
-```
-
-## Migrations
-
-When a migration is marked as `polymorphic? true`, the migration generator will look at
-all resources that are related to it, that set the `%{data_layer: %{table: "table"}}` context.
-For each of those, a migration is generated/managed automatically. This means that adding reactions
-to a new resource is as easy as adding the relationship and table context, and then running
-`mix ash.codegen`.
-
-To configure the foreign keys generated for these tables, see
-[Polymorphic references](#polymorphic-references).
