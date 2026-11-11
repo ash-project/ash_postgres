@@ -17,10 +17,6 @@ defmodule AshPostgres.Test.Label do
   postgres do
     table "labels"
     repo AshPostgres.TestRepo
-
-    references do
-      polymorphic_on_delete :delete
-    end
   end
 
   actions do
