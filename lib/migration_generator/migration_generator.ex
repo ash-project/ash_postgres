@@ -2886,6 +2886,7 @@ defmodule AshPostgres.MigrationGenerator do
   defp temporal_period_reference?(_), do: false
 
   # The standard reference-splitting path (column + AlterAttribute references + DropForeignKey).
+  # The foreign key is new, so rolling back drops it, deferrability and all: only `up` alters it.
   defp do_add_attribute_with_reference(attribute, snapshot) do
     reference_ops =
       if attribute.references.deferrable do
@@ -2895,12 +2896,6 @@ defmodule AshPostgres.MigrationGenerator do
             schema: snapshot.schema,
             references: attribute.references,
             direction: :up
-          },
-          %Operation.AlterDeferrability{
-            table: snapshot.table,
-            schema: snapshot.schema,
-            references: Map.get(attribute, :references),
-            direction: :down
           }
         ]
       else
