@@ -262,6 +262,12 @@ A section for configuring the references (foreign keys) in resource migrations.
 This section is only relevant if you are using the migration generator with this resource.
 Otherwise, it has no effect.
 
+> ### Deprecated polymorphic options {: .warning}
+>
+> `polymorphic_on_delete`, `polymorphic_on_update`, and `polymorphic_name` are
+> deprecated but remain supported. Use the relationship context described in
+> [Polymorphic references](./../topics/resources/polymorphic-resources.md#polymorphic-references) instead.
+
 
 ### Nested DSLs
  * [reference](#postgres-references-reference)
@@ -282,8 +288,9 @@ end
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`polymorphic_on_delete`](#postgres-references-polymorphic_on_delete){: #postgres-references-polymorphic_on_delete } | `:delete \| :nilify \| :nothing \| :restrict \| {:nilify, atom \| list(atom)}` |  | For polymorphic resources, configures the on_delete behavior of the automatically generated foreign keys to source tables. |
-| [`polymorphic_on_update`](#postgres-references-polymorphic_on_update){: #postgres-references-polymorphic_on_update } | `:update \| :nilify \| :nothing \| :restrict` |  | For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables. |
+| [`polymorphic_on_delete`](#postgres-references-polymorphic_on_delete){: #postgres-references-polymorphic_on_delete } | `:delete \| :nilify \| :nothing \| :restrict \| {:nilify, atom \| list(atom)}` |  | For polymorphic resources, configures the `on_delete` behavior of the automatically generated foreign keys to source tables. This option is deprecated; use `relationship_context: %{data_layer: %{references: %{on_delete: ...}}}` on the relationship instead. |
+| [`polymorphic_on_update`](#postgres-references-polymorphic_on_update){: #postgres-references-polymorphic_on_update } | `:update \| :nilify \| :nothing \| :restrict` |  | For polymorphic resources, configures the `on_update` behavior of the automatically generated foreign keys to source tables. This option is deprecated; use `relationship_context: %{data_layer: %{references: %{on_update: ...}}}` on the relationship instead. |
+| [`polymorphic_name`](#postgres-references-polymorphic_name){: #postgres-references-polymorphic_name } | `String.t` |  | For polymorphic resources, configures the name of the generated foreign-key constraint to the source table. This option is deprecated; use `relationship_context: %{data_layer: %{references: %{name: ...}}}` on the relationship instead. |
 
 
 

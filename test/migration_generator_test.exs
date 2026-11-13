@@ -132,6 +132,569 @@ defmodule AshPostgres.MigrationGeneratorTest do
     end
   end
 
+  defmacrop defpolymorphic_comment(comment) do
+    quote do
+      defresource unquote(comment) do
+        postgres do
+          polymorphic?(true)
+          repo(AshPostgres.TestRepo)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+          attribute(:resource_id, :uuid, public?: true)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+      end
+    end
+  end
+
+  defmacrop defpolymorphic_post(
+              post,
+              table,
+              comment,
+              relationship_table,
+              opts \\ []
+            ) do
+    reference = Keyword.get(opts, :reference)
+    relationship_references = Keyword.get(opts, :relationship_references)
+
+    references_block =
+      if reference do
+        quote do
+          references do
+            unquote(reference)
+          end
+        end
+      else
+        []
+      end
+
+    relationship_context =
+      if relationship_references do
+        quote do
+          %{
+            data_layer: %{
+              table: unquote(relationship_table),
+              references: unquote(relationship_references)
+            }
+          }
+        end
+      else
+        quote do
+          %{data_layer: %{table: unquote(relationship_table)}}
+        end
+      end
+
+    quote do
+      defresource unquote(post) do
+        postgres do
+          table unquote(table)
+          repo(AshPostgres.TestRepo)
+          unquote(references_block)
+        end
+
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        actions do
+          defaults([:create, :read, :update, :destroy])
+        end
+
+        relationships do
+          has_many(:comments, unquote(comment),
+            public?: true,
+            destination_attribute: :resource_id,
+            relationship_context: unquote(relationship_context)
+          )
+        end
+      end
+    end
+  end
+
+  defmacrop defpolymorphic_domain(domain, resources) do
+    quote do
+      defmodule unquote(domain) do
+        use Ash.Domain
+
+        resources do
+          for resource <- unquote(resources) do
+            resource(resource)
+          end
+        end
+      end
+    end
+  end
+
+  defmacrop assert_legacy_polymorphic_reference(
+              module_suffix,
+              reference_option,
+              reference_value,
+              snapshot_path,
+              migration_path
+            ) do
+    module_suffix = Macro.expand(module_suffix, __CALLER__)
+    reference_option = Macro.expand(reference_option, __CALLER__)
+    reference_value = Macro.expand(reference_value, __CALLER__)
+
+    option_name =
+      reference_option |> Atom.to_string() |> String.replace_prefix("polymorphic_", "")
+
+    comment = Module.concat([:"Elixir", "LegacyPolymorphic#{module_suffix}Comment"])
+    post = Module.concat([:"Elixir", "LegacyPolymorphic#{module_suffix}Post"])
+    domain = Module.concat([:"Elixir", "LegacyPolymorphic#{module_suffix}Domain"])
+    migration_name = "legacy_polymorphic_#{option_name}"
+    post_table = "#{migration_name}_posts"
+    relationship_table = "#{migration_name}_comments"
+    reference = {reference_option, [], [reference_value]}
+
+    expected_value =
+      case reference_option do
+        :polymorphic_on_delete -> :delete_all
+        :polymorphic_on_update -> :update_all
+        :polymorphic_name -> reference_value
+      end
+
+    expected =
+      Regex.compile!(
+        "references\\(:#{post_table}\\b[^)]*#{option_name}: #{inspect(expected_value)}"
+      )
+
+    quote do
+      defpolymorphic_comment(unquote(comment))
+
+      defpolymorphic_post(
+        unquote(post),
+        unquote(post_table),
+        unquote(comment),
+        unquote(relationship_table),
+        reference: unquote(reference)
+      )
+
+      defpolymorphic_domain(unquote(domain), [unquote(post), unquote(comment)])
+
+      generate_resource_migration(
+        unquote(domain),
+        unquote(snapshot_path),
+        unquote(migration_path),
+        unquote(migration_name)
+      )
+
+      current_migration_path = Path.join(unquote(migration_path), unquote(migration_name))
+      migration = read_resource_migration!(current_migration_path)
+      assert migration =~ unquote(Macro.escape(expected))
+    end
+  end
+
+  defmacrop assert_legacy_polymorphic_deprecation(
+              module_suffix,
+              reference_option,
+              reference_value
+            ) do
+    module_suffix = Macro.expand(module_suffix, __CALLER__)
+    reference_option = Macro.expand(reference_option, __CALLER__)
+    reference_value = Macro.expand(reference_value, __CALLER__)
+
+    option_name =
+      reference_option |> Atom.to_string() |> String.replace_prefix("polymorphic_", "")
+
+    post = Module.concat([:"Elixir", "DeprecatedPolymorphic#{module_suffix}Post"])
+    reference = {reference_option, [], [reference_value]}
+    warning_regex = ~r/#{reference_option}[^\n]*deprecated/i
+
+    warning =
+      "Use `relationship_context: %{data_layer: %{references: %{#{option_name}: ...}}}` on the relationship instead."
+
+    quote do
+      warning =
+        ExUnit.CaptureIO.capture_io(:stderr, fn ->
+          defresource unquote(post) do
+            postgres do
+              table unquote("deprecated_polymorphic_#{option_name}_posts")
+              repo(AshPostgres.TestRepo)
+
+              references do
+                unquote(reference)
+              end
+            end
+
+            attributes do
+              uuid_primary_key(:id)
+            end
+          end
+        end)
+
+      assert warning =~ unquote(Macro.escape(warning_regex))
+      assert warning =~ unquote(warning)
+    end
+  end
+
+  defmacrop assert_multiple_legacy_polymorphic_rejection(
+              module_suffix,
+              reference_option,
+              first_value,
+              second_value,
+              snapshot_path,
+              migration_path
+            ) do
+    module_suffix = Macro.expand(module_suffix, __CALLER__)
+    reference_option = Macro.expand(reference_option, __CALLER__)
+    first_value = Macro.expand(first_value, __CALLER__)
+    second_value = Macro.expand(second_value, __CALLER__)
+
+    option_name =
+      reference_option |> Atom.to_string() |> String.replace_prefix("polymorphic_", "")
+
+    comment = Module.concat([:"Elixir", "MultipleLegacyPolymorphic#{module_suffix}Comment"])
+    first_post = Module.concat([:"Elixir", "MultipleLegacyPolymorphic#{module_suffix}FirstPost"])
+
+    second_post =
+      Module.concat([:"Elixir", "MultipleLegacyPolymorphic#{module_suffix}SecondPost"])
+
+    domain = Module.concat([:"Elixir", "MultipleLegacyPolymorphic#{module_suffix}Domain"])
+    post_table = "multiple_legacy_polymorphic_#{option_name}_posts"
+    relationship_table = "multiple_legacy_polymorphic_#{option_name}_comments"
+    first_reference = {reference_option, [], [first_value]}
+    second_reference = {reference_option, [], [second_value]}
+
+    quote do
+      defpolymorphic_comment(unquote(comment))
+
+      defpolymorphic_post(
+        unquote(first_post),
+        unquote(post_table),
+        unquote(comment),
+        unquote(relationship_table),
+        reference: unquote(first_reference)
+      )
+
+      defpolymorphic_post(
+        unquote(second_post),
+        unquote(post_table),
+        unquote(comment),
+        unquote(relationship_table),
+        reference: unquote(second_reference)
+      )
+
+      defpolymorphic_domain(unquote(domain), [
+        unquote(first_post),
+        unquote(second_post),
+        unquote(comment)
+      ])
+
+      assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
+        generate_resource_migration(
+          unquote(domain),
+          unquote(snapshot_path),
+          unquote(migration_path),
+          unquote("multiple_legacy_polymorphic_#{option_name}")
+        )
+      end
+    end
+  end
+
+  defmacrop assert_relationship_context_polymorphic_reference(
+              module_suffix,
+              reference_option,
+              reference_value,
+              snapshot_path,
+              migration_path
+            ) do
+    module_suffix = Macro.expand(module_suffix, __CALLER__)
+    reference_option = Macro.expand(reference_option, __CALLER__)
+    reference_value = Macro.expand(reference_value, __CALLER__)
+
+    option_name = Atom.to_string(reference_option)
+    comment = Module.concat([:"Elixir", "RelationshipContextPolymorphic#{module_suffix}Comment"])
+    post = Module.concat([:"Elixir", "RelationshipContextPolymorphic#{module_suffix}Post"])
+    domain = Module.concat([:"Elixir", "RelationshipContextPolymorphic#{module_suffix}Domain"])
+    table = "relationship_context_polymorphic_#{option_name}_posts"
+    relationship_table = "relationship_context_polymorphic_#{option_name}_comments"
+    references = {:%{}, [], [{reference_option, reference_value}]}
+
+    expected_value =
+      case reference_option do
+        :on_delete -> :delete_all
+        :on_update -> :update_all
+        :name -> reference_value
+      end
+
+    expected =
+      Regex.compile!("references\\(:#{table}\\b[^)]*#{option_name}: #{inspect(expected_value)}")
+
+    quote do
+      defpolymorphic_comment(unquote(comment))
+
+      defpolymorphic_post(
+        unquote(post),
+        unquote(table),
+        unquote(comment),
+        unquote(relationship_table),
+        relationship_references: unquote(references)
+      )
+
+      defpolymorphic_domain(unquote(domain), [unquote(post), unquote(comment)])
+
+      generate_resource_migration(
+        unquote(domain),
+        unquote(snapshot_path),
+        unquote(migration_path),
+        unquote("relationship_context_polymorphic_#{option_name}")
+      )
+
+      current_migration_path =
+        Path.join(
+          unquote(migration_path),
+          unquote("relationship_context_polymorphic_#{option_name}")
+        )
+
+      migration = read_resource_migration!(current_migration_path)
+      assert migration =~ unquote(Macro.escape(expected))
+    end
+  end
+
+  defmacrop assert_legacy_and_relationship_context_conflict(
+              module_suffix,
+              legacy_option,
+              legacy_value,
+              relationship_option,
+              relationship_value,
+              snapshot_path,
+              migration_path
+            ) do
+    module_suffix = Macro.expand(module_suffix, __CALLER__)
+    legacy_option = Macro.expand(legacy_option, __CALLER__)
+    legacy_value = Macro.expand(legacy_value, __CALLER__)
+    relationship_option = Macro.expand(relationship_option, __CALLER__)
+    relationship_value = Macro.expand(relationship_value, __CALLER__)
+
+    option_name = relationship_option |> Atom.to_string()
+    comment = Module.concat([:"Elixir", "LegacyAndNewPolymorphic#{module_suffix}Comment"])
+    post = Module.concat([:"Elixir", "LegacyAndNewPolymorphic#{module_suffix}Post"])
+    domain = Module.concat([:"Elixir", "LegacyAndNewPolymorphic#{module_suffix}Domain"])
+    post_table = "legacy_and_new_polymorphic_#{option_name}_posts"
+    relationship_table = "legacy_and_new_polymorphic_#{option_name}_comments"
+    legacy_reference = {legacy_option, [], [legacy_value]}
+    relationship_references = {:%{}, [], [{relationship_option, relationship_value}]}
+
+    quote do
+      defpolymorphic_comment(unquote(comment))
+
+      defpolymorphic_post(
+        unquote(post),
+        unquote(post_table),
+        unquote(comment),
+        unquote(relationship_table),
+        reference: unquote(legacy_reference),
+        relationship_references: unquote(relationship_references)
+      )
+
+      defpolymorphic_domain(unquote(domain), [unquote(post), unquote(comment)])
+
+      assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
+        generate_resource_migration(
+          unquote(domain),
+          unquote(snapshot_path),
+          unquote(migration_path),
+          unquote("legacy_and_new_polymorphic_#{option_name}")
+        )
+      end
+    end
+  end
+
+  defmacrop assert_cross_resource_polymorphic_conflict(
+              module_suffix,
+              legacy_option,
+              legacy_value,
+              relationship_option,
+              relationship_value,
+              snapshot_path,
+              migration_path
+            ) do
+    module_suffix = Macro.expand(module_suffix, __CALLER__)
+    legacy_option = Macro.expand(legacy_option, __CALLER__)
+    legacy_value = Macro.expand(legacy_value, __CALLER__)
+    relationship_option = Macro.expand(relationship_option, __CALLER__)
+    relationship_value = Macro.expand(relationship_value, __CALLER__)
+
+    comment = Module.concat([:"Elixir", "CrossResourcePolymorphic#{module_suffix}Comment"])
+    legacy_post = Module.concat([:"Elixir", "CrossResourceLegacyPolymorphic#{module_suffix}Post"])
+
+    relationship_post =
+      Module.concat([
+        :"Elixir",
+        "CrossResourceRelationshipContextPolymorphic#{module_suffix}Post"
+      ])
+
+    domain = Module.concat([:"Elixir", "CrossResourcePolymorphic#{module_suffix}Domain"])
+    migration_name = "cross_resource_polymorphic_#{String.downcase(module_suffix)}"
+    post_table = "#{migration_name}_posts"
+    relationship_table = "#{migration_name}_comments"
+    legacy_reference = {legacy_option, [], [legacy_value]}
+    relationship_references = {:%{}, [], [{relationship_option, relationship_value}]}
+
+    quote do
+      defpolymorphic_comment(unquote(comment))
+
+      defpolymorphic_post(
+        unquote(legacy_post),
+        unquote(post_table),
+        unquote(comment),
+        unquote(relationship_table),
+        reference: unquote(legacy_reference)
+      )
+
+      defpolymorphic_post(
+        unquote(relationship_post),
+        unquote(post_table),
+        unquote(comment),
+        unquote(relationship_table),
+        relationship_references: unquote(relationship_references)
+      )
+
+      defpolymorphic_domain(unquote(domain), [
+        unquote(legacy_post),
+        unquote(relationship_post),
+        unquote(comment)
+      ])
+
+      assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
+        generate_resource_migration(
+          unquote(domain),
+          unquote(snapshot_path),
+          unquote(migration_path),
+          unquote(migration_name)
+        )
+      end
+    end
+  end
+
+  defmacrop assert_conflicting_relationship_context_polymorphic_references(
+              module_suffix,
+              reference_option,
+              first_value,
+              second_value,
+              snapshot_path,
+              migration_path
+            ) do
+    module_suffix = Macro.expand(module_suffix, __CALLER__)
+    reference_option = Macro.expand(reference_option, __CALLER__)
+    first_value = Macro.expand(first_value, __CALLER__)
+    second_value = Macro.expand(second_value, __CALLER__)
+
+    comment =
+      Module.concat([:"Elixir", "MultipleRelationshipContextPolymorphic#{module_suffix}Comment"])
+
+    first_post =
+      Module.concat([:"Elixir", "FirstRelationshipContextPolymorphic#{module_suffix}Post"])
+
+    second_post =
+      Module.concat([:"Elixir", "SecondRelationshipContextPolymorphic#{module_suffix}Post"])
+
+    domain =
+      Module.concat([:"Elixir", "MultipleRelationshipContextPolymorphic#{module_suffix}Domain"])
+
+    migration_name = "multiple_relationship_context_polymorphic_#{String.downcase(module_suffix)}"
+    post_table = "#{migration_name}_posts"
+    relationship_table = "#{migration_name}_comments"
+    first_references = {:%{}, [], [{reference_option, first_value}]}
+    second_references = {:%{}, [], [{reference_option, second_value}]}
+
+    quote do
+      defpolymorphic_comment(unquote(comment))
+
+      defpolymorphic_post(
+        unquote(first_post),
+        unquote(post_table),
+        unquote(comment),
+        unquote(relationship_table),
+        relationship_references: unquote(first_references)
+      )
+
+      defpolymorphic_post(
+        unquote(second_post),
+        unquote(post_table),
+        unquote(comment),
+        unquote(relationship_table),
+        relationship_references: unquote(second_references)
+      )
+
+      defpolymorphic_domain(unquote(domain), [
+        unquote(first_post),
+        unquote(second_post),
+        unquote(comment)
+      ])
+
+      assert_raise RuntimeError, ~r/Conflicting configurations for references/, fn ->
+        generate_resource_migration(
+          unquote(domain),
+          unquote(snapshot_path),
+          unquote(migration_path),
+          unquote(migration_name)
+        )
+      end
+    end
+  end
+
+  defmacrop assert_default_polymorphic_reference(
+              module_suffix,
+              reference_option,
+              snapshot_path,
+              migration_path
+            ) do
+    module_suffix = Macro.expand(module_suffix, __CALLER__)
+    reference_option = Macro.expand(reference_option, __CALLER__)
+
+    comment = Module.concat([:"Elixir", "DefaultPolymorphic#{module_suffix}Comment"])
+    post = Module.concat([:"Elixir", "DefaultPolymorphic#{module_suffix}Post"])
+    domain = Module.concat([:"Elixir", "DefaultPolymorphic#{module_suffix}Domain"])
+    migration_name = "default_polymorphic_#{String.downcase(module_suffix)}"
+    post_table = "#{migration_name}_posts"
+    relationship_table = "#{migration_name}_comments"
+
+    expected_name =
+      Regex.compile!(
+        "references\\(:#{post_table}\\b[^)]*name: \\\"#{relationship_table}_resource_id_fkey\\\""
+      )
+
+    explicit_option = Regex.compile!("references\\(:#{post_table}\\b[^)]*#{reference_option}:")
+
+    quote do
+      defpolymorphic_comment(unquote(comment))
+
+      defpolymorphic_post(
+        unquote(post),
+        unquote(post_table),
+        unquote(comment),
+        unquote(relationship_table)
+      )
+
+      defpolymorphic_domain(unquote(domain), [unquote(post), unquote(comment)])
+
+      generate_resource_migration(
+        unquote(domain),
+        unquote(snapshot_path),
+        unquote(migration_path),
+        unquote(migration_name)
+      )
+
+      current_migration_path = Path.join(unquote(migration_path), unquote(migration_name))
+      migration = read_resource_migration!(current_migration_path)
+
+      if unquote(reference_option == :name) do
+        assert migration =~ unquote(Macro.escape(expected_name))
+      end
+
+      if unquote(reference_option in [:on_delete, :on_update]) do
+        refute migration =~ unquote(Macro.escape(explicit_option))
+      end
+    end
+  end
+
   defp position_of_substring(string, substring) do
     case :binary.match(string, substring) do
       {pos, _len} -> pos
@@ -147,6 +710,22 @@ defmodule AshPostgres.MigrationGeneratorTest do
       format: false,
       auto_name: true
     )
+  end
+
+  defp generate_resource_migration(domain, snapshot_path, migration_path, name) do
+    generate_post_migration(
+      domain,
+      Path.join(snapshot_path, name),
+      Path.join(migration_path, name)
+    )
+  end
+
+  defp read_resource_migration!(migration_path) do
+    assert [file] =
+             Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+             |> Enum.reject(&String.contains?(&1, "extensions"))
+
+    File.read!(file)
   end
 
   defp flush_mix_shell do
@@ -5801,6 +6380,328 @@ defmodule AshPostgres.MigrationGeneratorTest do
 
       assert File.read!(file) =~
                ~S[references(:post_comments, column: :id, name: "posts_best_comment_id_fkey", type: :uuid, prefix: "public")]
+    end
+
+    # Tests for polymorphic_on_delete
+
+    test "Legacy polymorphic_on_delete generates the expected foreign-key delete behavior.", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      assert_legacy_polymorphic_reference(
+        "Delete",
+        :polymorphic_on_delete,
+        :delete,
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    test "Legacy polymorphic_on_delete emits a deprecation warning." do
+      assert_legacy_polymorphic_deprecation("Delete", :polymorphic_on_delete, :delete)
+    end
+
+    test "Multiple legacy polymorphic_on_delete configurations result in rejection.", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      assert_multiple_legacy_polymorphic_rejection(
+        "Delete",
+        :polymorphic_on_delete,
+        :delete,
+        :nilify,
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    test "on_delete within relationship_context generates the expected foreign-key delete behavior.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      assert_relationship_context_polymorphic_reference(
+        "Delete",
+        :on_delete,
+        :delete,
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    test "Configuring polymorphic_on_delete through both legacy and relationship-context options on one resource results in rejection.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      assert_legacy_and_relationship_context_conflict(
+        "Delete",
+        :polymorphic_on_delete,
+        :delete,
+        :on_delete,
+        :nilify,
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    test "Conflicting polymorphic_on_delete configurations across resources result in rejection.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      assert_cross_resource_polymorphic_conflict(
+        "Delete",
+        :polymorphic_on_delete,
+        :delete,
+        :on_delete,
+        :nilify,
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    test "Multiple on_delete configurations within relationship_context result in rejection.", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      assert_conflicting_relationship_context_polymorphic_references(
+        "Delete",
+        :on_delete,
+        :delete,
+        :nilify,
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    test "Omitting both polymorphic_on_delete and on_delete in relationship_context retains default behavior.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      assert_default_polymorphic_reference(
+        "Delete",
+        :on_delete,
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    # Tests for polymorphic_on_update
+
+    test "Legacy polymorphic_on_update generates the expected foreign-key update behavior.", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      assert_legacy_polymorphic_reference(
+        "Update",
+        :polymorphic_on_update,
+        :update,
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    test "Legacy polymorphic_on_update emits a deprecation warning." do
+      assert_legacy_polymorphic_deprecation("Update", :polymorphic_on_update, :update)
+    end
+
+    test "Multiple legacy polymorphic_on_update configurations result in rejection.", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      assert_multiple_legacy_polymorphic_rejection(
+        "Update",
+        :polymorphic_on_update,
+        :update,
+        :restrict,
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    test "on_update within relationship_context generates the expected foreign-key update behavior.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      assert_relationship_context_polymorphic_reference(
+        "Update",
+        :on_update,
+        :update,
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    test "Configuring polymorphic_on_update through both legacy and relationship-context options on one resource results in rejection.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      assert_legacy_and_relationship_context_conflict(
+        "Update",
+        :polymorphic_on_update,
+        :update,
+        :on_update,
+        :restrict,
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    test "Conflicting polymorphic_on_update configurations across resources result in rejection.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      assert_cross_resource_polymorphic_conflict(
+        "Update",
+        :polymorphic_on_update,
+        :update,
+        :on_update,
+        :restrict,
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    test "Multiple on_update configurations within relationship_context result in rejection.", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      assert_conflicting_relationship_context_polymorphic_references(
+        "Update",
+        :on_update,
+        :update,
+        :restrict,
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    test "Omitting both polymorphic_on_update and on_update in relationship_context retains default behavior.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      assert_default_polymorphic_reference(
+        "Update",
+        :on_update,
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    # Tests for polymorphic_name
+
+    test "Legacy polymorphic_name uses the configured name for generated polymorphic foreign-key constraints.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      assert_legacy_polymorphic_reference(
+        "Name",
+        :polymorphic_name,
+        "custom_polymorphic_name_fkey",
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    test "Legacy polymorphic_name emits a deprecation warning." do
+      assert_legacy_polymorphic_deprecation(
+        "Name",
+        :polymorphic_name,
+        "deprecated_polymorphic_name_fkey"
+      )
+    end
+
+    test "Multiple legacy polymorphic_name configurations result in rejection.", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      assert_multiple_legacy_polymorphic_rejection(
+        "Name",
+        :polymorphic_name,
+        "multiple_legacy_polymorphic_name_delete_fkey",
+        "multiple_legacy_polymorphic_name_update_fkey",
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    test "name within relationship_context uses the configured name for generated polymorphic foreign-key constraints.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      assert_relationship_context_polymorphic_reference(
+        "Name",
+        :name,
+        "relationship_context_polymorphic_name_fkey",
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    test "Configuring polymorphic_name through both legacy and relationship-context options on one resource results in rejection.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      assert_legacy_and_relationship_context_conflict(
+        "Name",
+        :polymorphic_name,
+        "legacy_polymorphic_name_fkey",
+        :name,
+        "relationship_context_polymorphic_name_fkey",
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    test "Conflicting polymorphic_name configurations across resources result in rejection.", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      assert_cross_resource_polymorphic_conflict(
+        "Name",
+        :polymorphic_name,
+        "legacy_polymorphic_name_fkey",
+        :name,
+        "relationship_context_polymorphic_name_fkey",
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    test "Multiple name configurations within relationship_context result in rejection.", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      assert_conflicting_relationship_context_polymorphic_references(
+        "Name",
+        :name,
+        "first_polymorphic_name_fkey",
+        "second_polymorphic_name_fkey",
+        snapshot_path,
+        migration_path
+      )
+    end
+
+    test "Omitting both polymorphic_name and name in relationship_context retains default behavior.",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      assert_default_polymorphic_reference(
+        "Name",
+        :name,
+        snapshot_path,
+        migration_path
+      )
     end
   end
 

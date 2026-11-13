@@ -45,6 +45,7 @@ spark_locals_without_parens = [
   on_update: 1,
   on_update_message: 1,
   polymorphic?: 1,
+  polymorphic_name: 1,
   polymorphic_on_delete: 1,
   polymorphic_on_update: 1,
   prefix: 1,

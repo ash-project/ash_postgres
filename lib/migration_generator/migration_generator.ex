@@ -3832,12 +3832,10 @@ defmodule AshPostgres.MigrationGenerator do
                 multitenancy: multitenancy(relationship.source),
                 table: AshPostgres.DataLayer.Info.table(relationship.source),
                 schema: AshPostgres.DataLayer.Info.schema(relationship.source),
-                on_delete: AshPostgres.DataLayer.Info.polymorphic_on_delete(relationship.source),
-                on_update: AshPostgres.DataLayer.Info.polymorphic_on_update(relationship.source),
+                on_delete: polymorphic_on_delete(relationship),
+                on_update: polymorphic_on_update(relationship),
                 primary_key?: source_attribute.primary_key?,
-                name:
-                  AshPostgres.DataLayer.Info.polymorphic_name(relationship.source) ||
-                    "#{relationship.context[:data_layer][:table]}_#{destination_attribute_source}_fkey"
+                name: polymorphic_name(relationship, destination_attribute_source)
               })
             else
               attribute
@@ -3848,6 +3846,45 @@ defmodule AshPostgres.MigrationGenerator do
     else
       [do_snapshot(resource, AshPostgres.DataLayer.Info.table(resource))]
     end
+  end
+
+  defp polymorphic_on_delete(relationship) do
+    relationship_context_on_delete =
+      get_in(relationship.context, [:data_layer, :references, :on_delete])
+
+    legacy_on_delete = AshPostgres.DataLayer.Info.polymorphic_on_delete(relationship.source)
+
+    if relationship_context_on_delete && legacy_on_delete do
+      raise "Conflicting configurations for references: both relationship_context references on_delete and polymorphic_on_delete are configured"
+    end
+
+    relationship_context_on_delete || legacy_on_delete
+  end
+
+  defp polymorphic_on_update(relationship) do
+    relationship_context_on_update =
+      get_in(relationship.context, [:data_layer, :references, :on_update])
+
+    legacy_on_update = AshPostgres.DataLayer.Info.polymorphic_on_update(relationship.source)
+
+    if relationship_context_on_update && legacy_on_update do
+      raise "Conflicting configurations for references: both relationship_context references on_update and polymorphic_on_update are configured"
+    end
+
+    relationship_context_on_update || legacy_on_update
+  end
+
+  defp polymorphic_name(relationship, destination_attribute_source) do
+    relationship_context_name = get_in(relationship.context, [:data_layer, :references, :name])
+
+    legacy_name = AshPostgres.DataLayer.Info.polymorphic_name(relationship.source)
+
+    if relationship_context_name && legacy_name do
+      raise "Conflicting configurations for references: both relationship_context references name and polymorphic_name are configured"
+    end
+
+    relationship_context_name || legacy_name ||
+      "#{relationship.context[:data_layer][:table]}_#{destination_attribute_source}_fkey"
   end
 
   defp do_snapshot(resource, table, schema \\ nil) do
