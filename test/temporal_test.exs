@@ -930,8 +930,7 @@ defmodule AshPostgres.TemporalTest do
       |> Ash.bulk_destroy!(:expire, %{}, as_of: @jan15, strategy: :atomic)
 
       assert [
-               ["bronze", ~U[2026-01-01 00:00:00.000000Z], ~U[2026-01-15 00:00:00.000000Z]],
-               ["gold", ~U[2026-02-01 00:00:00.000000Z], ~U[2026-04-01 00:00:00.000000Z]]
+               ["bronze", ~U[2026-01-01 00:00:00.000000Z], ~U[2026-01-15 00:00:00.000000Z]]
              ] = subscription_timeline(1)
 
       assert [["bronze", _, _]] = subscription_timeline(2)
@@ -1937,6 +1936,297 @@ defmodule AshPostgres.TemporalTest do
       )
 
       assert [["basic", _, @mar1], ["pro", @mar1, nil]] = scoped_timeline(1)
+    end
+  end
+
+  describe "carrying an instant write into later versions" do
+    @jan01 ~U[2026-01-01 00:00:00.000000Z]
+    @feb01 ~U[2026-02-01 00:00:00.000000Z]
+    @apr01 ~U[2026-04-01 00:00:00.000000Z]
+    @may01 ~U[2026-05-01 00:00:00.000000Z]
+
+    defp full_timeline(id) do
+      TemporalTestRepo.query!(
+        "SELECT tier, seats, lower(valid_at), upper(valid_at) FROM subscription WHERE id = $1 ORDER BY lower(valid_at)",
+        [id]
+      ).rows
+    end
+
+    test "an instant update carries changed attributes into contiguous later versions until they change" do
+      TemporalTestRepo.query!("DELETE FROM subscription WHERE id = 1")
+
+      TemporalTestRepo.query!("""
+      INSERT INTO subscription (id, tier, seats, valid_at) VALUES
+        (1, 'bronze', 5,  tstzrange('2026-01-01','2026-02-01','[)')),
+        (1, 'bronze', 10, tstzrange('2026-02-01','2026-03-01','[)')),
+        (1, 'gold',   10, tstzrange('2026-03-01','2026-04-01','[)'))
+      """)
+
+      [sub] = Subscription |> Ash.Query.filter(id == 1) |> Ash.Query.as_of(@jan15) |> Ash.read!()
+
+      sub
+      |> Ash.Changeset.for_update(:change_tier, %{tier: "silver"}, as_of: @jan15)
+      |> Ash.update!()
+
+      assert [
+               ["bronze", 5, @jan01, @jan15],
+               ["silver", 5, @jan15, @feb01],
+               ["silver", 10, @feb01, @mar1],
+               ["gold", 10, @mar1, @apr01]
+             ] = full_timeline(1)
+    end
+
+    test "a non-atomic instant update carries changed attributes into later versions" do
+      TemporalTestRepo.query!("DELETE FROM subscription WHERE id = 1")
+
+      TemporalTestRepo.query!("""
+      INSERT INTO subscription (id, tier, seats, valid_at) VALUES
+        (1, 'bronze', 5,  tstzrange('2026-01-01','2026-02-01','[)')),
+        (1, 'bronze', 10, tstzrange('2026-02-01','2026-03-01','[)')),
+        (1, 'gold',   10, tstzrange('2026-03-01','2026-04-01','[)'))
+      """)
+
+      [sub] = Subscription |> Ash.Query.filter(id == 1) |> Ash.Query.as_of(@jan15) |> Ash.read!()
+
+      sub
+      |> Ash.Changeset.for_update(:change_tier_nonatomic, %{tier: "silver"}, as_of: @jan15)
+      |> Ash.update!()
+
+      assert [
+               ["bronze", 5, @jan01, @jan15],
+               ["silver", 5, @jan15, @feb01],
+               ["silver", 10, @feb01, @mar1],
+               ["gold", 10, @mar1, @apr01]
+             ] = full_timeline(1)
+    end
+
+    test "a bulk atomic update carries changed attributes across records" do
+      TemporalTestRepo.query!("DELETE FROM subscription WHERE id IN (1, 2)")
+
+      TemporalTestRepo.query!("""
+      INSERT INTO subscription (id, tier, seats, valid_at) VALUES
+        (1, 'bronze', 5,  tstzrange('2026-01-01','2026-02-01','[)')),
+        (1, 'bronze', 10, tstzrange('2026-02-01','2026-03-01','[)')),
+        (2, 'bronze', 3,  tstzrange('2026-01-01','2026-02-01','[)')),
+        (2, 'gold',   3,  tstzrange('2026-02-01','2026-03-01','[)'))
+      """)
+
+      Subscription
+      |> Ash.Query.filter(id in [1, 2])
+      |> Ash.bulk_update!(:change_tier, %{tier: "silver"}, as_of: @jan15, strategy: :atomic)
+
+      assert [
+               ["bronze", 5, @jan01, @jan15],
+               ["silver", 5, @jan15, @feb01],
+               ["silver", 10, @feb01, @mar1]
+             ] = full_timeline(1)
+
+      assert [
+               ["bronze", 3, @jan01, @jan15],
+               ["silver", 3, @jan15, @feb01],
+               ["gold", 3, @feb01, @mar1]
+             ] = full_timeline(2)
+    end
+
+    test "a matched upsert carries changed attributes into later versions" do
+      TemporalTestRepo.query!("DELETE FROM subscription WHERE id = 1")
+
+      TemporalTestRepo.query!("""
+      INSERT INTO subscription (id, tier, seats, valid_at) VALUES
+        (1, 'bronze', 5,  tstzrange('2026-01-01','2026-02-01','[)')),
+        (1, 'bronze', 10, tstzrange('2026-02-01','2026-03-01','[)')),
+        (1, 'gold',   10, tstzrange('2026-03-01','2026-04-01','[)'))
+      """)
+
+      Ash.bulk_create!([%{id: 1, tier: "silver", seats: 5}], Subscription, :create,
+        upsert?: true,
+        upsert_fields: [:tier],
+        as_of: @jan15,
+        return_errors?: true
+      )
+
+      assert [
+               ["bronze", 5, @jan01, @jan15],
+               ["silver", 5, @jan15, @feb01],
+               ["silver", 10, @feb01, @mar1],
+               ["gold", 10, @mar1, @apr01]
+             ] = full_timeline(1)
+    end
+
+    test "an x -> y -> x transition stops at y and does not overwrite the later x" do
+      TemporalTestRepo.query!("DELETE FROM subscription WHERE id = 1")
+
+      TemporalTestRepo.query!("""
+      INSERT INTO subscription (id, tier, seats, valid_at) VALUES
+        (1, 'bronze', 5, tstzrange('2026-01-01','2026-02-01','[)')),
+        (1, 'gold',   5, tstzrange('2026-02-01','2026-03-01','[)')),
+        (1, 'bronze', 5, tstzrange('2026-03-01','2026-04-01','[)'))
+      """)
+
+      [sub] = Subscription |> Ash.Query.filter(id == 1) |> Ash.Query.as_of(@jan15) |> Ash.read!()
+
+      sub
+      |> Ash.Changeset.for_update(:change_tier, %{tier: "silver"}, as_of: @jan15)
+      |> Ash.update!()
+
+      assert [
+               ["bronze", 5, @jan01, @jan15],
+               ["silver", 5, @jan15, @feb01],
+               ["gold", 5, @feb01, @mar1],
+               ["bronze", 5, @mar1, @apr01]
+             ] = full_timeline(1)
+    end
+
+    test "two columns updated together stop at each column's own first change" do
+      TemporalTestRepo.query!("DELETE FROM subscription WHERE id = 1")
+
+      TemporalTestRepo.query!("""
+      INSERT INTO subscription (id, tier, seats, valid_at) VALUES
+        (1, 'bronze', 5,  tstzrange('2026-01-01','2026-02-01','[)')),
+        (1, 'bronze', 10, tstzrange('2026-02-01','2026-03-01','[)')),
+        (1, 'gold',   10, tstzrange('2026-03-01','2026-04-01','[)'))
+      """)
+
+      [sub] = Subscription |> Ash.Query.filter(id == 1) |> Ash.Query.as_of(@jan15) |> Ash.read!()
+
+      sub
+      |> Ash.Changeset.for_update(:change_tier, %{tier: "silver", seats: 7}, as_of: @jan15)
+      |> Ash.update!()
+
+      assert [
+               ["bronze", 5, @jan01, @jan15],
+               ["silver", 7, @jan15, @feb01],
+               ["silver", 10, @feb01, @mar1],
+               ["gold", 10, @mar1, @apr01]
+             ] = full_timeline(1)
+    end
+
+    test "an atomic expression is evaluated once on the matched version and carried by value" do
+      TemporalTestRepo.query!("DELETE FROM subscription WHERE id = 1")
+
+      TemporalTestRepo.query!("""
+      INSERT INTO subscription (id, tier, seats, valid_at) VALUES
+        (1, 'bronze', 5, tstzrange('2026-01-01','2026-02-01','[)')),
+        (1, 'gold',   5, tstzrange('2026-02-01','2026-03-01','[)')),
+        (1, 'gold',   8, tstzrange('2026-03-01','2026-04-01','[)'))
+      """)
+
+      [sub] = Subscription |> Ash.Query.filter(id == 1) |> Ash.Query.as_of(@jan15) |> Ash.read!()
+
+      sub
+      |> Ash.Changeset.for_update(:add_seat, %{}, as_of: @jan15)
+      |> Ash.update!()
+
+      assert [
+               ["bronze", 5, @jan01, @jan15],
+               ["bronze", 6, @jan15, @feb01],
+               ["gold", 6, @feb01, @mar1],
+               ["gold", 8, @mar1, @apr01]
+             ] = full_timeline(1)
+    end
+
+    test "an instant update stops at a gap in validity" do
+      TemporalTestRepo.query!("DELETE FROM subscription WHERE id = 1")
+
+      TemporalTestRepo.query!("""
+      INSERT INTO subscription (id, tier, seats, valid_at) VALUES
+        (1, 'bronze', 5, tstzrange('2026-01-01','2026-02-01','[)')),
+        (1, 'bronze', 5, tstzrange('2026-03-01','2026-04-01','[)'))
+      """)
+
+      [sub] = Subscription |> Ash.Query.filter(id == 1) |> Ash.Query.as_of(@jan15) |> Ash.read!()
+
+      sub
+      |> Ash.Changeset.for_update(:change_tier, %{tier: "silver"}, as_of: @jan15)
+      |> Ash.update!()
+
+      assert [
+               ["bronze", 5, @jan01, @jan15],
+               ["silver", 5, @jan15, @feb01],
+               ["bronze", 5, @mar1, @apr01]
+             ] = full_timeline(1)
+    end
+
+    test "an instant destroy removes contiguous later versions and stops at a gap" do
+      TemporalTestRepo.query!("DELETE FROM subscription WHERE id = 1")
+
+      TemporalTestRepo.query!("""
+      INSERT INTO subscription (id, tier, seats, valid_at) VALUES
+        (1, 'bronze', 5,  tstzrange('2026-01-01','2026-02-01','[)')),
+        (1, 'gold',   10, tstzrange('2026-02-01','2026-03-01','[)')),
+        (1, 'bronze', 5,  tstzrange('2026-04-01','2026-05-01','[)'))
+      """)
+
+      [sub] = Subscription |> Ash.Query.filter(id == 1) |> Ash.Query.as_of(@jan15) |> Ash.read!()
+
+      sub
+      |> Ash.Changeset.for_destroy(:expire, %{}, as_of: @jan15)
+      |> Ash.destroy!()
+
+      assert [
+               ["bronze", 5, @jan01, @jan15],
+               ["bronze", 5, @apr01, @may01]
+             ] = full_timeline(1)
+    end
+
+    test "an update now carries into a future-scheduled version for unchanged attributes" do
+      future = DateTime.add(DateTime.utc_now(), 86_400, :second)
+
+      TemporalTestRepo.query!("DELETE FROM subscription WHERE id = 1")
+
+      TemporalTestRepo.query!(
+        """
+        INSERT INTO subscription (id, tier, seats, valid_at) VALUES
+          (1, 'bronze', 5, tstzrange($1, $2, '[)')),
+          (1, 'gold',   5, tstzrange($2, NULL, '[)'))
+        """,
+        [@jan01, future]
+      )
+
+      sub = Ash.get!(Subscription, 1)
+
+      sub
+      |> Ash.Changeset.for_update(:add_seat, %{})
+      |> Ash.update!()
+
+      assert [
+               ["bronze", 5, @jan01, split_at],
+               ["bronze", 6, split_at, ^future],
+               ["gold", 6, ^future, nil]
+             ] = full_timeline(1)
+    end
+
+    test "carried slices have their recorded_at restamped to the write's recorded_at" do
+      TemporalTestRepo.query!("DELETE FROM subscription WHERE id = 1")
+
+      TemporalTestRepo.query!("""
+      INSERT INTO subscription (id, tier, seats, recorded_at, valid_at) VALUES
+        (1, 'bronze', 5,  '2020-01-01 00:00:00Z', tstzrange('2026-01-01','2026-02-01','[)')),
+        (1, 'bronze', 10, '2020-01-01 00:00:00Z', tstzrange('2026-02-01','2026-03-01','[)')),
+        (1, 'gold',   10, '2020-01-01 00:00:00Z', tstzrange('2026-03-01','2026-04-01','[)'))
+      """)
+
+      before = DateTime.utc_now()
+      [sub] = Subscription |> Ash.Query.filter(id == 1) |> Ash.Query.as_of(@jan15) |> Ash.read!()
+
+      sub
+      |> Ash.Changeset.for_update(:change_tier, %{tier: "silver"}, as_of: @jan15)
+      |> Ash.update!()
+
+      rows =
+        TemporalTestRepo.query!(
+          "SELECT tier, seats, recorded_at FROM subscription WHERE id = 1 ORDER BY lower(valid_at)"
+        ).rows
+
+      assert [
+               ["bronze", 5, ~N[2020-01-01 00:00:00.000000]],
+               ["silver", 5, split_rec],
+               ["silver", 10, carried_rec],
+               ["gold", 10, ~N[2020-01-01 00:00:00.000000]]
+             ] = rows
+
+      assert NaiveDateTime.compare(split_rec, DateTime.to_naive(before)) in [:gt, :eq]
+      assert carried_rec == split_rec
     end
   end
 end

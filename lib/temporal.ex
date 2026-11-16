@@ -76,6 +76,7 @@ defmodule AshPostgres.Temporal do
           RETURNING new AS "__new", old AS "__old"
         ),
         "__leftovers" AS (INSERT INTO t ... the part of each matched period before as_of),
+        "__carry" AS (UPDATE t ... carry changed columns into contiguous later versions),
         ins AS (
           INSERT INTO t (<cols>, <valid_at>)
           SELECT src.<cols>, <bounded range> FROM src
@@ -86,9 +87,10 @@ defmodule AshPostgres.Temporal do
         )
       SELECT (upd."__new").* FROM upd UNION ALL SELECT * FROM ins
 
-  Per changeset: match the period valid AT `as_of` and split it there (future periods,
-  which don't contain `as_of`, are untouched); if none, insert a new period bounded to
-  the next one — or unbounded above when there is no later period.
+  Per changeset: match the period valid AT `as_of`, split it there, and carry changed
+  attributes into contiguous later versions until each attribute changes or a gap is
+  reached; if none matches, insert a new period bounded to the next one — or unbounded
+  above when there is no later period.
 
   All changesets sharing an `as_of` run in one statement (the split point is a single
   parameter — it can't be a per-row column). Changesets with differing `as_of`s are
@@ -181,13 +183,19 @@ defmodule AshPostgres.Temporal do
         matched =
           "FROM #{qtable} t JOIN src ON #{key_match.("t")} AND t.#{qattr} @> $1::timestamptz"
 
-        {gate_ctes(matched, "t") <>
+        carry =
+          case instant_carry_cte(resource, qtable, "upd", :update_all) do
+            "" -> ""
+            cte -> ", " <> cte
+          end
+
+        {instant_pre_ctes(resource, qtable, "t", matched, range, :update_all) <>
            "upd AS (UPDATE #{qtable} SET #{set_sql}, #{qattr} = #{tname}.#{qattr} * #{range} " <>
            "FROM src " <>
            "WHERE #{key_match.(tname)} AND #{tname}.#{qattr} @> $1::timestamptz " <>
            ~s|AND NOT (SELECT conflict FROM "__conflict") | <>
            ~s|RETURNING new AS "__new", old AS "__old"), | <>
-           leftovers_cte(resource, qtable, "upd", range) <> ", ",
+           leftovers_cte(resource, qtable, "upd", range) <> carry <> ", ",
          ~s|NOT EXISTS (SELECT 1 FROM upd WHERE #{key_match.(~s|(upd."__new")|)})|}
       else
         {~s|"__conflict" AS (SELECT false AS conflict), |,
@@ -444,13 +452,14 @@ defmodule AshPostgres.Temporal do
 
     returning? = not is_nil(query.select)
     %Ash.Range{lower: lower, upper: upper} = portion(as_of)
+    instant? = not match?(%Ash.Range{}, as_of)
 
     # Render with the portion's bounds reserved as $1 (and $2 when it has an upper).
     counter = if upper, do: 2, else: 1
     {sql, params} = Ecto.Adapters.SQL.to_sql(kind, repo, query, counter: counter)
 
     range = "tstzrange($1::timestamptz, #{if upper, do: "$2::timestamptz", else: "NULL"})"
-    sql = split_portion(sql, kind, resource, range, returning?)
+    sql = split_portion(sql, kind, resource, range, returning?, instant?)
     bounds = if upper, do: [lower, upper], else: [lower]
     result = write(repo, resource, sql, bounds ++ params)
 
@@ -462,7 +471,7 @@ defmodule AshPostgres.Temporal do
   end
 
   # Rewrites Ecto's `UPDATE`/`DELETE` into the split described in the moduledoc.
-  defp split_portion(sql, kind, resource, range, returning?) do
+  defp split_portion(sql, kind, resource, range, returning?, instant?) do
     [_, qtable, alias_token] =
       Regex.run(~r/^(?:UPDATE|DELETE FROM) ((?:"[^"]+"\.)?"[^"]+") AS (\w+) /, sql)
 
@@ -529,7 +538,14 @@ defmodule AshPostgres.Temporal do
         {returned, period_col}
       end
 
-    returning = Enum.join(List.wrap(returned) ++ [~s|old AS "__old"|], ", ")
+    returning_extras =
+      if instant? and kind == :update_all do
+        [~s|old AS "__old"|, ~s|new AS "__new"|]
+      else
+        [~s|old AS "__old"|]
+      end
+
+    returning = Enum.join(List.wrap(returned) ++ returning_extras, ", ")
 
     select =
       if returning? do
@@ -549,10 +565,27 @@ defmodule AshPostgres.Temporal do
           ~s|AS "__status" FROM "__fpo"|
       end
 
+    pre_ctes =
+      if instant? do
+        instant_pre_ctes(resource, qtable, alias_token, matched, range, kind)
+      else
+        gate_ctes(resource, period_col, matched, alias_token)
+      end
+
+    carry_cte =
+      if instant? do
+        case instant_carry_cte(resource, qtable, ~s|"__fpo"|, kind) do
+          "" -> ""
+          cte -> ", " <> cte
+        end
+      else
+        ""
+      end
+
     "WITH " <>
-      gate_ctes(matched, alias_token) <>
+      pre_ctes <>
       ~s|"__fpo" AS (#{dml} AND NOT (SELECT conflict FROM "__conflict") RETURNING #{returning}), | <>
-      leftovers_cte(resource, qtable, ~s|"__fpo"|, range) <> " " <> select
+      leftovers_cte(resource, qtable, ~s|"__fpo"|, range) <> carry_cte <> " " <> select
   end
 
   # `"__cand"` is the versions `matched` (a `FROM ... WHERE ...`) finds in the snapshot, and
@@ -560,13 +593,183 @@ defmodule AshPostgres.Temporal do
   # version and then sees it as that write left it: changed (a newer row) or gone. So the
   # two differ exactly when a concurrent write got in the way, and `"__conflict"` says so.
   # The writes are gated on it, so a conflicting statement writes nothing.
-  defp gate_ctes(matched, alias_token) do
+  defp gate_ctes(resource, period_col, matched, alias_token) do
+    order = lock_order_sql(resource, alias_token, period_col)
+
     ~s|"__cand" AS (SELECT #{alias_token}.ctid #{matched}), | <>
-      ~s|"__locked" AS (SELECT #{alias_token}.ctid #{matched} FOR UPDATE OF #{alias_token}), | <>
-      ~s|"__conflict" AS (SELECT (| <>
+      ~s|"__locked" AS (SELECT #{alias_token}.ctid #{matched} ORDER BY #{order} FOR UPDATE OF #{alias_token}), | <>
+      conflict_cte()
+  end
+
+  defp conflict_cte do
+    ~s|"__conflict" AS (SELECT (| <>
       ~s|EXISTS (SELECT 1 FROM "__cand" c WHERE c.ctid NOT IN (SELECT ctid FROM "__locked")) OR | <>
       ~s|EXISTS (SELECT 1 FROM "__locked" l WHERE l.ctid NOT IN (SELECT ctid FROM "__cand"))| <>
       ~s|) AS conflict), |
+  end
+
+  defp instant_pre_ctes(resource, qtable, alias_token, matched, range, kind) do
+    pk_cols = pk_columns(resource)
+    period_col = quote_name(source_col(resource, temporal_attribute(resource)))
+    keys_select = Enum.map_join(pk_cols, ", ", &"#{alias_token}.#{&1}")
+    keys_pk = Enum.join(pk_cols, ", ")
+    x_pk = Enum.map_join(pk_cols, ", ", &"x.#{&1}")
+    in_keys = ~s|(#{x_pk}) IN (SELECT #{keys_pk} FROM "__keys")|
+    from_instant_on = "#{in_keys} AND x.#{period_col} && #{range}"
+    order = lock_order_sql(resource, "x", period_col)
+
+    keys_and_gate =
+      ~s|"__keys" AS (SELECT DISTINCT #{keys_select} #{matched}), | <>
+        ~s|"__cand" AS (SELECT x.ctid FROM #{qtable} AS x WHERE #{from_instant_on}), | <>
+        ~s|"__locked" AS (SELECT x.ctid FROM #{qtable} AS x WHERE #{from_instant_on} ORDER BY #{order} FOR UPDATE OF x), | <>
+        conflict_cte()
+
+    case kind do
+      :update_all ->
+        case carry_attributes(resource) do
+          [] ->
+            keys_and_gate
+
+          carry_attrs ->
+            moved_cols =
+              Enum.map_join(carry_attrs, ", ", fn attr ->
+                col = quote_name(source_col(resource, attr.name))
+                moved = quote_name("#{source_col(resource, attr.name)}__moved")
+                cmp = cmp_expr("x.#{col}", resource, attr)
+                "#{cmp} IS DISTINCT FROM lag(#{cmp}) OVER w AS #{moved}"
+              end)
+
+            stop_cols =
+              Enum.map_join(carry_attrs, ", ", fn attr ->
+                moved = quote_name("#{source_col(resource, attr.name)}__moved")
+                stop = quote_name("#{source_col(resource, attr.name)}__stop")
+
+                ~s|coalesce(min("__lo") FILTER (WHERE "__lo" > $1::timestamptz AND ("__gap" OR #{moved})), 'infinity'::timestamptz) AS #{stop}|
+              end)
+
+            keys_and_gate <>
+              ~s|"__after" AS (SELECT #{x_pk}, lower(x.#{period_col}) AS "__lo", | <>
+              ~s|lower(x.#{period_col}) IS DISTINCT FROM lag(upper(x.#{period_col})) OVER w AS "__gap", | <>
+              "#{moved_cols} FROM #{qtable} AS x WHERE #{from_instant_on} " <>
+              "WINDOW w AS (PARTITION BY #{x_pk} ORDER BY lower(x.#{period_col}) NULLS FIRST)), " <>
+              ~s|"__stops" AS (SELECT #{keys_pk}, #{stop_cols} FROM "__after" GROUP BY #{keys_pk}), |
+        end
+
+      :delete_all ->
+        keys_and_gate <>
+          ~s|"__after" AS (SELECT #{x_pk}, lower(x.#{period_col}) AS "__lo", | <>
+          ~s|lower(x.#{period_col}) IS DISTINCT FROM lag(upper(x.#{period_col})) OVER w AS "__gap" | <>
+          "FROM #{qtable} AS x WHERE #{from_instant_on} " <>
+          "WINDOW w AS (PARTITION BY #{x_pk} ORDER BY lower(x.#{period_col}) NULLS FIRST)), " <>
+          ~s|"__stops" AS (SELECT #{keys_pk}, | <>
+          ~s|coalesce(min("__lo") FILTER (WHERE "__lo" > $1::timestamptz AND "__gap"), 'infinity'::timestamptz) AS "__stop" | <>
+          ~s|FROM "__after" GROUP BY #{keys_pk}), |
+    end
+  end
+
+  defp instant_carry_cte(resource, qtable, fpo_cte, :update_all) do
+    case carry_attributes(resource) do
+      [] ->
+        ""
+
+      carry_attrs ->
+        pk_cols = pk_columns(resource)
+        period_col = quote_name(source_col(resource, temporal_attribute(resource)))
+        st_join = Enum.map_join(pk_cols, " AND ", fn pk -> ~s|st.#{pk} = (f."__old").#{pk}| end)
+        x_join = Enum.map_join(pk_cols, " AND ", fn pk -> ~s|x.#{pk} = (f."__old").#{pk}| end)
+
+        {set_items, cond_sqls} =
+          carry_attrs
+          |> Enum.map(fn attr ->
+            col = quote_name(source_col(resource, attr.name))
+            stop = quote_name("#{source_col(resource, attr.name)}__stop")
+            new_cmp = cmp_expr(~s|(f."__new").#{col}|, resource, attr)
+            old_cmp = cmp_expr(~s|(f."__old").#{col}|, resource, attr)
+
+            cond_sql =
+              "(#{new_cmp} IS DISTINCT FROM #{old_cmp} AND lower(x.#{period_col}) < st.#{stop})"
+
+            set_item =
+              ~s|#{col} = CASE WHEN #{new_cmp} IS DISTINCT FROM #{old_cmp} AND lower(x.#{period_col}) < st.#{stop} | <>
+                ~s|THEN (f."__new").#{col} ELSE x.#{col} END|
+
+            {set_item, cond_sql}
+          end)
+          |> Enum.unzip()
+
+        set_items =
+          case Ash.Resource.Info.temporal_recorded_at(resource) do
+            nil ->
+              set_items
+
+            recorded_at ->
+              rec_col = quote_name(source_col(resource, recorded_at))
+              set_items ++ [~s|#{rec_col} = (f."__new").#{rec_col}|]
+          end
+
+        ~s|"__carry" AS (UPDATE #{qtable} AS x SET #{Enum.join(set_items, ", ")} | <>
+          ~s|FROM #{fpo_cte} f JOIN "__stops" st ON #{st_join} | <>
+          "WHERE #{x_join} AND lower(x.#{period_col}) > $1::timestamptz " <>
+          "AND (#{Enum.join(cond_sqls, " OR ")}))"
+    end
+  end
+
+  defp instant_carry_cte(resource, qtable, fpo_cte, :delete_all) do
+    pk_cols = pk_columns(resource)
+    period_col = quote_name(source_col(resource, temporal_attribute(resource)))
+    st_join = Enum.map_join(pk_cols, " AND ", fn pk -> ~s|st.#{pk} = (f."__old").#{pk}| end)
+    x_join = Enum.map_join(pk_cols, " AND ", fn pk -> ~s|x.#{pk} = (f."__old").#{pk}| end)
+
+    ~s|"__carry" AS (DELETE FROM #{qtable} AS x | <>
+      ~s|USING #{fpo_cte} f JOIN "__stops" st ON #{st_join} | <>
+      "WHERE #{x_join} AND lower(x.#{period_col}) > $1::timestamptz " <>
+      ~s|AND lower(x.#{period_col}) < st."__stop")|
+  end
+
+  defp carry_attributes(resource) do
+    temporal_attr = temporal_attribute(resource)
+    recorded_at_attr = Ash.Resource.Info.temporal_recorded_at(resource)
+    now_default = &DateTime.utc_now/0
+
+    resource
+    |> Ash.Resource.Info.attributes()
+    |> Enum.reject(fn attr ->
+      attr.primary_key? or
+        attr.name == temporal_attr or
+        attr.name == recorded_at_attr or
+        (attr.generated? and not attr.writable?) or
+        (not is_nil(attr.update_default) and
+           (not attr.writable? or attr.update_default == now_default))
+    end)
+  end
+
+  defp cmp_expr(expr, resource, %Ash.Resource.Attribute{
+         name: name,
+         type: type,
+         constraints: constraints
+       }) do
+    storage =
+      AshPostgres.SqlImplementation.storage_type(resource, name) ||
+        Ash.Type.storage_type(type, constraints || [])
+
+    case storage do
+      t when t in [:json, :xml, :point, {:array, :json}, {:array, :xml}, {:array, :point}] ->
+        "#{expr}::text"
+
+      _ ->
+        expr
+    end
+  end
+
+  defp pk_columns(resource) do
+    resource
+    |> Ash.Resource.Info.primary_key()
+    |> Enum.map(&quote_name(source_col(resource, &1)))
+  end
+
+  defp lock_order_sql(resource, alias_token, period_col) do
+    pk_order = Enum.map_join(pk_columns(resource), ", ", &"#{alias_token}.#{&1}")
+    "#{pk_order}, lower(#{alias_token}.#{period_col}) NULLS FIRST"
   end
 
   # Runs a split, and runs it again while it reports a conflict (see the moduledoc). A
