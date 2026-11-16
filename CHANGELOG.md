@@ -11,6 +11,37 @@ See [Conventional Commits](https://www.conventionalcommits.org) for commit guide
 
 <!-- changelog -->
 
+## [v2.16.0](https://github.com/ash-project/ash_postgres/compare/v2.15.2...v2.16.0) (2026-11-16)
+
+
+
+
+### Features:
+
+* add `on_delete_message` and `on_update_message` options to references (#911) by sevenseacat
+
+### Improvements:
+
+* support ash_sql query building perf improvements by Zach Daniel
+
+* add `has_synthetic_create?` (#918) by Mckay Hinds
+
+### Bug Fixes:
+
+* roll back a new deferrable reference without altering its dropped constraint (#921) by Aaron Paterson
+
+* use the configured port in the timestamptz test repo (#917) by Jechol Lee
+
+* restore columns before custom indexes on rollback (#912) by jeffhuen
+
+* upserts and merges use the repo's default prefix (#910) by sean-regents
+
+* map constraint errors to identities on polymorphic and regex-matched indexes by Zach Daniel
+
+* honor identity_index_names when mapping unique errors to field_names by Zach Daniel
+
+* hash snapshots from their canonical encoding (#907) by puyo
+
 ## [v2.15.2](https://github.com/ash-project/ash_postgres/compare/v2.15.1...v2.15.2) (2026-10-25)
 
 
