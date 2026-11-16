@@ -13,6 +13,7 @@ defmodule AshPostgres.CalculationTest do
     Comment,
     Container,
     Item,
+    Organization,
     Post,
     PostTag,
     Record,
@@ -1910,6 +1911,266 @@ defmodule AshPostgres.CalculationTest do
         |> Ash.read_one!(actor: user)
 
       assert result.post_count_of_comments == 2
+    end
+  end
+
+  defp repeated_calculation_expected(posts) do
+    raw = Map.new(posts, &{&1.id, &1})
+    comments = Comment |> Ash.read!() |> Enum.group_by(& &1.post_id)
+
+    base =
+      Map.new(posts, fn post ->
+        comments = Map.get(comments, post.id, [])
+        match = if Enum.any?(comments, &(&1.title == "match")), do: 100, else: 0
+        {post.id, (post.score || 0) + length(comments) + match}
+      end)
+
+    top =
+      Map.new(base, fn {id, base} ->
+        mid = base * 3
+        {id, if(mid > 10, do: mid - base + mid, else: mid + base)}
+      end)
+
+    Map.new(posts, fn post ->
+      base = base[post.id]
+      comments = Map.get(comments, post.id, [])
+      parent_top = if post.parent_post_id, do: top[raw[post.parent_post_id].id], else: 0
+
+      {post.id,
+       %{
+         chain_base: base,
+         chain_mid: base * 3,
+         chain_top: top[post.id],
+         chain_plus_both: (base + 1) * 1000 + (base + 2) + (base + 1),
+         chain_with_parent_post: top[post.id] + parent_top * 100_000 + top[post.id],
+         chain_in_exists: base > 0 and Enum.any?(comments, &(&1.likes > base)) and base < 1000,
+         has_comments: comments != []
+       }}
+    end)
+  end
+
+  @repeated_calculation_chain [
+    :chain_base,
+    :chain_mid,
+    :chain_top,
+    :chain_plus_both,
+    :chain_with_parent_post,
+    :chain_in_exists
+  ]
+
+  describe "repeated calculations" do
+    setup do
+      org = Ash.create!(Organization, %{name: "org"})
+
+      user =
+        User
+        |> Ash.Changeset.for_create(:create, %{})
+        |> Ash.Changeset.manage_relationship(:organization, org, type: :append_and_remove)
+        |> Ash.create!()
+
+      outsider = Ash.create!(User, %{})
+      author = Ash.create!(Author, %{first_name: "a"})
+
+      post = fn attrs, comments ->
+        post =
+          Post
+          |> Ash.Changeset.for_create(:create, attrs)
+          |> Ash.Changeset.manage_relationship(:organization, org, type: :append_and_remove)
+          |> Ash.Changeset.manage_relationship(:author, author, type: :append_and_remove)
+          |> Ash.create!()
+
+        for {title, likes} <- comments do
+          Ash.create!(Comment, %{title: title, likes: likes, post_id: post.id})
+        end
+
+        post
+      end
+
+      p1 = post.(%{title: "p1", score: 5}, [])
+      p2 = post.(%{title: "p2", score: 3}, [{"match", 2}, {"x", 10}])
+      p3 = post.(%{title: "p3", parent_post_id: p2.id}, [{"y", 0}])
+      p4 = post.(%{title: "p4", score: 50, parent_post_id: p1.id}, [{"z", 100}])
+
+      %{user: user, outsider: outsider, author: author, posts: [p1, p2, p3, p4]}
+    end
+
+    test "repeated calculations have the same values loaded together or alone", %{posts: posts} do
+      expected = repeated_calculation_expected(posts)
+
+      together = Post |> Ash.Query.load(@repeated_calculation_chain) |> Ash.read!()
+
+      assert length(together) == 4
+
+      for post <- together, calc <- @repeated_calculation_chain do
+        assert Map.fetch!(post, calc) == expected[post.id][calc],
+               "#{calc} of #{post.title}: expected #{inspect(expected[post.id][calc])}, got #{inspect(Map.fetch!(post, calc))}"
+      end
+
+      for calc <- @repeated_calculation_chain do
+        for post <- Post |> Ash.Query.load(calc) |> Ash.read!() do
+          assert Map.fetch!(post, calc) == expected[post.id][calc]
+        end
+      end
+    end
+
+    test "a calculation referenced with different arguments keeps each argument", %{posts: posts} do
+      expected = repeated_calculation_expected(posts)
+
+      for post <-
+            Post |> Ash.Query.load([:chain_plus_both, chain_plus: %{amount: 7}]) |> Ash.read!() do
+        assert post.chain_plus_both == expected[post.id].chain_plus_both
+        assert post.chain_plus == expected[post.id].chain_base + 7
+      end
+    end
+
+    test "a calculation referenced at different relationship paths keeps each path", %{
+      posts: posts
+    } do
+      expected = repeated_calculation_expected(posts)
+      [p1, p2, p3, p4] = posts
+
+      loaded =
+        Post
+        |> Ash.Query.load([
+          :chain_with_parent_post,
+          parent_post: [:chain_top, :chain_with_parent_post]
+        ])
+        |> Ash.read!()
+        |> Map.new(&{&1.id, &1})
+
+      for post <- posts do
+        assert loaded[post.id].chain_with_parent_post == expected[post.id].chain_with_parent_post
+      end
+
+      assert loaded[p3.id].parent_post.chain_top == expected[p2.id].chain_top
+      assert loaded[p4.id].parent_post.chain_top == expected[p1.id].chain_top
+      refute expected[p3.id].chain_with_parent_post == 2 * expected[p3.id].chain_top
+    end
+
+    test "a calculation referenced inside and outside of `parent/1` keeps each scope", %{
+      posts: posts
+    } do
+      expected = repeated_calculation_expected(posts)
+      [_p1, _p2, _p3, p4] = posts
+
+      for post <- Post |> Ash.Query.load(:chain_in_exists) |> Ash.read!() do
+        assert post.chain_in_exists == expected[post.id].chain_in_exists
+      end
+
+      assert expected[p4.id].chain_in_exists
+
+      assert [%{id: id}] = Post |> Ash.Query.filter(chain_in_exists) |> Ash.read!()
+      assert id == p4.id
+
+      # inside of the `exists`, `chain_base` is the parent post's and `parent(chain_base)` is ours
+      above =
+        Post
+        |> Ash.Query.load(:chain_base_above_parent_post)
+        |> Ash.read!()
+        |> Map.new(&{&1.id, &1.chain_base_above_parent_post})
+
+      for post <- posts do
+        assert above[post.id] ==
+                 (not is_nil(post.parent_post_id) and
+                    expected[post.parent_post_id].chain_base < expected[post.id].chain_base)
+      end
+
+      assert above[p4.id]
+
+      # inside of the `exists`, `chain_base` is the comment's calculation of the same name
+      comment_above =
+        Post
+        |> Ash.Query.load(:comment_chain_base_above_chain_base)
+        |> Ash.read!()
+        |> Map.new(&{&1.id, &1.comment_chain_base_above_chain_base})
+
+      comments = Comment |> Ash.read!() |> Enum.group_by(& &1.post_id)
+
+      for post <- posts do
+        assert comment_above[post.id] ==
+                 Enum.any?(
+                   Map.get(comments, post.id, []),
+                   &(&1.likes * 2 > expected[post.id].chain_base)
+                 )
+      end
+
+      assert comment_above[p4.id]
+    end
+
+    test "calculations of the same name on different resources are kept apart", %{posts: posts} do
+      expected = repeated_calculation_expected(posts)
+
+      comments = Comment |> Ash.Query.load(:chain_base_plus_post_chain_base) |> Ash.read!()
+
+      assert length(comments) == 4
+
+      for comment <- comments do
+        assert comment.chain_base_plus_post_chain_base ==
+                 comment.likes * 2 + expected[comment.post_id].chain_base * 1000
+      end
+    end
+
+    test "filtering and sorting on repeated calculations", %{posts: posts} do
+      expected = repeated_calculation_expected(posts)
+
+      expected_ids =
+        posts
+        |> Enum.filter(&(expected[&1.id].chain_top > 20))
+        |> Enum.sort_by(&{-expected[&1.id].chain_top, &1.id})
+        |> Enum.map(& &1.id)
+
+      assert expected_ids != []
+
+      ids =
+        Post
+        |> Ash.Query.filter(chain_top > 20 and chain_mid > 0)
+        |> Ash.Query.sort(chain_top: :desc, id: :asc)
+        |> Ash.Query.load(:chain_top)
+        |> Ash.read!()
+        |> Enum.map(& &1.id)
+
+      assert ids == expected_ids
+    end
+
+    test "aggregates over repeated calculations", %{author: author, posts: posts} do
+      expected = repeated_calculation_expected(posts)
+
+      author =
+        Author
+        |> Ash.Query.filter(id == ^author.id)
+        |> Ash.Query.calculate(:posts_chain_top, :integer, expr(sum(posts, field: :chain_top)))
+        |> Ash.read_one!()
+
+      assert author.calculations.posts_chain_top ==
+               posts |> Enum.map(&expected[&1.id].chain_top) |> Enum.sum()
+    end
+
+    test "a repeated authorized calculation is authorized at every reference", %{
+      user: user,
+      outsider: outsider,
+      posts: posts
+    } do
+      expected = repeated_calculation_expected(posts)
+
+      chain = fn opts ->
+        Post
+        |> Ash.Query.for_read(:allow_any, %{}, opts)
+        |> Ash.Query.load(:authorized_has_comments_chain)
+        |> Ash.read!(opts)
+        |> Map.new(&{&1.id, &1.authorized_has_comments_chain})
+      end
+
+      for {id, value} <- chain.(actor: user, authorize?: true) do
+        assert value == if(expected[id].has_comments, do: "ac", else: "bd")
+      end
+
+      for {_id, value} <- chain.(actor: outsider, authorize?: true) do
+        assert value == "bd"
+      end
+
+      for {id, value} <- chain.(authorize?: false) do
+        assert value == if(expected[id].has_comments, do: "ac", else: "bd")
+      end
     end
   end
 end

@@ -154,6 +154,15 @@ defmodule AshPostgres.Test.Comment do
   end
 
   calculations do
+    # Shares its name with `AshPostgres.Test.Post.chain_base`, see `AshPostgres.RepeatedCalculationTest`
+    calculate(:chain_base, :integer, expr((likes || 0) * 2))
+
+    calculate(
+      :chain_base_plus_post_chain_base,
+      :integer,
+      expr(chain_base + (post.chain_base || 0) * 1000)
+    )
+
     calculate(:expects_only_one_comment, :string, fn records, _ ->
       if Enum.count(records) > 1 do
         raise "expected only one comment"
