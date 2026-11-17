@@ -521,18 +521,31 @@ defmodule AshPostgres.SqlImplementation do
 
   @impl true
   def determine_types(mod, args, returns \\ nil) do
-    returns =
-      case returns do
-        {:parameterized, _} -> nil
-        {:array, {:parameterized, _}} -> nil
-        {:array, {type, constraints}} when type != :array -> {type, [items: constraints]}
-        {:array, _} -> nil
-        {type, constraints} -> {type, constraints}
-        other -> other
-      end
+    returns = normalize_returns(returns)
 
     {types, new_returns} = Ash.Expr.determine_types(mod, args, returns)
 
     {types, new_returns || returns}
+  end
+
+  @impl true
+  def determine_types(mod, args, returns, operand_types) do
+    returns = normalize_returns(returns)
+
+    {types, new_returns} =
+      Ash.Expr.determine_types_with_operand_types(mod, args, operand_types, returns)
+
+    {types, new_returns || returns}
+  end
+
+  defp normalize_returns(returns) do
+    case returns do
+      {:parameterized, _} -> nil
+      {:array, {:parameterized, _}} -> nil
+      {:array, {type, constraints}} when type != :array -> {type, [items: constraints]}
+      {:array, _} -> nil
+      {type, constraints} -> {type, constraints}
+      other -> other
+    end
   end
 end

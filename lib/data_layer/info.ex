@@ -236,4 +236,9 @@ defmodule AshPostgres.DataLayer.Info do
   def create_table_options(resource) do
     Extension.get_opt(resource, [:postgres], :create_table_options, nil)
   end
+
+  @doc "Whether the resource has a synthetic create operation that inserts rows."
+  def has_synthetic_create?(resource) do
+    Extension.get_opt(resource, [:postgres], :has_synthetic_create?, false, true)
+  end
 end

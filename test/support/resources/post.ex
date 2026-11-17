@@ -1438,6 +1438,72 @@ defmodule AshPostgres.Test.Post do
         )
       )
     )
+
+    # A chain of calculations that each reference the one below several times. Expression
+    # calculations are inlined, so these exercise expanding and compiling a calculation that
+    # is referenced from many places.
+    calculate(
+      :chain_base,
+      :integer,
+      expr((score || 0) + count_of_comments + if(has_comment_called_match, do: 100, else: 0))
+    )
+
+    calculate(:chain_mid, :integer, expr(chain_base * 2 + chain_base))
+
+    calculate(
+      :chain_top,
+      :integer,
+      expr(
+        if chain_mid > 10, do: chain_mid - chain_base + chain_mid, else: chain_mid + chain_base
+      )
+    )
+
+    calculate :chain_plus, :integer, expr(chain_base + ^arg(:amount)) do
+      argument(:amount, :integer, allow_nil?: false)
+    end
+
+    calculate(
+      :chain_plus_both,
+      :integer,
+      expr(chain_plus(amount: 1) * 1000 + chain_plus(amount: 2) + chain_plus(amount: 1))
+    )
+
+    calculate(
+      :chain_with_parent_post,
+      :integer,
+      expr(chain_top + (parent_post.chain_top || 0) * 100_000 + chain_top)
+    )
+
+    calculate(
+      :chain_in_exists,
+      :boolean,
+      expr(chain_base > 0 and exists(comments, likes > parent(chain_base)) and chain_base < 1000)
+    )
+
+    calculate(
+      :chain_base_above_parent_post,
+      :boolean,
+      expr(exists(parent_post, chain_base < parent(chain_base)))
+    )
+
+    calculate(
+      :comment_chain_base_above_chain_base,
+      :boolean,
+      expr(exists(comments, chain_base > parent(chain_base)) and chain_base > 0)
+    )
+
+    calculate :authorized_has_comments, :boolean, expr(exists(comments, true)) do
+      authorize?(true)
+    end
+
+    calculate(
+      :authorized_has_comments_chain,
+      :string,
+      expr(
+        if(authorized_has_comments, do: "a", else: "b") <>
+          if(authorized_has_comments and chain_base >= 0, do: "c", else: "d")
+      )
+    )
   end
 
   aggregates do
