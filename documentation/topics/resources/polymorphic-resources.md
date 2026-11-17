@@ -105,8 +105,7 @@ relationships do
         table: "event_locations",
         references: %{
           on_delete: :delete,
-          on_update: :update,
-          name: "event_locations_event_id_fkey"
+          on_update: :update
         }
       }
     },
@@ -122,8 +121,7 @@ The following options go inside `relationship_context.data_layer.references`:
 |------|------|---------|------|
 | `on_delete` | `:delete \| :nilify \| :nothing \| :restrict \| {:nilify, atom \| list(atom)}` | `:nothing` | Configures what happens when a source-table row is deleted. |
 | `on_update` | `:update \| :nilify \| :nothing \| :restrict` | `:nothing` | Configures what happens when the referenced column in the source table is updated. |
-| `name` | `String.t` | generated | Sets the name of the generated foreign-key constraint. |
 
-The legacy `polymorphic_on_delete`, `polymorphic_on_update`, and `polymorphic_name` options are deprecated but remain supported for backwards compatibility. New configurations should use `relationship_context.data_layer.references`. See the [DSL reference](../../dsls/DSL-AshPostgres.DataLayer.md#postgres-references) for the legacy options.
+The legacy `polymorphic_on_delete` and `polymorphic_on_update` options are deprecated but remain supported for backwards compatibility. New configurations should use `relationship_context.data_layer.references`. See the [DSL reference](../../dsls/DSL-AshPostgres.DataLayer.md#postgres-references) for the legacy options.
 
 Remove the corresponding legacy option when moving a setting into the relationship context. Configuring both forms for the same setting raises an error, even when their values match.

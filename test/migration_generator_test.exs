@@ -256,7 +256,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
       case reference_option do
         :polymorphic_on_delete -> :delete_all
         :polymorphic_on_update -> :update_all
-        :polymorphic_name -> reference_value
       end
 
     expected =
@@ -420,7 +419,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
       case reference_option do
         :on_delete -> :delete_all
         :on_update -> :update_all
-        :name -> reference_value
       end
 
     expected =
@@ -656,11 +654,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
     post_table = "#{migration_name}_posts"
     relationship_table = "#{migration_name}_comments"
 
-    expected_name =
-      Regex.compile!(
-        "references\\(:#{post_table}\\b[^)]*name: \\\"#{relationship_table}_resource_id_fkey\\\""
-      )
-
     explicit_option = Regex.compile!("references\\(:#{post_table}\\b[^)]*#{reference_option}:")
 
     quote do
@@ -685,13 +678,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       current_migration_path = Path.join(unquote(migration_path), unquote(migration_name))
       migration = read_resource_migration!(current_migration_path)
 
-      if unquote(reference_option == :name) do
-        assert migration =~ unquote(Macro.escape(expected_name))
-      end
-
-      if unquote(reference_option in [:on_delete, :on_update]) do
-        refute migration =~ unquote(Macro.escape(explicit_option))
-      end
+      refute migration =~ unquote(Macro.escape(explicit_option))
     end
   end
 
@@ -6589,116 +6576,6 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert_default_polymorphic_reference(
         "Update",
         :on_update,
-        snapshot_path,
-        migration_path
-      )
-    end
-
-    # Tests for polymorphic_name
-
-    test "Legacy polymorphic_name uses the configured name for generated polymorphic foreign-key constraints.",
-         %{
-           snapshot_path: snapshot_path,
-           migration_path: migration_path
-         } do
-      assert_legacy_polymorphic_reference(
-        "Name",
-        :polymorphic_name,
-        "custom_polymorphic_name_fkey",
-        snapshot_path,
-        migration_path
-      )
-    end
-
-    test "Legacy polymorphic_name emits a deprecation warning." do
-      assert_legacy_polymorphic_deprecation(
-        "Name",
-        :polymorphic_name,
-        "deprecated_polymorphic_name_fkey"
-      )
-    end
-
-    test "Multiple legacy polymorphic_name configurations result in rejection.", %{
-      snapshot_path: snapshot_path,
-      migration_path: migration_path
-    } do
-      assert_multiple_legacy_polymorphic_rejection(
-        "Name",
-        :polymorphic_name,
-        "multiple_legacy_polymorphic_name_delete_fkey",
-        "multiple_legacy_polymorphic_name_update_fkey",
-        snapshot_path,
-        migration_path
-      )
-    end
-
-    test "name within relationship_context uses the configured name for generated polymorphic foreign-key constraints.",
-         %{
-           snapshot_path: snapshot_path,
-           migration_path: migration_path
-         } do
-      assert_relationship_context_polymorphic_reference(
-        "Name",
-        :name,
-        "relationship_context_polymorphic_name_fkey",
-        snapshot_path,
-        migration_path
-      )
-    end
-
-    test "Configuring polymorphic_name through both legacy and relationship-context options on one resource results in rejection.",
-         %{
-           snapshot_path: snapshot_path,
-           migration_path: migration_path
-         } do
-      assert_legacy_and_relationship_context_conflict(
-        "Name",
-        :polymorphic_name,
-        "legacy_polymorphic_name_fkey",
-        :name,
-        "relationship_context_polymorphic_name_fkey",
-        snapshot_path,
-        migration_path
-      )
-    end
-
-    test "Conflicting polymorphic_name configurations across resources result in rejection.", %{
-      snapshot_path: snapshot_path,
-      migration_path: migration_path
-    } do
-      assert_cross_resource_polymorphic_conflict(
-        "Name",
-        :polymorphic_name,
-        "legacy_polymorphic_name_fkey",
-        :name,
-        "relationship_context_polymorphic_name_fkey",
-        snapshot_path,
-        migration_path
-      )
-    end
-
-    test "Multiple name configurations within relationship_context result in rejection.", %{
-      snapshot_path: snapshot_path,
-      migration_path: migration_path
-    } do
-      assert_conflicting_relationship_context_polymorphic_references(
-        "Name",
-        :name,
-        "first_polymorphic_name_fkey",
-        "second_polymorphic_name_fkey",
-        snapshot_path,
-        migration_path
-      )
-    end
-
-    test "Omitting both polymorphic_name and name in relationship_context retains default behavior.",
-         %{
-           snapshot_path: snapshot_path,
-           migration_path: migration_path
-         } do
-      assert_default_polymorphic_reference(
-        "Name",
-        :name,
         snapshot_path,
         migration_path
       )

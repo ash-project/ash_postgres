@@ -3835,7 +3835,9 @@ defmodule AshPostgres.MigrationGenerator do
                 on_delete: polymorphic_on_delete(relationship),
                 on_update: polymorphic_on_update(relationship),
                 primary_key?: source_attribute.primary_key?,
-                name: polymorphic_name(relationship, destination_attribute_source)
+                name:
+                  AshPostgres.DataLayer.Info.polymorphic_name(relationship.source) ||
+                    "#{relationship.context[:data_layer][:table]}_#{destination_attribute_source}_fkey"
               })
             else
               attribute
@@ -3872,19 +3874,6 @@ defmodule AshPostgres.MigrationGenerator do
     end
 
     relationship_context_on_update || legacy_on_update
-  end
-
-  defp polymorphic_name(relationship, destination_attribute_source) do
-    relationship_context_name = get_in(relationship.context, [:data_layer, :references, :name])
-
-    legacy_name = AshPostgres.DataLayer.Info.polymorphic_name(relationship.source)
-
-    if relationship_context_name && legacy_name do
-      raise "Conflicting configurations for references: both relationship_context references name and polymorphic_name are configured"
-    end
-
-    relationship_context_name || legacy_name ||
-      "#{relationship.context[:data_layer][:table]}_#{destination_attribute_source}_fkey"
   end
 
   defp do_snapshot(resource, table, schema \\ nil) do
