@@ -5815,7 +5815,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       assert migration =~
                ~S[references(:posts, column: :id, name: "post_comments_resource_id_fkey"]
 
-      refute migration =~ "on_delete:" # TODO: This is good but I have notes.
+      refute migration =~ "on_delete:"
       refute migration =~ "on_update:"
     end
 
