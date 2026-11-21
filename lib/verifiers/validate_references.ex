@@ -56,7 +56,7 @@ defmodule AshPostgres.Verifiers.ValidateReferences do
   end
 
   defp validate_polymorphic_reference(dsl, relationship, references) when is_map(references) do
-    schema = Keyword.take(AshPostgres.Reference.schema(), [:on_delete, :on_update])
+    schema = Keyword.take(AshPostgres.Reference.schema(), [:on_delete, :on_update, :name])
     unknown_options = Map.keys(references) -- Keyword.keys(schema)
 
     if unknown_options != [] do

@@ -189,11 +189,6 @@ defmodule AshPostgres.DataLayer do
         type: {:one_of, [:update, :nilify, :nothing, :restrict]},
         doc:
           "For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables."
-      ],
-      polymorphic_name: [
-        type: :string,
-        doc:
-          "For polymorphic resources, then index name to use for the foreign key to the source table."
       ]
     ]
   }

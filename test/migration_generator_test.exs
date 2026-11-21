@@ -5838,7 +5838,11 @@ defmodule AshPostgres.MigrationGeneratorTest do
               relationship_context(%{
                 data_layer: %{
                   table: "post_comments",
-                  references: %{on_delete: :delete, on_update: :update}
+                  references: %{
+                    on_delete: :delete,
+                    on_update: :update,
+                    name: "post_comments_custom_fkey"
+                  }
                 }
               })
             end
@@ -5863,7 +5867,7 @@ defmodule AshPostgres.MigrationGeneratorTest do
       migration = read_resource_migration!(migration_path)
 
       assert migration =~
-               ~S[references(:posts, column: :id, name: "post_comments_resource_id_fkey", type: :uuid, on_delete: :delete_all, on_update: :update_all)]
+               ~S[references(:posts, column: :id, name: "post_comments_custom_fkey", type: :uuid, on_delete: :delete_all, on_update: :update_all)]
 
       assert migration =~
                ~S|references(:posts, column: :id, name: "featured_comments_resource_id_fkey", type: :uuid, on_delete: {:nilify, [:resource_id]}, on_update: :restrict)|

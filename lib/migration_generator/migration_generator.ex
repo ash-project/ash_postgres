@@ -3836,7 +3836,7 @@ defmodule AshPostgres.MigrationGenerator do
                 on_update: polymorphic_on_update(relationship),
                 primary_key?: source_attribute.primary_key?,
                 name:
-                  AshPostgres.DataLayer.Info.polymorphic_name(relationship.source) ||
+                  get_in(relationship.context, [:data_layer, :references, :name]) ||
                     "#{relationship.context[:data_layer][:table]}_#{destination_attribute_source}_fkey"
               })
             else
