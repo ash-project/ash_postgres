@@ -149,6 +149,14 @@ defmodule AshPostgres.MigrationGeneratorTest do
     )
   end
 
+  defp read_resource_migration!(migration_path) do
+    assert [file] =
+             Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
+             |> Enum.reject(&String.contains?(&1, "extensions"))
+
+    File.read!(file)
+  end
+
   defp flush_mix_shell do
     receive do
       {:mix_shell, _, _} -> flush_mix_shell()
@@ -5799,8 +5807,160 @@ defmodule AshPostgres.MigrationGeneratorTest do
                Path.wildcard("#{migration_path}/**/*_migrate_resources*.exs")
                |> Enum.reject(&String.contains?(&1, "extensions"))
 
-      assert File.read!(file) =~
+      migration = File.read!(file)
+
+      assert migration =~
                ~S[references(:post_comments, column: :id, name: "posts_best_comment_id_fkey", type: :uuid, prefix: "public")]
+
+      assert migration =~
+               ~S[references(:posts, column: :id, name: "post_comments_resource_id_fkey"]
+
+      refute migration =~ "on_delete:"
+      refute migration =~ "on_update:"
+    end
+
+    test "relationship context configures each polymorphic foreign key independently", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      import Spark.Test
+
+      refute_dsl_errors do
+        defposts do
+          attributes do
+            uuid_primary_key(:id)
+          end
+
+          relationships do
+            has_many :comments, Comment do
+              destination_attribute(:resource_id)
+
+              relationship_context(%{
+                data_layer: %{
+                  table: "post_comments",
+                  references: %{
+                    on_delete: :delete,
+                    on_update: :update,
+                    name: "post_comments_custom_fkey"
+                  }
+                }
+              })
+            end
+
+            has_one :featured_comment, Comment do
+              destination_attribute(:resource_id)
+
+              relationship_context(%{
+                data_layer: %{
+                  table: "featured_comments",
+                  references: %{on_delete: {:nilify, :resource_id}, on_update: :restrict}
+                }
+              })
+            end
+          end
+        end
+      end
+
+      defdomain([Post, Comment])
+      migration_path = Path.join(migration_path, "configured")
+      generate_post_migration(Domain, Path.join(snapshot_path, "configured"), migration_path)
+      migration = read_resource_migration!(migration_path)
+
+      assert migration =~
+               ~S[references(:posts, column: :id, name: "post_comments_custom_fkey", type: :uuid, on_delete: :delete_all, on_update: :update_all)]
+
+      assert migration =~
+               ~S|references(:posts, column: :id, name: "featured_comments_resource_id_fkey", type: :uuid, on_delete: {:nilify, [:resource_id]}, on_update: :restrict)|
+    end
+
+    test "legacy polymorphic settings still generate migrations and warn about their replacements",
+         %{
+           snapshot_path: snapshot_path,
+           migration_path: migration_path
+         } do
+      warnings =
+        ExUnit.CaptureIO.capture_io(:stderr, fn ->
+          defposts do
+            postgres do
+              references do
+                polymorphic_on_delete :delete
+                polymorphic_on_update :update
+              end
+            end
+
+            attributes do
+              uuid_primary_key(:id)
+            end
+
+            relationships do
+              has_many :comments, Comment do
+                destination_attribute(:resource_id)
+                relationship_context(%{data_layer: %{table: "post_comments"}})
+              end
+            end
+          end
+        end)
+
+      for option <- [:on_delete, :on_update] do
+        assert warnings =~ ~r/polymorphic_#{option}[^\n]*deprecated/
+        assert warnings =~ "references: %{#{option}: ...}"
+      end
+
+      defdomain([Post, Comment])
+      migration_path = Path.join(migration_path, "legacy")
+      generate_post_migration(Domain, Path.join(snapshot_path, "legacy"), migration_path)
+
+      assert read_resource_migration!(migration_path) =~
+               ~S[references(:posts, column: :id, name: "post_comments_resource_id_fkey", type: :uuid, on_delete: :delete_all, on_update: :update_all)]
+    end
+
+    test "resources sharing a polymorphic foreign key cannot configure conflicting actions", %{
+      snapshot_path: snapshot_path,
+      migration_path: migration_path
+    } do
+      defposts FirstPost do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        relationships do
+          has_many :comments, Comment do
+            destination_attribute(:resource_id)
+
+            relationship_context(%{
+              data_layer: %{table: "post_comments", references: %{on_delete: :delete}}
+            })
+          end
+        end
+      end
+
+      defposts SecondPost do
+        attributes do
+          uuid_primary_key(:id)
+        end
+
+        relationships do
+          has_many :comments, Comment do
+            destination_attribute(:resource_id)
+
+            relationship_context(%{
+              data_layer: %{table: "post_comments", references: %{on_delete: :nilify}}
+            })
+          end
+        end
+      end
+
+      defdomain([FirstPost, SecondPost, Comment])
+
+      assert_raise RuntimeError,
+                   ~r/Conflicting configurations for references for post_comments.resource_id/,
+                   fn ->
+                     generate_post_migration(
+                       Domain,
+                       Path.join(snapshot_path, "conflicting"),
+                       Path.join(migration_path, "conflicting")
+                     )
+                   end
     end
   end
 

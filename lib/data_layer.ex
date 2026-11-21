@@ -189,11 +189,6 @@ defmodule AshPostgres.DataLayer do
         type: {:one_of, [:update, :nilify, :nothing, :restrict]},
         doc:
           "For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables."
-      ],
-      polymorphic_name: [
-        type: :string,
-        doc:
-          "For polymorphic resources, then index name to use for the foreign key to the source table."
       ]
     ]
   }
@@ -238,11 +233,23 @@ defmodule AshPostgres.DataLayer do
 
   @references %Spark.Dsl.Section{
     name: :references,
+    deprecations: [
+      polymorphic_on_delete:
+        "Use `relationship_context: %{data_layer: %{references: %{on_delete: ...}}}` on the relationship instead.",
+      polymorphic_on_update:
+        "Use `relationship_context: %{data_layer: %{references: %{on_update: ...}}}` on the relationship instead."
+    ],
     describe: """
     A section for configuring the references (foreign keys) in resource migrations.
 
     This section is only relevant if you are using the migration generator with this resource.
     Otherwise, it has no effect.
+
+    > ### Deprecated polymorphic options {: .warning}
+    >
+    > `polymorphic_on_delete` and `polymorphic_on_update` are
+    > deprecated but remain supported. Use the relationship context described in
+    > [Polymorphic references](./../topics/resources/polymorphic-resources.md#polymorphic-references) instead.
     """,
     examples: [
       """
@@ -261,12 +268,12 @@ defmodule AshPostgres.DataLayer do
              {:tagged_tuple, :nilify, {:wrap_list, :atom}}
            ]},
         doc:
-          "For polymorphic resources, configures the on_delete behavior of the automatically generated foreign keys to source tables."
+          "For polymorphic resources, configures the `on_delete` behavior of the automatically generated foreign keys to source tables. This option is deprecated; use `relationship_context: %{data_layer: %{references: %{on_delete: ...}}}` on the relationship instead."
       ],
       polymorphic_on_update: [
         type: {:one_of, [:update, :nilify, :nothing, :restrict]},
         doc:
-          "For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables."
+          "For polymorphic resources, configures the `on_update` behavior of the automatically generated foreign keys to source tables. This option is deprecated; use `relationship_context: %{data_layer: %{references: %{on_update: ...}}}` on the relationship instead."
       ]
     ]
   }

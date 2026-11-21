@@ -3832,11 +3832,11 @@ defmodule AshPostgres.MigrationGenerator do
                 multitenancy: multitenancy(relationship.source),
                 table: AshPostgres.DataLayer.Info.table(relationship.source),
                 schema: AshPostgres.DataLayer.Info.schema(relationship.source),
-                on_delete: AshPostgres.DataLayer.Info.polymorphic_on_delete(relationship.source),
-                on_update: AshPostgres.DataLayer.Info.polymorphic_on_update(relationship.source),
+                on_delete: polymorphic_on_delete(relationship),
+                on_update: polymorphic_on_update(relationship),
                 primary_key?: source_attribute.primary_key?,
                 name:
-                  AshPostgres.DataLayer.Info.polymorphic_name(relationship.source) ||
+                  get_in(relationship.context, [:data_layer, :references, :name]) ||
                     "#{relationship.context[:data_layer][:table]}_#{destination_attribute_source}_fkey"
               })
             else
@@ -3848,6 +3848,23 @@ defmodule AshPostgres.MigrationGenerator do
     else
       [do_snapshot(resource, AshPostgres.DataLayer.Info.table(resource))]
     end
+  end
+
+  defp polymorphic_on_delete(relationship) do
+    context_on_delete =
+      case get_in(relationship.context, [:data_layer, :references, :on_delete]) do
+        {:nilify, columns} -> {:nilify, List.wrap(columns)}
+        other -> other
+      end
+
+    legacy_on_delete = AshPostgres.DataLayer.Info.polymorphic_on_delete(relationship.source)
+
+    context_on_delete || legacy_on_delete
+  end
+
+  defp polymorphic_on_update(relationship) do
+    get_in(relationship.context, [:data_layer, :references, :on_update]) ||
+      AshPostgres.DataLayer.Info.polymorphic_on_update(relationship.source)
   end
 
   defp do_snapshot(resource, table, schema \\ nil) do
