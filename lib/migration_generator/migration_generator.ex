@@ -3851,29 +3851,20 @@ defmodule AshPostgres.MigrationGenerator do
   end
 
   defp polymorphic_on_delete(relationship) do
-    relationship_context_on_delete =
-      get_in(relationship.context, [:data_layer, :references, :on_delete])
+    context_on_delete =
+      case get_in(relationship.context, [:data_layer, :references, :on_delete]) do
+        {:nilify, columns} -> {:nilify, List.wrap(columns)}
+        other -> other
+      end
 
     legacy_on_delete = AshPostgres.DataLayer.Info.polymorphic_on_delete(relationship.source)
 
-    if relationship_context_on_delete && legacy_on_delete do
-      raise "Conflicting configurations for references: both relationship_context references on_delete and polymorphic_on_delete are configured"
-    end
-
-    relationship_context_on_delete || legacy_on_delete
+    context_on_delete || legacy_on_delete
   end
 
   defp polymorphic_on_update(relationship) do
-    relationship_context_on_update =
-      get_in(relationship.context, [:data_layer, :references, :on_update])
-
-    legacy_on_update = AshPostgres.DataLayer.Info.polymorphic_on_update(relationship.source)
-
-    if relationship_context_on_update && legacy_on_update do
-      raise "Conflicting configurations for references: both relationship_context references on_update and polymorphic_on_update are configured"
-    end
-
-    relationship_context_on_update || legacy_on_update
+    get_in(relationship.context, [:data_layer, :references, :on_update]) ||
+      AshPostgres.DataLayer.Info.polymorphic_on_update(relationship.source)
   end
 
   defp do_snapshot(resource, table, schema \\ nil) do
