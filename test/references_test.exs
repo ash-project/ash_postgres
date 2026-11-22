@@ -262,10 +262,11 @@ defmodule AshPostgres.ReferencesTest do
     end
   end
 
-  test "polymorphic reference values are validated" do
+  test "invalid polymorphic reference values raise an error" do
     for {name, option, value} <- [
           {InvalidPolymorphicDelete, :on_delete, :update},
-          {InvalidPolymorphicUpdate, :on_update, :delete}
+          {InvalidPolymorphicUpdate, :on_update, :delete},
+          {InvalidPolymorphicName, :name, :not_a_string}
         ] do
       error =
         assert_dsl_error do
@@ -278,6 +279,12 @@ defmodule AshPostgres.ReferencesTest do
     refute_dsl_errors do
       define_polymorphic_source(NilifyPolymorphicReference, %{
         on_delete: {:nilify, :resource_id}
+      })
+    end
+
+    refute_dsl_errors do
+      define_polymorphic_source(NamedPolymorphicReference, %{
+        name: "comments_to_posts_fkey"
       })
     end
   end
