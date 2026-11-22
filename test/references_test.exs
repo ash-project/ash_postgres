@@ -231,7 +231,7 @@ defmodule AshPostgres.ReferencesTest do
     assert io =~ "References can only be configured for `belongs_to` relationships"
   end
 
-  test "polymorphic references must be a map and the error identifies the relationship" do
+  test "setting a polymorphic reference with a non-map value raises an error" do
     error =
       assert_dsl_error do
         define_polymorphic_source(InvalidPolymorphicReferences, "invalid")
