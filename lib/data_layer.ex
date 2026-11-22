@@ -158,41 +158,6 @@ defmodule AshPostgres.DataLayer do
     schema: AshPostgres.Reference.schema()
   }
 
-  @references %Spark.Dsl.Section{
-    name: :references,
-    describe: """
-    A section for configuring the references (foreign keys) in resource migrations.
-
-    This section is only relevant if you are using the migration generator with this resource.
-    Otherwise, it has no effect.
-    """,
-    examples: [
-      """
-      references do
-        reference :post, on_delete: :delete, on_update: :update, name: "comments_to_posts_fkey"
-      end
-      """
-    ],
-    entities: [@reference],
-    schema: [
-      polymorphic_on_delete: [
-        type:
-          {:or,
-           [
-             {:one_of, [:delete, :nilify, :nothing, :restrict]},
-             {:tagged_tuple, :nilify, {:wrap_list, :atom}}
-           ]},
-        doc:
-          "For polymorphic resources, configures the on_delete behavior of the automatically generated foreign keys to source tables."
-      ],
-      polymorphic_on_update: [
-        type: {:one_of, [:update, :nilify, :nothing, :restrict]},
-        doc:
-          "For polymorphic resources, configures the on_update behavior of the automatically generated foreign keys to source tables."
-      ]
-    ]
-  }
-
   @check_constraint %Spark.Dsl.Entity{
     name: :check_constraint,
     describe: """
