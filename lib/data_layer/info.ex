@@ -157,9 +157,6 @@ defmodule AshPostgres.DataLayer.Info do
     Extension.get_opt(resource, [:postgres, :references], :polymorphic_on_update, nil, true)
   end
 
-  @doc "Deprecated compatibility API that always returns `nil`. Configure `relationship_context.data_layer.references[:name]` instead."
-  def polymorphic_name(_resource), do: nil
-
   @doc "The configured polymorphic? for a resource"
   def polymorphic?(resource) do
     Extension.get_opt(resource, [:postgres], :polymorphic?, nil, true)

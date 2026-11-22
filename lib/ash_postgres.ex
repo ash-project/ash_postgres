@@ -39,9 +39,6 @@ defmodule AshPostgres do
   @deprecated "use AshPostgres.DataLayer.Info.polymorphic_on_update/1"
   defdelegate polymorphic_on_update(resource), to: AshPostgres.DataLayer.Info
 
-  @deprecated "always returns nil; configure relationship_context.data_layer.references[:name] instead"
-  defdelegate polymorphic_name(resource), to: AshPostgres.DataLayer.Info
-
   @deprecated "use AshPostgres.DataLayer.Info.polymorphic?/1"
   defdelegate polymorphic?(resource), to: AshPostgres.DataLayer.Info
 
