@@ -71,11 +71,21 @@ defmodule AshPostgres.TimestamptzUsec do
       |> Map.merge(right_overloads)
       |> Map.merge(cross_type_overloads)
 
+    # Date arithmetic on this type stays this type, so what it's compared with is cast to
+    # timestamptz too (and the arithmetic itself is done in UTC, see
+    # `AshPostgres.SqlImplementation`), rather than both sides becoming `timestamp`,
+    # which depends on the session time zone.
+    datetime_add_overloads = %{
+      [__MODULE__, Ash.Type.Integer, Ash.Type.DurationName] => __MODULE__,
+      [__MODULE__, Ash.Type.Duration] => __MODULE__
+    }
+
     %{
       :< => comparison_overloads,
       :<= => comparison_overloads,
       :> => comparison_overloads,
-      :>= => comparison_overloads
+      :>= => comparison_overloads,
+      :datetime_add => datetime_add_overloads
     }
   end
 end

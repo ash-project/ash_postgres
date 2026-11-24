@@ -391,6 +391,147 @@ defmodule AshPostgres.SqlImplementation do
     end
   end
 
+  # Date arithmetic on timestamptz values. Ecto's `datetime_add/3` (which `AshSql` uses,
+  # so that every adapter gets its own dialect) casts to `timestamp`, which on postgres
+  # depends on the session's `TimeZone`: on a session that isn't UTC, adding a day
+  # across a DST change adds 23 or 25 hours, and the expression is only stable, not
+  # immutable, so a bound parameter can't be folded to a constant while planning
+  # (partitioned tables and TimescaleDB hypertables then plan every partition).
+  #
+  # For timestamptz values, the arithmetic is done on the UTC wall clock instead:
+  # `timezone('UTC', x)` is the UTC wall-clock time, plus the interval, and
+  # `timezone('UTC', ...)` back to an instant. Every step is immutable, and the result
+  # is the UTC arithmetic Ash's own evaluation does. Naive timestamps are left to
+  # `AshSql`, where they were already computed this way.
+  def expr(
+        query,
+        %Ash.Query.Function.DateTimeAdd{
+          arguments: [datetime, amount, interval],
+          embedded?: pred_embedded?
+        },
+        bindings,
+        embedded?,
+        acc,
+        type
+      )
+      when is_binary(interval) or is_atom(interval) do
+    case timestamptz_type(type) || timestamptz_type(datetime) do
+      nil ->
+        :error
+
+      tz_type ->
+        embedded? = pred_embedded? || embedded?
+
+        # The datetime is computed as timestamptz too, so a nested `datetime_add` (or
+        # anything else typed by context) takes this path rather than producing a naive
+        # timestamp that would then need a session-dependent cast.
+        {datetime, acc} =
+          AshSql.Expr.dynamic_expr(query, datetime, bindings, embedded?, tz_type, acc)
+
+        {amount, acc} =
+          AshSql.Expr.dynamic_expr(query, amount, bindings, embedded?, :integer, acc)
+
+        {:ok, utc_add(datetime, amount, interval), acc}
+    end
+  end
+
+  def expr(
+        query,
+        %Ash.Query.Function.DateTimeAdd{
+          arguments: [datetime, duration],
+          embedded?: pred_embedded?
+        },
+        bindings,
+        embedded?,
+        acc,
+        type
+      ) do
+    case timestamptz_type(type) || timestamptz_type(datetime) do
+      nil ->
+        :error
+
+      tz_type ->
+        embedded? = pred_embedded? || embedded?
+
+        {datetime, acc} =
+          AshSql.Expr.dynamic_expr(query, datetime, bindings, embedded?, tz_type, acc)
+
+        {duration, acc} =
+          AshSql.Expr.dynamic_expr(query, duration, bindings, embedded?, :duration, acc)
+
+        {:ok, utc_add_interval(datetime, duration), acc}
+    end
+  end
+
+  def expr(
+        query,
+        %fun{arguments: [amount, interval], embedded?: pred_embedded?},
+        bindings,
+        embedded?,
+        acc,
+        type
+      )
+      when fun in [Ash.Query.Function.Ago, Ash.Query.Function.FromNow] and
+             (is_binary(interval) or is_atom(interval)) do
+    if timestamptz_type(type) do
+      {amount, acc} =
+        AshSql.Expr.dynamic_expr(
+          query,
+          amount,
+          bindings,
+          pred_embedded? || embedded?,
+          :integer,
+          acc
+        )
+
+      amount =
+        if fun == Ash.Query.Function.Ago,
+          do: Ecto.Query.dynamic(-1 * ^amount),
+          else: amount
+
+      {:ok, utc_add(as_of_or_now(query), amount, interval), acc}
+    else
+      :error
+    end
+  end
+
+  def expr(
+        query,
+        %fun{arguments: [duration], embedded?: pred_embedded?},
+        bindings,
+        embedded?,
+        acc,
+        type
+      )
+      when fun in [Ash.Query.Function.Ago, Ash.Query.Function.FromNow] do
+    if timestamptz_type(type) do
+      {duration, acc} =
+        AshSql.Expr.dynamic_expr(
+          query,
+          duration,
+          bindings,
+          pred_embedded? || embedded?,
+          :duration,
+          acc
+        )
+
+      now = as_of_or_now(query)
+
+      dynamic =
+        if fun == Ash.Query.Function.Ago do
+          Ecto.Query.dynamic(
+            fragment("timezone('UTC', timezone('UTC', ?::timestamptz) - ?)", ^now, ^duration)
+          )
+        else
+          utc_add_interval(now, duration)
+        end
+
+      {:ok, dynamic, acc}
+    else
+      :error
+    end
+  end
+
   def expr(
         _query,
         _expr,
@@ -400,6 +541,70 @@ defmodule AshPostgres.SqlImplementation do
         _type
       ) do
     :error
+  end
+
+  # `amount` whole `interval`s (`:day`, `:month`, ...) after `datetime`, in UTC. The unit
+  # goes as an interval parameter (Postgrex sends a `Duration` as one), so one fragment
+  # covers every unit and nothing is parsed from text.
+  defp utc_add(datetime, amount, interval) do
+    unit = one(interval)
+
+    Ecto.Query.dynamic(
+      fragment(
+        "timezone('UTC', timezone('UTC', ?::timestamptz) + (?::numeric * ?::interval))",
+        ^datetime,
+        ^amount,
+        ^unit
+      )
+    )
+  end
+
+  defp utc_add_interval(datetime, duration) do
+    Ecto.Query.dynamic(
+      fragment("timezone('UTC', timezone('UTC', ?::timestamptz) + ?)", ^datetime, ^duration)
+    )
+  end
+
+  defp one(interval) when is_binary(interval), do: one(String.to_existing_atom(interval))
+  defp one(:year), do: Duration.new!(year: 1)
+  defp one(:month), do: Duration.new!(month: 1)
+  defp one(:week), do: Duration.new!(week: 1)
+  defp one(:day), do: Duration.new!(day: 1)
+  defp one(:hour), do: Duration.new!(hour: 1)
+  defp one(:minute), do: Duration.new!(minute: 1)
+  defp one(:second), do: Duration.new!(second: 1)
+  defp one(:millisecond), do: Duration.new!(microsecond: {1000, 6})
+  defp one(:microsecond), do: Duration.new!(microsecond: {1, 6})
+
+  defp as_of_or_now(query) do
+    get_in(query.__ash_bindings__, [:context, :private, :as_of]) || DateTime.utc_now()
+  end
+
+  # The type (as `{type, constraints}`), or the type of an expression, if it is stored as
+  # timestamptz; otherwise nil.
+  defp timestamptz_type(nil), do: nil
+  defp timestamptz_type({:array, _}), do: nil
+
+  defp timestamptz_type({type, constraints}) when is_atom(type) and is_list(constraints) do
+    case Ash.Type.get_type(type) do
+      type when is_atom(type) and not is_nil(type) ->
+        if Code.ensure_loaded?(type) and function_exported?(type, :storage_type, 1) and
+             type.storage_type(constraints) in [:timestamptz, :"timestamptz(6)"] do
+          {type, constraints}
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp timestamptz_type(type) when is_atom(type), do: timestamptz_type({type, []})
+
+  defp timestamptz_type(expr) do
+    case Ash.Expr.determine_type(expr) do
+      {:ok, type} -> timestamptz_type(type)
+      _ -> nil
+    end
   end
 
   defp boolean_type?(Ash.Type.Boolean), do: true
