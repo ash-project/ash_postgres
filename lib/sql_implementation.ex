@@ -533,6 +533,77 @@ defmodule AshPostgres.SqlImplementation do
   end
 
   def expr(
+        query,
+        %fun{arguments: [time_zone], embedded?: pred_embedded?, extra: extra},
+        bindings,
+        embedded?,
+        acc,
+        _type
+      )
+      when fun in [Ash.Query.Function.LocalNow, Ash.Query.Function.LocalToday] do
+    instant = local_time_anchor(query, extra)
+
+    {local, acc} =
+      local_time(query, instant, time_zone, bindings, pred_embedded? || embedded?, acc)
+
+    local =
+      if fun == Ash.Query.Function.LocalToday do
+        Ecto.Query.dynamic(fragment("?::date", ^local))
+      else
+        local
+      end
+
+    {:ok, local, acc}
+  end
+
+  def expr(
+        query,
+        %fun{arguments: [amount, interval, time_zone], embedded?: pred_embedded?, extra: extra},
+        bindings,
+        embedded?,
+        acc,
+        _type
+      )
+      when fun in [Ash.Query.Function.LocalAgo, Ash.Query.Function.LocalFromNow] and
+             (is_binary(interval) or is_atom(interval)) do
+    embedded? = pred_embedded? || embedded?
+    {amount, acc} = AshSql.Expr.dynamic_expr(query, amount, bindings, embedded?, :integer, acc)
+
+    amount =
+      if fun == Ash.Query.Function.LocalAgo,
+        do: Ecto.Query.dynamic(-1 * ^amount),
+        else: amount
+
+    instant = utc_add(local_time_anchor(query, extra), amount, interval)
+    {local, acc} = local_time(query, instant, time_zone, bindings, embedded?, acc)
+    {:ok, local, acc}
+  end
+
+  def expr(
+        query,
+        %fun{arguments: [duration, time_zone], embedded?: pred_embedded?, extra: extra},
+        bindings,
+        embedded?,
+        acc,
+        _type
+      )
+      when fun in [Ash.Query.Function.LocalAgo, Ash.Query.Function.LocalFromNow] do
+    embedded? = pred_embedded? || embedded?
+
+    {duration, acc} =
+      AshSql.Expr.dynamic_expr(query, duration, bindings, embedded?, :duration, acc)
+
+    duration =
+      if fun == Ash.Query.Function.LocalAgo,
+        do: Ecto.Query.dynamic(fragment("-(?::interval)", ^duration)),
+        else: duration
+
+    instant = utc_add_interval(local_time_anchor(query, extra), duration)
+    {local, acc} = local_time(query, instant, time_zone, bindings, embedded?, acc)
+    {:ok, local, acc}
+  end
+
+  def expr(
         _query,
         _expr,
         _bindings,
@@ -541,6 +612,18 @@ defmodule AshPostgres.SqlImplementation do
         _type
       ) do
     :error
+  end
+
+  defp local_time_anchor(query, extra) do
+    (extra[:as_of] || as_of_or_now(query))
+    |> DateTime.shift_zone!("Etc/UTC")
+  end
+
+  defp local_time(query, instant, time_zone, bindings, embedded?, acc) do
+    {time_zone, acc} =
+      AshSql.Expr.dynamic_expr(query, time_zone, bindings, embedded?, :string, acc)
+
+    {Ecto.Query.dynamic(fragment("timezone(?::text, ?::timestamptz)", ^time_zone, ^instant)), acc}
   end
 
   # `amount` whole `interval`s (`:day`, `:month`, ...) after `datetime`, in UTC. The unit
