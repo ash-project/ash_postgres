@@ -39,7 +39,8 @@ if Mix.env() == :test do
 
   config :ash, :custom_expressions, [
     AshPostgres.Expressions.TrigramWordSimilarity,
-    AshPostgres.Test.OperatorExpression.IntListContains
+    AshPostgres.Test.OperatorExpression.IntListContains,
+    AshPostgres.Test.Expressions.AtZone
   ]
 
   config :ash, :known_types, [
