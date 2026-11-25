@@ -73,6 +73,21 @@ defmodule AshPostgres.Test.MultitenancyTest do
              |> Ash.read!()
   end
 
+  test "loading a first aggregate over a belongs_to together with a calculation that uses it",
+       %{org1: org1} do
+    user =
+      User
+      |> Ash.Changeset.for_create(:create, %{name: "a", org_id: org1.id}, tenant: tenant(org1))
+      |> Ash.create!()
+
+    assert %{org_name: "test1", has_org_name?: true} =
+             User
+             |> Ash.Query.filter(id == ^user.id)
+             |> Ash.Query.set_tenant(tenant(org1))
+             |> Ash.Query.load([:org_name, :has_org_name?])
+             |> Ash.read_one!()
+  end
+
   test "joining to non multitenant through relationship works", %{org1: org1} do
     Post
     |> Ash.Query.filter(linked_non_multitenant_posts.title == "fred")
