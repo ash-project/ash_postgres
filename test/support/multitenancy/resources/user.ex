@@ -47,6 +47,11 @@ defmodule AshPostgres.MultitenancyTest.User do
   aggregates do
     list(:years_visited, :posts, :last_word)
     count(:count_visited, :posts)
+    first(:org_name, :org, :name)
+  end
+
+  calculations do
+    calculate(:has_org_name?, :boolean, expr(not is_nil(org_name)))
   end
 
   def parse_tenant("org_" <> id), do: id
