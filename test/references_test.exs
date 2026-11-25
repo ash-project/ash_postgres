@@ -5,6 +5,61 @@
 defmodule AshPostgres.ReferencesTest do
   use AshPostgres.RepoCase
   import ExUnit.CaptureIO
+  import Spark.Test
+
+  defmodule PolymorphicComment do
+    use Ash.Resource, domain: nil, data_layer: AshPostgres.DataLayer
+
+    postgres do
+      repo AshPostgres.TestRepo
+      polymorphic? true
+    end
+
+    attributes do
+      uuid_primary_key(:id)
+      attribute(:resource_id, :uuid)
+    end
+  end
+
+  defp define_polymorphic_source(name, references, legacy \\ []) do
+    name = Module.concat(__MODULE__, name)
+    legacy_options = for {key, value} <- legacy, do: {key, [], [Macro.escape(value)]}
+
+    Code.compile_quoted(
+      quote location: :keep do
+        defmodule unquote(name) do
+          use Ash.Resource, domain: nil, data_layer: AshPostgres.DataLayer
+
+          postgres do
+            repo AshPostgres.TestRepo
+            table "posts"
+
+            references do
+              (unquote_splicing(legacy_options))
+            end
+          end
+
+          attributes do
+            uuid_primary_key(:id)
+          end
+
+          relationships do
+            has_many :comments, unquote(PolymorphicComment) do
+              destination_attribute(:resource_id)
+
+              relationship_context(%{
+                data_layer: %{
+                  table: "post_comments",
+                  references: unquote(Macro.escape(references))
+                }
+              })
+            end
+          end
+        end
+      end,
+      __ENV__.file
+    )
+  end
 
   test "can't use match_type != :full when referencing an non-primary key index" do
     Code.compiler_options(ignore_module_conflict: true)
@@ -174,6 +229,85 @@ defmodule AshPostgres.ReferencesTest do
       end)
 
     assert io =~ "References can only be configured for `belongs_to` relationships"
+  end
+
+  test "setting a polymorphic reference with a non-map value raises an error" do
+    error =
+      assert_dsl_error do
+        define_polymorphic_source(InvalidPolymorphicReferences, "invalid")
+      end
+
+    assert error.path == [
+             :relationships,
+             :comments,
+             :relationship_context,
+             :data_layer,
+             :references
+           ]
+
+    assert error.message =~ "map"
+  end
+
+  test "unknown polymorphic reference options are rejected" do
+    for {name, references, key} <- [
+          {UnknownPolymorphicReference, %{on_delet: :delete}, "on_delet"},
+          {StringPolymorphicReference, %{"on_delete" => :delete}, "on_delete"}
+        ] do
+      error =
+        assert_dsl_error do
+          define_polymorphic_source(name, references)
+        end
+
+      assert error.message =~ key
+    end
+  end
+
+  test "invalid polymorphic reference values raise an error" do
+    for {name, option, value} <- [
+          {InvalidPolymorphicDelete, :on_delete, :update},
+          {InvalidPolymorphicUpdate, :on_update, :delete},
+          {InvalidPolymorphicName, :name, :not_a_string}
+        ] do
+      error =
+        assert_dsl_error do
+          define_polymorphic_source(name, %{option => value})
+        end
+
+      assert error.message =~ to_string(option)
+    end
+
+    refute_dsl_errors do
+      define_polymorphic_source(NilifyPolymorphicReference, %{
+        on_delete: {:nilify, :resource_id}
+      })
+    end
+
+    refute_dsl_errors do
+      define_polymorphic_source(NamedPolymorphicReference, %{
+        name: "comments_to_posts_fkey"
+      })
+    end
+  end
+
+  test "legacy and relationship polymorphic reference settings conflict per option" do
+    for {name, option, value, legacy} <- [
+          {DuplicatePolymorphicDelete, :on_delete, :delete, [polymorphic_on_delete: :delete]},
+          {ConflictingPolymorphicUpdate, :on_update, :update, [polymorphic_on_update: :restrict]}
+        ] do
+      error =
+        assert_dsl_error do
+          define_polymorphic_source(name, %{option => value}, legacy)
+        end
+
+      assert error.message =~ "polymorphic_#{option}"
+      assert error.message =~ "both"
+    end
+
+    refute_dsl_errors do
+      define_polymorphic_source(MixedPolymorphicReferenceFormats, %{on_update: :update},
+        polymorphic_on_delete: :delete
+      )
+    end
   end
 
   test "named reference results in properly applied foreign_key_constraint/3 on the underlying changeset" do

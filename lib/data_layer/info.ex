@@ -157,11 +157,6 @@ defmodule AshPostgres.DataLayer.Info do
     Extension.get_opt(resource, [:postgres, :references], :polymorphic_on_update, nil, true)
   end
 
-  @doc "The configured polymorphic_reference_name for a resource"
-  def polymorphic_name(resource) do
-    Extension.get_opt(resource, [:postgres, :references], :polymorphic_name, nil, true)
-  end
-
   @doc "The configured polymorphic? for a resource"
   def polymorphic?(resource) do
     Extension.get_opt(resource, [:postgres], :polymorphic?, nil, true)
